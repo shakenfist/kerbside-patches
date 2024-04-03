@@ -1,0 +1,4 @@
+repo: https://github.com/openstack/kolla-ansible
+branch: stable/2023.1
+shallow_clone: true
+directory: kolla-ansible

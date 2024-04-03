@@ -1,0 +1,4 @@
+repo: https://github.com/openstack/oslo.config
+branch: stable/2023.2
+shallow_clone: false
+directory: oslo.config

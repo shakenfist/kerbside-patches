@@ -1,0 +1,19 @@
+commit 58390a932f8508f7f24a934ceb766ec7d7271d80
+Author: Michael Still <mikal@stillhq.com>
+
+    Use a routable IP for qemu SPICE consoles.
+
+diff --git a/ansible/roles/nova-cell/templates/nova.conf.j2 b/ansible/roles/nova-cell/templates/nova.conf.j2
+index 3243d47..930e9c2 100644
+--- a/ansible/roles/nova-cell/templates/nova.conf.j2
++++ b/ansible/roles/nova-cell/templates/nova.conf.j2
+@@ -64,8 +64,8 @@ jpeg_compression = {{ nova_spice_jpeg_compression }}
+ zlib_compression = {{ nova_spice_zlib_compression }}
+ playback_compression = {{ nova_spice_playback_compression | bool | lower }}
+ streaming_mode = {{ nova_spice_streaming_mode }}
++server_proxyclient_address = "{{ 'api' | kolla_address }}"
+ {% if nova_spice_html5 == 'yes' %}
+-server_proxyclient_address = {{ api_interface_address }}
+ {% if inventory_hostname in groups[nova_cell_compute_group] %}
+ html5proxy_base_url = {{ public_protocol }}://{{ nova_spicehtml5proxy_fqdn | put_address_in_context('url') }}:{{ nova_spicehtml5proxy_port }}/spice_auto.html
+ {% endif %}

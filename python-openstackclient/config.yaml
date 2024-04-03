@@ -1,0 +1,4 @@
+repo: https://github.com/openstack/python-openstackclient
+branch: master
+shallow_clone: false
+directory: python-openstackclient

@@ -1,0 +1,197 @@
+commit 91760af644f381d2fd4883b84df8467dd9df1be7
+Author: Michael Still <mikal@stillhq.com>
+
+    libvirt: allow concurrent access to SPICE consoles.
+
+    This patch introduces the spice.allow_concurrent configuration
+    option, which if set to true alters the domain xml for the instance
+    to allow concurrent connections to the SPICE console. In testing
+    this has proven quite reliable, but unfortunately does require
+    requesting that libvirt customize the qemu command line, with
+    associated xml namespace fun.
+
+diff --git a/nova/conf/spice.py b/nova/conf/spice.py
+index d01a83c3b9..8742da47ba 100644
+--- a/nova/conf/spice.py
++++ b/nova/conf/spice.py
+@@ -211,6 +211,20 @@ Possible values:
+
+ * False: console traffic is not encrypted.
+ * True: console traffic is required to be protected by TLS.
++"""),
++    cfg.BoolOpt('allow_concurrent',
++        default=False,
++        help="""
++Whether to allow concurrent access to SPICE consoles.
++
++SPICE supports multiple users accessing the same console simultaneously, with
++some reduced functionality for the second and subsequent users. Set this option
++to True to enable concurrent access to SPICE consoles.
++
++Possible values:
++
++* False: concurrent access is not allowed.
++* True: concurrent access is allowed.
+ """),
+ ]
+
+diff --git a/nova/tests/unit/virt/libvirt/test_driver.py b/nova/tests/unit/virt/libvirt/test_driver.py
+index 263b416934..fdf757028f 100644
+--- a/nova/tests/unit/virt/libvirt/test_driver.py
++++ b/nova/tests/unit/virt/libvirt/test_driver.py
+@@ -6058,6 +6058,26 @@ class LibvirtConnTestCase(test.NoDBTestCase,
+         self.assertEqual(cfg.devices[3].listen, '10.0.0.1')
+         self.assertTrue(cfg.devices[3].secure)
+
++    def test_get_guest_config_with_spice_concurrent(self):
++        self.flags(enabled=False, group='vnc')
++        self.flags(virt_type='kvm', group='libvirt')
++        self.flags(enabled=True,
++                   agent_enabled=False,
++                   require_secure=True,
++                   allow_concurrent=True,
++                   server_listen='10.0.0.1',
++                   group='spice')
++        self.flags(pointer_model='usbtablet')
++
++        cfg = self._get_guest_config_with_graphics()
++        print(cfg.to_xml())
++        self.assertEqual(
++            cfg.qemu_commandline.to_xml().lstrip().rstrip(),
++            ('<qemu:commandline xmlns:qemu='
++                '"http://libvirt.org/schemas/domain/qemu/1.0">\n'
++             '  <qemu:env name="SPICE_DEBUG_ALLOW_MC" value="1"/>\n'
++             '</qemu:commandline>'))
++
+     @mock.patch.object(host.Host, 'get_guest')
+     @mock.patch.object(libvirt_driver.LibvirtDriver,
+                        '_get_serial_ports_from_guest')
+diff --git a/nova/virt/libvirt/config.py b/nova/virt/libvirt/config.py
+index 9bde7e62d4..b3aaed19c6 100644
+--- a/nova/virt/libvirt/config.py
++++ b/nova/virt/libvirt/config.py
+@@ -53,6 +53,10 @@ def parse_libvirt_device_alias(alias):
+         return alias
+
+
++# Namespace for qemu specific items in XML
++QEMU_NS = "http://libvirt.org/schemas/domain/qemu/1.0"
++
++
+ class LibvirtConfigObject(object):
+
+     def __init__(self, **kwargs):
+@@ -61,6 +65,7 @@ class LibvirtConfigObject(object):
+         self.root_name = kwargs.pop("root_name")
+         self.ns_prefix = kwargs.pop("ns_prefix", None)
+         self.ns_uri = kwargs.pop("ns_uri", None)
++        self.use_ns_prefix = True
+
+         # handle programmer error
+         assert not kwargs
+@@ -68,10 +73,13 @@ class LibvirtConfigObject(object):
+     def _new_node(self, node_name, **kwargs):
+         if self.ns_uri is None:
+             return etree.Element(node_name, **kwargs)
+-        else:
+-            return etree.Element("{" + self.ns_uri + "}" + node_name,
+-                                 nsmap={self.ns_prefix: self.ns_uri},
+-                                 **kwargs)
++        if not self.use_ns_prefix:
++            return etree.Element(node_name,
++                                  nsmap={self.ns_prefix: self.ns_uri},
++                                  **kwargs)
++        return etree.Element("{" + self.ns_uri + "}" + node_name,
++                             nsmap={self.ns_prefix: self.ns_uri},
++                             **kwargs)
+
+     def _text_node(self, node_name, value, **kwargs):
+         child = self._new_node(node_name, **kwargs)
+@@ -3049,6 +3057,8 @@ class LibvirtConfigGuest(LibvirtConfigObject):
+         self.perf_events = []
+         self.launch_security = None
+
++        self.qemu_commandline = LibvirtConfigGuestQemuCommandLine()
++
+     def _format_basic_props(self, root):
+         root.append(self._text_node("uuid", self.uuid))
+         root.append(self._text_node("name", self.name))
+@@ -3174,7 +3184,24 @@ class LibvirtConfigGuest(LibvirtConfigObject):
+             root.append(self.launch_security.format_dom())
+
+     def format_dom(self):
+-        root = super(LibvirtConfigGuest, self).format_dom()
++        qemu_commandline_element = self.qemu_commandline.format_dom()
++        if qemu_commandline_element:
++            # NOTE(mikal): libvirt requires that we declare the qemu namespace
++            # in the domain element, even though we don't want it to be the
++            # default namespace for the entire XML document. We can't just
++            # define it in the qemu:commandline tag as you'd expect. That's
++            # what this code is doing -- making sure our domain starts with:
++            #
++            # <domain type='kvm' ...
++            #  ... xmlns:qemu='http://libvirt.org/schemas/domain/qemu/1.0'>
++            self.ns_uri = QEMU_NS
++            self.ns_prefix = 'qemu'
++            self.use_ns_prefix = False
++
++            root = super(LibvirtConfigGuest, self).format_dom()
++            root.append(qemu_commandline_element)
++        else:
++            root = super(LibvirtConfigGuest, self).format_dom()
+
+         root.set("type", self.virt_type)
+
+@@ -3330,6 +3357,9 @@ class LibvirtConfigGuest(LibvirtConfigObject):
+     def set_clock(self, clk):
+         self.clock = clk
+
++    def set_commandline_spice_concurrent(self):
++        self.qemu_commandline.spice_concurrent = True
++
+
+ class LibvirtConfigGuestSnapshot(LibvirtConfigObject):
+
+@@ -3958,3 +3988,29 @@ class LibvirtConfigGuestMetaNovaIp(LibvirtConfigObject):
+         meta.set("address", str(self.address))
+         meta.set("ipVersion", str(self.ip_version))
+         return meta
++
++
++class LibvirtConfigGuestQemuCommandLine(LibvirtConfigObject):
++
++    def __init__(self):
++        super(LibvirtConfigGuestQemuCommandLine,
++              self).__init__(root_name='commandline',
++                             ns_prefix='qemu',
++                             ns_uri=QEMU_NS)
++
++        self.spice_concurrent = False
++
++    def format_dom(self):
++        meta = super(LibvirtConfigGuestQemuCommandLine, self).format_dom()
++        required = False
++
++        if self.spice_concurrent:
++            pkg = self._new_node('env')
++            pkg.set('name', 'SPICE_DEBUG_ALLOW_MC')
++            pkg.set('value', '1')
++            meta.append(pkg)
++            required = True
++
++        if not required:
++            return None
++        return meta
+diff --git a/nova/virt/libvirt/driver.py b/nova/virt/libvirt/driver.py
+index 855c7caac0..4f1443b021 100644
+--- a/nova/virt/libvirt/driver.py
++++ b/nova/virt/libvirt/driver.py
+@@ -7628,6 +7628,8 @@ class LibvirtDriver(driver.ComputeDriver):
+             graphics.playback_compression = CONF.spice.playback_compression
+             graphics.streaming_mode = CONF.spice.streaming_mode
+             graphics.secure = CONF.spice.require_secure
++            if CONF.spice.allow_concurrent:
++                guest.set_commandline_spice_concurrent()
+             guest.add_device(graphics)
+             add_video_driver = True
+

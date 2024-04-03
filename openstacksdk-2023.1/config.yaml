@@ -1,0 +1,4 @@
+repo: https://github.com/openstack/openstacksdk
+branch: stable/2023.1
+shallow_clone: false
+directory: openstacksdk

@@ -1,0 +1,16 @@
+[DEFAULT]
+base = debian
+debug = true
+push = false
+
+[kerbside-plugin-openstacksdk]
+type = local
+location = TOPSRCDIR/openstacksdk
+
+[kerbside]
+type = local
+location = TOPSRCDIR/kerbside
+
+[nova-base]
+type = local
+location = TOPSRCDIR/nova

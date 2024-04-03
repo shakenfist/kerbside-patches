@@ -1,0 +1,115 @@
+commit 663e8914c0177198edcabd88e82bf03e46f88499
+Author: Michael Still <mikal@stillhq.com>
+
+    Downgrade spice server in nova-libvirt container.
+
+diff --git a/kolla/patch016-downgrade-libvirt-and-friends b/kolla/patch016-downgrade-libvirt-and-friends
+new file mode 100644
+index 0000000..913566c
+--- /dev/null
++++ b/kolla/patch016-downgrade-libvirt-and-friends
+@@ -0,0 +1,104 @@
++commit 2cc7d1842d4ea959c6cef010f3761a0da5241af4
++Author: Michael Still <mikal@stillhq.com>
++Date:   Mon Oct 30 10:32:38 2023 +1100
++
++    Temporarily use older versions of libvirt packages.
++
++    I strongly suspect that there is a bug in spice-server, qemu, or
++    libvirt which is causing the server to disconnect the inputs channel
++    after 30 seconds of no keyboard or mouse activity. This patch is
++    attempting to prove that.
++
++    Also use xen-utils-4.17 instead of getting this error during builds:
++
++    ERROR:kolla.common.utils.nova-libvirt:Package xen-utils is a virtual package provided by:
++      xen-utils-4.14 4.14.6-1
++      xen-utils-4.17 4.17.1+2-gb773c48e36-1
++    ERROR:kolla.common.utils.nova-libvirt:E: Package 'xen-utils' has no installation candidate
++
++diff --git a/docker/nova/nova-libvirt/Dockerfile.j2 b/docker/nova/nova-libvirt/Dockerfile.j2
++index 6bf1ee471..65181e9ca 100644
++--- a/docker/nova/nova-libvirt/Dockerfile.j2
+++++ b/docker/nova/nova-libvirt/Dockerfile.j2
++@@ -44,19 +44,37 @@ LABEL maintainer="{{ maintainer }}" name="{{ image_name }}" build-date="{{ build
++         'ceph-common',
++         'ebtables',
++         'libsasl2-modules-gssapi-mit',
++-        'libvirt-clients',
++-        'libvirt-daemon-system',
++         'openvswitch-switch',
++         'pm-utils',
++         'python3-cephfs',
++         'python3-rados',
++         'python3-rbd',
++-        'qemu-block-extra',
++-        'qemu-system',
++-        'qemu-utils',
++         'sasl2-bin',
++         'swtpm',
++-        'trousers'
+++        'trousers',
+++
+++        'libspice-server1=0.14.3-2.1',
+++
+++        'libvirt0=7.0.0-3+deb11u2',
+++        'libvirt-clients=7.0.0-3+deb11u2',
+++        'libvirt-daemon=7.0.0-3+deb11u2',
+++        'libvirt-daemon-config-network=7.0.0-3+deb11u2',
+++        'libvirt-daemon-config-nwfilter=7.0.0-3+deb11u2',
+++        'libvirt-daemon-driver-qemu=7.0.0-3+deb11u2',
+++        'libvirt-daemon-system=7.0.0-3+deb11u2',
+++        'libvirt-daemon-system-systemd=7.0.0-3+deb11u2',
+++
+++        'qemu-system=1:5.2+dfsg-11+deb11u3',
+++        'qemu-system-common=1:5.2+dfsg-11+deb11u3',
+++        'qemu-system-data=1:5.2+dfsg-11+deb11u3',
+++        'qemu-system-arm=1:5.2+dfsg-11+deb11u3',
+++        'qemu-system-mips=1:5.2+dfsg-11+deb11u3',
+++        'qemu-system-misc=1:5.2+dfsg-11+deb11u3',
+++        'qemu-system-ppc=1:5.2+dfsg-11+deb11u3',
+++        'qemu-system-sparc=1:5.2+dfsg-11+deb11u3',
+++        'qemu-system-x86=1:5.2+dfsg-11+deb11u3',
+++        'qemu-block-extra=1:5.2+dfsg-11+deb11u3',
+++        'qemu-utils=1:5.2+dfsg-11+deb11u3',
++     ] %}
++
++     {% if base_arch == "aarch64" %}
++@@ -78,7 +96,7 @@ LABEL maintainer="{{ maintainer }}" name="{{ image_name }}" build-date="{{ build
++     {% if base_arch in ['aarch64', 'x86_64'] %}
++         {% set nova_libvirt_packages = nova_libvirt_packages + [
++             'dmidecode',
++-            'xen-utils'
+++            'xen-utils-4.17'
++         ] %}
++     {% endif %}
++
++@@ -89,6 +107,13 @@ LABEL maintainer="{{ maintainer }}" name="{{ image_name }}" build-date="{{ build
++     {% endif %}
++ {% endif %}
++
+++# Temporarily mix in older versions of debian packages so we can use them to
+++# isolate our connection issues.
+++{% if base_distro in ['debian'] %}
+++COPY bullseye.sources /etc/apt/sources.list.d/bullseye.list
+++RUN apt-get -y update
+++{% endif %}
+++
++ {{ macros.install_packages(nova_libvirt_packages | customizable("packages")) }}
++
++ {% if base_package_type == 'deb' %}
++diff --git a/docker/nova/nova-libvirt/bullseye.sources b/docker/nova/nova-libvirt/bullseye.sources
++new file mode 100644
++index 000000000..ffbd2f41d
++--- /dev/null
+++++ b/docker/nova/nova-libvirt/bullseye.sources
++@@ -0,0 +1,8 @@
+++deb http://deb.debian.org/debian/ bullseye main contrib non-free
+++deb-src http://deb.debian.org/debian/ bullseye main contrib non-free
+++
+++deb http://security.debian.org/debian-security bullseye-security main
+++deb-src http://security.debian.org/debian-security bullseye-security main
+++
+++deb http://deb.debian.org/debian/ bullseye-updates main
+++deb-src http://deb.debian.org/debian/ bullseye-updates main
++\ No newline at end of file

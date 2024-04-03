@@ -1,0 +1,109 @@
+commit b052b6ac23dae8a0db2888141ffb101c5e6c0732
+Author: Michael Still <mikal@stillhq.com>
+
+    Allow requiring secure channels with SPICE.
+
+    The nova_spice_require_secure configuration option requires clients
+    to connect to SPICE consoles using channels secured by TLS. The
+    default is no to match the previous behaviour of allowing insecure
+    channels. This configuration option depends on a not yet contributed
+    patch to OpenStack Compute.
+
+    Note that nova_spice_require_secure implies that qemu is configured
+    to support TLS, and that TLS certificates have been configured in
+    the nova_libvirt container.
+
+diff --git a/ansible/group_vars/all.yml b/ansible/group_vars/all.yml
+index 2227a5c..480dd44 100644
+--- a/ansible/group_vars/all.yml
++++ b/ansible/group_vars/all.yml
+@@ -1045,6 +1045,7 @@ nova_spice_jpeg_compression: "auto"
+ nova_spice_zlib_compression: "auto"
+ nova_spice_playback_compression: "yes"
+ nova_spice_streaming_mode: "filter"
++nova_spice_require_secure: "no"
+
+
+ #######################
+diff --git a/ansible/roles/nova-cell/templates/nova-libvirt.json.j2 b/ansible/roles/nova-cell/templates/nova-libvirt.json.j2
+index d2ddc9e..6a38098 100644
+--- a/ansible/roles/nova-cell/templates/nova-libvirt.json.j2
++++ b/ansible/roles/nova-cell/templates/nova-libvirt.json.j2
+@@ -67,6 +67,24 @@
+             "dest": "/root/.config/libvirt/auth.conf",
+             "owner": "root",
+             "perm": "0600"
++        }{% endif %}{% if nova_spice_require_secure | bool %},
++        {
++            "source": "{{ container_config_directory }}/serverkey.pem",
++            "dest": "/etc/pki/libvirt-spice/server-key.pem",
++            "owner": "root",
++            "perm": "0444"
++        },
++        {
++            "source": "{{ container_config_directory }}/servercert.pem",
++            "dest": "/etc/pki/libvirt-spice/server-cert.pem",
++            "owner": "root",
++            "perm": "0444"
++        },
++        {
++            "source": "{{ container_config_directory }}/cacert.pem",
++            "dest": "/etc/pki/libvirt-spice/ca-cert.pem",
++            "owner": "root",
++            "perm": "0444"
+         }{% endif %}
+     ]
+ }
+diff --git a/ansible/roles/nova-cell/templates/nova.conf.j2 b/ansible/roles/nova-cell/templates/nova.conf.j2
+index 930e9c2..cb39062 100644
+--- a/ansible/roles/nova-cell/templates/nova.conf.j2
++++ b/ansible/roles/nova-cell/templates/nova.conf.j2
+@@ -58,6 +58,7 @@ novncproxy_base_url = {{ public_protocol }}://{{ nova_novncproxy_fqdn | put_addr
+ enabled = false
+ [spice]
+ enabled = true
++require_secure = {{ nova_spice_require_secure | bool | lower }}
+ server_listen = {{ api_interface_address }}
+ image_compression = {{ nova_spice_image_compression }}
+ jpeg_compression = {{ nova_spice_jpeg_compression }}
+diff --git a/ansible/roles/nova-cell/templates/qemu.conf.j2 b/ansible/roles/nova-cell/templates/qemu.conf.j2
+index 1486401..65f5612 100644
+--- a/ansible/roles/nova-cell/templates/qemu.conf.j2
++++ b/ansible/roles/nova-cell/templates/qemu.conf.j2
+@@ -4,4 +4,9 @@ user = "nova"
+ group = "nova"
+
+ max_files =  {{ qemu_max_files }}
+-max_processes =  {{ qemu_max_processes }}
+\ No newline at end of file
++max_processes =  {{ qemu_max_processes }}
++
++{% if nova_spice_require_secure == 'yes' %}
++spice_tls = 1
++spice_tls_x509_cert_dir = "/etc/pki/libvirt-spice"
++{% endif %}
+\ No newline at end of file
+diff --git a/doc/source/reference/compute/nova-guide.rst b/doc/source/reference/compute/nova-guide.rst
+index d063535..07e7ab7 100644
+--- a/doc/source/reference/compute/nova-guide.rst
++++ b/doc/source/reference/compute/nova-guide.rst
+@@ -51,10 +51,18 @@ Valid options are ``none``, ``novnc`` and ``spice``. Additionally,
+ serial console support can be enabled by setting
+ ``enable_nova_serialconsole_proxy`` to ``yes``.
+
+-``spice`` consoles have additional configuration options:
++``spice`` consoles have additional configuration options used by Kolla Ansible:
+
+ * nova_spice_html5: configures whether the HTML5 transcoding proxy used by
+   Horizon is enabled, and defaults to ``yes``.
++* nova_spice_require_secure: configures whether SPICE connections require that
++  the connection be secured by TLS. This defaults to ``no`` to remain
++  compatible with previous installations. Note that ``yes`` implies
++  configuration and deployment of TLS certificates.
++
++Additionally ``spice`` has the following configuration options passed directly
++through to ``nova``:
++
+ * nova_spice_image_compression: which compression algorithm to use for images
+   when using the SPICE console type. Defaults to ``auto_glz``.
+ * nova_spice_jpeg_compression: whether or not to use JPEG compression with

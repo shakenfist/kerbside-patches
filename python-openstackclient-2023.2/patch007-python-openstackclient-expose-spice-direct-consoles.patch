@@ -1,0 +1,88 @@
+commit 379b47c613798dba7de142e9bf5d7726979f739f
+Author: Michael Still <mikal@stillhq.com>
+
+    Add support for microversion 2.96.
+
+    This microversion adds support for the new SPICE direct console
+    type.
+
+diff --git a/openstackclient/compute/v2/console.py b/openstackclient/compute/v2/console.py
+index bd6d5584..24ebbb83 100644
+--- a/openstackclient/compute/v2/console.py
++++ b/openstackclient/compute/v2/console.py
+@@ -26,7 +26,15 @@ def _get_console_columns(item):
+     # To maintain backwards compatibility we need to rename sdk props to
+     # whatever OSC was using before
+     column_map = {}
+-    hidden_columns = ['id', 'links', 'location', 'name']
++    hidden_columns = [
++        'id',
++        'links',
++        'location',
++        'name',
++        'host',
++        'port',
++        'tls_port',
++    ]
+     return utils.get_osc_show_columns_for_sdk_resource(
+         item, column_map, hidden_columns
+     )
+@@ -144,3 +152,46 @@ class ShowConsoleURL(command.ShowOne):
+         data = utils.get_dict_properties(data, columns)
+
+         return (display_columns, data)
++
++
++def _get_direct_console_columns(item):
++    # To maintain backwards compatibility we need to rename sdk props to
++    # whatever OSC was using before
++    column_map = {}
++    hidden_columns = ['id', 'links', 'location', 'name', 'url']
++    return utils.get_osc_show_columns_for_sdk_resource(
++        item, column_map, hidden_columns
++    )
++
++
++class ShowConsoleDirect(command.ShowOne):
++    # NOTE(mikal): this is only supported for spice-direct at this time.
++    _description = _(
++        "Show server's remote console direct connection information"
++    )
++
++    def get_parser(self, prog_name):
++        parser = super(ShowConsoleDirect, self).get_parser(prog_name)
++        parser.add_argument(
++            'server',
++            metavar='<server>',
++            help=_(
++                "Server to show direct connection information for (name or ID)"
++            ),
++        )
++        return parser
++
++    def take_action(self, parsed_args):
++        compute_client = self.app.client_manager.sdk_connection.compute
++        server = compute_client.find_server(
++            parsed_args.server, ignore_missing=False
++        )
++
++        data = compute_client.create_console(
++            server.id, console_type='spice-direct'
++        )
++
++        display_columns, columns = _get_direct_console_columns(data)
++        data = utils.get_dict_properties(data, columns)
++
++        return (display_columns, data)
+diff --git a/setup.cfg b/setup.cfg
+index de135075..8cd6b515 100644
+--- a/setup.cfg
++++ b/setup.cfg
+@@ -73,6 +73,7 @@ openstack.compute.v2 =
+
+     console_log_show = openstackclient.compute.v2.console:ShowConsoleLog
+     console_url_show = openstackclient.compute.v2.console:ShowConsoleURL
++    console_direct_show = openstackclient.compute.v2.console:ShowConsoleDirect
+
+     flavor_create = openstackclient.compute.v2.flavor:CreateFlavor
+     flavor_delete = openstackclient.compute.v2.flavor:DeleteFlavor

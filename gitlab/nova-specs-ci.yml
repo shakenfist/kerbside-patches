@@ -1,0 +1,14 @@
+nova-specs:
+  stage: artifacts
+  needs: []
+  interruptible: true
+  tags:
+    - shell
+    - vm
+  artifacts:
+    paths:
+      - src/nova-specs.tgz
+  timeout: 60m
+  script:
+    - rm -rf src/nova-specs
+    - ./testapply.sh nova-specs

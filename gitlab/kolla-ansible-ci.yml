@@ -1,0 +1,52 @@
+kolla-ansible-master:
+  stage: test
+  needs: []
+  interruptible: true
+  tags:
+    - shell
+    - vm
+  timeout: 120m
+  script:
+    - ./testapply.sh kolla-ansible
+
+kolla-ansible-stable-2023.1:
+  stage: test
+  needs: []
+  interruptible: true
+  tags:
+    - shell
+    - vm
+  timeout: 120m
+  script:
+    - ./testapply.sh kolla-ansible-2023.1
+
+kolla-ansible-stable-2023.2:
+  stage: test
+  needs: []
+  interruptible: true
+  tags:
+    - shell
+    - vm
+  timeout: 120m
+  script:
+    - ./testapply.sh kolla-ansible-2023.2
+
+kolla-ansible:
+  stage: artifacts
+  needs:
+    - kolla-ansible-master
+    - kolla-ansible-stable-2023.1
+    - kolla-ansible-stable-2023.2
+  interruptible: true
+  tags:
+    - shell
+    - vm
+  artifacts:
+    paths:
+      - src/kolla-ansible.tgz
+  timeout: 60m
+  script:
+    - rm -rf src/kolla-ansible
+    - ./testapply.sh --skiptests kolla-ansible-2023.1
+    - ./testapply.sh --skiptests kolla-ansible-2023.2
+    - ./testapply.sh --skiptests kolla-ansible

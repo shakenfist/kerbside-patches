@@ -1,0 +1,47 @@
+commit 1d279a908b32421a5aa316f1e53181dfb1446b30
+Author: Michael Still <mikal@stillhq.com>
+
+    Provide an exit code when raising SystemExit.
+
+    This will make it easier for scripts which call OpenStack tools to
+    detect failure if SystemExit isn't caught by the calling code.
+
+diff --git a/oslo_config/cfg.py b/oslo_config/cfg.py
+index 35f0cfb..73ae566 100644
+--- a/oslo_config/cfg.py
++++ b/oslo_config/cfg.py
+@@ -2979,7 +2979,7 @@ class ConfigOpts(abc.Mapping):
+             except ValueError:
+                 sys.stderr.write("argument --%s: Invalid %s value: %s\n" % (
+                     opt.dest, repr(opt.type), value))
+-                raise SystemExit
++                raise SystemExit(1)
+
+     def _reload_config_files(self):
+         namespace = self._parse_config_files()
+diff --git a/oslo_config/generator.py b/oslo_config/generator.py
+index ea12a92..8f8f85e 100644
+--- a/oslo_config/generator.py
++++ b/oslo_config/generator.py
+@@ -826,7 +826,7 @@ def main(args=None):
+     except cfg.RequiredOptError:
+         conf.print_help()
+         if not sys.argv[1:]:
+-            raise SystemExit
++            raise SystemExit(1)
+         raise
+     generate(conf)
+
+diff --git a/oslo_config/validator.py b/oslo_config/validator.py
+index 0172554..4ec1a7e 100644
+--- a/oslo_config/validator.py
++++ b/oslo_config/validator.py
+@@ -227,7 +227,7 @@ def main():
+     except cfg.RequiredOptError:
+         conf.print_help()
+         if not sys.argv[1:]:
+-            raise SystemExit
++            raise SystemExit(1)
+         raise
+     return _validate(conf)
+

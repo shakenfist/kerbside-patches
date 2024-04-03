@@ -1,0 +1,78 @@
+commit 8cee401389ccba52a6a645cd0676cc678220bede
+Author: Michael Still <mikal@stillhq.com>
+
+    Add support for microversion 2.97.
+
+    This microversion adds support for the new SPICE direct console
+    type.
+
+diff --git a/openstack/compute/v2/_proxy.py b/openstack/compute/v2/_proxy.py
+index 53ea68a4..71a9b2f9 100644
+--- a/openstack/compute/v2/_proxy.py
++++ b/openstack/compute/v2/_proxy.py
+@@ -2325,10 +2325,13 @@ class Proxy(proxy.Proxy):
+             * rdp-html5
+             * serial
+             * webmks (supported after 2.8)
++            * spice-direct (supported after 2.97)
+         :param console_protocol: Optional console protocol (is respected only
+             after microversion 2.6).
+
+-        :returns: Dictionary with console type, url and optionally protocol.
++        :returns: Dictionary with console type, connection details (url for
++        most consoles, host and port details for direct consoles) and
++        optionally protocol.
+         """
+         server = self._get_resource(_server.Server, server)
+         # NOTE: novaclient supports undocumented type xcpvnc also supported
+diff --git a/openstack/compute/v2/server_remote_console.py b/openstack/compute/v2/server_remote_console.py
+index cfa24a1a..45de5a85 100644
+--- a/openstack/compute/v2/server_remote_console.py
++++ b/openstack/compute/v2/server_remote_console.py
+@@ -17,6 +17,7 @@ CONSOLE_TYPE_PROTOCOL_MAPPING = {
+     'novnc': 'vnc',
+     'xvpvnc': 'vnc',
+     'spice-html5': 'spice',
++    'spice-direct': 'spice',
+     'rdp-html5': 'rdp',
+     'serial': 'serial',
+     'webmks': 'mks',
+@@ -34,16 +35,22 @@ class ServerRemoteConsole(resource.Resource):
+     allow_delete = False
+     allow_list = False
+
+-    _max_microversion = '2.8'
++    _max_microversion = '2.97'
+
+     #: Protocol of the remote console.
+     protocol = resource.Body('protocol')
+     #: Type of the remote console.
+     type = resource.Body('type')
+-    #: URL used to connect to the console.
++    #: URL used to connect to the console (most consoles).
+     url = resource.Body('url')
+     #: The ID for the server.
+     server_id = resource.URI('server_id')
++    #: The hostname of the hypervisor hosting the console (direct consoles).
++    host = resource.Body('host')
++    #: The port the TCP port the console is hosted on (direct consoles).
++    port = resource.Body('port')
++    #: The port the TLS port the console is hosted on (direct consoles).
++    tls_port = resource.Body('tls_port')
+
+     def create(self, session, prepend_key=True, base_path=None, **params):
+         if not self.protocol:
+@@ -55,6 +62,13 @@ class ServerRemoteConsole(resource.Resource):
+             raise ValueError(
+                 'Console type webmks is not supported on server side'
+             )
++        if (
++            not utils.supports_microversion(session, '2.97')
++            and self.type == 'spice-direct'
++        ):
++            raise ValueError(
++                'Console type spice-direct is not supported on server side'
++            )
+         return super(ServerRemoteConsole, self).create(
+             session, prepend_key=prepend_key, base_path=base_path, **params
+         )

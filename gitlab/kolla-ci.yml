@@ -1,0 +1,52 @@
+kolla-master:
+  stage: test
+  needs: []
+  interruptible: true
+  tags:
+    - shell
+    - vm
+  timeout: 120m
+  script:
+    - ./testapply.sh kolla
+
+kolla-stable-2023.1:
+  stage: test
+  needs: []
+  interruptible: true
+  tags:
+    - shell
+    - vm
+  timeout: 120m
+  script:
+    - ./testapply.sh kolla-2023.1
+
+kolla-stable-2023.2:
+  stage: test
+  needs: []
+  interruptible: true
+  tags:
+    - shell
+    - vm
+  timeout: 120m
+  script:
+    - ./testapply.sh kolla-2023.2
+
+kolla:
+  stage: artifacts
+  needs:
+    - kolla-master
+    - kolla-stable-2023.1
+    - kolla-stable-2023.2
+  interruptible: true
+  tags:
+    - shell
+    - vm
+  artifacts:
+    paths:
+      - src/kolla.tgz
+  timeout: 60m
+  script:
+    - rm -rf src/kolla
+    - ./testapply.sh --skiptests kolla-2023.1
+    - ./testapply.sh --skiptests kolla-2023.2
+    - ./testapply.sh --skiptests kolla

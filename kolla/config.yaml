@@ -1,0 +1,4 @@
+repo: https://github.com/openstack/kolla
+branch: master
+shallow_clone: true
+directory: kolla

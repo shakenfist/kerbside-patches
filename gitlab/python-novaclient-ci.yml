@@ -1,0 +1,65 @@
+python-novaclient-master:
+  stage: test
+  needs: []
+  interruptible: true
+  tags:
+    - shell
+    - vm
+  timeout: 120m
+  script:
+    - ./testapply.sh python-novaclient
+
+python-novaclient-stable-2023.1:
+  stage: test
+  needs: []
+  interruptible: true
+  tags:
+    - shell
+    - vm
+  timeout: 120m
+  script:
+    - ./testapply.sh python-novaclient-2023.1
+
+python-novaclient-stable-2023.2:
+  stage: test
+  needs: []
+  interruptible: true
+  tags:
+    - shell
+    - vm
+  timeout: 120m
+  script:
+    - ./testapply.sh python-novaclient-2023.2
+
+python-novaclient-stable-2024.1:
+  stage: test
+  needs: []
+  interruptible: true
+  tags:
+    - shell
+    - vm
+  timeout: 120m
+  script:
+    - ./testapply.sh python-novaclient-2024.1
+
+python-novaclient:
+  stage: artifacts
+  needs:
+    - python-novaclient-master
+    - python-novaclient-stable-2023.1
+    - python-novaclient-stable-2023.2
+    - python-novaclient-stable-2024.1
+  interruptible: true
+  tags:
+    - shell
+    - vm
+  artifacts:
+    paths:
+      - src/python-novaclient.tgz
+  timeout: 60m
+  script:
+    - rm -rf src/python-novaclient
+    - ./testapply.sh --skiptests python-novaclient-2023.1
+    - ./testapply.sh --skiptests python-novaclient-2023.2
+    - ./testapply.sh --skiptests python-novaclient-2024.1
+    - ./testapply.sh --skiptests python-novaclient

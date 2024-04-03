@@ -1,0 +1,65 @@
+python-openstackclient-master:
+  stage: test
+  needs: []
+  interruptible: true
+  tags:
+    - shell
+    - vm
+  timeout: 120m
+  script:
+    - ./testapply.sh python-openstackclient
+
+python-openstackclient-stable-2023.1:
+  stage: test
+  needs: []
+  interruptible: true
+  tags:
+    - shell
+    - vm
+  timeout: 120m
+  script:
+    - ./testapply.sh python-openstackclient-2023.1
+
+python-openstackclient-stable-2023.2:
+  stage: test
+  needs: []
+  interruptible: true
+  tags:
+    - shell
+    - vm
+  timeout: 120m
+  script:
+    - ./testapply.sh python-openstackclient-2023.2
+
+python-openstackclient-stable-2024.1:
+  stage: test
+  needs: []
+  interruptible: true
+  tags:
+    - shell
+    - vm
+  timeout: 120m
+  script:
+    - ./testapply.sh python-openstackclient-2024.1
+
+python-openstackclient:
+  stage: artifacts
+  needs:
+    - python-openstackclient-master
+    - python-openstackclient-stable-2023.1
+    - python-openstackclient-stable-2023.2
+    - python-openstackclient-stable-2024.1
+  interruptible: true
+  tags:
+    - shell
+    - vm
+  artifacts:
+    paths:
+      - src/python-openstackclient.tgz
+  timeout: 60m
+  script:
+    - rm -rf src/python-openstackclient
+    - ./testapply.sh --skiptests python-openstackclient-2023.1
+    - ./testapply.sh --skiptests python-openstackclient-2023.2
+    - ./testapply.sh --skiptests python-openstackclient-2024.1
+    - ./testapply.sh --skiptests python-openstackclient

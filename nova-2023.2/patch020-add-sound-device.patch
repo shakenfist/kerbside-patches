@@ -1,0 +1,86 @@
+commit c6aadc05ad4ed811ab11d489daff4ef08230d541
+Author: Michael Still <mikal@stillhq.com>
+
+    libvirt: Optionally support sound when using SPICE.
+
+    With SPICE direct consoles, having a sound device is now desirable
+    for VDI use cases. Add a new option in the 'spice' configuration
+    group:
+
+    - sound_enabled
+
+    When set to true, libvirt will be provided with domain XML which
+    configures an ICH6 sound device for the guest. ICH6 was selected
+    for its good support across both Windows and Linux guests.
+
+diff --git a/nova/conf/spice.py b/nova/conf/spice.py
+index 6cc45ae..f9e05cf 100644
+--- a/nova/conf/spice.py
++++ b/nova/conf/spice.py
+@@ -237,6 +237,16 @@ Possible values:
+
+ * False: no debug logs are enabled for SPICE connections.
+ * True: debug logs are enabled for SPICE connections.
++"""),
++    cfg.BoolOpt('sound_enabled',
++        default=False,
++        help="""
++Whether to include a sound device for instance when SPICE consoles are enabled.
++
++Possible values:
++
++* False: no sound device is added to instances.
++* True: an ich6 sound device is added to the instance.
+ """),
+ ]
+
+diff --git a/nova/virt/libvirt/config.py b/nova/virt/libvirt/config.py
+index 6a39c32..84f049f 100644
+--- a/nova/virt/libvirt/config.py
++++ b/nova/virt/libvirt/config.py
+@@ -3929,3 +3929,17 @@ class LibvirtConfigGuestUSBRedirect(LibvirtConfigObject):
+         meta.set('type', str(self.type))
+         meta.set('bus', str(self.bus))
+         return meta
++
++
++class LibvirtConfigGuestSound(LibvirtConfigObject):
++
++    def __init__(self, **kwargs):
++        super(LibvirtConfigGuestSound,
++              self).__init__(root_name='sound')
++
++        self.model = 'ich6'
++
++    def format_dom(self):
++        meta = self._new_node('sound')
++        meta.set('model', str(self.model))
++        return meta
+diff --git a/nova/virt/libvirt/driver.py b/nova/virt/libvirt/driver.py
+index 3b9832c..c28221d 100644
+--- a/nova/virt/libvirt/driver.py
++++ b/nova/virt/libvirt/driver.py
+@@ -7063,6 +7063,7 @@ class LibvirtDriver(driver.ComputeDriver):
+         self._create_consoles(guest, instance, flavor, image_meta)
+
+         self._guest_add_spice_channel(guest)
++        self._guest_add_spice_sound(guest)
+
+         if self._guest_add_video_device(guest):
+             self._add_video_driver(guest, image_meta, flavor)
+@@ -7265,6 +7266,15 @@ class LibvirtDriver(driver.ComputeDriver):
+             balloon.period = CONF.libvirt.mem_stats_period_seconds
+             guest.add_device(balloon)
+
++    @staticmethod
++    def _guest_add_spice_sound(guest):
++        if (
++            CONF.spice.enabled and CONF.spice.sound_enabled and
++            CONF.libvirt.virt_type != 'lxc'
++        ):
++            sounddev = vconfig.LibvirtConfigGuestSound()
++            guest.add_device(sounddev)
++
+     @staticmethod
+     def _guest_add_watchdog_action(guest, flavor, image_meta):
+         # image meta takes precedence over flavor extra specs; disable the

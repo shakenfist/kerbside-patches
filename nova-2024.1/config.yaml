@@ -1,0 +1,4 @@
+repo: https://github.com/openstack/nova
+branch: stable/2024.1
+shallow_clone: true
+directory: nova

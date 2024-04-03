@@ -1,0 +1,435 @@
+commit e3204cf8f45e91e8de28dc30ed1ad6150fd546ff
+Author: Michael Still <mikal@stillhq.com>
+
+    libvirt: allow direct SPICE connections to qemu
+
+    This patch adds a new console type, "spice-direct", which provides
+    the connection information required to talk the native SPICE protocol
+    directly to qemu on the hypervisor. This is intended to be fronted
+    by a proxy which will handle authentication separately.
+
+    A new microversion is introduced which adds the type "spice-direct"
+    to the existing "spice" protocol.
+
+    An example request:
+
+    POST /servers/<uuid>/remote-consoles
+    {
+      "remote_console": {
+        "protocol": "spice",
+        "type": "spice-direct"
+      }
+    }
+
+    An example response:
+
+    {
+      "remote_console": {
+        "protocol": "spice",
+        "type": "spice-direct",
+        "host": "localhost",
+        "port": 5900,
+        "tls_port": 5901
+      }
+    }
+
+    APIImpact
+
+diff --git a/doc/api_samples/versions/v21-version-get-resp.json b/doc/api_samples/versions/v21-version-get-resp.json
+index 3f285e6017..e1b7acede1 100644
+--- a/doc/api_samples/versions/v21-version-get-resp.json
++++ b/doc/api_samples/versions/v21-version-get-resp.json
+@@ -19,7 +19,7 @@
+             }
+         ],
+         "status": "CURRENT",
+-        "version": "2.95",
++        "version": "2.96",
+         "min_version": "2.1",
+         "updated": "2013-07-23T11:33:21Z"
+     }
+diff --git a/doc/api_samples/versions/versions-get-resp.json b/doc/api_samples/versions/versions-get-resp.json
+index 749fd4674f..d36325e9b6 100644
+--- a/doc/api_samples/versions/versions-get-resp.json
++++ b/doc/api_samples/versions/versions-get-resp.json
+@@ -22,7 +22,7 @@
+                 }
+             ],
+             "status": "CURRENT",
+-            "version": "2.95",
++            "version": "2.96",
+             "min_version": "2.1",
+             "updated": "2013-07-23T11:33:21Z"
+         }
+diff --git a/nova/api/openstack/api_version_request.py b/nova/api/openstack/api_version_request.py
+index 718ac7e8e6..2fc11ab598 100644
+--- a/nova/api/openstack/api_version_request.py
++++ b/nova/api/openstack/api_version_request.py
+@@ -255,6 +255,7 @@ REST_API_VERSION_HISTORY = """REST API Version History:
+     * 2.93 - Add support for volume backed server rebuild.
+     * 2.94 - Allow FQDN in server hostname.
+     * 2.95 - Evacuate will now stop instance at destination.
++    * 2.96 - Add the spice-direct console type to the spice console protocol.
+ """
+
+ # The minimum and maximum versions of the API supported
+@@ -263,7 +264,7 @@ REST_API_VERSION_HISTORY = """REST API Version History:
+ # Note(cyeoh): This only applies for the v2.1 API once microversions
+ # support is fully merged. It does not affect the V2 API.
+ _MIN_API_VERSION = '2.1'
+-_MAX_API_VERSION = '2.95'
++_MAX_API_VERSION = '2.96'
+ DEFAULT_API_VERSION = _MIN_API_VERSION
+
+ # Almost all proxy APIs which are related to network, images and baremetal
+diff --git a/nova/api/openstack/compute/remote_consoles.py b/nova/api/openstack/compute/remote_consoles.py
+index 7d374ef432..f40d0b3aab 100644
+--- a/nova/api/openstack/compute/remote_consoles.py
++++ b/nova/api/openstack/compute/remote_consoles.py
+@@ -68,12 +68,16 @@ class RemoteConsolesController(wsgi.Controller):
+     @wsgi.expected_errors((400, 404, 409, 501))
+     @wsgi.action('os-getSPICEConsole')
+     @validation.schema(remote_consoles.get_spice_console)
++    @validation.schema(remote_consoles.get_spice_console_v296, "2.96")
+     def get_spice_console(self, req, id, body):
+         """Get text console output."""
+         context = req.environ['nova.context']
+         context.can(rc_policies.BASE_POLICY_NAME)
+
+-        # If type is not supplied or unknown, get_spice_console below will cope
++        # NOTE(mikal): We support two types of SPICE console -- the traditional
++        # "spice-html5" console (the default), and a direct connection to qemu
++        # on the hypervisor ("spice-direct"). This second option is intended
++        # for use with a SPICE protocol proxy sitting in front of Nova.
+         console_type = body['os-getSPICEConsole'].get('type')
+
+         instance = common.get_instance(self.compute_api, context, id)
+@@ -90,7 +94,22 @@ class RemoteConsolesController(wsgi.Controller):
+         except NotImplementedError:
+             common.raise_feature_not_supported()
+
+-        return {'console': {'type': console_type, 'url': output['url']}}
++        if console_type == 'spice-direct':
++            return {
++                'console': {
++                    'type': console_type,
++                    'host': output['host'],
++                    'port': output['port'],
++                    'tls_port': output['tls_port']
++                    }
++                }
++
++        return {
++            'console': {
++                'type': console_type,
++                'url': output['access_url']
++                }
++            }
+
+     @wsgi.Controller.api_version("2.1", "2.5")
+     @wsgi.expected_errors((400, 404, 409, 501))
+@@ -155,7 +174,8 @@ class RemoteConsolesController(wsgi.Controller):
+     @wsgi.Controller.api_version("2.6")
+     @wsgi.expected_errors((400, 404, 409, 501))
+     @validation.schema(remote_consoles.create_v26, "2.6", "2.7")
+-    @validation.schema(remote_consoles.create_v28, "2.8")
++    @validation.schema(remote_consoles.create_v28, "2.8", "2.95")
++    @validation.schema(remote_consoles.create_v296, "2.96")
+     def create(self, req, server_id, body):
+         context = req.environ['nova.context']
+         instance = common.get_instance(self.compute_api, context, server_id)
+@@ -166,9 +186,24 @@ class RemoteConsolesController(wsgi.Controller):
+         try:
+             handler = self.handlers.get(protocol)
+             output = handler(context, instance, console_type)
+-            return {'remote_console': {'protocol': protocol,
+-                                       'type': console_type,
+-                                       'url': output['url']}}
++            if console_type == 'spice-direct':
++                return {
++                    'remote_console': {
++                        'protocol': protocol,
++                        'type': console_type,
++                        'host': output['host'],
++                        'port': output['port'],
++                        'tls_port': output['tls_port']
++                        }
++                    }
++
++            return {
++                'remote_console': {
++                    'protocol': protocol,
++                    'type': console_type,
++                    'url': output['url']
++                    }
++                }
+
+         except exception.InstanceNotFound as e:
+             raise webob.exc.HTTPNotFound(explanation=e.format_message())
+diff --git a/nova/api/openstack/compute/rest_api_version_history.rst b/nova/api/openstack/compute/rest_api_version_history.rst
+index c7a2777d3a..756ca1f51d 100644
+--- a/nova/api/openstack/compute/rest_api_version_history.rst
++++ b/nova/api/openstack/compute/rest_api_version_history.rst
+@@ -1247,3 +1247,8 @@ Any evacuated instances will be now stopped at destination. This
+ requires minimun nova release 27.0.0, OpenStack release 2023.1
+ Antelope.  Operators can still use previous microversion for older
+ behavior.
++
++2.96
++----
++
++Add the spice-direct console type to the spice console protocol.
+\ No newline at end of file
+diff --git a/nova/api/openstack/compute/schemas/remote_consoles.py b/nova/api/openstack/compute/schemas/remote_consoles.py
+index baa4746807..d4ece30fd7 100644
+--- a/nova/api/openstack/compute/schemas/remote_consoles.py
++++ b/nova/api/openstack/compute/schemas/remote_consoles.py
+@@ -50,6 +50,25 @@ get_spice_console = {
+     'additionalProperties': False,
+ }
+
++get_spice_console_v296 = {
++    'type': 'object',
++    'properties': {
++        'os-getSPICEConsole': {
++            'type': 'object',
++            'properties': {
++                'type': {
++                    'type': 'string',
++                    'enum': ['spice-html5', 'spice-direct'],
++                },
++            },
++            'required': ['type'],
++            'additionalProperties': False,
++        },
++    },
++    'required': ['os-getSPICEConsole'],
++    'additionalProperties': False,
++}
++
+ get_rdp_console = {
+     'type': 'object',
+     'properties': {
+@@ -135,3 +154,28 @@ create_v28 = {
+     'required': ['remote_console'],
+     'additionalProperties': False,
+ }
++
++create_v296 = {
++    'type': 'object',
++    'properties': {
++        'remote_console': {
++            'type': 'object',
++            'properties': {
++                'protocol': {
++                    'type': 'string',
++                    'enum': ['vnc', 'spice', 'rdp', 'serial', 'mks'],
++                },
++                'type': {
++                    'type': 'string',
++                    'enum': ['novnc', 'xvpvnc', 'rdp-html5',
++                             'spice-html5', 'spice-direct', 'serial',
++                             'webmks'],
++                },
++            },
++            'required': ['protocol', 'type'],
++            'additionalProperties': False,
++        },
++    },
++    'required': ['remote_console'],
++    'additionalProperties': False,
++}
+diff --git a/nova/compute/api.py b/nova/compute/api.py
+index d64432327e..ff310d53d4 100644
+--- a/nova/compute/api.py
++++ b/nova/compute/api.py
+@@ -4847,9 +4847,8 @@ class API:
+         task_state=[task_states.DELETING, task_states.MIGRATING])
+     def get_spice_console(self, context, instance, console_type):
+         """Get a url to an instance Console."""
+-        connect_info = self.compute_rpcapi.get_spice_console(context,
++        return self.compute_rpcapi.get_spice_console(context,
+                 instance=instance, console_type=console_type)
+-        return {'url': connect_info['access_url']}
+
+     @check_instance_host()
+     @reject_instance_state(
+diff --git a/nova/compute/manager.py b/nova/compute/manager.py
+index c887b3ae47..056113842f 100644
+--- a/nova/compute/manager.py
++++ b/nova/compute/manager.py
+@@ -7200,33 +7200,41 @@ class ComputeManager(manager.Manager):
+         if not CONF.spice.enabled:
+             raise exception.ConsoleTypeUnavailable(console_type=console_type)
+
+-        if console_type != 'spice-html5':
+-            raise exception.ConsoleTypeInvalid(console_type=console_type)
+-
+         try:
+-            # Retrieve connect info from driver, and then decorate with our
+-            # access info token
+-            console = self.driver.get_spice_console(context, instance)
+-            console_auth = objects.ConsoleAuthToken(
+-                context=context,
+-                console_type=console_type,
+-                host=console.host,
+-                port=console.port,
+-                internal_access_path=console.internal_access_path,
+-                instance_uuid=instance.uuid,
+-                access_url_base=CONF.spice.html5proxy_base_url,
+-            )
+-            console_auth.authorize(CONF.consoleauth.token_ttl)
+-            connect_info = console.get_connection_info(
+-                console_auth.token, console_auth.access_url)
++            if console_type == 'spice-html5':
++                # Retrieve connect info from driver, and then decorate with our
++                # access info token
++                console = self.driver.get_spice_console(context, instance)
++                console_auth = objects.ConsoleAuthToken(
++                    context=context,
++                    console_type=console_type,
++                    host=console.host,
++                    port=console.port,
++                    internal_access_path=console.internal_access_path,
++                    instance_uuid=instance.uuid,
++                    access_url_base=CONF.spice.html5proxy_base_url,
++                )
++                console_auth.authorize(CONF.consoleauth.token_ttl)
++                connect_info = console.get_connection_info(
++                    console_auth.token, console_auth.access_url)
++                return connect_info
++
++            elif console_type == 'spice-direct':
++                console = self.driver.get_spice_console(context, instance)
++                return {
++                    'host': console.host,
++                    'port': console.port,
++                    'tls_port': console.tlsPort
++                }
++
++            else:
++                raise exception.ConsoleTypeInvalid(console_type=console_type)
+
+         except exception.InstanceNotFound:
+             if instance.vm_state != vm_states.BUILDING:
+                 raise
+             raise exception.InstanceNotReady(instance_id=instance.uuid)
+
+-        return connect_info
+-
+     @messaging.expected_exceptions(exception.ConsoleTypeInvalid,
+                                    exception.InstanceNotReady,
+                                    exception.InstanceNotFound,
+@@ -7362,7 +7370,7 @@ class ComputeManager(manager.Manager):
+     @wrap_exception()
+     @wrap_instance_fault
+     def validate_console_port(self, ctxt, instance, port, console_type):
+-        if console_type == "spice-html5":
++        if console_type in ["spice-html5", "spice-direct"]:
+             console_info = self.driver.get_spice_console(ctxt, instance)
+         elif console_type == "rdp-html5":
+             console_info = self.driver.get_rdp_console(ctxt, instance)
+diff --git a/nova/tests/functional/api_sample_tests/test_remote_consoles.py b/nova/tests/functional/api_sample_tests/test_remote_consoles.py
+index e304402ee9..2f77384cd3 100644
+--- a/nova/tests/functional/api_sample_tests/test_remote_consoles.py
++++ b/nova/tests/functional/api_sample_tests/test_remote_consoles.py
+@@ -118,3 +118,23 @@ class ConsolesV28SampleJsonTests(test_servers.ServersSampleBase):
+                                  'create-mks-console-req', body)
+         self._verify_response('create-mks-console-resp', {'url': HTTP_RE},
+                               response, 200)
++
++
++class ConsolesV296SampleJsonTests(test_servers.ServersSampleBase):
++    sample_dir = "os-remote-consoles"
++    microversion = '2.96'
++    scenarios = [('v2_96', {'api_major_version': 'v2.1'})]
++
++    def setUp(self):
++        super(ConsolesV296SampleJsonTests, self).setUp()
++        self.flags(enabled=True, group='spice')
++
++    def test_create_spice_direct_console(self):
++        uuid = self._post_server()
++
++        body = {'protocol': 'spice', 'type': 'spice-direct'}
++        response = self._do_post('servers/%s/remote-consoles' % uuid,
++                                 'create-spice-direct-console-req', body)
++        self._verify_response(
++            'create-spice-direct-console-resp', {'url': HTTP_RE},
++            response, 200)
+diff --git a/nova/tests/unit/api/openstack/compute/test_remote_consoles.py b/nova/tests/unit/api/openstack/compute/test_remote_consoles.py
+index 961f4a02c9..68c42d28d9 100644
+--- a/nova/tests/unit/api/openstack/compute/test_remote_consoles.py
++++ b/nova/tests/unit/api/openstack/compute/test_remote_consoles.py
+@@ -140,7 +140,7 @@ class ConsolesExtensionTestV21(test.NoDBTestCase):
+             NotImplementedError())
+
+     @mock.patch.object(compute_api.API, 'get_spice_console',
+-                       return_value={'url': 'http://fake'})
++                       return_value={'access_url': 'http://fake'})
+     def test_get_spice_console(self, mock_get_spice_console):
+         body = {'os-getSPICEConsole': {'type': 'spice-html5'}}
+         req = fakes.HTTPRequest.blank('')
+@@ -539,3 +539,41 @@ class ConsolesExtensionTestV28(ConsolesExtensionTestV26):
+                                              'url': 'http://fake'}}, output)
+         mock_handler.assert_called_once_with(self.context, self.instance,
+                                              'webmks')
++
++
++class ConsolesExtensionTestV296(ConsolesExtensionTestV26):
++    def setUp(self):
++        super(ConsolesExtensionTestV296, self).setUp()
++        self.req = fakes.HTTPRequest.blank('')
++        self.context = self.req.environ['nova.context']
++        self.req.api_version_request = api_version_request.APIVersionRequest(
++            '2.96')
++        self.controller = console_v21.RemoteConsolesController()
++
++    def test_create_spice_direct_console(self):
++        mock_handler = mock.MagicMock()
++        mock_handler.return_value = {
++            'host': 'fakespiceconsole.com',
++            'port': 6969,
++            'tls_port': 6970
++            }
++        self.controller.handlers['spice'] = mock_handler
++
++        body = {
++            'remote_console': {
++                'protocol': 'spice',
++                'type': 'spice-direct'
++                }
++            }
++        output = self.controller.create(self.req, fakes.FAKE_UUID, body=body)
++        self.assertEqual({
++            'remote_console': {
++                'protocol': 'spice',
++                'type': 'spice-direct',
++                'host': 'fakespiceconsole.com',
++                'port': 6969,
++                'tls_port': 6970
++                }
++            }, output)
++        mock_handler.assert_called_once_with(self.context, self.instance,
++                                             'spice-direct')
+diff --git a/nova/tests/unit/compute/test_compute.py b/nova/tests/unit/compute/test_compute.py
+index f62468544d..e36f36548f 100644
+--- a/nova/tests/unit/compute/test_compute.py
++++ b/nova/tests/unit/compute/test_compute.py
+@@ -10089,7 +10089,15 @@ class ComputeAPITestCase(BaseTestCase):
+         console = self.compute_api.get_spice_console(self.context,
+                 fake_instance, fake_console_type)
+
+-        self.assertEqual(console, {'url': 'fake_console_url'})
++        self.assertEqual({
++            'access_url': 'fake_console_url',
++            'console_type': 'spice-html5',
++            'host': 'fake_console_host',
++            'instance_uuid': 'f3000000-0000-0000-0000-000000000000',
++            'internal_access_path': 'fake_access_path',
++            'port': 'fake_console_port',
++            'token': 'fake_token'
++            }, console)
+         mock_spice.assert_called_once_with(self.context,
+                                            instance=fake_instance,
+                                            console_type=fake_console_type)

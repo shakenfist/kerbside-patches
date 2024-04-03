@@ -1,0 +1,598 @@
+commit c4f4676ae22bd6d1af940f62bbb1b1dcf7c9a10e
+Author: Michael Still <mikal@stillhq.com>
+
+    Deploy Kerbside with Kolla-Ansible.
+
+diff --git a/ansible/certificates.yml b/ansible/certificates.yml
+index 772aa2f5c..04cbc8759 100644
+--- a/ansible/certificates.yml
++++ b/ansible/certificates.yml
+@@ -3,7 +3,8 @@
+   when: >-
+     kolla_enable_tls_backend | default(false) | bool or
+     rabbitmq_enable_tls | default(false) | bool or
+-    certificates_generate_libvirt | default(libvirt_tls) | default(false) | bool
++    certificates_generate_libvirt | default(libvirt_tls) | default(false) | bool or
++    certificates_generate_kerbside | default(enable_kerbside) | default(false) | bool
+
+ - name: Apply role certificates
+   hosts: localhost
+diff --git a/ansible/group_vars/all.yml b/ansible/group_vars/all.yml
+index f35d63ae7..b09c2de77 100644
+--- a/ansible/group_vars/all.yml
++++ b/ansible/group_vars/all.yml
+@@ -842,6 +842,7 @@ enable_ironic_neutron_agent: "{{ enable_neutron | bool and enable_ironic | bool
+ enable_ironic_pxe_uefi: "no"
+ enable_ironic_prometheus_exporter: "{{ enable_ironic | bool and enable_prometheus | bool }}"
+ enable_iscsid: "{{ enable_cinder | bool and enable_cinder_backend_iscsi | bool }}"
++enable_kerbside: "no"
+ enable_kuryr: "no"
+ enable_letsencrypt: "no"
+ enable_magnum: "no"
+@@ -913,6 +914,14 @@ murano_keystone_user: "murano"
+ cinder_keystone_user: "cinder"
+ glance_keystone_user: "glance"
+
++# Kerbside configuration options
++kerbside_keystone_user: "kerbside"
++kerbside_vdi_flavors: ["vdi"]
++kerbside_port: 13002
++kerbside_vdi_insecure_port: 5899
++kerbside_vdi_secure_port: 5898
++kerbside_api_url: "http://{{ kolla_external_fqdn }}:{{ kerbside_port }}"
++
+ # Nova fake driver and the number of fake driver per compute node
+ enable_nova_fake: "no"
+ num_nova_fake_per_node: 5
+diff --git a/ansible/inventory/all-in-one b/ansible/inventory/all-in-one
+index 138022e73..4e22008b5 100644
+--- a/ansible/inventory/all-in-one
++++ b/ansible/inventory/all-in-one
+@@ -250,6 +250,9 @@ nova
+ [nova-serialproxy:children]
+ nova
+
++[kerbside:children]
++nova
++
+ # Neutron
+ [neutron-server:children]
+ control
+diff --git a/ansible/inventory/multinode b/ansible/inventory/multinode
+index eaa077c37..86db6d686 100644
+--- a/ansible/inventory/multinode
++++ b/ansible/inventory/multinode
+@@ -268,6 +268,9 @@ nova
+ [nova-serialproxy:children]
+ nova
+
++[kerbside:children]
++nova
++
+ # Neutron
+ [neutron-server:children]
+ control
+diff --git a/ansible/roles/certificates/defaults/main.yml b/ansible/roles/certificates/defaults/main.yml
+index 473bbb40d..9bfc916c7 100644
+--- a/ansible/roles/certificates/defaults/main.yml
++++ b/ansible/roles/certificates/defaults/main.yml
+@@ -4,8 +4,14 @@ external_dir: "{{ kolla_certificates_dir }}/private/external"
+ internal_dir: "{{ kolla_certificates_dir }}/private/internal"
+ backend_dir: "{{ kolla_certificates_dir }}/private/backend"
+ libvirt_dir: "{{ kolla_certificates_dir }}/private/libvirt"
++kerbside_dir: "{{ kolla_certificates_dir }}/private/kerbside"
+
+ # Whether to generate certificates for libvirt TLS.
+ certificates_generate_libvirt: "{{ libvirt_tls | default(false) | bool }}"
+ # Directory into which to copy generated certificates and keys for libvirt TLS.
+ certificates_libvirt_output_dir: "{{ node_custom_config }}/nova/nova-libvirt"
++
++# Whether to generate certificates for kerbside.
++certificates_generate_kerbside: "{{ enable_kerbside | default(false) | bool }}"
++# Directory into which to copy generated certificates and keys for kerbside.
++certificates_kerbside_output_dir: "{{ node_custom_config }}/nova/kerbside"
+\ No newline at end of file
+diff --git a/ansible/roles/certificates/tasks/generate-kerbside.yml b/ansible/roles/certificates/tasks/generate-kerbside.yml
+new file mode 100644
+index 000000000..1e435c5f9
+--- /dev/null
++++ b/ansible/roles/certificates/tasks/generate-kerbside.yml
+@@ -0,0 +1,78 @@
++---
++- name: Ensuring private kerbside directory exists
++  file:
++    path: "{{ kerbside_dir }}"
++    state: "directory"
++    mode: "0770"
++
++- name: Creating kerbside SSL configuration file
++  template:
++    src: "{{ item }}.j2"
++    dest: "{{ kolla_certificates_dir }}/{{ item }}"
++    mode: "0660"
++  with_items:
++    - "openssl-kolla-kerbside.cnf"
++
++- name: Creating kerbside certificate key
++  command: >
++    openssl genrsa
++    -out "{{ kerbside_dir }}/kerbside.key" 2048
++  args:
++    creates: "{{ kerbside_dir }}/kerbside.key"
++
++- name: Creating kerbside certificate signing request
++  command: >
++    openssl req
++    -new
++    -key "{{ kerbside_dir }}/kerbside.key"
++    -out "{{ kerbside_dir }}/kerbside.csr"
++    -config "{{ kolla_certificates_dir }}/openssl-kolla-kerbside.cnf"
++    -sha256
++  args:
++    creates: "{{ kerbside_dir }}/kerbside.csr"
++
++- name: Creating kerbside certificate
++  command: >
++    openssl x509
++    -req
++    -in "{{ kerbside_dir }}/kerbside.csr"
++    -CA "{{ root_dir }}/root.crt"
++    -CAkey "{{ root_dir }}/root.key"
++    -CAcreateserial
++    -extensions v3_req
++    -extfile "{{ kolla_certificates_dir }}/openssl-kolla-kerbside.cnf"
++    -out "{{ kerbside_dir }}/kerbside.crt"
++    -days 500
++    -sha256
++  args:
++    creates: "{{ kerbside_dir }}/kerbside.crt"
++
++- name: Setting permissions on kerbside key
++  file:
++    path: "{{ kerbside_dir }}/kerbside.key"
++    mode: "0660"
++    state: file
++
++- name: Ensure kerbside output directory exists
++  file:
++    path: "{{ certificates_kerbside_output_dir }}"
++    state: directory
++    mode: "0770"
++
++- name: Copy kerbside root CA to default configuration location
++  copy:
++    src: "{{ root_dir }}/root.crt"
++    dest: "{{ certificates_kerbside_output_dir }}/cacert.pem"
++    mode: "0660"
++
++- name: Copy kerbside cert to default configuration locations
++  copy:
++    src: "{{ kerbside_dir }}/kerbside.crt"
++    dest: "{{ certificates_kerbside_output_dir }}/servercert.pem"
++    mode: "0660"
++
++- name: Copy kerbside key to default configuration locations
++  copy:
++    src: "{{ kerbside_dir }}/kerbside.key"
++    dest: "{{ certificates_kerbside_output_dir }}/serverkey.pem"
++    mode: "0660"
+\ No newline at end of file
+diff --git a/ansible/roles/certificates/tasks/main.yml b/ansible/roles/certificates/tasks/main.yml
+index eccd6d668..a16229b88 100644
+--- a/ansible/roles/certificates/tasks/main.yml
++++ b/ansible/roles/certificates/tasks/main.yml
+@@ -6,3 +6,5 @@
+     - kolla_enable_tls_backend | bool or rabbitmq_enable_tls | bool
+ - include_tasks: generate-libvirt.yml
+   when: certificates_generate_libvirt | bool
++- include_tasks: generate-kerbside.yml
++  when: certificates_generate_kerbside | bool
+diff --git a/ansible/roles/certificates/templates/openssl-kolla-kerbside.cnf.j2 b/ansible/roles/certificates/templates/openssl-kolla-kerbside.cnf.j2
+new file mode 100644
+index 000000000..ab2aed98b
+--- /dev/null
++++ b/ansible/roles/certificates/templates/openssl-kolla-kerbside.cnf.j2
+@@ -0,0 +1,19 @@
++[req]
++prompt = no
++distinguished_name = req_distinguished_name
++req_extensions = v3_req
++
++[req_distinguished_name]
++countryName = US
++stateOrProvinceName = NC
++localityName = RTP
++organizationalUnitName = kolla
++
++[v3_req]
++subjectAltName = @alt_names
++
++[alt_names]
++DNS.1 = {{ kolla_internal_fqdn }}
++DNS.2 = {{ kolla_external_fqdn }}
++IP.1 = {{ kolla_internal_vip_address }}
++IP.2 = {{ kolla_external_vip_address }}
+\ No newline at end of file
+diff --git a/ansible/roles/common/templates/admin-openrc.sh.j2 b/ansible/roles/common/templates/admin-openrc.sh.j2
+index 367210639..5d31baaa0 100644
+--- a/ansible/roles/common/templates/admin-openrc.sh.j2
++++ b/ansible/roles/common/templates/admin-openrc.sh.j2
+@@ -23,3 +23,6 @@ export OS_AUTH_PLUGIN='password'
+ {% if kolla_admin_openrc_cacert is not none and kolla_admin_openrc_cacert | length > 0 %}
+ export OS_CACERT='{{ kolla_admin_openrc_cacert }}'
+ {% endif %}
++{% if enable_kerbside | bool %}
++export KERBSIDE_API_URL='{{ kerbside_api_url }}'
++{% endif %}
+\ No newline at end of file
+diff --git a/ansible/roles/common/templates/conf/filter/01-rewrite.conf.j2 b/ansible/roles/common/templates/conf/filter/01-rewrite.conf.j2
+index e2867aabc..172e1058a 100644
+--- a/ansible/roles/common/templates/conf/filter/01-rewrite.conf.j2
++++ b/ansible/roles/common/templates/conf/filter/01-rewrite.conf.j2
+@@ -13,7 +13,7 @@
+   </rule>
+   <rule>
+     key     programname
+-    pattern ^(nova-api|nova-compute|nova-compute-ironic|nova-conductor|nova-manage|nova-novncproxy|nova-scheduler|nova-placement-api|placement-api|privsep-helper)$
++    pattern ^(nova-api|nova-compute|nova-compute-ironic|nova-conductor|nova-manage|nova-novncproxy|nova-scheduler|nova-placement-api|placement-api|privsep-helper|kerbside)$
+     tag openstack_python
+   </rule>
+   <rule>
+diff --git a/ansible/roles/nova-cell/tasks/config-libvirt-tls.yml b/ansible/roles/nova-cell/tasks/config-libvirt-tls.yml
+index d8a1d9442..567ee95bd 100644
+--- a/ansible/roles/nova-cell/tasks/config-libvirt-tls.yml
++++ b/ansible/roles/nova-cell/tasks/config-libvirt-tls.yml
+@@ -43,4 +43,4 @@
+     - clientcert.pem
+     - clientkey.pem
+   notify:
+-    - Restart {{ service_name }} container
++    - Restart {{ service_name }} container
+\ No newline at end of file
+diff --git a/ansible/roles/nova/defaults/main.yml b/ansible/roles/nova/defaults/main.yml
+index 444603dde..1ac7bf63d 100644
+--- a/ansible/roles/nova/defaults/main.yml
++++ b/ansible/roles/nova/defaults/main.yml
+@@ -56,6 +56,14 @@ nova_services:
+     volumes: "{{ nova_super_conductor_default_volumes + nova_super_conductor_extra_volumes }}"
+     dimensions: "{{ nova_super_conductor_dimensions }}"
+     healthcheck: "{{ nova_super_conductor_healthcheck }}"
++  kerbside:
++    container_name: "kerbside"
++    group: "kerbside"
++    image: "{{ kerbside_image_full }}"
++    enabled: "{{ enable_kerbside }}"
++    volumes: "{{ kerbside_default_volumes + kerbside_extra_volumes }}"
++    dimensions: "{{ kerbside_dimensions }}"
++    healthcheck: "{{ kerbside_healthcheck }}"
+
+ ####################
+ # Config Validate
+@@ -194,6 +202,30 @@ nova_super_conductor_extra_volumes: "{{ nova_extra_volumes }}"
+ # Used by bootstrapping containers.
+ nova_api_bootstrap_extra_volumes: "{{ nova_extra_volumes }}"
+
++kerbside_image: "{{ docker_registry ~ '/' if docker_registry else '' }}{{ docker_namespace }}/kerbside"
++kerbside_tag: "{{ nova_tag }}"
++kerbside_image_full: "{{ kerbside_image }}:{{ kerbside_tag }}"
++kerbside_dimensions: "{{ default_container_dimensions }}"
++kerbside_enable_healthchecks: "{{ enable_container_healthchecks }}"
++kerbside_healthcheck_interval: "{{ default_container_healthcheck_interval }}"
++kerbside_healthcheck_retries: "{{ default_container_healthcheck_retries }}"
++kerbside_healthcheck_start_period: "{{ default_container_healthcheck_start_period }}"
++kerbside_healthcheck_test: ["CMD-SHELL", "healthcheck_listen gunicorn {{ kerbside_port }}"]
++kerbside_healthcheck_timeout: "{{ default_container_healthcheck_timeout }}"
++kerbside_healthcheck:
++  interval: "{{ kerbside_healthcheck_interval }}"
++  retries: "{{ kerbside_healthcheck_retries }}"
++  start_period: "{{ kerbside_healthcheck_start_period }}"
++  test: "{% if kerbside_enable_healthchecks | bool %}{{ kerbside_healthcheck_test }}{% else %}NONE{% endif %}"
++  timeout: "{{ kerbside_healthcheck_timeout }}"
++kerbside_extra_volumes: "{{ nova_extra_volumes }}"
++kerbside_default_volumes:
++  - "{{ node_config_directory }}/kerbside/:{{ container_config_directory }}/:ro"
++  - "/etc/localtime:/etc/localtime:ro"
++  - "{{ '/etc/timezone:/etc/timezone:ro' if ansible_facts.os_family == 'Debian' else '' }}"
++  - "kolla_logs:/var/log/kolla/"
++  - "{{ kolla_dev_repos_directory ~ '/nova/nova:/var/lib/kolla/venv/lib/python' ~ distro_python_version ~ '/site-packages/nova' if nova_dev_mode | bool else '' }}"
++kerbside_json_logging: "no"
+
+ ####################
+ # OpenStack
+@@ -277,3 +309,10 @@ nova_source_version: "{{ kolla_source_version }}"
+ # TLS
+ ####################
+ nova_enable_tls_backend: "{{ kolla_enable_tls_backend }}"
++
++####################
++# Kerbside Database
++####################
++kerbside_database_name: "kerbside"
++kerbside_database_user: "kerbside"
++kerbside_database_address: "{{ database_address | put_address_in_context('url') }}:{{ database_port }}"
+diff --git a/ansible/roles/nova/handlers/main.yml b/ansible/roles/nova/handlers/main.yml
+index b83ed911e..ec7a3179b 100644
+--- a/ansible/roles/nova/handlers/main.yml
++++ b/ansible/roles/nova/handlers/main.yml
+@@ -52,3 +52,21 @@
+   when:
+     - kolla_action != "config"
+     - kolla_action != "upgrade" or not nova_safety_upgrade | bool
++
++- name: Restart kerbside container
++  vars:
++    service_name: "kerbside"
++    service: "{{ nova_services[service_name] }}"
++  become: true
++  kolla_docker:
++    action: "recreate_or_restart_container"
++    common_options: "{{ docker_common_options }}"
++    name: "{{ service.container_name }}"
++    image: "{{ service.image }}"
++    privileged: "{{ service.privileged | default(False) }}"
++    volumes: "{{ service.volumes | reject('equalto', '') | list }}"
++    dimensions: "{{ service.dimensions }}"
++    healthcheck: "{{ service.healthcheck | default(omit) }}"
++  when:
++    - kolla_action != "config"
++    - kolla_action != "upgrade" or not nova_safety_upgrade | bool
+diff --git a/ansible/roles/nova/tasks/bootstrap.yml b/ansible/roles/nova/tasks/bootstrap.yml
+index 57295ef7e..35d47fad2 100644
+--- a/ansible/roles/nova/tasks/bootstrap.yml
++++ b/ansible/roles/nova/tasks/bootstrap.yml
+@@ -14,6 +14,7 @@
+   with_items:
+     - "{{ nova_cell0_database_name }}"
+     - "{{ nova_api_database_name }}"
++    - "{{ kerbside_database_name }}"
+   when:
+     - not use_preconfigured_databases | bool
+
+@@ -39,6 +40,9 @@
+     - database_name: "{{ nova_api_database_name }}"
+       database_username: "{{ nova_api_database_user }}"
+       database_password: "{{ nova_api_database_password }}"
++    - database_name: "{{ kerbside_database_name }}"
++      database_username: "{{ kerbside_database_user }}"
++      database_password: "{{ kerbside_database_password }}"
+   loop_control:
+     label: "{{ item.database_name }}"
+   run_once: True
+@@ -46,6 +50,20 @@
+     - not use_preconfigured_databases | bool
+   no_log: true
+
++- name: Create kerbside administrative access group
++  become: true
++  kolla_toolbox:
++    container_engine: "{{ kolla_container_engine }}"
++    module_name: "openstack.cloud.identity_group"
++    module_args:
++      state: present
++      name: kerbside
++      description: "Kerbside administrative access group"
++      auth: "{{ openstack_auth }}"
++  run_once: True
++  when:
++    - enable_kerbside | bool
++
+ - import_tasks: config_bootstrap.yml
+
+ - include_tasks: clone.yml
+diff --git a/ansible/roles/nova/tasks/config.yml b/ansible/roles/nova/tasks/config.yml
+index 48094c3f9..ee0241510 100644
+--- a/ansible/roles/nova/tasks/config.yml
++++ b/ansible/roles/nova/tasks/config.yml
+@@ -81,6 +81,54 @@
+   notify:
+     - "Restart {{ item.key }} container"
+
++- name: Copying over kerbside start script
++  become: true
++  template:
++    src: "{{ role_path }}/templates/kerbside_start.j2"
++    dest: "{{ node_config_directory }}/kerbside/kerbside_start"
++    mode: "0660"
++  when:
++    - inventory_hostname in groups["nova-api"]
++    - nova_services["kerbside"].enabled | bool
++  notify:
++    - "Restart kerbside container"
++
++- name: Store the SPICE TLS CA cert in a fact for use in the template
++  ansible.builtin.set_fact:
++    spice_cacert: "{{ lookup('ansible.builtin.file', node_custom_config + '/nova/nova-libvirt/cacert.pem') }}"
++  when:
++    - inventory_hostname in groups["nova-api"]
++    - nova_services["kerbside"].enabled | bool
++    - nova_spice_require_secure | bool
++
++- name: Copying over kerbside sources.yaml
++  become: true
++  template:
++    src: "{{ role_path }}/templates/kerbside_sources.yaml.j2"
++    dest: "{{ node_config_directory }}/kerbside/sources.yaml"
++    mode: "0660"
++  when:
++    - inventory_hostname in groups["nova-api"]
++    - nova_services["kerbside"].enabled | bool
++  notify:
++    - "Restart kerbside container"
++
++- name: Copying over kerbside TLS keys
++  become: true
++  copy:
++    src: "{{ node_custom_config }}/nova/kerbside/{{ item }}"
++    dest: "{{ node_config_directory }}/kerbside/{{ item }}"
++    mode: "0600"
++  when:
++    - inventory_hostname in groups["nova-api"]
++    - nova_services["kerbside"].enabled | bool
++  with_items:
++    - cacert.pem
++    - servercert.pem
++    - serverkey.pem
++  notify:
++    - Restart kerbside container
++
+ - name: Copying over existing policy file
+   become: true
+   template:
+diff --git a/ansible/roles/nova/templates/kerbside.json.j2 b/ansible/roles/nova/templates/kerbside.json.j2
+new file mode 100644
+index 000000000..32f9dde0b
+--- /dev/null
++++ b/ansible/roles/nova/templates/kerbside.json.j2
+@@ -0,0 +1,42 @@
++{
++    "command": "bash /etc/kerbside/kerbside_start",
++    "config_files": [
++        {
++            "source": "{{ container_config_directory }}/kerbside_start",
++            "dest": "/etc/kerbside/kerbside_start",
++            "owner": "kerbside",
++            "perm": "0600"
++        },
++        {
++            "source": "{{ container_config_directory }}/sources.yaml",
++            "dest": "/etc/kerbside/sources.yaml",
++            "owner": "kerbside",
++            "perm": "0600"
++        },
++        {
++            "source": "{{ container_config_directory }}/cacert.pem",
++            "dest": "/etc/pki/kerbside/cacert.pem",
++            "owner": "kerbside",
++            "perm": "0600"
++        },
++        {
++            "source": "{{ container_config_directory }}/servercert.pem",
++            "dest": "/etc/pki/kerbside/servercert.pem",
++            "owner": "kerbside",
++            "perm": "0600"
++        },
++        {
++            "source": "{{ container_config_directory }}/serverkey.pem",
++            "dest": "/etc/pki/kerbside/serverkey.pem",
++            "owner": "kerbside",
++            "perm": "0600"
++        }
++    ],
++    "permissions": [
++        {
++            "path": "/var/log/kolla/kerbside",
++            "owner": "kerbside:kerbside",
++            "recurse": true
++        }
++    ]
++}
+diff --git a/ansible/roles/nova/templates/kerbside_sources.yaml.j2 b/ansible/roles/nova/templates/kerbside_sources.yaml.j2
+new file mode 100644
+index 000000000..8b53eaef5
+--- /dev/null
++++ b/ansible/roles/nova/templates/kerbside_sources.yaml.j2
+@@ -0,0 +1,20 @@
++---
++# NOTE(mikal): we really should use kerbside_keystone_user and
++# kerbside_keystone_password here.
++- source: {{ openstack_region_name }}
++  type: openstack
++  url: {{ keystone_internal_url }}
++  username: {{ keystone_admin_user }}
++  password: {{ keystone_admin_password }}
++  project_name: {{ keystone_admin_project }}
++  user_domain_id: {{ default_user_domain_id }}
++  project_domain_id: {{ default_project_domain_id }}
++  flavor:
++{% for flavor in kerbside_vdi_flavors %}
++    - {{ flavor }}
++{% endfor %}
++{% if nova_spice_require_secure | bool %}
++  ca_cert: |
++{% for line in spice_cacert.split('\n') %}
++    {{ line }}
++{% endfor %}{% endif %}
+\ No newline at end of file
+diff --git a/ansible/roles/nova/templates/kerbside_start.j2 b/ansible/roles/nova/templates/kerbside_start.j2
+new file mode 100644
+index 000000000..f8d7120e0
+--- /dev/null
++++ b/ansible/roles/nova/templates/kerbside_start.j2
+@@ -0,0 +1,47 @@
++#!/bin/bash -ex
++
++# This is a simple start script for Kerbside. Shaken Fist's configuration
++# engine expects config to be provided in the form of environment variables,
++# which is easy to do in systemd by providing them as part of the unit file.
++# However, we don't have such a thing here, so we use a simple wrapper script
++# instead.
++
++export KERBSIDE_LOG_OUTPUT_PATH="/var/log/kolla/kerbside/kerbside.log"
++{% if kerbside_json_logging | bool %}
++export KERBSIDE_LOG_OUTPUT_JSON=true
++{% endif %}
++
++export KERBSIDE_PUBLIC_FQDN={{ keystone_external_fqdn | put_address_in_context('url') }}
++export KERBSIDE_CACERT_PATH=/etc/pki/kerbside/cacert.pem
++export KERBSIDE_PROXY_HOST_CERT_PATH=/etc/pki/kerbside/servercert.pem
++export KERBSIDE_PROXY_HOST_CERT_KEY_PATH=/etc/pki/kerbside/serverkey.pem
++export KERBSIDE_PROXY_HOST_SUBJECT=""
++export KERBSIDE_SQL_URL=mysql+pymysql://{{ kerbside_database_user }}:{{ kerbside_database_password }}@{{ kerbside_database_address }}/{{ kerbside_database_name }}
++
++export KERBSIDE_API_PORT={{ kerbside_port }}
++export KERBSIDE_NODE_NAME={{ inventory_hostname }}
++export KERBSIDE_VDI_ADDRESS={{ api_interface_address }}
++export KERBSIDE_VDI_SECURE_PORT={{ kerbside_vdi_secure_port }}
++export KERBSIDE_VDI_INSECURE_PORT={{ kerbside_vdi_insecure_port }}
++export KERBSIDE_SOURCES_PATH=/etc/kerbside/sources.yaml
++
++export KERBSIDE_AUTH_SECRET_SEED={{ kerbside_auth_secret_seed }}
++export KERBSIDE_KEYSTONE_AUTH_URL={{ keystone_internal_url }}
++export KERBSIDE_KEYSTONE_SERVICE_AUTH_USER={{ keystone_admin_user }}
++export KERBSIDE_KEYSTONE_SERVICE_AUTH_PASSWORD={{ keystone_admin_password }}
++export KERBSIDE_KEYSTONE_SERVICE_AUTH_PROJECT={{ keystone_admin_project }}
++export KERBSIDE_KEYSTONE_SERVICE_AUTH_USER_DOMAIN_ID={{ default_user_domain_id }}
++export KERBSIDE_KEYSTONE_SERVICE_AUTH_PROJECT_DOMAIN_ID={{ default_project_domain_id }}
++export KERBSIDE_KEYSTONE_ACCESS_GROUP=kerbside
++
++cd /kerbside/
++mkdir -p /var/log/kolla/kerbside
++
++echo "============ printenv ============"
++printenv
++
++echo "============ alembic upgrade ========"
++alembic upgrade head
++
++echo "============ kerbside ============"
++kerbside daemon run
+\ No newline at end of file
+diff --git a/etc/kolla/passwords.yml b/etc/kolla/passwords.yml
+index f59ab1cea..17d6a7c1a 100644
+--- a/etc/kolla/passwords.yml
++++ b/etc/kolla/passwords.yml
+@@ -70,6 +70,10 @@ glance_keystone_password:
+ gnocchi_database_password:
+ gnocchi_keystone_password:
+
++kerbside_database_password:
++kerbside_keystone_password:
++kerbside_auth_secret_seed:
++
+ kuryr_keystone_password:
+
+ nova_database_password:
+diff --git a/tests/templates/inventory.j2 b/tests/templates/inventory.j2
+index e1b122288..75f1f3d8c 100644
+--- a/tests/templates/inventory.j2
++++ b/tests/templates/inventory.j2
+@@ -320,6 +320,9 @@ nova
+ [nova-serialproxy:children]
+ nova
+
++[kerbside:children]
++nova
++
+ # Neutron
+ [neutron-server:children]
+ control
