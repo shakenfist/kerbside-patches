@@ -43,7 +43,7 @@ index 0000000..501ad61
 +details for that console from the API. The new console type and microversion is
 +required because we need to be able to lookup both the insecure and secure TCP
 +ports for the console, as well as the hypervisor IP address. While this is
-+similar to what the HTML5 proxy does not, it is distinct enough to require an
++similar to what the HTML5 proxy does, it is distinct enough to require an
 +API change.
 +
 +This specification also covers tweaks the to the libvirt domain XML to enrich
