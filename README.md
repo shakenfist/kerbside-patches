@@ -81,7 +81,20 @@ git clone https://github.com/shakenfist/kerbside
 tar cvf kerbside.tgz kerbside
 cd ..
 
-(to be completed)
+# Apply patches to upstream projects for your chosen release. Note that this
+# example skips running the tests against each patch, but then does run a single
+# test at the end for each repository. This should be sufficient for building
+# images, but not for patch development. To skip the tests entirely because
+# they're quite slow, use --skiptests instead.
+for item in *-2023.1; do
+    ./testapply.sh --defertests $item || break
+done
+
+# At the end you should see this:
+#
+# ==================================================
+# All patches applied correctly.
+# ==================================================
 ```
 
 This process is automated for gitlab users using the included `.gitlab-ci.yml`

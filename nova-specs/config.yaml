@@ -1,4 +1,0 @@
-repo: https://github.com/openstack/nova-specs
-branch: master
-shallow_clone: true
-directory: nova-specs
