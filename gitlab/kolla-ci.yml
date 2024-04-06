@@ -47,6 +47,6 @@ kolla:
   timeout: 60m
   script:
     - rm -rf src/kolla
-    - ./testapply.sh --skiptests kolla-2023.1
-    - ./testapply.sh --skiptests kolla-2023.2
-    - ./testapply.sh --skiptests kolla
+    - ./testapply.sh --skip-tests kolla-2023.1
+    - ./testapply.sh --skip-tests kolla-2023.2
+    - ./testapply.sh --skip-tests kolla

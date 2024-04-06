@@ -63,10 +63,37 @@ sudo apt-get dist-upgrade -y
 
 sudo apt-get install -y moreutils python3-venv pkg-config \
     libmariadb-dev-compat build-essential python3-dev python3-lxml \
-    libxml2-dev libxslt1-dev jq git
+    libxml2-dev libxslt1-dev jq ca-certificates curl
 sudo pip3 uninstall virtualenv
 sudo apt purge -y python3-virtualenv
-sudo pip3 install virtualenv tox yq
+sudo pip3 install virtualenv tox yq occystrap
+
+# These build scripts require a more recent version of Docker than that packaged
+# by Debian, so we use the Docker repositories instead.
+for pkg in docker.io docker-doc docker-compose podman-docker containerd runc; do
+    sudo apt-get remove -y $pkg
+done
+
+if [ ! -e /etc/apt/keyrings/docker.asc ]; then
+    sudo install -m 0755 -d /etc/apt/keyrings
+    sudo curl -fsSL https://download.docker.com/linux/debian/gpg -o /etc/apt/keyrings/docker.asc
+    sudo chmod a+r /etc/apt/keyrings/docker.asc
+
+    echo \
+    "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/debian \
+    $(. /etc/os-release && echo "$VERSION_CODENAME") stable" | \
+    sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
+
+    sudo apt-get update
+fi
+
+sudo apt-get install -y docker-ce docker-ce-cli containerd.io \
+    docker-buildx-plugin
+
+# Allow the current user to access docker
+sudo usermod -a -G docker $(whoami)
+
+# Note that you might need to logout / in to pick up the group change
 
 # Clone the Kerbside patches respository
 git clone https://github.com/shakenfist/kerbside-patches
@@ -85,9 +112,9 @@ cd ..
 # example skips running the tests against each patch, but then does run a single
 # test at the end for each repository. This should be sufficient for building
 # images, but not for patch development. To skip the tests entirely because
-# they're quite slow, use --skiptests instead.
+# they're quite slow, use --skip-tests instead.
 for item in *-2023.1; do
-    ./testapply.sh --defertests $item || break
+    ./testapply.sh --defer-tests $item || break
 done
 
 # At the end you should see this:
@@ -95,6 +122,13 @@ done
 # ==================================================
 # All patches applied correctly.
 # ==================================================
+
+# Now we can build images. Note that you can use --build-targets and
+# --build-images to override the default behaviour. So for example this
+# would build _all_ container images for 2023.1, but not for any other release:
+#     ./buildall.sh --build-targets "2023.1" --build-images "all" --defer-tests
+
+./buildall.sh
 ```
 
 This process is automated for gitlab users using the included `.gitlab-ci.yml`

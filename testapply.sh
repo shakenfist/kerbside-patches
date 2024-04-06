@@ -1,80 +1,21 @@
 #!/bin/bash -e
 
-# Ensure we fail even when piping output to ts
-set -o pipefail
-
 # Note that our CI environment requires these packages to be installed.
 #     From the OS: git moreutils jq
 #     From pypi: tox yq
 
 # All positional args are consumed as project names to test. If none are
-# specified, all projects are tested. We also optionally take --defertests
-# to not test in between patch applications and --skiptests to skip tests
+# specified, all projects are tested. We also optionally take --defer-tests
+# to not test in between patch applications and --skip-tests to skip tests
 # completely.
-#
-# These options can also be enabled by setting environment variables
-#   KS_DEFERTESTS="true"
-#   KS_SKIPTESTS="true"
 
-POSITIONAL_ARGS=()
-
-# Color helpers, from https://stackoverflow.com/questions/5947742/
-Color_Off='\033[0m'       # Text Reset
-Red='\033[0;31m'          # Red
-Green='\033[0;32m'        # Green
-Yellow='\033[0;33m'       # Yellow
-Blue='\033[0;34m'         # Blue
-Purple='\033[0;35m'       # Purple
-Cyan='\033[0;36m'         # Cyan
-White='\033[0;37m'        # White
-
-# And an arrow!
-Arrow='\u2192'
-
-H1="${Green}"
-H2="${Blue}"
-H3="${Arrow}${Purple}"
-
-function on_exit {
-    echo
-    echo -e "${Red}*** Failed ***${No_Color}"
-    echo
-    }
-trap 'on_exit $?' EXIT
-
-# Parse flags
-while [[ $# -gt 0 ]]; do
-  case $1 in
-    --defertests)
-      KS_DEFERTESTS="true"
-      echo -e "${H1}Will run tests once at the end (KS_DEFERTESTS='true')${Color_Off}"
-      echo
-      shift
-      ;;
-    --skiptests)
-      KS_SKIPTESTS="true"
-      echo -e "${H1}Will skip running tests completely (KS_SKIPTESTS='true')${Color_Off}"
-      echo
-      shift
-      ;;
-    -*|--*)
-      echo "Unknown option $1"
-      exit 1
-      ;;
-    *)
-      POSITIONAL_ARGS+=("$1")
-      shift
-      ;;
-  esac
-done
-
-set -- "${POSITIONAL_ARGS[@]}"
+. buildconfig.sh
 
 
 function run_tests {
     # $1 is the name of the branch
 
-    if [ "${KS_SKIPTESTS}" == "true" ]; then
+    if [ "${skip_tests}" == "true" ]; then
         echo -e "${H3}Skipping tests${Color_Off}"
         return
     fi
@@ -110,12 +51,11 @@ function run_tests {
 topdir=$(pwd)
 topsrcdir="${topdir}/src"
 
-projects="$@"
-if [ "${projects}" == "" ]; then
-    projects=$(find . -type f -name "config.yaml" | cut -f 2 -d "/")
+if [ "${positional_args}" == "" ]; then
+    positional_args=$(find . -type f -name "config.yaml" | cut -f 2 -d "/")
 fi
 
-for project in ${projects}; do
+for project in ${positional_args}; do
     echo
     echo -e "${H1}==================================================${Color_Off}"
     echo -e "${H1}${project}${Color_Off}"
@@ -172,7 +112,7 @@ for project in ${projects}; do
 
         pushd ${topsrcdir}/${directory}
 
-        if [ "${KS_DEFERTESTS}" != "true" ]; then
+        if [ "${defer_tests}" != "true" ]; then
             run_tests ${branch}
         fi
 
@@ -185,7 +125,7 @@ for project in ${projects}; do
     done
 
     pushd ${topsrcdir}/${directory}
-    if [ "${KS_DEFERTESTS}" == "true" ]; then
+    if [ "${defer_tests}" == "true" ]; then
         run_tests ${branch}
     fi
     popd

@@ -59,7 +59,7 @@ openstacksdk:
   timeout: 60m
   script:
     - rm -rf src/openstacksdk
-    - ./testapply.sh --skiptests openstacksdk-2023.1
-    - ./testapply.sh --skiptests openstacksdk-2023.2
-    - ./testapply.sh --skiptests openstacksdk-2024.1
-    - ./testapply.sh --skiptests openstacksdk
+    - ./testapply.sh --skip-tests openstacksdk-2023.1
+    - ./testapply.sh --skip-tests openstacksdk-2023.2
+    - ./testapply.sh --skip-tests openstacksdk-2024.1
+    - ./testapply.sh --skip-tests openstacksdk
