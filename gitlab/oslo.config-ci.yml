@@ -59,7 +59,7 @@ oslo.config:
   timeout: 60m
   script:
     - rm -rf src/oslo.config
-    - ./testapply.sh --skiptests oslo.config-2023.1
-    - ./testapply.sh --skiptests oslo.config-2023.2
-    - ./testapply.sh --skiptests oslo.config-2024.1
-    - ./testapply.sh --skiptests oslo.config
+    - ./testapply.sh --skip-tests oslo.config-2023.1
+    - ./testapply.sh --skip-tests oslo.config-2023.2
+    - ./testapply.sh --skip-tests oslo.config-2024.1
+    - ./testapply.sh --skip-tests oslo.config

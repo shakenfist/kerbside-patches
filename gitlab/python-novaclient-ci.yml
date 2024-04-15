@@ -59,7 +59,7 @@ python-novaclient:
   timeout: 60m
   script:
     - rm -rf src/python-novaclient
-    - ./testapply.sh --skiptests python-novaclient-2023.1
-    - ./testapply.sh --skiptests python-novaclient-2023.2
-    - ./testapply.sh --skiptests python-novaclient-2024.1
-    - ./testapply.sh --skiptests python-novaclient
+    - ./testapply.sh --skip-tests python-novaclient-2023.1
+    - ./testapply.sh --skip-tests python-novaclient-2023.2
+    - ./testapply.sh --skip-tests python-novaclient-2024.1
+    - ./testapply.sh --skip-tests python-novaclient

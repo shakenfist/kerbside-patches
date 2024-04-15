@@ -59,7 +59,7 @@ python-openstackclient:
   timeout: 60m
   script:
     - rm -rf src/python-openstackclient
-    - ./testapply.sh --skiptests python-openstackclient-2023.1
-    - ./testapply.sh --skiptests python-openstackclient-2023.2
-    - ./testapply.sh --skiptests python-openstackclient-2024.1
-    - ./testapply.sh --skiptests python-openstackclient
+    - ./testapply.sh --skip-tests python-openstackclient-2023.1
+    - ./testapply.sh --skip-tests python-openstackclient-2023.2
+    - ./testapply.sh --skip-tests python-openstackclient-2024.1
+    - ./testapply.sh --skip-tests python-openstackclient

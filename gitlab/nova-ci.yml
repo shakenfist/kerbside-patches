@@ -59,7 +59,7 @@ nova:
   timeout: 60m
   script:
     - rm -rf src/nova
-    - ./testapply.sh --skiptests nova-2023.1
-    - ./testapply.sh --skiptests nova-2023.2
-    - ./testapply.sh --skiptests nova-2024.1
-    - ./testapply.sh --skiptests nova
+    - ./testapply.sh --skip-tests nova-2023.1
+    - ./testapply.sh --skip-tests nova-2023.2
+    - ./testapply.sh --skip-tests nova-2024.1
+    - ./testapply.sh --skip-tests nova
