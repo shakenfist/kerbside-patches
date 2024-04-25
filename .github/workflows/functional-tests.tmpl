@@ -49,7 +49,26 @@ jobs:
               -o UserKnownHostsFile=/dev/null -rp kerbside-patches \
               {{baseuser}}@$primary:.
 
-      {% for target in targets -%}
+      - name: Install missing dependencies
+        run: |
+          . ${GITHUB_WORKSPACE}/ci-environment.sh
+          cd ${GITHUB_WORKSPACE}
+{% if baseuser == "debian" %}
+          ssh -i /srv/github/id_ci -o StrictHostKeyChecking=no \
+              -o UserKnownHostsFile=/dev/null {{baseuser}}@$primary \
+              "sudo pip3 install --break-system-packages yq"
+          ssh -i /srv/github/id_ci -o StrictHostKeyChecking=no \
+              -o UserKnownHostsFile=/dev/null {{baseuser}}@$primary \
+              "sudo apt-get install -y moreutils libpq-dev"
+{% else %}
+          ssh -i /srv/github/id_ci -o StrictHostKeyChecking=no \
+              -o UserKnownHostsFile=/dev/null {{baseuser}}@$primary \
+              "sudo pip3 install yq"
+          ssh -i /srv/github/id_ci -o StrictHostKeyChecking=no \
+              -o UserKnownHostsFile=/dev/null {{baseuser}}@$primary \
+              "sudo dnf install -y moreutils"
+{% endif %}
+{% for target in targets %}
       - name: Attempt to apply patches to {{target}}
         run: |
           . ${GITHUB_WORKSPACE}/ci-environment.sh
@@ -58,4 +77,4 @@ jobs:
               -o UserKnownHostsFile=/dev/null {{baseuser}}@$primary \
               "cd kerbside-patches; ./testapply.sh {{target}}"
 
-      {% endfor %}
+{% endfor -%}
