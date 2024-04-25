@@ -1,0 +1,66 @@
+stages:
+  - initialise
+  - test
+  - artifacts
+  - build
+  - archive
+
+kerbside-clone:
+  stage: initialise
+  needs: []
+  interruptible: true
+  tags:
+    - shell
+    - vm
+  artifacts:
+    paths:
+      - src/kerbside.tgz
+  script:
+    - rm -rf src/kerbside
+    - mkdir -p src/kerbside
+    - git clone --depth 1 https://github.com/shakenfist/kerbside src/kerbside
+    - cd src; tar czf kerbside.tgz kerbside
+
+# NOTE(mikal): these jobs are first because they take the longest to run so we want
+# them to start ASAP.
+include:
+  - 'gitlab/nova-ci.yml'
+
+  # The others are less long
+  - 'gitlab/kolla-ansible-ci.yml'
+  - 'gitlab/kolla-ci.yml'
+  - 'gitlab/nova-specs-ci.yml'
+  - 'gitlab/openstacksdk-ci.yml'
+  - 'gitlab/oslo.config-ci.yml'
+  - 'gitlab/python-novaclient-ci.yml'
+  - 'gitlab/python-openstackclient-ci.yml'
+
+docker:
+  stage: build
+  needs:
+    - kerbside-clone
+    - kolla
+    - kolla-ansible
+    - nova
+    - nova-specs
+    - openstacksdk
+    - python-novaclient
+    - python-openstackclient
+    - oslo.config
+  dependencies:
+    - kerbside-clone
+    - kolla
+    - kolla-ansible
+    - nova
+    - nova-specs
+    - openstacksdk
+    - python-novaclient
+    - python-openstackclient
+    - oslo.config
+  interruptible: false
+  timeout: 120m
+  tags:
+    - shell
+    - vm
+  script:
+    - ./buildall.sh
