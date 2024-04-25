@@ -67,7 +67,7 @@ JOBS = {
                 ]
         },
         {
-            'name': 'rocky-9-oslo.config',
+            'name': 'rocky-9-osloconfig',
             'baseimage': 'sf://label/ci-images/rocky-9',
             'baseuser': 'cloud-user',
             'targets': [
@@ -76,7 +76,7 @@ JOBS = {
                 ]
         },
         {
-            'name': 'debian-12-oslo.config',
+            'name': 'debian-12-osloconfig',
             'baseimage': 'sf://label/ci-images/debian-12',
             'baseuser': 'debian',
             'targets': [
