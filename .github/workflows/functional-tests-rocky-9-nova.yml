@@ -35,11 +35,11 @@ jobs:
 
       - name: Build the instance which actually runs tests
         run: |
-          cd ${GITHUB_WORKSPACE}/shakenfist
+          cd ${GITHUB_WORKSPACE}/kerbside-patches/.github
           ansible-playbook -i /home/debian/ansible-hosts \
               --extra-vars "identifier=${SHAKENFIST_NAMESPACE} source_path=${GITHUB_WORKSPACE} \
               base_image=sf://label/ci-images/rocky-9 base_image_user=cloud-user" \
-              .github/ci-topology.yml
+              ci-topology.yml
 
       - name: Copy CI tools to primary
         run: |
