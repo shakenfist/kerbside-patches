@@ -7,12 +7,14 @@ JOBS = {
         {
             'name': 'rocky-9-nova',
             'baseimage': 'sf://label/ci-images/rocky-9',
-            'baseuser': 'cloud-user'
+            'baseuser': 'cloud-user',
+            'targets': ['nova-2023.1', 'nova-2023.2', 'nova-2024.1', 'nova']
         },
         {
             'name': 'debian-12-nova',
             'baseimage': 'sf://label/ci-images/debian-12',
-            'baseuser': 'debian'
+            'baseuser': 'debian',
+            'targets': ['nova-2023.1', 'nova-2023.2', 'nova-2024.1', 'nova']
         },
     ],
 }

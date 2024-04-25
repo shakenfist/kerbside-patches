@@ -41,10 +41,44 @@ jobs:
               base_image=sf://label/ci-images/rocky-9 base_image_user=cloud-user" \
               ci-topology.yml
 
-      - name: Copy CI tools to primary
+      - name: Copy source code to primary
         run: |
           . ${GITHUB_WORKSPACE}/ci-environment.sh
-          cd ${GITHUB_WORKSPACE}/shakenfist
+          cd ${GITHUB_WORKSPACE}
           scp -i /srv/github/id_ci -o StrictHostKeyChecking=no \
-              -o UserKnownHostsFile=/dev/null -rp tools \
+              -o UserKnownHostsFile=/dev/null -rp kerbside-patches \
               cloud-user@$primary:.
+
+      - name: Attempt to apply patches to nova-2023.1
+        run: |
+          . ${GITHUB_WORKSPACE}/ci-environment.sh
+          cd ${GITHUB_WORKSPACE}
+          ssh -i /srv/github/id_ci -o StrictHostKeyChecking=no \
+              -o UserKnownHostsFile=/dev/null cloud-user@$primary \
+              "cd kerbside-patches; ./testapply.sh nova-2023.1"
+
+      - name: Attempt to apply patches to nova-2023.2
+        run: |
+          . ${GITHUB_WORKSPACE}/ci-environment.sh
+          cd ${GITHUB_WORKSPACE}
+          ssh -i /srv/github/id_ci -o StrictHostKeyChecking=no \
+              -o UserKnownHostsFile=/dev/null cloud-user@$primary \
+              "cd kerbside-patches; ./testapply.sh nova-2023.2"
+
+      - name: Attempt to apply patches to nova-2024.1
+        run: |
+          . ${GITHUB_WORKSPACE}/ci-environment.sh
+          cd ${GITHUB_WORKSPACE}
+          ssh -i /srv/github/id_ci -o StrictHostKeyChecking=no \
+              -o UserKnownHostsFile=/dev/null cloud-user@$primary \
+              "cd kerbside-patches; ./testapply.sh nova-2024.1"
+
+      - name: Attempt to apply patches to nova
+        run: |
+          . ${GITHUB_WORKSPACE}/ci-environment.sh
+          cd ${GITHUB_WORKSPACE}
+          ssh -i /srv/github/id_ci -o StrictHostKeyChecking=no \
+              -o UserKnownHostsFile=/dev/null cloud-user@$primary \
+              "cd kerbside-patches; ./testapply.sh nova"
+
+      

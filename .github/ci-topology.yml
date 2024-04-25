@@ -37,3 +37,24 @@
       debug:
         msg:
           - "Primary: is {{primary['meta']['uuid']}} at {{primary['meta']['network_interfaces'][0]['ipv4']}}"
+
+    - name: Write details of instances to workspace
+      copy:
+        content: |
+          {% for svr in groups.sfall %}
+          export {{ svr | replace('-', '_') }}={{hostvars[svr]['ansible_ssh_host']}}
+          export {{ svr | replace('-', '_') }}_uuid={{hostvars[svr]['sf_uuid']}}
+          {% endfor %}
+
+          export baseuser={{base_image_user}}
+          export identifier={{identifier}}
+          export source_path={{source_path}}
+          export nodes="{{ groups.sfall | join(' ') | replace('-', '_') }}"
+        dest: "{{ lookup('env', 'GITHUB_WORKSPACE') }}/ci-environment.sh"
+        owner: debian
+        group: debian
+        mode: u=r,g=r,o=r
+
+    - name: Log environment details path
+      debug:
+        msg: "Environment details written to {{ lookup('env', 'GITHUB_WORKSPACE') }}/ci-environment.sh"
