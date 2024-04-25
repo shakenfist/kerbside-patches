@@ -33,6 +33,14 @@
         sf_uuid: "{{primary['meta']['uuid']}}"
         groups: sfall
 
+    - name: Wait for all instances to present an "OpenSSH" prompt
+      wait_for:
+        port: 22
+        host: "{{hostvars[item]['ansible_ssh_host']}}"
+        search_regex: OpenSSH
+        delay: 10
+      with_items: "{{ groups['sfall'] }}"
+
     - name: Log instance details
       debug:
         msg:
