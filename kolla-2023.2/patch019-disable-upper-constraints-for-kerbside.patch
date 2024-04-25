@@ -4,7 +4,7 @@ Author: Michael Still <mikal@stillhq.com>
     Disable upper constraints for Kerbside container builds.
 
     Kerbside comes from outside of the OpenStack universe and requires
-    versions of its dependancies that are newer than what is allowed by
+    versions of its dependencies that are newer than what is allowed by
     the current OpenStack upper constraints. For now, ignore upper
     contraints. We will add this back in when OpenStack has caught up.
 
@@ -17,7 +17,7 @@ index 353a286..49d2954 100644
  ] %}
 
 +# Note that we disable upper-constraints for kerbside, because it comes from an
-+# alternate universe which requires more modern dependancies that you get with
++# alternate universe which requires more modern dependencies that you get with
 +# 2023.1. This should change as OpenStack releases newer versions.
  ADD kerbside-archive /kerbside-source
  RUN ln -s kerbside-source/* kerbside \

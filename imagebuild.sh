@@ -33,7 +33,7 @@ done
 
 echo
 echo -e "${H1}==================================================${Color_Off}"
-echo -e "${H1}State of build dependancies${Color_Off}"
+echo -e "${H1}State of build dependencies${Color_Off}"
 echo -e "${H1}==================================================${Color_Off}"
 du -sh ${topsrcdir}/*
 

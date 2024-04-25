@@ -1,0 +1,68 @@
+name: Ensure patches still apply once a day
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '00 00 * * *'        # utc
+
+jobs:
+  daily-rebase:
+    runs-on: self-hosted
+    timeout-minutes: 60
+    concurrency:
+      group: ${{ github.workflow }}-${{ github.ref }}
+      cancel-in-progress: true
+
+    # NOTE(mikal): git repos are checked out to /srv/github/_work/{org}/{repo}
+    # which is available as GITHUB_WORKSPACE. You can find other environment
+    # variables at https://docs.github.com/en/actions/learn-github-actions/environment-variables
+
+    steps:
+      - name: Set environment variables
+        run: |
+          echo "SF_HEAD_SHA={% raw %}${{{% endraw %} github.event.pull_request.head.sha {% raw %}}}{% endraw %}" >> $GITHUB_ENV
+          echo "SHAKENFIST_NAMESPACE=$(hostname)" >> $GITHUB_ENV
+
+      - name: Checkout kerbside-patches
+        uses: actions/checkout@v4
+        with:
+          path: kerbside-patches
+          fetch-depth: 0
+
+      - name: Install the github command line
+        run: |
+          sudo apt update
+          sudo apt install -y curl
+
+          curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg | sudo dd of=/usr/share/keyrings/githubcli-archive-keyring.gpg
+          sudo chmod go+r /usr/share/keyrings/githubcli-archive-keyring.gpg
+          echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" | sudo tee /etc/apt/sources.list.d/github-cli.list > /dev/null
+
+          sudo apt update
+          sudo apt install -y gh
+
+      - name: Bump rebase field in README.md
+        env:
+          GITHUB_TOKEN: ${{ secrets.DEPENDENCIES_TOKEN }}
+        run: |
+          cd ${GITHUB_WORKSPACE}/kerbside-patches
+
+          datestamp=$(date "+%Y%m%d")
+          datepretty=$(date "+%-d %B %Y")
+          git checkout -b daily-rebase-${datestamp}
+
+          cat README.md.tmpl | sed "s/%%date%%/${prettydate}/" > README.md
+
+          # Send a PR
+          git config --global user.name "shakenfist-bot"
+          git config --global user.email "bot@shakenfist.com"
+          git commit -a -m "Daily rebase for ${datestamp}."
+          git push -f origin pin-dependencies-${datestamp}
+          echo
+          gh pr create \
+              --assignee mikalstill \
+              --reviewer mikalstill \
+              --title "Daily rebase for ${datestamp}." \
+              --body "A daily rebase was attempted."
+          echo
+          echo "Pull request created."

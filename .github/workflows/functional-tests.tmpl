@@ -1,0 +1,80 @@
+name: Test {{name}}
+
+on:
+  push:
+    branches:
+      - develop
+      - v*-releases
+  pull_request:
+    branches:
+      - develop
+      - v*-releases
+
+jobs:
+  {{name}}:
+    runs-on: self-hosted
+    concurrency:
+      group: {% raw %}${{ github.workflow }}-${{ github.ref }}{% endraw %}
+      cancel-in-progress: true
+
+    # NOTE(mikal): git repos are checked out to /srv/github/_work/{repo}/{repo}
+    # which is available as GITHUB_WORKSPACE. You can find other environment
+    # variables at https://docs.github.com/en/actions/learn-github-actions/environment-variables
+
+    steps:
+      - name: Set environment variables
+        run: |
+          echo "SF_HEAD_SHA={% raw %}${{{% endraw %} github.event.pull_request.head.sha {% raw %}}}{% endraw %}" >> $GITHUB_ENV
+          echo "SHAKENFIST_NAMESPACE=$(hostname)" >> $GITHUB_ENV
+
+      - name: Checkout kerbside-patches
+        uses: actions/checkout@v4
+        with:
+          path: kerbside-patches
+          fetch-depth: 0
+
+      - name: Build the instance which actually runs tests
+        run: |
+          cd ${GITHUB_WORKSPACE}/kerbside-patches/.github
+          ansible-playbook -i /home/debian/ansible-hosts \
+              --extra-vars "identifier=${SHAKENFIST_NAMESPACE} source_path=${GITHUB_WORKSPACE} \
+              base_image={{baseimage}} base_image_user={{baseuser}}" \
+              ci-topology.yml
+
+      - name: Copy source code to primary
+        run: |
+          . ${GITHUB_WORKSPACE}/ci-environment.sh
+          cd ${GITHUB_WORKSPACE}
+          scp -i /srv/github/id_ci -o StrictHostKeyChecking=no \
+              -o UserKnownHostsFile=/dev/null -rp kerbside-patches \
+              {{baseuser}}@$primary:.
+
+      - name: Install missing dependencies
+        run: |
+          . ${GITHUB_WORKSPACE}/ci-environment.sh
+          cd ${GITHUB_WORKSPACE}
+{% if baseuser == "debian" %}
+          ssh -i /srv/github/id_ci -o StrictHostKeyChecking=no \
+              -o UserKnownHostsFile=/dev/null {{baseuser}}@$primary \
+              "sudo pip3 install --break-system-packages yq"
+          ssh -i /srv/github/id_ci -o StrictHostKeyChecking=no \
+              -o UserKnownHostsFile=/dev/null {{baseuser}}@$primary \
+              "sudo apt-get install -y moreutils libpq-dev"
+{% else %}
+          ssh -i /srv/github/id_ci -o StrictHostKeyChecking=no \
+              -o UserKnownHostsFile=/dev/null {{baseuser}}@$primary \
+              "sudo pip3 install yq"
+          ssh -i /srv/github/id_ci -o StrictHostKeyChecking=no \
+              -o UserKnownHostsFile=/dev/null {{baseuser}}@$primary \
+              "sudo dnf install -y moreutils"
+{% endif %}
+{% for target in targets %}
+      - name: Attempt to apply patches to {{target}}
+        run: |
+          . ${GITHUB_WORKSPACE}/ci-environment.sh
+          cd ${GITHUB_WORKSPACE}
+          ssh -i /srv/github/id_ci -o StrictHostKeyChecking=no \
+              -o UserKnownHostsFile=/dev/null {{baseuser}}@$primary \
+              "cd kerbside-patches; ./testapply.sh {{target}}"
+
+{% endfor -%}
