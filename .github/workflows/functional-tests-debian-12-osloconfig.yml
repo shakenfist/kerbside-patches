@@ -1,4 +1,4 @@
-name: Test rocky-9-oslo.config
+name: Test debian-12-osloconfig
 
 on:
   push:
@@ -11,7 +11,7 @@ on:
       - v*-releases
 
 jobs:
-  rocky-9-oslo.config:
+  debian-12-osloconfig:
     runs-on: self-hosted
     concurrency:
       group: ${{ github.workflow }}-${{ github.ref }}
@@ -38,7 +38,7 @@ jobs:
           cd ${GITHUB_WORKSPACE}/kerbside-patches/.github
           ansible-playbook -i /home/debian/ansible-hosts \
               --extra-vars "identifier=${SHAKENFIST_NAMESPACE} source_path=${GITHUB_WORKSPACE} \
-              base_image=sf://label/ci-images/rocky-9 base_image_user=cloud-user" \
+              base_image=sf://label/ci-images/debian-12 base_image_user=debian" \
               ci-topology.yml
 
       - name: Copy source code to primary
@@ -47,7 +47,7 @@ jobs:
           cd ${GITHUB_WORKSPACE}
           scp -i /srv/github/id_ci -o StrictHostKeyChecking=no \
               -o UserKnownHostsFile=/dev/null -rp kerbside-patches \
-              cloud-user@$primary:.
+              debian@$primary:.
 
       - name: Install missing dependencies
         run: |
@@ -55,11 +55,11 @@ jobs:
           cd ${GITHUB_WORKSPACE}
 
           ssh -i /srv/github/id_ci -o StrictHostKeyChecking=no \
-              -o UserKnownHostsFile=/dev/null cloud-user@$primary \
-              "sudo pip3 install yq"
+              -o UserKnownHostsFile=/dev/null debian@$primary \
+              "sudo pip3 install --break-system-packages yq"
           ssh -i /srv/github/id_ci -o StrictHostKeyChecking=no \
-              -o UserKnownHostsFile=/dev/null cloud-user@$primary \
-              "sudo dnf install -y moreutils"
+              -o UserKnownHostsFile=/dev/null debian@$primary \
+              "sudo apt-get install -y moreutils libpq-dev"
 
 
       - name: Attempt to apply patches to oslo.config-2023.1
@@ -67,7 +67,7 @@ jobs:
           . ${GITHUB_WORKSPACE}/ci-environment.sh
           cd ${GITHUB_WORKSPACE}
           ssh -i /srv/github/id_ci -o StrictHostKeyChecking=no \
-              -o UserKnownHostsFile=/dev/null cloud-user@$primary \
+              -o UserKnownHostsFile=/dev/null debian@$primary \
               "cd kerbside-patches; ./testapply.sh oslo.config-2023.1"
 
 
@@ -76,7 +76,7 @@ jobs:
           . ${GITHUB_WORKSPACE}/ci-environment.sh
           cd ${GITHUB_WORKSPACE}
           ssh -i /srv/github/id_ci -o StrictHostKeyChecking=no \
-              -o UserKnownHostsFile=/dev/null cloud-user@$primary \
+              -o UserKnownHostsFile=/dev/null debian@$primary \
               "cd kerbside-patches; ./testapply.sh oslo.config-2023.2"
 
 
@@ -85,7 +85,7 @@ jobs:
           . ${GITHUB_WORKSPACE}/ci-environment.sh
           cd ${GITHUB_WORKSPACE}
           ssh -i /srv/github/id_ci -o StrictHostKeyChecking=no \
-              -o UserKnownHostsFile=/dev/null cloud-user@$primary \
+              -o UserKnownHostsFile=/dev/null debian@$primary \
               "cd kerbside-patches; ./testapply.sh oslo.config-2024.1"
 
 
@@ -94,6 +94,6 @@ jobs:
           . ${GITHUB_WORKSPACE}/ci-environment.sh
           cd ${GITHUB_WORKSPACE}
           ssh -i /srv/github/id_ci -o StrictHostKeyChecking=no \
-              -o UserKnownHostsFile=/dev/null cloud-user@$primary \
+              -o UserKnownHostsFile=/dev/null debian@$primary \
               "cd kerbside-patches; ./testapply.sh oslo.config"
 

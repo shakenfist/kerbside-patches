@@ -57,7 +57,7 @@ jobs:
           git config --global user.name "shakenfist-bot"
           git config --global user.email "bot@shakenfist.com"
           git commit -a -m "Daily rebase for ${datestamp}."
-          git push -f origin pin-dependencies-${datestamp}
+          git push -f origin daily-rebase-${datestamp}
           echo
           gh pr create \
               --assignee mikalstill \
