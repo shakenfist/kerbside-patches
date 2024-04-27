@@ -13,6 +13,8 @@ The remainder of the patches are ancillary changes -- support for new Nova API
 microversions in clients, things which helped me debug along the way, and that
 sort of thing.
 
+These patches last successfully applied via CI on 27 April 2024.
+
 # Not for production use
 
 These patches were developed while building the Kerbside proof of concept.
