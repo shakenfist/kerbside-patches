@@ -43,7 +43,7 @@ jobs:
 
       - name: Bump rebase field in README.md
         env:
-          GITHUB_TOKEN: ${{ secrets.DEPENDENCIES_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.DAILY_REBASE_TOKEN }}
         run: |
           cd ${GITHUB_WORKSPACE}/kerbside-patches
 
@@ -51,7 +51,7 @@ jobs:
           datepretty=$(date "+%-d %B %Y")
           git checkout -b daily-rebase-${datestamp}
 
-          cat README.md.tmpl | sed "s/%%date%%/${prettydate}/" > README.md
+          cat README.md.tmpl | sed "s/%%date%%/${datepretty}/" > README.md
 
           # Send a PR
           git config --global user.name "shakenfist-bot"
