@@ -1,0 +1,180 @@
+name: Functional tests
+
+# NOTE(mikal): git repos are checked out to /srv/github/_work/{repo}/{repo}
+# which is available as GITHUB_WORKSPACE. You can find other environment
+# variables at https://docs.github.com/en/actions/learn-github-actions/environment-variables
+
+on:
+  pull_request:
+    branches:
+      - develop
+      - v*-releases
+    paths-ignore:
+      - 'docs/**'
+
+jobs:
+  functional_matrix:
+    strategy:
+      fail-fast: false
+      matrix:
+        test: [
+          {
+            'name': 'rocky-9-kolla',
+            'baseimage': 'sf://label/ci-images/rocky-9',
+            'baseuser': 'cloud-user',
+            'targets': 'kolla-2023.1 kolla-2023.2 kolla'
+          },
+          {
+              'name': 'debian-12-kolla',
+              'baseimage': 'sf://label/ci-images/debian-12',
+              'baseuser': 'debian',
+              'targets': 'kolla-2023.1 kolla-2023.2 kolla'
+          },
+          {
+              'name': 'rocky-9-kolla-ansible',
+              'baseimage': 'sf://label/ci-images/rocky-9',
+              'baseuser': 'cloud-user',
+              'targets': 'kolla-ansible-2023.1 kolla-ansible-2023.2 kolla-ansible'
+          },
+          {
+              'name': 'debian-12-kolla-ansible',
+              'baseimage': 'sf://label/ci-images/debian-12',
+              'baseuser': 'debian',
+              'targets': 'kolla-ansible-2023.1 kolla-ansible-2023.2 kolla-ansible'
+          },
+          {
+              'name': 'rocky-9-nova',
+              'baseimage': 'sf://label/ci-images/rocky-9',
+              'baseuser': 'cloud-user',
+              'targets': 'nova-2023.1 nova-2023.2 nova-2024.1 nova'
+          },
+          {
+              'name': 'debian-12-nova',
+              'baseimage': 'sf://label/ci-images/debian-12',
+              'baseuser': 'debian',
+              'targets': 'nova-2023.1 nova-2023.2 nova-2024.1 nova'
+          },
+          {
+              'name': 'rocky-9-openstacksdk',
+              'baseimage': 'sf://label/ci-images/rocky-9',
+              'baseuser': 'cloud-user',
+              'targets': 'openstacksdk-2023.1 openstacksdk-2023.2 openstacksdk-2024.1 openstacksdk'
+          },
+          {
+              'name': 'debian-12-openstacksdk',
+              'baseimage': 'sf://label/ci-images/debian-12',
+              'baseuser': 'debian',
+              'targets': 'openstacksdk-2023.1 openstacksdk-2023.2 openstacksdk-2024.1 openstacksdk'
+          },
+          {
+              'name': 'rocky-9-osloconfig',
+              'baseimage': 'sf://label/ci-images/rocky-9',
+              'baseuser': 'cloud-user',
+              'targets': 'oslo.config-2023.1 oslo.config-2023.2 oslo.config-2024.1 oslo.config'
+          },
+          {
+              'name': 'debian-12-osloconfig',
+              'baseimage': 'sf://label/ci-images/debian-12',
+              'baseuser': 'debian',
+              'targets': 'oslo.config-2023.1 oslo.config-2023.2 oslo.config-2024.1 oslo.config'
+          },
+          {
+              'name': 'rocky-9-python-novaclient',
+              'baseimage': 'sf://label/ci-images/rocky-9',
+              'baseuser': 'cloud-user',
+              'targets': 'python-novaclient-2023.1 python-novaclient-2023.2 python-novaclient-2024.1 python-novaclient'
+          },
+          {
+              'name': 'debian-12-python-novaclient',
+              'baseimage': 'sf://label/ci-images/debian-12',
+              'baseuser': 'debian',
+              'targets': 'python-novaclient-2023.1 python-novaclient-2023.2 python-novaclient-2024.1 python-novaclient'
+          },
+          {
+              'name': 'rocky-9-python-openstackclient',
+              'baseimage': 'sf://label/ci-images/rocky-9',
+              'baseuser': 'cloud-user',
+              'targets': 'python-openstackclient-2023.1 python-openstackclient-2023.2 python-openstackclient-2024.1 python-openstackclient'
+          },
+          {
+              'name': 'debian-12-python-openstackclient',
+              'baseimage': 'sf://label/ci-images/debian-12',
+              'baseuser': 'debian',
+              'targets': 'python-openstackclient-2023.1 python-openstackclient-2023.2 python-openstackclient-2024.1 python-openstackclient'
+          },
+        ]
+    runs-on: self-hosted
+    concurrency:
+      group: ${{ github.workflow }}-${{ github.ref }}-${{ matrix.test.name }}
+      cancel-in-progress: true
+
+    steps:
+      - name: Set environment variables
+        run: |
+          echo "SF_HEAD_SHA=${{ github.event.pull_request.head.sha }}" >> $GITHUB_ENV
+          echo "SHAKENFIST_NAMESPACE=$(hostname)" >> $GITHUB_ENV
+
+      - name: Checkout kerbside-patches
+        uses: actions/checkout@v4
+        with:
+          path: kerbside-patches
+          fetch-depth: 0
+
+      - name: Build the instance which actually runs tests
+        run: |
+          cd ${GITHUB_WORKSPACE}/kerbside-patches/.github
+          ansible-playbook -i /home/debian/ansible-hosts \
+              --extra-vars "identifier=${SHAKENFIST_NAMESPACE} source_path=${GITHUB_WORKSPACE} \
+              base_image=${{ matrix.test.baseimage }} base_image_user=${{ matrix.test.baseuser }}" \
+              ci-topology.yml
+
+      - name: Copy source code to primary
+        run: |
+          . ${GITHUB_WORKSPACE}/ci-environment.sh
+          cd ${GITHUB_WORKSPACE}
+          scp -i /srv/github/id_ci -o StrictHostKeyChecking=no \
+              -o UserKnownHostsFile=/dev/null -rp kerbside-patches \
+              ${{ matrix.test.baseuser }}@$primary:.
+
+      - name: Install missing dependencies
+        run: |
+          . ${GITHUB_WORKSPACE}/ci-environment.sh
+          cd ${GITHUB_WORKSPACE}
+
+          if [ ${{ matrix.test.baseuser }} == "debian" ]; then
+            ssh -i /srv/github/id_ci -o StrictHostKeyChecking=no \
+                -o UserKnownHostsFile=/dev/null ${{ matrix.test.baseuser }}@$primary \
+                "sudo pip3 install --break-system-packages yq"
+            ssh -i /srv/github/id_ci -o StrictHostKeyChecking=no \
+                -o UserKnownHostsFile=/dev/null ${{ matrix.test.baseuser }}@$primary \
+                "sudo apt-get install -y moreutils libpq-dev"
+          else
+            ssh -i /srv/github/id_ci -o StrictHostKeyChecking=no \
+                -o UserKnownHostsFile=/dev/null ${{ matrix.test.baseuser }}@$primary \
+                "sudo pip3 install yq"
+            ssh -i /srv/github/id_ci -o StrictHostKeyChecking=no \
+                -o UserKnownHostsFile=/dev/null ${{ matrix.test.baseuser }}@$primary \
+                "sudo dnf install -y moreutils"
+          fi
+
+      - name: Attempt to apply patches
+        run: |
+          . ${GITHUB_WORKSPACE}/ci-environment.sh
+          cd ${GITHUB_WORKSPACE}
+
+          Green='\033[0;32m'        # Green
+          Color_Off='\033[0m'       # Text Reset
+
+          for target in ${{ matrix.test.targets }}; do
+            echo
+            echo -e "${Green}==================================================${Color_Off}"
+            echo -e "${Green}Attempting to apply patches for ${target}${Color_Off}"
+            echo -e "${Green}==================================================${Color_Off}"
+
+            ssh -i /srv/github/id_ci -o StrictHostKeyChecking=no \
+                -o UserKnownHostsFile=/dev/null ${{ matrix.test.baseuser }}@$primary \
+                "cd kerbside-patches; ./testapply.sh ${target}"
+
+            echo
+            echo
+          done
