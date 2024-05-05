@@ -73,6 +73,6 @@ index cfa24a1a..45de5a85 100644
 +            raise ValueError(
 +                'Console type spice-direct is not supported on server side'
 +            )
-         return super(ServerRemoteConsole, self).create(
+         return super().create(
              session, prepend_key=prepend_key, base_path=base_path, **params
          )
