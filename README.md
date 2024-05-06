@@ -13,7 +13,7 @@ The remainder of the patches are ancillary changes -- support for new Nova API
 microversions in clients, things which helped me debug along the way, and that
 sort of thing.
 
-These patches last successfully applied via CI on 4 May 2024.
+These patches last successfully applied via CI on 6 May 2024.
 
 # Not for production use
 
@@ -55,8 +55,15 @@ only the Nova / LibVirt containers are customized by these patches.
 # Container image build
 
 Given I am using Kolla-Ansible for testing, this respository also contains
-scripts to build container images suitable for use with Kolla-Ansible. Those
-images are build like this (assuming you're using Debian 11 like I am):
+scripts to build container images suitable for use with Kolla-Ansible.
+
+This process is automated for gitlab users using the included `.gitlab-ci.yml`
+configuration file, and for github users with the included github workflows
+under `.github/workflow`.
+
+## Debian host OS setup
+
+On Debian, you can build patched container images like this:
 
 ```
 # Basic build configuration
@@ -96,7 +103,43 @@ sudo apt-get install -y docker-ce docker-ce-cli containerd.io \
 sudo usermod -a -G docker $(whoami)
 
 # Note that you might need to logout / in to pick up the group change
+```
 
+Now continue to the shared steps below.
+
+## Rocky host OS setup
+
+On Rocky, you can build patched container images like this:
+
+```
+# Basic build configuration
+sudo dnf update -y
+sudo dnf install -y epel-release
+sudo dnf config-manager --set-enabled crb
+
+sudo dnf install -y moreutils python3-venv pkg-config python3-lxml \
+    libxml2-devel libxslt jq
+sudo dnf remove python3-virtualenv
+sudo pip3 install tox yq occystrap virtualenv
+
+# Install a recent Docker
+sudo dnf config-manager --add-repo https://download.docker.com/linux/centos/docker-ce.repo
+sudo dnf install docker-ce docker-ce-cli containerd.io
+sudo systemctl start docker
+
+# Allow the current user to access docker
+sudo usermod -a -G docker $(whoami)
+
+# Note that you might need to logout / in to pick up the group change
+```
+
+Now continue to the shared steps below.
+
+## Shared build steps
+
+Now run these commands, regardless of host OS:
+
+```
 # Clone the Kerbside patches respository
 git clone https://github.com/shakenfist/kerbside-patches
 cd kerbside-patches
@@ -132,7 +175,3 @@ done
 
 ./buildall.sh
 ```
-
-This process is automated for gitlab users using the included `.gitlab-ci.yml`
-configuration file, and for github users with the included github workflows
-under `.github/workflow`.
