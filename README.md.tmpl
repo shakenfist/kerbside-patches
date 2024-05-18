@@ -117,8 +117,7 @@ sudo dnf update -y
 sudo dnf install -y epel-release
 sudo dnf config-manager --set-enabled crb
 
-sudo dnf install -y moreutils python3-venv pkg-config python3-lxml \
-    libxml2-devel libxslt jq
+sudo dnf install -y moreutils pkg-config python3-lxml libxml2-devel libxslt jq
 sudo dnf remove python3-virtualenv
 sudo pip3 install tox yq occystrap virtualenv
 
@@ -171,7 +170,7 @@ done
 # Now we can build images. Note that you can use --build-targets and
 # --build-images to override the default behaviour. So for example this
 # would build _all_ container images for 2023.1, but not for any other release:
-#     ./buildall.sh --build-targets "2023.1" --build-images "all" --defer-tests
+#     ./buildall.sh --build-targets "2023.1" --build-images "all"
 
 ./buildall.sh
 ```
