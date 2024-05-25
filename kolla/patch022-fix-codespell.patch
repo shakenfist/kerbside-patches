@@ -1,0 +1,23 @@
+commit afdf11c6832df08607f5682658216856e943bd63
+Author: Michael Still <mikal@stillhq.com>
+Date:   Sat May 25 19:50:03 2024 +1000
+
+    Fix codespell on master.
+    
+    codespell, now part of pep8, was failing on master.
+    
+    Change-Id: I309e558a445c0a96f16fd002b8ca232d94620b5a
+
+diff --git a/doc/source/contributor/ptl-guide.rst b/doc/source/contributor/ptl-guide.rst
+index 63573aa74..673314c95 100644
+--- a/doc/source/contributor/ptl-guide.rst
++++ b/doc/source/contributor/ptl-guide.rst
+@@ -99,7 +99,7 @@ Day to Day
+ 
+ * Be available in IRC to help new and existing contributors
+ 
+-* Keep track of the progress of cycle priorites
++* Keep track of the progress of cycle priorities
+ 
+ * Monitor the core team membership, mentor potential cores
+ 
