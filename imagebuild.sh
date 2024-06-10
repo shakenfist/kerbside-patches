@@ -69,11 +69,12 @@ for target in ${build_targets}; do
     done
 
     # Create a venv
-    venvdir="${topdir}/venv-${target_branch}"
+    target_version=$(echo ${target_branch} | sed 's/stable\///')
+    venvdir="${topdir}/venv-${target_version}"
     if [ ! -f ${venvdir}/bin/activate ]; then
         rm -rf ${venvdir}
         echo
-        echo -e "${H2}Create build venv${Color_Off}"
+        echo -e "${H2}Create build venv at ${venvdir}${Color_Off}"
         python3 -mvenv "${venvdir}"
     else
         echo -e "${H2}Using existing build venv ${venvdir}${Color_Off}"
@@ -91,6 +92,16 @@ for target in ${build_targets}; do
         ${venvdir}/bin/pip install docker
     else
         echo -e "${H2}Using existing kolla install in ${venvdir}${Color_Off}"
+    fi
+
+    # Check for known broken versions of python requests
+    # See https://github.com/docker/docker-py/pull/3257 for details
+    echo
+    requests_version=$(${venvdir}/bin/pip list 2> /dev/null | grep requests | tr -s " " | cut -f 2 -d " ")
+    echo -e "${H2}Detected python requests version ${requests_version}${Color_Off}"
+    if [ $(echo $requests_version | egrep -c "2\.32") -gt 0 ]; then
+        echo -e "${H3}Buggy requests version detected. Downgrading.${Color_Off}"
+	${venvdir}/bin/pip install requests==2.31.0
     fi
 
     # Customize the kolla-build.conf file
@@ -114,10 +125,19 @@ for target in ${build_targets}; do
         kolla_build_args=""
     fi
 
+    echo -e "${H3}${venvdir}/bin/kolla-build \\"
+    echo -e "    --config-file \"${topdir}/kolla-build.conf\" \\"
+    echo -e "    --tag ${target}-${CI_COMMIT_SHORT_SHA} \\"
+    echo -e "    --namespace kolla ${kolla_build_args} | ts \"%b %d %H:%M:%S ${target}\""
+    echo -e "${Color_Off}"
+
     ${venvdir}/bin/kolla-build \
         --config-file "${topdir}/kolla-build.conf" \
         --tag ${target}-${CI_COMMIT_SHORT_SHA} \
         --namespace kolla ${kolla_build_args} | ts "%b %d %H:%M:%S ${target}"
+
+    echo
+    echo -e "${H3}Exit code: ${?}"
     cd ${topdir}
 done
 

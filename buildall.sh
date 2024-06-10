@@ -26,7 +26,6 @@ echo -e "${H1}==================================================${Color_Off}"
 rm -rf archive
 mkdir -p archive
 
-# Kolla-Ansible does not yet support 2024.1
 ./imagebuild.sh
 ./imagearchive.sh
 

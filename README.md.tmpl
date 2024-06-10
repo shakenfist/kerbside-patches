@@ -38,7 +38,7 @@ The following microversions are used for Nova releases:
 The original proof of concept was developed against OpenStack 2023.1, and that
 is therefore the best tested version of these patches. Forward porting of
 patches to 2023.2 and 2024.1 has been done, but because Kolla / Kolla-Ansible
-does not yet support 2024.1 they are not as well tested. Bug reports are
+only just started supporting 2024.1 they are not as well tested. Bug reports are
 welcomed.
 
 # Kolla container operating system
@@ -156,8 +156,9 @@ cd ..
 # example skips running the tests against each patch, but then does run a single
 # test at the end for each repository. This should be sufficient for building
 # images, but not for patch development. To skip the tests entirely because
-# they're quite slow, use --skip-tests instead.
-for item in *-2023.1; do
+# they're quite slow and fail on machines running OpenStack, use --skip-tests
+# instead of --defer-tests.
+for item in *-2024.1; do
     ./testapply.sh --defer-tests $item || break
 done
 
@@ -169,8 +170,65 @@ done
 
 # Now we can build images. Note that you can use --build-targets and
 # --build-images to override the default behaviour. So for example this
-# would build _all_ container images for 2023.1, but not for any other release:
-#     ./buildall.sh --build-targets "2023.1" --build-images "all"
+# would build _all_ container images for 2024.1, but not for any other release:
+#     ./buildall.sh --build-targets "2024.1" --build-images "all"
 
-./buildall.sh
+./buildall.sh --build-targets "2024.1"
+```
+
+At the end you should see output like this:
+
+```
+Export patched source code to archive/src
+→...kerbside-e1632d4.tgz
+→...kolla-ansible-e1632d4.tgz
+→...nova-e1632d4.tgz
+→...openstacksdk-e1632d4.tgz
+→...oslo.config-e1632d4.tgz
+→...python-novaclient-e1632d4.tgz
+→...python-openstackclient-e1632d4.tgz
+→...kolla-e1632d4.tgz
+
+==================================================
+Archival complete.
+    Total archive size: 67G archive
+==================================================
+```
+
+# To actually deploy Kolla-Ansible
+
+In order to deploy Kolla-Ansible with our newly built images, we need to import
+those images into our local docker registry so that Kolla-Ansible can use them
+for a deploy. Note that the SHA variable below is set to match the value at the
+end of the filename in the output above. Note that my docker registry in this
+example is running on the same host I did the build on, and is on port 4000.
+Now we can do a tag and push:
+
+```
+sha="e1632d4"
+release="2024.1"
+debian_codename="bookworm"
+for name in $(docker image list | grep ${sha} | cut -f 1 -d " " | cut -f 2 -d "/"); do
+   sudo docker image tag kolla/${name}:${release}-${sha} \
+       127.0.0.1:4000/openstack.kolla/${name}:${release}-debian-${debian_codename}
+   sudo docker image push \
+       127.0.0.1:4000/openstack.kolla/${name}:${release}-debian-${debian_codename}
+done
+```
+
+Now we need to have a patched version of Kolla-Ansible installed somewhere so
+we can do the deployment. I do it this way, although you might want to use a venv
+for this:
+
+```
+cd src/kolla-ansible
+sudo python3 setup.py develop
+```
+
+You'll need a `globals.yml` in `/etc/kolla`, but that's site specific so I don't
+want to include much detail here. Refer to the Kolla-Ansible documentation for
+more details. Then I deploy like this:
+
+```
+sudo kolla-ansible -i /etc/kolla/all-in-one deploy
 ```

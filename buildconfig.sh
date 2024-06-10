@@ -63,21 +63,21 @@ done
 set -o pipefail
 
 # Color helpers, from https://stackoverflow.com/questions/5947742/
-Color_Off='\033[0m'       # Text Reset
-Red='\033[0;31m'          # Red
-Green='\033[0;32m'        # Green
-Yellow='\033[0;33m'       # Yellow
-Blue='\033[0;34m'         # Blue
-Purple='\033[0;35m'       # Purple
-Cyan='\033[0;36m'         # Cyan
-White='\033[0;37m'        # White
+export Color_Off='\033[0m'       # Text Reset
+export Red='\033[0;31m'          # Red
+export Green='\033[0;32m'        # Green
+export Yellow='\033[0;33m'       # Yellow
+export Blue='\033[0;34m'         # Blue
+export Purple='\033[0;35m'       # Purple
+export Cyan='\033[0;36m'         # Cyan
+export White='\033[0;37m'        # White
 
 # And an arrow!
-Arrow='\u2192'
+export Arrow='\u2192'
 
-H1="${Green}"
-H2="${Blue}"
-H3="${Arrow}${Purple}"
+export H1="${Green}"
+export H2="${Blue}"
+export H3="${Arrow}${Purple}"
 
 # Make failures more obvious
 function on_exit {
