@@ -72,7 +72,7 @@ sudo apt-get dist-upgrade -y
 
 sudo apt-get install -y moreutils python3-venv pkg-config \
     libmariadb-dev-compat build-essential python3-dev python3-lxml \
-    libxml2-dev libxslt1-dev jq ca-certificates curl
+    libxml2-dev libxslt1-dev jq ca-certificates curl git libpq-dev
 sudo pip3 uninstall virtualenv
 sudo apt purge -y python3-virtualenv
 sudo pip3 install virtualenv tox yq occystrap
