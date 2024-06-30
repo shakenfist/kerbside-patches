@@ -180,8 +180,6 @@ index fcfd5f95bf..9749ccd1ff 100644
 +
 +Add the spice-direct console type to the spice console protocol.
 \ No newline at end of file
-diff --git a/nova/api/openstack/compute/schemas/remote_consoles.py b/nova/api/openstack/compute/schemas/remote_consoles.py
-index ea38666b4d..6a9eefc937 100644
 --- a/nova/api/openstack/compute/schemas/remote_consoles.py
 +++ b/nova/api/openstack/compute/schemas/remote_consoles.py
 @@ -50,6 +50,25 @@ get_spice_console = {
@@ -207,10 +205,10 @@ index ea38666b4d..6a9eefc937 100644
 +    'additionalProperties': False,
 +}
 +
- get_serial_console = {
-     'type': 'object',
-     'properties': {
-@@ -115,3 +134,27 @@ create_v28 = {
+ # NOTE(stephenfin): This schema is intentionally empty since the action has
+ # been removed
+ get_rdp_console = {}
+@@ -119,3 +138,27 @@ create_v28 = {
      'required': ['remote_console'],
      'additionalProperties': False,
  }
