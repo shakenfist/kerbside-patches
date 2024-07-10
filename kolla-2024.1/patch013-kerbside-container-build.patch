@@ -1,0 +1,97 @@
+commit 59c6c3e4bc5fe8d08d55cbb5a635658657284a7d
+Author: Michael Still <mikal@stillhq.com>
+
+    Implement container image build for kerbside.
+
+    I am fairly sure this will need improvement, but its a starting
+    point at least.
+
+diff --git a/docker/kerbside/kerbside/Dockerfile.j2 b/docker/kerbside/kerbside/Dockerfile.j2
+new file mode 100644
+index 000000000..5a65d70d2
+--- /dev/null
++++ b/docker/kerbside/kerbside/Dockerfile.j2
+@@ -0,0 +1,42 @@
++FROM {{ namespace }}/{{ image_prefix }}openstack-base:{{ tag }}
++{% block labels %}
++LABEL maintainer="{{ maintainer }}" name="{{ image_name }}" build-date="{{ build_date }}"
++{% endblock %}
++
++{% block kerbside_header %}{% endblock %}
++
++{% import "macros.j2" as macros with context %}
++{{ macros.configure_user(name='kerbside', groups='kerbside') }}
++
++{% if base_package_type == 'rpm' %}
++    {% set kerbside_packages = [
++        'mariadb-devel',
++        'pkgconfig'
++    ] %}
++{% elif base_package_type == 'deb' %}
++    {% set kerbside_packages = [
++        'libmariadb-dev-compat',
++        'pkg-config'
++    ] %}
++{% endif %}
++{{ macros.install_packages(kerbside_packages | customizable("packages")) }}
++
++# We currently carry a customized version of openstacksdk until our changes are
++# merged upstream. This is handled as a plugin for now. This is also how you
++# would add support to kerbside for other clouds like Shaken Fist or oVirt.
++ADD plugins-archive /
++RUN pip3 --no-cache-dir install /plugins/*
++
++{% set kerbside_pip_packages = [
++    '/kerbside'
++] %}
++
++ADD kerbside-archive /kerbside-source
++RUN ln -s kerbside-source/* kerbside \
++    && {{ macros.install_pip(kerbside_pip_packages | customizable("pip_packages")) }} \
++    && rm -f /etc/machine-id
++
++{% block kerbside_footer %}{% endblock %}
++{% block footer %}{% endblock %}
++
++USER kerbside
+diff --git a/kolla/common/config.py b/kolla/common/config.py
+index 4b7fa75..992e25e 100644
+--- a/kolla/common/config.py
++++ b/kolla/common/config.py
+@@ -90,6 +90,7 @@ _PROFILE_OPTS = [
+                     'influxdb',
+                     'ironic',
+                     'kafka',
++                    'kerbside',
+                     'kuryr',
+                     'magnum',
+                     'manila',
+diff --git a/kolla/common/sources.py b/kolla/common/sources.py
+index fb28ce1..e89428d 100644
+--- a/kolla/common/sources.py
++++ b/kolla/common/sources.py
+@@ -181,6 +181,10 @@ SOURCES = {
+         'type': 'url',
+         'location': ('$tarballs_base/openstack/keystone/'
+                      'keystone-${openstack_branch}.tar.gz')},
++    'kerbside': {
++        'type': 'url',
++        'location': ('https://shakenfist.com/kerbside/releases/'
++                     'kerbside-${openstack_branch}.tar.gz')},
+     'kuryr-base': {
+         'type': 'url',
+         'location': ('$tarballs_base/openstack/kuryr/'
+diff --git a/kolla/common/users.py b/kolla/common/users.py
+index 34840c9..a9d2349 100644
+--- a/kolla/common/users.py
++++ b/kolla/common/users.py
+@@ -341,5 +341,9 @@ USERS = {
+     'opensearch-dashboards-user': {
+         'uid': 42492,
+         'gid': 42492,
++    },
++    'kerbside-user': {
++        'uid': 42493,
++        'gid': 42493,
+     }
+ }
