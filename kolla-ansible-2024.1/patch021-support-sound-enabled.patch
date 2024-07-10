@@ -1,0 +1,46 @@
+commit 2e3522c5a432c957a5ada49a78537c9fa412ebab
+Author: Michael Still <mikal@stillhq.com>
+
+    Allow enablement of sound devices with SPICE consoles.
+
+    The nova_spice_sound_enabled configuration option will instruct
+    nova to create sound devices for instances. This improves the VDI
+    experience when using SPICE direct consoles with nova.
+
+diff --git a/ansible/group_vars/all.yml b/ansible/group_vars/all.yml
+index ec147ca..492c4a5 100644
+--- a/ansible/group_vars/all.yml
++++ b/ansible/group_vars/all.yml
+@@ -1057,6 +1057,7 @@ nova_spice_streaming_mode: "filter"
+ nova_spice_require_secure: "no"
+ nova_spice_allow_concurrent: "yes"
+ nova_spice_debug_logging: "no"
++nova_spice_sound_enabled: "yes"
+
+
+ #######################
+diff --git a/ansible/roles/nova-cell/templates/nova.conf.j2 b/ansible/roles/nova-cell/templates/nova.conf.j2
+index c01c06c..0aa84fc 100644
+--- a/ansible/roles/nova-cell/templates/nova.conf.j2
++++ b/ansible/roles/nova-cell/templates/nova.conf.j2
+@@ -61,6 +61,7 @@ enabled = true
+ require_secure = {{ nova_spice_require_secure | bool | lower }}
+ allow_concurrent = {{ nova_spice_allow_concurrent | bool | lower }}
+ debug_logging = {{ nova_spice_debug_logging | bool | lower }}
++sound_enabled = {{ nova_spice_sound_enabled | bool | lower }}
+ server_listen = {{ api_interface_address }}
+ image_compression = {{ nova_spice_image_compression }}
+ jpeg_compression = {{ nova_spice_jpeg_compression }}
+diff --git a/doc/source/reference/compute/nova-guide.rst b/doc/source/reference/compute/nova-guide.rst
+index cc6c8a2..727b051 100644
+--- a/doc/source/reference/compute/nova-guide.rst
++++ b/doc/source/reference/compute/nova-guide.rst
+@@ -77,6 +77,8 @@ through to ``nova``:
+   Defaults to ``filter``.
+ * nova_spice_debug_logging: whether to emit debug logs from SPICE sessions to
+   the libvirt qemu log. Defaults to ``no``.
++* nova_spice_sound_enabled: whether an audio device should be added to an
++  instance. Defaults to "yes".
+
+ Cells
+ =====

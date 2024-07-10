@@ -24,28 +24,28 @@ jobs:
               'name': 'rocky-9-kolla',
               'baseimage': 'sf://label/ci-images/rocky-9',
               'baseuser': 'cloud-user',
-              'targets': 'kolla-2023.1 kolla-2023.2 kolla'
+              'targets': 'kolla-2023.1 kolla-2023.2 kolla-2024.1 kolla'
           },
           {
               'description': "kolla on debian 12",
               'name': 'debian-12-kolla',
               'baseimage': 'sf://label/ci-images/debian-12',
               'baseuser': 'debian',
-              'targets': 'kolla-2023.1 kolla-2023.2 kolla'
+              'targets': 'kolla-2023.1 kolla-2023.2 kolla-2024.1 kolla'
           },
           {
               'description': "kolla-ansible on rocky 9",
               'name': 'rocky-9-kolla-ansible',
               'baseimage': 'sf://label/ci-images/rocky-9',
               'baseuser': 'cloud-user',
-              'targets': 'kolla-ansible-2023.1 kolla-ansible-2023.2 kolla-ansible'
+              'targets': 'kolla-ansible-2023.1 kolla-ansible-2023.2 kolla-ansible-2024.1 kolla-ansible'
           },
           {
               'description': "kolla-ansible on debian 12",
               'name': 'debian-12-kolla-ansible',
               'baseimage': 'sf://label/ci-images/debian-12',
               'baseuser': 'debian',
-              'targets': 'kolla-ansible-2023.1 kolla-ansible-2023.2 kolla-ansible'
+              'targets': 'kolla-ansible-2023.1 kolla-ansible-2023.2 kolla-ansible-2024.1 kolla-ansible'
           },
           {
               'description': "nova on rocky 9",
