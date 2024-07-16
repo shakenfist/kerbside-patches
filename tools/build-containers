@@ -1,0 +1,39 @@
+#!/bin/bash -e
+
+cd ~/kerbside-patches
+. buildconfig.sh
+
+echo
+echo -e "${H1}==================================================${Color_Off}"
+echo -e "${H1}Building container images${Color_Off}"
+echo -e "${H1}==================================================${Color_Off}"
+
+echo -e "${H2}Building images${Color_Off}"
+./buildall.sh --build-targets "2024.1" --build-images "all"
+
+sha="${CI_COMMIT_SHORT_SHA}"
+release="2024.1"
+debian_codename="bookworm"
+
+echo
+echo -e "${H1}==================================================${Color_Off}"
+echo -e "${H1}Loading / pushing images for SHA ${sha}${Color_Off}"
+echo -e "${H1}==================================================${Color_Off}"
+echo
+
+for item in archive/imgs/*.tar; do
+   name=$( echo $item | sed -e "s/archive\/imgs\///" -e "s/-${release}-${sha}.tar//" )
+   echo "Loading..."
+   echo "    name: ${name}"
+   echo "    release: ${release}"
+   echo "    sha: ${sha}"
+   sudo docker load -i $item
+   sudo docker image tag kolla/${name}:${release}-${sha} 127.0.0.1:4000/openstack.kolla/${name}:${release}-debian-${debian_codename}
+   sudo docker image push 127.0.0.1:4000/openstack.kolla/${name}:${release}-debian-${debian_codename}
+done
+
+trap - EXIT
+
+echo -e "${H1}==================================================${Color_Off}"
+echo -e "${H1}Container image build complete.${Color_Off}"
+echo -e "${H1}==================================================${Color_Off}"

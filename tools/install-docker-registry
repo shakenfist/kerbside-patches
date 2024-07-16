@@ -1,0 +1,53 @@
+#!/bin/bash -e
+
+. /home/cloud-user/kerbside-patches/buildconfig.sh
+
+echo
+echo -e "${H1}==================================================${Color_Off}"
+echo -e "${H1}Deploying local Docker registry${Color_Off}"
+echo -e "${H1}==================================================${Color_Off}"
+
+echo -e "${H2}Setup systemd unit${Color_Off}"
+mkdir -p /srv/docker/registry
+
+cat - > /etc/systemd/system/docker_registry.service << EOF
+[Unit]
+Description=Docker registry
+After=docker.service
+Requires=docker.service
+
+[Service]
+TimeoutStartSec=0
+Restart=always
+ExecStartPre=-/usr/bin/docker stop %n
+ExecStartPre=-/usr/bin/docker rm %n
+ExecStartPre=/usr/bin/docker pull registry:2
+
+ExecStartPre=mkdir -p /srv/docker/registry
+ExecStartPre=chown -R root.root /srv/docker/registry
+
+ExecStart=/usr/bin/docker run --rm --name %n \
+    --user 0:0 \
+    -e REGISTRY_HTTP_ADDR=0.0.0.0:4000 \
+    -v /srv/docker/registry:/var/lib/registry \
+    --network=host \
+    registry:2
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+echo -e "${H2}Enable registry${Color_Off}"
+systemctl enable docker_registry.service
+
+echo -e "${H2}Start registry${Color_Off}"
+systemctl start docker_registry.service
+
+echo -e "${H2}Docker status${Color_Off}"
+docker ps | grep registry || true
+
+trap - EXIT
+
+echo -e "${H1}==================================================${Color_Off}"
+echo -e "${H1}Docker registry deployed.${Color_Off}"
+echo -e "${H1}==================================================${Color_Off}"

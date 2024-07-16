@@ -14,6 +14,11 @@ skip_tests="false"
 # Should we build a compact archive using occystrap?
 compact_archive="false"
 
+# Ensure we have a git commit sha
+if [ -z ${CI_COMMIT_SHORT_SHA} ]; then
+    export CI_COMMIT_SHORT_SHA=$(git rev-parse --short HEAD)
+fi
+
 # Parse command line
 export build_targets=${default_build_targets}
 export build_images=${default_build_images}
@@ -82,5 +87,6 @@ function on_exit {
     echo
     echo -e "${Red}*** Failed ***${No_Color}"
     echo
+    exit 1
     }
 trap 'on_exit $?' EXIT
