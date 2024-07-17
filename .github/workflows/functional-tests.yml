@@ -1,0 +1,85 @@
+name: Ensure the cloud is still installable
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '8 00 * * *'        # utc
+  pull_request:
+    branches:
+      - develop
+
+jobs:
+  rocky-9:
+    name: "Build a test cloud"
+    runs-on: self-hosted
+    timeout-minutes: 300
+    concurrency:
+      group: ${{ github.workflow }}-${{ github.ref }}
+      cancel-in-progress: true
+
+    # NOTE(mikal): git repos are checked out to /srv/github/_work/{org}/{repo}
+    # which is available as GITHUB_WORKSPACE. You can find other environment
+    # variables at https://docs.github.com/en/actions/learn-github-actions/environment-variables
+
+    steps:
+      - name: Set environment variables
+        run: |
+          echo "SF_HEAD_SHA=${{ github.event.pull_request.head.sha }}" >> $GITHUB_ENV
+          echo "SHAKENFIST_NAMESPACE=$(hostname)" >> $GITHUB_ENV
+
+      - name: Checkout kerbside-patches
+        uses: actions/checkout@v4
+        with:
+          path: kerbside-patches
+          fetch-depth: 0
+
+      - name: Install the github command line
+        run: |
+          sudo apt update
+          sudo apt install -y curl
+
+          curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg | sudo dd of=/usr/share/keyrings/githubcli-archive-keyring.gpg
+          sudo chmod go+r /usr/share/keyrings/githubcli-archive-keyring.gpg
+          echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" | sudo tee /etc/apt/sources.list.d/github-cli.list > /dev/null
+
+          sudo apt update
+          sudo apt install -y gh
+
+      - name: Build infrastructure
+        run: |
+          . $GITHUB_ENV
+          cd ${GITHUB_WORKSPACE}/kerbside-patches
+          ansible-playbook -i /home/debian/ansible-hosts \
+              --extra-vars "identifier=${SHAKENFIST_NAMESPACE}" \
+              cloud-deployment.yml
+
+      - name: Copy git repo
+        run: |
+          . $GITHUB_ENV
+          scp -rp -i /srv/github/id_ci -o StrictHostKeyChecking=no \
+              -o UserKnownHostsFile=/dev/null \
+              ${GITHUB_WORKSPACE}/kerbside-patches cloud-user@10.0.2.2:.
+
+      - name: Install dependencies
+        run: |
+          . $GITHUB_ENV
+          ssh -i /srv/github/id_ci -o StrictHostKeyChecking=no \
+              -o UserKnownHostsFile=/dev/null \
+              cloud-user@10.0.2.2 \
+              'cd kerbside-patches/tools; ./install-build-dependencies'
+
+      - name: Clone kerbside
+        run: |
+          . $GITHUB_ENV
+          ssh -i /srv/github/id_ci -o StrictHostKeyChecking=no \
+              -o UserKnownHostsFile=/dev/null \
+              cloud-user@10.0.2.2 \
+              'cd kerbside-patches; mkdir src; cd src; git clone https://github.com/shakenfist/kerbside; tar cvf kerbside.tgz kerbside'
+
+      - name: Build patched repositories
+        run: |
+          . $GITHUB_ENV
+          ssh -i /srv/github/id_ci -o StrictHostKeyChecking=no \
+              -o UserKnownHostsFile=/dev/null \
+              cloud-user@10.0.2.2 \
+              'cd kerbside-patches; for item in *-2024.1; do ./testapply.sh --skip-tests $item || break; done'
