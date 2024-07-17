@@ -324,7 +324,7 @@ index b83ed911e..ec7a3179b 100644
 +    service_name: "kerbside"
 +    service: "{{ nova_services[service_name] }}"
 +  become: true
-+  kolla_docker:
++  kolla_container:
 +    action: "recreate_or_restart_container"
 +    common_options: "{{ docker_common_options }}"
 +    name: "{{ service.container_name }}"
