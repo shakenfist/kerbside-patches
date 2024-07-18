@@ -13,7 +13,7 @@ The remainder of the patches are ancillary changes -- support for new Nova API
 microversions in clients, things which helped me debug along the way, and that
 sort of thing.
 
-These patches last successfully applied via CI on 17 July 2024.
+These patches last successfully applied via CI on 18 July 2024.
 
 # Not for production use
 
@@ -38,7 +38,7 @@ The following microversions are used for Nova releases:
 The original proof of concept was developed against OpenStack 2023.1, and that
 is therefore the best tested version of these patches. Forward porting of
 patches to 2023.2 and 2024.1 has been done, but because Kolla / Kolla-Ansible
-does not yet support 2024.1 they are not as well tested. Bug reports are
+only just started supporting 2024.1 they are not as well tested. Bug reports are
 welcomed.
 
 # Kolla container operating system
@@ -158,7 +158,7 @@ cd ..
 # images, but not for patch development. To skip the tests entirely because
 # they're quite slow and fail on machines running OpenStack, use --skip-tests
 # instead of --defer-tests.
-for item in *-2023.1; do
+for item in *-2024.1; do
     ./testapply.sh --defer-tests $item || break
 done
 
@@ -170,10 +170,10 @@ done
 
 # Now we can build images. Note that you can use --build-targets and
 # --build-images to override the default behaviour. So for example this
-# would build _all_ container images for 2023.1, but not for any other release:
-#     ./buildall.sh --build-targets "2023.1" --build-images "all"
+# would build _all_ container images for 2024.1, but not for any other release:
+#     ./buildall.sh --build-targets "2024.1" --build-images "all"
 
-./buildall.sh --build-targets "2023.1"
+./buildall.sh --build-targets "2024.1"
 ```
 
 At the end you should see output like this:
@@ -206,9 +206,13 @@ Now we can do a tag and push:
 
 ```
 sha="e1632d4"
+release="2024.1"
+debian_codename="bookworm"
 for name in $(docker image list | grep ${sha} | cut -f 1 -d " " | cut -f 2 -d "/"); do
-   sudo docker image tag kolla/${name}:2023.1-${sha} 127.0.0.1:4000/openstack.kolla/${name}:2023.1-debian-bullseye
-   sudo docker image push 127.0.0.1:4000/openstack.kolla/${name}:2023.1-debian-bullseye
+   sudo docker image tag kolla/${name}:${release}-${sha} \
+       127.0.0.1:4000/openstack.kolla/${name}:${release}-debian-${debian_codename}
+   sudo docker image push \
+       127.0.0.1:4000/openstack.kolla/${name}:${release}-debian-${debian_codename}
 done
 ```
 
