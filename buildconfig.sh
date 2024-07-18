@@ -1,6 +1,4 @@
-# Kolla-Ansible does not yet have a 2024.1 branch. This is a space separated
-# list.
-default_build_targets="2023.1 2023.2 master"
+default_build_targets="2023.1 2023.2 2024.1 master"
 
 # Which images to build. Kerbside only requires customized nova-compute,
 # nova-libvirt, nova-api, and kerbside container images but it can make sense

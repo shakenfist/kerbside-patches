@@ -16,9 +16,9 @@ mkdir -p "archive/imgs"
 cd "archive/imgs"
 
 for target in ${build_targets}; do
-    images=$(docker image list --format json | \
-        jq --slurp -r ".[] | select(.Tag == \"${target}-${CI_COMMIT_SHORT_SHA}\") | .Repository")
-    for image in ${images}; do
+    # images=$(docker image list --format json | \
+    #     jq --slurp -r ".[] | select(.Tag == \"${target}-${CI_COMMIT_SHORT_SHA}\") | .Repository")
+    for image in $( cat ${topdir}/archive/images ); do
         image=$(echo $image | sed 's/kolla\///')
 
         echo -e "${H3}...${image}${Color_Off}"
@@ -26,8 +26,7 @@ for target in ${build_targets}; do
         rm -f "${image}-${target}-${CI_COMMIT_SHA}.tar"
 
         docker save kolla/${image}:${target}-${CI_COMMIT_SHORT_SHA} > "${image}-${target}-${CI_COMMIT_SHORT_SHA}.tar"
-        gzip "${image}-${target}-${CI_COMMIT_SHORT_SHA}.tar"
-        ls -lrth "${image}-${target}-${CI_COMMIT_SHORT_SHA}.tar.gz"
+        ls -lrth "${image}-${target}-${CI_COMMIT_SHORT_SHA}.tar"
         echo
     done
 done

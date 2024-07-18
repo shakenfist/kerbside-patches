@@ -35,7 +35,7 @@ echo -e "${H1}Shared archival steps${Color_Off}"
 echo -e "${H1}==================================================${Color_Off}"
 
 echo -e "${H2}Prune local docker image cache${Color_Off}"
-docker image prune -f
+docker image prune -af
 
 echo -e "${H2}Export patched source code to archive/src${Color_Off}"
 cd "${topdir}"
