@@ -1,16 +1,73 @@
 commit 8cee401389ccba52a6a645cd0676cc678220bede
 Author: Michael Still <mikal@stillhq.com>
 
-    Add support for microversion 2.97.
+    Add support for spice-direct console types.
 
-    This microversion adds support for the new SPICE direct console
-    type.
+    This patch adds support for Nova microversion 2.97 which exposes the new
+    spice-direct console type and the pre-existing /os-console-auth-token/ API.
+
+    # openstack console url show --spice-direct f2477018-aa93-...
+    +----------+----------------------------------------------------------+
+    | Field    | Value                                                    |
+    +----------+----------------------------------------------------------+
+    | protocol | spice                                                    |
+    | type     | spice-direct                                             |
+    | url      | http://127.0.0.1:13002/nova?token=f78009fb-41ad-...      |
+    +----------+----------------------------------------------------------+
+
+    # openstack console connection show f78009fb-41ad-...
+    +----------------------+--------------------------------------+
+    | Field                | Value                                |
+    +----------------------+--------------------------------------+
+    | host                 | 127.0.0.1                            |
+    | instance_uuid        | f2477018-aa93-...                    |
+    | internal_access_path | None                                 |
+    | port                 | 5900                                 |
+    | tls_port             | 5901                                 |
+    +----------------------+--------------------------------------+
 
 diff --git a/openstack/compute/v2/_proxy.py b/openstack/compute/v2/_proxy.py
-index 53ea68a4..71a9b2f9 100644
+index 53ea68a4d..117999081 100644
 --- a/openstack/compute/v2/_proxy.py
 +++ b/openstack/compute/v2/_proxy.py
-@@ -2325,10 +2325,13 @@ class Proxy(proxy.Proxy):
+@@ -25,6 +25,9 @@ from openstack.compute.v2 import migration as _migration
+ from openstack.compute.v2 import quota_set as _quota_set
+ from openstack.compute.v2 import server as _server
+ from openstack.compute.v2 import server_action as _server_action
++from openstack.compute.v2 import (
++    server_console_auth_token as _server_console_auth_token,
++)
+ from openstack.compute.v2 import server_diagnostics as _server_diagnostics
+ from openstack.compute.v2 import server_group as _server_group
+ from openstack.compute.v2 import server_interface as _server_interface
+@@ -54,6 +57,7 @@ class Proxy(proxy.Proxy):
+         "keypair": _keypair.Keypair,
+         "limits": limits.Limits,
+         "migration": _migration.Migration,
++        "os_console_auth_token": _server_console_auth_token.ServerConsoleAuthToken,
+         "quota_set": _quota_set.QuotaSet,
+         "server": _server.Server,
+         "server_action": _server_action.ServerAction,
+@@ -2298,6 +2302,18 @@ class Proxy(proxy.Proxy):
+         server = self._get_resource(_server.Server, server)
+         return server.get_console_url(self, console_type)
+
++    def validate_console_auth_token(self, console_token):
++        """Lookup console connection information for a console auth token.
++
++        :param console_token: The console auth token as returned in the URL
++            from get_server_console_url.
++        :returns: Dictionary with connection details, varying by console type.
++        """
++        return self._get(
++            _server_console_auth_token.ServerConsoleAuthToken,
++            console_token=console_token,
++        )
++
+     def get_server_console_output(self, server, length=None):
+         """Return the console output for a server.
+
+@@ -2325,10 +2341,13 @@ class Proxy(proxy.Proxy):
              * rdp-html5
              * serial
              * webmks (supported after 2.8)
@@ -25,8 +82,79 @@ index 53ea68a4..71a9b2f9 100644
          """
          server = self._get_resource(_server.Server, server)
          # NOTE: novaclient supports undocumented type xcpvnc also supported
+diff --git a/openstack/compute/v2/server_console_auth_token.py b/openstack/compute/v2/server_console_auth_token.py
+new file mode 100644
+index 000000000..bc912aa0f
+--- /dev/null
++++ b/openstack/compute/v2/server_console_auth_token.py
+@@ -0,0 +1,65 @@
++# Licensed under the Apache License, Version 2.0 (the "License"); you may
++# not use this file except in compliance with the License. You may obtain
++# a copy of the License at
++#
++#      http://www.apache.org/licenses/LICENSE-2.0
++#
++# Unless required by applicable law or agreed to in writing, software
++# distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
++# WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
++# License for the specific language governing permissions and limitations
++# under the License.
++
++from openstack import resource
++
++
++class ServerConsoleAuthToken(resource.Resource):
++    resource_key = 'console'
++    base_path = '/os-console-auth-tokens/%(console_token)s'
++
++    # capabilities
++    allow_fetch = True
++    requires_id = False
++
++    _max_microversion = '2.97'
++
++    # Request
++    #: The console token to lookup connection information for.
++    console_token = resource.URI('console_token', alternate_id=True)
++
++    # Properties
++    #: Instance UUID
++    instance_uuid = resource.Body('instance_uuid')
++    #: Hypervisor host
++    host = resource.Body('host')
++    #: Hypervisor port
++    port = resource.Body('port')
++    #: Hypervisor TLS port
++    tls_port = resource.Body('tls_port')
++    #: Internal access path
++    internal_access_path = resource.Body('internal_access_path')
++
++    def fetch(
++        self,
++        session,
++        requires_id=False,
++        base_path=None,
++        error_message=None,
++        skip_cache=False,
++        *,
++        resource_response_key=None,
++        microversion=None,
++        **params,
++    ):
++        # NOTE(mikal): I am really not sure this is the right way to not
++        # require an id.
++        return super().fetch(
++            session,
++            requires_id=False,
++            base_path=base_path,
++            error_message=error_message,
++            skip_cache=skip_cache,
++            resource_response_key=resource_response_key,
++            microversion=microversion,
++            **params,
++        )
 diff --git a/openstack/compute/v2/server_remote_console.py b/openstack/compute/v2/server_remote_console.py
-index cfa24a1a..45de5a85 100644
+index cfa24a1a2..2794dde99 100644
 --- a/openstack/compute/v2/server_remote_console.py
 +++ b/openstack/compute/v2/server_remote_console.py
 @@ -17,6 +17,7 @@ CONSOLE_TYPE_PROTOCOL_MAPPING = {
@@ -37,7 +165,7 @@ index cfa24a1a..45de5a85 100644
      'rdp-html5': 'rdp',
      'serial': 'serial',
      'webmks': 'mks',
-@@ -34,16 +35,22 @@ class ServerRemoteConsole(resource.Resource):
+@@ -34,7 +35,7 @@ class ServerRemoteConsole(resource.Resource):
      allow_delete = False
      allow_list = False
 
@@ -46,23 +174,7 @@ index cfa24a1a..45de5a85 100644
 
      #: Protocol of the remote console.
      protocol = resource.Body('protocol')
-     #: Type of the remote console.
-     type = resource.Body('type')
--    #: URL used to connect to the console.
-+    #: URL used to connect to the console (most consoles).
-     url = resource.Body('url')
-     #: The ID for the server.
-     server_id = resource.URI('server_id')
-+    #: The hostname of the hypervisor hosting the console (direct consoles).
-+    host = resource.Body('host')
-+    #: The port the TCP port the console is hosted on (direct consoles).
-+    port = resource.Body('port')
-+    #: The port the TLS port the console is hosted on (direct consoles).
-+    tls_port = resource.Body('tls_port')
-
-     def create(self, session, prepend_key=True, base_path=None, **params):
-         if not self.protocol:
-@@ -55,6 +62,13 @@ class ServerRemoteConsole(resource.Resource):
+@@ -55,6 +56,13 @@ class ServerRemoteConsole(resource.Resource):
              raise ValueError(
                  'Console type webmks is not supported on server side'
              )

@@ -29,6 +29,10 @@ function run_tests {
         then
             echo -e "${H3}tox -epy3${Color_Off}"
             tox -epy3 | ts "%b %d %H:%M:%S ${1} ${shortpatch} py3"
+            if [ $? -gt 0 ]; then
+                echo -e "${H3}tox -epy3 failed!${Color_Off}"
+                exit 1
+            fi
         fi
 
         # Nova has both fast8 and pep8, but runs pep8 in their CI so that
@@ -37,10 +41,18 @@ function run_tests {
         then
             echo -e "${H3}tox -epep8${Color_Off}"
             tox -epep8 | ts "%b %d %H:%M:%S ${1} ${shortpatch} pep8"
+            if [ $? -gt 0 ]; then
+                echo -e "${H3}tox -pep8 failed!${Color_Off}"
+                exit 1
+            fi
         elif [ $(tox -a | grep -c flake8) -gt 0 ]
         then
             echo -e "${H3}tox -eflake8${Color_Off}"
             tox -eflake8 | ts "%b %d %H:%M:%S ${1} ${shortpatch} flake8"
+            if [ $? -gt 0 ]; then
+                echo -e "${H3}tox -eflake8 failed!${Color_Off}"
+                exit 1
+            fi
         fi
     fi
 
@@ -109,6 +121,10 @@ for project in ${positional_args}; do
 
         echo -e "${H3}Applying ${branch} ${project}/${patch}${Color_Off}"
         git -C ${topsrcdir}/${directory} apply -v ${topdir}/${project}/${patch}
+        if [ $? -gt 0 ]; then
+            echo -e "${H3}Applying ${branch} ${project}/${patch} failed!${Color_Off}"
+            exit 1
+        fi
 
         pushd ${topsrcdir}/${directory}
 

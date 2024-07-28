@@ -1,6 +1,6 @@
 patch002-nova-require-secure.patch
-patch004-nova-allow-direct-spice-connections.patch
 patch010-allow-concurrent-spice-connections.patch
 patch012-support-usb-passthrough.patch
 patch017-enable-spice-debug-logging.patch
 patch020-add-sound-device.patch
+patch024-nova-tokens.patch

@@ -1,18 +1,33 @@
-#!/bin/bash
+#!/bin/bash -e
 
-# Basic build configuration
+cd ~/kerbside-patches
+. buildconfig.sh
+
+echo
+echo -e "${H1}==================================================${Color_Off}"
+echo -e "${H1}Installing build dependencies${Color_Off}"
+echo -e "${H1}==================================================${Color_Off}"
+
+echo -e "${H2}Basic OS updates${Color_Off}"
 sudo dnf update -y
 sudo dnf install -y epel-release
 sudo dnf config-manager --set-enabled crb
 
+echo -e "${H2}Additional packages${Color_Off}"
 sudo dnf install -y moreutils pkg-config python3-lxml libxml2-devel libxslt jq
 sudo dnf remove python3-virtualenv
 sudo pip3 install tox yq occystrap virtualenv
 
-# Install a recent Docker
+echo -e "${H2}Install a recent Docker${Color_Off}"
 sudo dnf config-manager --add-repo https://download.docker.com/linux/centos/docker-ce.repo
 sudo dnf install -y docker-ce docker-ce-cli containerd.io
 sudo systemctl start docker
 
 # Allow the current user to access docker
 sudo usermod -a -G docker $(whoami)
+
+trap - EXIT
+
+echo -e "${H1}==================================================${Color_Off}"
+echo -e "${H1}Build dependencies installed.${Color_Off}"
+echo -e "${H1}==================================================${Color_Off}"

@@ -1,0 +1,30 @@
+#!/bin/bash -e
+
+cd ~/kerbside-patches
+. buildconfig.sh
+
+echo
+echo -e "${H1}==================================================${Color_Off}"
+echo -e "${H1}Building patched source tree${Color_Off}"
+echo -e "${H1}==================================================${Color_Off}"
+
+# Fetch kerbside
+echo -e "${H2}Cloning kerbside${Color_Off}"
+mkdir src
+cd src
+git clone https://github.com/shakenfist/kerbside
+tar cvf kerbside.tgz kerbside
+cd ..
+
+# Apply patches. We skip tests here because there are separate CI jobs to
+# cover that and the tests take ages to run.
+for item in *-2024.1; do
+    echo -e "${H2}Patching ${item}${Color_Off}"
+    ./testapply.sh --skip-tests ${item}
+done
+
+trap - EXIT
+
+echo -e "${H1}==================================================${Color_Off}"
+echo -e "${H1}Patched source tree finalized.${Color_Off}"
+echo -e "${H1}==================================================${Color_Off}"

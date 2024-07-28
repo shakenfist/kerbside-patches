@@ -1,6 +1,4 @@
-# Kolla-Ansible does not yet have a 2024.1 branch. This is a space separated
-# list.
-default_build_targets="2023.1 2023.2 master"
+default_build_targets="2023.1 2023.2 2024.1 master"
 
 # Which images to build. Kerbside only requires customized nova-compute,
 # nova-libvirt, nova-api, and kerbside container images but it can make sense
@@ -15,6 +13,11 @@ skip_tests="false"
 
 # Should we build a compact archive using occystrap?
 compact_archive="false"
+
+# Ensure we have a git commit sha
+if [ -z ${CI_COMMIT_SHORT_SHA} ]; then
+    export CI_COMMIT_SHORT_SHA=$(git rev-parse --short HEAD)
+fi
 
 # Parse command line
 export build_targets=${default_build_targets}
@@ -84,5 +87,6 @@ function on_exit {
     echo
     echo -e "${Red}*** Failed ***${No_Color}"
     echo
+    exit 1
     }
 trap 'on_exit $?' EXIT

@@ -33,6 +33,14 @@ jobs:
           path: kerbside-patches
           fetch-depth: 0
 
+      - name: Set some more environment variables post git checkout
+        run: |
+          . $GITHUB_ENV
+          cd ${GITHUB_WORKSPACE}/kerbside-patches
+
+          short_sha=$(git rev-parse --short HEAD)
+          echo "SF_SHORT_HEAD_SHA=${short_sha}" >> $GITHUB_ENV
+
       - name: Install the github command line
         run: |
           sudo apt update
@@ -68,18 +76,34 @@ jobs:
               cloud-user@10.0.2.2 \
               'cd kerbside-patches/tools; ./install-build-dependencies'
 
-      - name: Clone kerbside
+      - name: Setup docker registry
         run: |
           . $GITHUB_ENV
           ssh -i /srv/github/id_ci -o StrictHostKeyChecking=no \
               -o UserKnownHostsFile=/dev/null \
               cloud-user@10.0.2.2 \
-              'cd kerbside-patches; mkdir src; cd src; git clone https://github.com/shakenfist/kerbside; tar cvf kerbside.tgz kerbside'
+              'cd kerbside-patches/tools; sudo ./install-docker-registry'
 
-      - name: Build patched repositories
+      - name: Build patched respositories
         run: |
           . $GITHUB_ENV
           ssh -i /srv/github/id_ci -o StrictHostKeyChecking=no \
               -o UserKnownHostsFile=/dev/null \
               cloud-user@10.0.2.2 \
-              'cd kerbside-patches; for item in *-2024.1; do ./testapply.sh --skip-tests $item || break; done'
+              'cd kerbside-patches/tools; ./assemble-source'
+
+      - name: Build container images
+        run: |
+          . $GITHUB_ENV
+          ssh -i /srv/github/id_ci -o StrictHostKeyChecking=no \
+              -o UserKnownHostsFile=/dev/null \
+              cloud-user@10.0.2.2 \
+              'cd kerbside-patches/tools; ./build-containers'
+
+      - name: Bootstrap Kolla-Ansible
+        run: |
+          . $GITHUB_ENV
+          ssh -i /srv/github/id_ci -o StrictHostKeyChecking=no \
+              -o UserKnownHostsFile=/dev/null \
+              cloud-user@10.0.2.2 \
+              'cd kerbside-patches/tools; sudo ./bootstrap-kolla-ansible'

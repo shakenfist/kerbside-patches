@@ -10,11 +10,6 @@ topsrcdir="${topdir}/src"
 ARGS=$*
 . buildconfig.sh
 
-# Ensure we have a git commit sha
-if [ -z ${CI_COMMIT_SHORT_SHA} ]; then
-    export CI_COMMIT_SHORT_SHA=$(git rev-parse --short HEAD)
-fi
-
 echo
 echo -e "${H1}==================================================${Color_Off}"
 echo -e "${H1}Build configuration${Color_Off}"
@@ -33,9 +28,6 @@ echo
 echo -e "${H1}==================================================${Color_Off}"
 echo -e "${H1}Shared archival steps${Color_Off}"
 echo -e "${H1}==================================================${Color_Off}"
-
-echo -e "${H2}Prune local docker image cache${Color_Off}"
-docker image prune -f
 
 echo -e "${H2}Export patched source code to archive/src${Color_Off}"
 cd "${topdir}"

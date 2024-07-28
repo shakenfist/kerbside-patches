@@ -1,0 +1,35 @@
+#!/bin/bash -e
+
+cd /home/cloud-user/kerbside-patches
+. buildconfig.sh
+
+echo
+echo -e "${H1}==================================================${Color_Off}"
+echo -e "${H1}Bootstrap Kolla-Ansible${Color_Off}"
+echo -e "${H1}==================================================${Color_Off}"
+
+echo -e "${H2}Install Ansible${Color_Off}"
+pip3 install -U ansible
+
+echo -e "${H2}Install patched Kolla-Ansible${Color_Off}"
+cd src/kolla-ansible
+python3 setup.py develop
+
+echo -e "${H2}Install Kolla-Ansible dependencies${Color_Off}"
+export PATH=$PATH:/usr/local/bin
+kolla-ansible install-deps
+mkdir /etc/kolla
+cp -r etc/kolla /etc/
+cp ansible/inventory/all-in-one /etc/kolla
+
+echo -e "${H2}Generate passwords${Color_Off}"
+kolla-genpwd
+
+echo -e "${H2}Bootstrap servers${Color_Off}"
+kolla-ansible -i /etc/kolla/all-in-one bootstrap-servers
+
+trap - EXIT
+
+echo -e "${H1}==================================================${Color_Off}"
+echo -e "${H1}Kolla-Ansible bootstrapped.${Color_Off}"
+echo -e "${H1}==================================================${Color_Off}"

@@ -128,16 +128,24 @@ for target in ${build_targets}; do
     echo -e "${H3}${venvdir}/bin/kolla-build \\"
     echo -e "    --config-file \"${topdir}/kolla-build.conf\" \\"
     echo -e "    --tag ${target}-${CI_COMMIT_SHORT_SHA} \\"
-    echo -e "    --namespace kolla ${kolla_build_args} | ts \"%b %d %H:%M:%S ${target}\""
+    echo -e "    --namespace kolla ${kolla_build_args} 2>&1 | \\"
+    echo -e "    tee ${topdir}/archive/build.log | \\"
+    echo -e "    ts \"%b %d %H:%M:%S ${target}\""
     echo -e "${Color_Off}"
 
     ${venvdir}/bin/kolla-build \
         --config-file "${topdir}/kolla-build.conf" \
         --tag ${target}-${CI_COMMIT_SHORT_SHA} \
-        --namespace kolla ${kolla_build_args} | ts "%b %d %H:%M:%S ${target}"
+        --namespace kolla ${kolla_build_args} 2>&1 | \
+        tee ${topdir}/archive/build.log | \
+        ts "%b %d %H:%M:%S ${target}"
 
     echo
     echo -e "${H3}Exit code: ${?}"
+
+    # Extract the list of build images and save it for later
+    tail -1 ${topdir}/archive/build.log | jq -r ".built | .[] | .name" > ${topdir}/archive/images
+
     cd ${topdir}
 done
 
