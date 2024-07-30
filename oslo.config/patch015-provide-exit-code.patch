@@ -6,6 +6,8 @@ Author: Michael Still <mikal@stillhq.com>
     This will make it easier for scripts which call OpenStack tools to
     detect failure if SystemExit isn't caught by the calling code.
 
+    Change-Id: Ic829b704d1629fcb0d926118367af122c25b7fba
+
 diff --git a/oslo_config/cfg.py b/oslo_config/cfg.py
 index 35f0cfb..73ae566 100644
 --- a/oslo_config/cfg.py

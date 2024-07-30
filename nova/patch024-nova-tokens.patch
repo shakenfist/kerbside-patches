@@ -50,6 +50,8 @@ Author: Michael Still <mikal@stillhq.com>
 
     APIImpact
 
+    Change-Id: I1e701cbabc0e2c435685e31465159eec09e3b1a0
+
 diff --git a/doc/api_samples/versions/v21-version-get-resp.json b/doc/api_samples/versions/v21-version-get-resp.json
 index e1b7acede1..197144bc28 100644
 --- a/doc/api_samples/versions/v21-version-get-resp.json
