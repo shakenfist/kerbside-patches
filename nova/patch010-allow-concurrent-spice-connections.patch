@@ -10,6 +10,11 @@ Author: Michael Still <mikal@stillhq.com>
     requesting that libvirt customize the qemu command line, with
     associated xml namespace fun.
 
+    Note that this patch alters the qemu command line via libvirt,
+    which is currently forbidden by upstream OpenStack Nova developers.
+
+    Change-Id: I65f94771abdc1a6ef54637ea81f25ce1daaf4963
+
 diff --git a/nova/conf/spice.py b/nova/conf/spice.py
 index d01a83c3b9..8742da47ba 100644
 --- a/nova/conf/spice.py
