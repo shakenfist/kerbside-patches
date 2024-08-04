@@ -1,2 +1,4 @@
 patch002-nova-require-secure.patch
 patch024-nova-tokens.patch
+patch025-sound-model-extra-spec.patch
+patch010-allow-concurrent-spice-connections.patch
