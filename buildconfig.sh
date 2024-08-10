@@ -8,6 +8,9 @@ default_build_images="nova-compute nova-libvirt nova-api kerbside"
 # Should we only test once at the end?
 defer_tests="false"
 
+# Should we only run pep8 tests?
+skip_unit_tests="false"
+
 # Should we skip tests entirely?
 skip_tests="false"
 
@@ -45,6 +48,11 @@ while [[ $# -gt 0 ]]; do
       export build_targets="$2"
       echo "Setting build targets to ${build_targets}."
       shift; shift
+      ;;
+    --skip-unit-tests)
+      export skip_unit_tests="true"
+      echo "Will skip unit testing."
+      shift
       ;;
     --skip-tests)
       export skip_tests="true"
