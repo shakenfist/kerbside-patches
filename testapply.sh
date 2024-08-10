@@ -25,13 +25,15 @@ function run_tests {
     then
         echo "${Red}No test configuration found!${Colour_off}"
     else
-        if [ $(tox -a | grep -c py3) -gt 0 ]
-        then
-            echo -e "${H3}tox -epy3${Color_Off}"
-            tox -epy3 | ts "%b %d %H:%M:%S ${1} ${shortpatch} py3"
-            if [ $? -gt 0 ]; then
-                echo -e "${H3}tox -epy3 failed!${Color_Off}"
-                exit 1
+        if [ "${skip_unit_tests}" == "false" ]; then
+            if [ $(tox -a | grep -c py3) -gt 0 ]
+            then
+                echo -e "${H3}tox -epy3${Color_Off}"
+                tox -epy3 | ts "%b %d %H:%M:%S ${1} ${shortpatch} py3"
+                if [ $? -gt 0 ]; then
+                    echo -e "${H3}tox -epy3 failed!${Color_Off}"
+                    exit 1
+                fi
             fi
         fi
 

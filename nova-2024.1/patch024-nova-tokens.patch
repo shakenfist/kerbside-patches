@@ -420,7 +420,6 @@ index 0000000000..c2656f8f0c
 +def upgrade():
 +    with op.batch_alter_table('console_auth_tokens', schema=None) as batch_op:
 +        batch_op.add_column(sa.Column('tls_port', sa.Integer()))
-\ No newline at end of file
 diff --git a/nova/db/main/models.py b/nova/db/main/models.py
 index 3fbe209049..61d220ed20 100644
 --- a/nova/db/main/models.py
