@@ -129,16 +129,16 @@ for project in ${positional_args}; do
         fi
 
         pushd ${topsrcdir}/${directory}
-
-        if [ "${defer_tests}" != "true" ]; then
-            run_tests ${branch}
-        fi
-
         echo -e "${H3}Commiting ${branch} ${patch}${Color_Off}"
         git add -A .
         git status
         git commit -a -m "${patch}"
         echo
+
+        if [ "${defer_tests}" != "true" ]; then
+            run_tests ${branch}
+        fi
+
         popd
     done
 

@@ -183,7 +183,7 @@ index 9bde7e62d4..b3aaed19c6 100644
 +        if not required:
 +            return None
          return meta
-\ No newline at end of file
+
 diff --git a/nova/virt/libvirt/driver.py b/nova/virt/libvirt/driver.py
 index 855c7caac0..4f1443b021 100644
 --- a/nova/virt/libvirt/driver.py

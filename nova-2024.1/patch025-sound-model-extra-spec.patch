@@ -204,17 +204,17 @@ index 97f5146..8a2bdac 100644
 +        the flavor and the image, but the values do not match
 +    :raises: nova.exception.Invalid if a value or combination of values is
 +        invalid
-+    :returns: A string containing the device mdoel, else None.
++    :returns: A string containing the device model, else None.
 +    """
 +    model = _get_unique_flavor_image_meta('sound_model', flavor, image_meta)
 +    if model and model not in fields.SoundModelType.ALL:
 +        raise exception.Invalid(
-+            "Invalid sound device model %(model)r. Allowed values: %(valid)s." %
-+            {'model': model, 'valid': ', '.join(fields.SoundModelType.ALL)}
++            "Invalid sound device model %(model)r. Allowed values: %(valid)s."
++            % {'model': model, 'valid': ', '.join(fields.SoundModelType.ALL)}
 +        )
 +
 +    return model
-\ No newline at end of file
+
 diff --git a/nova/virt/libvirt/config.py b/nova/virt/libvirt/config.py
 index aaac19f..5f84134 100644
 --- a/nova/virt/libvirt/config.py
@@ -235,7 +235,7 @@ index aaac19f..5f84134 100644
 +        meta = self._new_node('sound')
 +        meta.set('model', str(self.model))
 +        return meta
-\ No newline at end of file
+
 diff --git a/nova/virt/libvirt/driver.py b/nova/virt/libvirt/driver.py
 index 8826df4..598db1b 100644
 --- a/nova/virt/libvirt/driver.py
