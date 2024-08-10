@@ -238,17 +238,6 @@ index e2867aa..172e105 100644
      tag openstack_python
    </rule>
    <rule>
-diff --git a/ansible/roles/nova-cell/tasks/config-libvirt-tls.yml b/ansible/roles/nova-cell/tasks/config-libvirt-tls.yml
-index d8a1d94..567ee95 100644
---- a/ansible/roles/nova-cell/tasks/config-libvirt-tls.yml
-+++ b/ansible/roles/nova-cell/tasks/config-libvirt-tls.yml
-@@ -43,4 +43,4 @@
-     - clientcert.pem
-     - clientkey.pem
-   notify:
--    - Restart {{ service_name }} container
-+    - Restart {{ service_name }} container
-\ No newline at end of file
 diff --git a/ansible/roles/nova/defaults/main.yml b/ansible/roles/nova/defaults/main.yml
 index dad4ab6..d785d44 100644
 --- a/ansible/roles/nova/defaults/main.yml
