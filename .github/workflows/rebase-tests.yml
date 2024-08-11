@@ -90,7 +90,7 @@ jobs:
               'targets': 'oslo.config-2024.1 oslo.config'
           },
           {
-              'description': "python-novaclient on rock 9",
+              'description': "python-novaclient on rocky 9",
               'name': 'rocky-9-python-novaclient',
               'baseimage': 'sf://label/ci-images/rocky-9',
               'baseuser': 'cloud-user',
