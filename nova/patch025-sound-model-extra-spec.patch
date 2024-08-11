@@ -281,7 +281,7 @@ index d09c7f4..2f25834 100644
      # *also* bump the version of ImageMetaPropsPayload. See its docstring for
      # more information.
 -    'ImageMetaPropsPayload': '1.13-682cfe847d16301734e1fba924063e6d',
-+    'ImageMetaPropsPayload': '1.14-fb5cc10d8d7a3b7445bbaaf34fee2037',
++    'ImageMetaPropsPayload': '1.14-c7e7f9ce75112c1a92972da646d2ec9e',
      'InstanceActionNotification': '1.0-a73147b93b520ff0061865849d3dfa56',
      'InstanceActionPayload': '1.8-b948818df6ec562e4eb4b23e515e451b',
      'InstanceActionRebuildNotification':
