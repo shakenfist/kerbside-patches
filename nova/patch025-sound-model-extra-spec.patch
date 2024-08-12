@@ -1,0 +1,300 @@
+commit 5416a7689088ff717bf332904866623766c2b72e
+Author: Michael Still <mikal@stillhq.com>
+Date:   Sun Aug 4 10:19:06 2024 +1000
+
+    Add configurable sound device to libvirt guests.
+
+diff --git a/nova/api/validation/extra_specs/hw.py b/nova/api/validation/extra_specs/hw.py
+index ab558d4..c50355b 100644
+--- a/nova/api/validation/extra_specs/hw.py
++++ b/nova/api/validation/extra_specs/hw.py
+@@ -539,6 +539,19 @@ feature_flag_validators = [
+             'description': 'Whether to enable packed virtqueue',
+         },
+     ),
++    base.ExtraSpecValidator(
++        name='hw:sound_model',
++        description=(
++            'The model of the attached sound device. '
++            'Only supported by the libvirt virt driver. '
++            'If unset, no sound device is attached.'
++        ),
++        value={
++            'type': str,
++            'description': 'A sound model',
++            'enum': fields.SoundModelType.ALL,
++        },
++    ),
+ ]
+
+ ephemeral_encryption_validators = [
+diff --git a/nova/notifications/objects/image.py b/nova/notifications/objects/image.py
+index 575081f..932caa1 100644
+--- a/nova/notifications/objects/image.py
++++ b/nova/notifications/objects/image.py
+@@ -131,7 +131,8 @@ class ImageMetaPropsPayload(base.NotificationPayloadBase):
+     # Version 1.11: Added 'hw_locked_memory' field
+     # Version 1.12: Added 'hw_viommu_model' field
+     # Version 1.13: Added 'hw_virtio_packed_ring' field
+-    VERSION = '1.13'
++    # Version 1.14: Added 'hw_sound_model' field
++    VERSION = '1.14'
+
+     # NOTE(efried): This logic currently relies on all of the fields of
+     # ImageMetaProps being initialized with no arguments. See the docstring.
+diff --git a/nova/objects/fields.py b/nova/objects/fields.py
+index 332acf9..1171dcf 100644
+--- a/nova/objects/fields.py
++++ b/nova/objects/fields.py
+@@ -853,6 +853,20 @@ class PointerModelType(BaseNovaEnum):
+     ALL = (USBTABLET,)
+
+
++class SoundModelType(BaseNovaEnum):
++
++    SB16 = 'sb16'
++    ES1370 = 'es1370'
++    PCSPK = 'pcspk'
++    AC97 = 'ac97'
++    ICH6 = 'ich6'
++    ICH9 = 'ich9'
++    USB = 'usb'
++    VIRTIO = 'virtio'
++
++    ALL = (SB16, ES1370, PCSPK, AC97, ICH6, ICH9, USB, VIRTIO,)
++
++
+ class NotificationPriority(BaseNovaEnum):
+     AUDIT = 'audit'
+     CRITICAL = 'critical'
+@@ -1389,6 +1403,10 @@ class PointerModelField(BaseEnumField):
+     AUTO_TYPE = PointerModelType()
+
+
++class SoundModelField(BaseEnumField):
++    AUTO_TYPE = SoundModelType()
++
++
+ class NotificationPriorityField(BaseEnumField):
+     AUTO_TYPE = NotificationPriority()
+
+diff --git a/nova/objects/image_meta.py b/nova/objects/image_meta.py
+index ab486b3..68203ef 100644
+--- a/nova/objects/image_meta.py
++++ b/nova/objects/image_meta.py
+@@ -196,14 +196,18 @@ class ImageMetaProps(base.NovaObject):
+     # Version 1.36: Added 'hw_maxphysaddr_mode' and
+     #                     'hw_maxphysaddr_bits' field
+     # Version 1.37: Added 'hw_ephemeral_encryption_secret_uuid' field
++    # Version 1.38: Added 'hw_sound_model' field
++
+     # NOTE(efried): When bumping this version, the version of
+     # ImageMetaPropsPayload must also be bumped. See its docstring for details.
+-    VERSION = '1.37'
++    VERSION = '1.38'
+
+     def obj_make_compatible(self, primitive, target_version):
+         super(ImageMetaProps, self).obj_make_compatible(primitive,
+                                                         target_version)
+         target_version = versionutils.convert_version_to_tuple(target_version)
++        if target_version < (1, 38):
++            primitive.pop('hw_sound_model', None)
+         if target_version < (1, 37):
+             primitive.pop('hw_ephemeral_encryption_secret_uuid', None)
+         if target_version < (1, 36):
+@@ -495,6 +499,9 @@ class ImageMetaProps(base.NovaObject):
+         # Control bits for the physical memory address bit of Libvirt guests.
+         'hw_maxphysaddr_bits': fields.IntegerField(),
+
++        # Name of sound device model to use.
++        'hw_sound_model': fields.SoundModelField(),
++
+         # if true download using bittorrent
+         'img_bittorrent': fields.FlexibleBooleanField(),
+
+diff --git a/nova/tests/unit/objects/test_image_meta.py b/nova/tests/unit/objects/test_image_meta.py
+index 0225d45..a2ac6e4 100644
+--- a/nova/tests/unit/objects/test_image_meta.py
++++ b/nova/tests/unit/objects/test_image_meta.py
+@@ -551,6 +551,17 @@ class TestImageMetaProps(test.NoDBTestCase):
+         self.assertNotIn('hw_tpm_model', primitive['nova_object.data'])
+         self.assertNotIn('hw_tpm_version', primitive['nova_object.data'])
+
++    def test_obj_make_compatible_sound_model(self):
++        """Test that checks if we pop hw_sound_model."""
++        obj = objects.ImageMetaProps(
++            hw_sound_model='sb16',
++        )
++        primitive = obj.obj_to_primitive()
++        self.assertIn('hw_sound_model', primitive['nova_object.data'])
++
++        primitive = obj.obj_to_primitive('1.27')
++        self.assertNotIn('hw_sound_model', primitive['nova_object.data'])
++
+     def test_obj_make_compatible_socket_policy(self):
+         obj = objects.ImageMetaProps(
+             hw_pci_numa_affinity_policy=fields.PCINUMAAffinityPolicy.SOCKET)
+diff --git a/nova/tests/unit/virt/libvirt/test_driver.py b/nova/tests/unit/virt/libvirt/test_driver.py
+index b3e9733..fa76a14 100644
+--- a/nova/tests/unit/virt/libvirt/test_driver.py
++++ b/nova/tests/unit/virt/libvirt/test_driver.py
+@@ -6936,6 +6936,43 @@ class LibvirtConnTestCase(test.NoDBTestCase,
+         self.assertEqual(cfg.devices[7].model, 'tpm-crb')
+         self.assertEqual(cfg.devices[7].secret_uuid, uuids.vtpm)
+
++    def test_get_guest_config_with_sound_model(self):
++        self.flags(virt_type='kvm', group='libvirt')
++
++        drvr = libvirt_driver.LibvirtDriver(fake.FakeVirtAPI(), True)
++        instance = objects.Instance(**self.test_instance)
++        image_meta = objects.ImageMeta.from_dict({
++            'disk_format': 'raw',
++            'properties': {
++                'hw_sound_model': 'sb16',
++            },
++        })
++
++        disk_info = blockinfo.get_disk_info(
++            CONF.libvirt.virt_type, instance, image_meta)
++        cfg = drvr._get_guest_config(instance, [], image_meta, disk_info)
++        self.assertEqual(10, len(cfg.devices))
++        self.assertIsInstance(
++            cfg.devices[0], vconfig.LibvirtConfigGuestDisk)
++        self.assertIsInstance(
++            cfg.devices[1], vconfig.LibvirtConfigGuestDisk)
++        self.assertIsInstance(
++            cfg.devices[2], vconfig.LibvirtConfigGuestSerial)
++        self.assertIsInstance(
++            cfg.devices[3], vconfig.LibvirtConfigGuestSound)
++        self.assertIsInstance(
++            cfg.devices[4], vconfig.LibvirtConfigGuestGraphics)
++        self.assertIsInstance(
++            cfg.devices[5], vconfig.LibvirtConfigGuestVideo)
++        self.assertIsInstance(
++            cfg.devices[6], vconfig.LibvirtConfigGuestInput)
++        self.assertIsInstance(
++            cfg.devices[7], vconfig.LibvirtConfigGuestRng)
++        self.assertIsInstance(
++            cfg.devices[8], vconfig.LibvirtConfigGuestUSBHostController)
++        self.assertIsInstance(
++            cfg.devices[9], vconfig.LibvirtConfigMemoryBalloon)
++
+     def test_get_guest_config_with_video_driver_vram(self):
+         self.flags(enabled=False, group='vnc')
+         self.flags(virt_type='kvm', group='libvirt')
+diff --git a/nova/virt/hardware.py b/nova/virt/hardware.py
+index 97f5146..8a2bdac 100644
+--- a/nova/virt/hardware.py
++++ b/nova/virt/hardware.py
+@@ -2858,3 +2858,27 @@ def get_ephemeral_encryption_format(
+             )
+         return eph_format
+     return None
++
++
++def get_sound_model(
++    flavor: 'objects.Flavor',
++    image_meta: 'objects.ImageMeta',
++) -> ty.Optional[str]:
++    """Get the sound device model, if any.
++
++    :param flavor: ``nova.objects.Flavor`` instance
++    :param image_meta: ``nova.objects.ImageMeta`` instance
++    :raises: nova.exception.FlavorImageConflict if a value is specified in both
++        the flavor and the image, but the values do not match
++    :raises: nova.exception.Invalid if a value or combination of values is
++        invalid
++    :returns: A string containing the device model, else None.
++    """
++    model = _get_unique_flavor_image_meta('sound_model', flavor, image_meta)
++    if model and model not in fields.SoundModelType.ALL:
++        raise exception.Invalid(
++            "Invalid sound device model %(model)r. Allowed values: %(valid)s."
++            % {'model': model, 'valid': ', '.join(fields.SoundModelType.ALL)}
++        )
++
++    return model
+
+diff --git a/nova/virt/libvirt/config.py b/nova/virt/libvirt/config.py
+index aaac19f..5f84134 100644
+--- a/nova/virt/libvirt/config.py
++++ b/nova/virt/libvirt/config.py
+@@ -3983,3 +3983,15 @@ class LibvirtConfigGuestMetaNovaIp(LibvirtConfigObject):
+         meta.set("address", str(self.address))
+         meta.set("ipVersion", str(self.ip_version))
+         return meta
++
++
++class LibvirtConfigGuestSound(LibvirtConfigObject):
++
++    def __init__(self, model):
++        super(LibvirtConfigGuestSound, self).__init__(root_name='sound')
++        self.model = model
++
++    def format_dom(self):
++        meta = self._new_node('sound')
++        meta.set('model', str(self.model))
++        return meta
+
+diff --git a/nova/virt/libvirt/driver.py b/nova/virt/libvirt/driver.py
+index 8826df4..598db1b 100644
+--- a/nova/virt/libvirt/driver.py
++++ b/nova/virt/libvirt/driver.py
+@@ -6733,6 +6733,22 @@ class LibvirtDriver(driver.ComputeDriver):
+         vtpm = vconfig.LibvirtConfigGuestVTPM(vtpm_config, vtpm_secret_uuid)
+         guest.add_device(vtpm)
+
++    def _add_sound_device(
++        self,
++        guest: vconfig.LibvirtConfigGuest,
++        flavor: 'objects.Flavor',
++        instance: 'objects.Instance',
++        image_meta: 'objects.ImageMeta',
++    ) -> None:
++        """Add a sound device to the guest, if requested."""
++        # Enable sound support if required in the flavor or image.
++        sound_model = hardware.get_sound_model(flavor, image_meta)
++        if not sound_model:
++            return None
++
++        sound_device = vconfig.LibvirtConfigGuestSound(sound_model)
++        guest.add_device(sound_device)
++
+     def _set_qemu_guest_agent(self, guest, flavor, instance, image_meta):
+         # Enable qga only if the 'hw_qemu_guest_agent' is equal to yes
+         if image_meta.properties.get('hw_qemu_guest_agent', False):
+@@ -7408,6 +7424,7 @@ class LibvirtDriver(driver.ComputeDriver):
+         self._create_consoles(guest, instance, flavor, image_meta)
+
+         self._guest_add_spice_channel(guest)
++        self._add_sound_device(guest, flavor, instance, image_meta)
+
+         if self._guest_add_video_device(guest):
+             self._add_video_driver(guest, image_meta, flavor)
+
+diff --git a/nova/tests/unit/notifications/objects/test_notification.py b/nova/tests/unit/notifications/objects/test_notification.py
+index d09c7f4..2f25834 100644
+--- a/nova/tests/unit/notifications/objects/test_notification.py
++++ b/nova/tests/unit/notifications/objects/test_notification.py
+@@ -385,7 +385,7 @@ notification_object_data = {
+     # ImageMetaProps, so when you see a fail here for that reason, you must
+     # *also* bump the version of ImageMetaPropsPayload. See its docstring for
+     # more information.
+-    'ImageMetaPropsPayload': '1.13-682cfe847d16301734e1fba924063e6d',
++    'ImageMetaPropsPayload': '1.14-c7e7f9ce75112c1a92972da646d2ec9e',
+     'InstanceActionNotification': '1.0-a73147b93b520ff0061865849d3dfa56',
+     'InstanceActionPayload': '1.8-b948818df6ec562e4eb4b23e515e451b',
+     'InstanceActionRebuildNotification':
+diff --git a/nova/tests/unit/objects/test_objects.py b/nova/tests/unit/objects/test_objects.py
+index f3e4dec..1512ffd 100644
+--- a/nova/tests/unit/objects/test_objects.py
++++ b/nova/tests/unit/objects/test_objects.py
+@@ -1105,7 +1105,7 @@ object_data = {
+     'HyperVLiveMigrateData': '1.4-e265780e6acfa631476c8170e8d6fce0',
+     'IDEDeviceBus': '1.0-29d4c9f27ac44197f01b6ac1b7e16502',
+     'ImageMeta': '1.8-642d1b2eb3e880a367f37d72dd76162d',
+-    'ImageMetaProps': '1.37-1e0d70fb51041c0446b00695c5ef0e21',
++    'ImageMetaProps': '1.38-f91a50ba4316bee4924524b0f4c1e3ad',
+     'Instance': '2.8-2727dba5e4a078e6cc848c1f94f7eb24',
+     'InstanceAction': '1.2-9a5abc87fdd3af46f45731960651efb5',
+     'InstanceActionEvent': '1.4-5b1f361bd81989f8bb2c20bb7e8a4cb4',

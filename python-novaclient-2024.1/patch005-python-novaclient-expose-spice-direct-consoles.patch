@@ -4,7 +4,8 @@ Author: Michael Still <mikal@stillhq.com>
     Add support for microversion 2.97.
 
     This microversion adds support for the new SPICE direct console
-    type.
+    type. Note that this patch does not add support for the
+    os-console-auth-tokens as python-novaclient is deprecated.
 
 diff --git a/novaclient/__init__.py b/novaclient/__init__.py
 index bf021c6a..6629d744 100644
@@ -16,8 +17,20 @@ index bf021c6a..6629d744 100644
  # backward incompatible change.
 -API_MAX_VERSION = api_versions.APIVersion("2.96")
 +API_MAX_VERSION = api_versions.APIVersion("2.97")
+diff --git a/novaclient/tests/unit/v2/test_shell.py b/novaclient/tests/unit/v2/test_shell.py
+index 3f7bc396..25c05053 100644
+--- a/novaclient/tests/unit/v2/test_shell.py
++++ b/novaclient/tests/unit/v2/test_shell.py
+@@ -4703,6 +4703,7 @@ class ShellTest(utils.TestCase):
+             94,  # There are no version-wrapped shell method changes for this.
+             95,  # There are no version-wrapped shell method changes for this.
+             96,  # There are no version-wrapped shell method changes for this.
++            97,  # Add new spice-direct console type.
+         ])
+         versions_supported = set(range(0,
+                                  novaclient.API_MAX_VERSION.ver_minor + 1))
 diff --git a/novaclient/v2/servers.py b/novaclient/v2/servers.py
-index 37f55316..a90afb4c 100644
+index 37f55316..b1992e13 100644
 --- a/novaclient/v2/servers.py
 +++ b/novaclient/v2/servers.py
 @@ -37,6 +37,7 @@ CONSOLE_TYPE_ACTION_MAPPING = {
@@ -45,95 +58,16 @@ index 37f55316..a90afb4c 100644
          """
 
          action = CONSOLE_TYPE_ACTION_MAPPING.get(console_type)
-@@ -1147,7 +1149,7 @@ class ServerManager(base.BootingManagerWithFind):
-
-         return self.get_console_url(server, 'webmks')
-
--    @api_versions.wraps('2.6')
-+    @api_versions.wraps('2.6', '2.96')
-     def get_console_url(self, server, console_type):
-         """
-         Retrieve a console url of a server.
-@@ -1170,6 +1172,33 @@ class ServerManager(base.BootingManagerWithFind):
-         resp, body = self.api.client.post(url, body=body)
-         return self.convert_into_with_meta(body, resp)
-
-+    @api_versions.wraps('2.97')
-+    def get_console_url(self, server, console_type):
-+        """
-+        Retrieve a console url of a server.
-+
-+        :param server: server to get console url for
-+        :param console_type: type can be novnc/xvpvnc for protocol vnc;
-+                             spice-html5 for protocol spice; rdp-html5 for
-+                             protocol rdp; serial for protocol serial.
-+                             webmks for protocol mks (since version 2.8).
-+        """
-+
-+        if self.api_version < api_versions.APIVersion('2.8'):
-+            if console_type == 'webmks':
-+                raise exceptions.UnsupportedConsoleType(console_type)
-+
-+        if self.api_version < api_versions.APIVersion('2.97'):
-+            if console_type == 'spice-direct':
-+                raise exceptions.UnsupportedConsoleType(console_type)
-+
-+        protocol = self._get_protocol(console_type)
-+        body = {'remote_console': {'protocol': protocol,
-+                                   'type': console_type}}
-+        url = '/servers/%s/remote-consoles' % base.getid(server)
-+        resp, body = self.api.client.post(url, body=body)
-+        return self.convert_into_with_meta(body, resp)
-+
-     def get_password(self, server, private_key=None):
-         """
-         Get admin password of an instance
 diff --git a/novaclient/v2/shell.py b/novaclient/v2/shell.py
-index 0ca9e794..eacb08fc 100644
+index 0ca9e794..6fd07305 100644
 --- a/novaclient/v2/shell.py
 +++ b/novaclient/v2/shell.py
-@@ -2857,17 +2857,30 @@ def console_dict_accessor(cs, data):
-     return data['remote_console']
-
-
--class Console(object):
-+class UrlConsole(object):
-     def __init__(self, console_dict):
-         self.type = console_dict['type']
-         self.url = console_dict['url']
-
-
- def print_console(cs, data):
--    utils.print_list([Console(console_dict_accessor(cs, data))],
-+    utils.print_list([UrlConsole(console_dict_accessor(cs, data))],
-                      ['Type', 'Url'])
-
-
-+class DirectConsole(object):
-+    def __init__(self, console_dict):
-+        self.type = console_dict['type']
-+        self.host = console_dict['host']
-+        self.port = console_dict['port']
-+        self.tls_port = console_dict['tls_port']
-+
-+
-+def print_direct_console(cs, data):
-+    utils.print_list([DirectConsole(console_dict_accessor(cs, data))],
-+                     ['Type', 'Host', 'Port', 'TLS Port'])
-+
-+
- @utils.arg('server', metavar='<server>', help=_('Name or ID of server.'))
+@@ -2885,7 +2885,7 @@ def do_get_vnc_console(cs, args):
  @utils.arg(
      'console_type',
-@@ -2891,7 +2904,10 @@ def do_get_spice_console(cs, args):
+     metavar='<console-type>',
+-    help=_('Type of spice console ("spice-html5").'))
++    help=_('Type of spice console ("spice-html5", "spice-direct").'))
+ def do_get_spice_console(cs, args):
+     """Get a spice console to a server."""
      server = _find_server(cs, args.server)
-     data = server.get_spice_console(args.console_type)
-
--    print_console(cs, data)
-+    if args.console_type == 'spice-direct':
-+        print_direct_console(cs, data)
-+    else:
-+        print_console(cs, data)
-
-
- @utils.arg('server', metavar='<server>', help=_('Name or ID of server.'))
