@@ -2,7 +2,16 @@ commit 5416a7689088ff717bf332904866623766c2b72e
 Author: Michael Still <mikal@stillhq.com>
 Date:   Sun Aug 4 10:19:06 2024 +1000
 
-    Add configurable sound device to libvirt guests.
+    libvirt: Add extra spec for sound device.
+
+    This patch adds an extra spec to configure a sound device inside
+    the guest. This is useful for SPICE consoles using the native
+    protocol.
+
+    (This patch likely needs further work, but is uploaded for any
+    early comments).
+
+    Change-Id: I2faeda0fd0fb9c8894d69558a1ccaab8da9f6a1b
 
 diff --git a/nova/api/validation/extra_specs/hw.py b/nova/api/validation/extra_specs/hw.py
 index ab558d4..c50355b 100644
