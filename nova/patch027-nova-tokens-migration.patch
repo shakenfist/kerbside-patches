@@ -1,0 +1,77 @@
+Author: Michael Still <mikal@stillhq.com>
+
+    libvirt: direct SPICE console database changes
+
+    This patch makes just the schema changes required for the
+    implementation of SPICE direct consoles, as requested during
+    review. See change I1e701cbabc0e2c435685e31465159eec09e3b1a0
+    for the related feature implementation.
+
+    APIImpact
+diff --git a/nova/db/main/models.py b/nova/db/main/models.py
+index 3fbe209049..61d220ed20 100644
+--- a/nova/db/main/models.py
++++ b/nova/db/main/models.py
+@@ -1208,6 +1208,7 @@ class ConsoleAuthToken(BASE, NovaBase):
+     console_type = sa.Column(sa.String(255), nullable=False)
+     host = sa.Column(sa.String(255), nullable=False)
+     port = sa.Column(sa.Integer, nullable=False)
++    tls_port = sa.Column(sa.Integer, nullable=True)
+     internal_access_path = sa.Column(sa.String(255))
+     instance_uuid = sa.Column(sa.String(36), nullable=False)
+     expires = sa.Column(sa.Integer, nullable=False)
+diff --git a/nova/tests/unit/db/main/test_migrations.py b/nova/tests/unit/db/main/test_migrations.py
+index f3f46758d8..db9112917b 100644
+--- a/nova/tests/unit/db/main/test_migrations.py
++++ b/nova/tests/unit/db/main/test_migrations.py
+@@ -364,6 +364,11 @@ class NovaMigrationsWalk(
+         self.assertForeignKeyExists(
+             connection, 'share_mapping', 'instance_uuid')
+
++    def _check_2903cd72dc14(self, connection):
++        self.assertColumnExists(connection,
++                                'console_auth_tokens',
++                                'tls_port')
++
+     def test_single_base_revision(self):
+         """Ensure we only have a single base revision.
+
+diff --git a/nova/db/main/migrations/versions/2903cd72dc14_add_tls_port_to_console_auth_tokens.py b/nova/db/main/migrations/versions/2903cd72dc14_add_tls_port_to_console_auth_tokens.py
+new file mode 100644
+index 0000000000..c2656f8f0c
+--- /dev/null
++++ b/nova/db/main/migrations/versions/2903cd72dc14_add_tls_port_to_console_auth_tokens.py
+@@ -0,0 +1,33 @@
++# Licensed under the Apache License, Version 2.0 (the "License"); you may
++# not use this file except in compliance with the License. You may obtain
++# a copy of the License at
++#
++#     http://www.apache.org/licenses/LICENSE-2.0
++#
++# Unless required by applicable law or agreed to in writing, software
++# distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
++# WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
++# License for the specific language governing permissions and limitations
++# under the License.
++
++"""add_tls_port_to_console_auth_tokens
++
++Revision ID: 2903cd72dc14
++Revises: 13863f4e1612
++Create Date: 2024-07-18 22:55:25.736157
++"""
++
++from alembic import op
++import sqlalchemy as sa
++
++
++# revision identifiers, used by Alembic.
++revision = '2903cd72dc14'
++down_revision = '13863f4e1612'
++branch_labels = None
++depends_on = None
++
++
++def upgrade():
++    with op.batch_alter_table('console_auth_tokens', schema=None) as batch_op:
++        batch_op.add_column(sa.Column('tls_port', sa.Integer()))
