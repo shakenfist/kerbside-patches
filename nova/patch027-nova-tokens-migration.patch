@@ -8,6 +8,8 @@ Author: Michael Still <mikal@stillhq.com>
     for the related feature implementation.
 
     APIImpact
+
+    Change-Id: I838ad1a8a74f47544226d3da0e7f1a2f5585b7cb
 diff --git a/nova/db/main/models.py b/nova/db/main/models.py
 index 3fbe209049..61d220ed20 100644
 --- a/nova/db/main/models.py
