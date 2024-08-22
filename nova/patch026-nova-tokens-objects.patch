@@ -8,6 +8,8 @@ Author: Michael Still <mikal@stillhq.com>
     implementation.
 
     APIImpact
+
+    Change-Id: I8ec513fd818362d2f041c679a84e900952af61a2
 diff --git a/nova/objects/console_auth_token.py b/nova/objects/console_auth_token.py
 index 281d955498..be9df53222 100644
 --- a/nova/objects/console_auth_token.py
