@@ -536,3 +536,16 @@ index 35ea22343c..375116e52f 100644
 +            }, output)
 +        mock_handler.assert_called_once_with(self.context, self.instance,
 +                                             'spice-direct')
+
+diff --git a/nova/tests/functional/api_sample_tests/api_samples/os-console-auth-tokens/v2.97/create-serial-console-req.json.tpl b/nova/tests/functional/api_sample_tests/api_samples/os-console-auth-tokens/v2.97/create-serial-console-req.json.tpl
+new file mode 100644
+index 0000000000..a129e1e08c
+--- /dev/null
++++ b/nova/tests/functional/api_sample_tests/api_samples/os-console-auth-tokens/v2.97/create-serial-console-req.json.tpl
+@@ -0,0 +1,6 @@
++{
++    "remote_console": {
++        "protocol": "serial",
++        "type": "serial"
++    }
++}

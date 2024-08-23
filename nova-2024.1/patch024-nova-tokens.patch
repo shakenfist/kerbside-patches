@@ -695,3 +695,16 @@ index 23f2d7f015..f3e4decffa 100644
      'CpuDiagnostics': '1.0-d256f2e442d1b837735fd17dfe8e3d47',
      'Destination': '1.4-3b440d29459e2c98987ad5b25ad1cb2c',
      'DeviceBus': '1.0-77509ea1ea0dd750d5864b9bd87d3f9d',
+
+diff --git a/nova/tests/functional/api_sample_tests/api_samples/os-console-auth-tokens/v2.97/create-serial-console-req.json.tpl b/nova/tests/functional/api_sample_tests/api_samples/os-console-auth-tokens/v2.97/create-serial-console-req.json.tpl
+new file mode 100644
+index 0000000000..a129e1e08c
+--- /dev/null
++++ b/nova/tests/functional/api_sample_tests/api_samples/os-console-auth-tokens/v2.97/create-serial-console-req.json.tpl
+@@ -0,0 +1,6 @@
++{
++    "remote_console": {
++        "protocol": "serial",
++        "type": "serial"
++    }
++}
