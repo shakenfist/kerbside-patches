@@ -13,7 +13,8 @@
 
 
 function run_tests {
-    # $1 is the name of the branch
+    # $1 is the repo
+    # $2 is the name of the branch
 
     if [ "${skip_tests}" == "true" ]; then
         echo -e "${H3}Skipping tests${Color_Off}"
@@ -44,7 +45,7 @@ function run_tests {
             echo -e "${H3}tox -epep8${Color_Off}"
             tox -epep8 | ts "%b %d %H:%M:%S ${1} ${shortpatch} pep8"
             if [ $? -gt 0 ]; then
-                echo -e "${H3}tox -pep8 failed!${Color_Off}"
+                echo -e "${H3}tox -epep8 failed!${Color_Off}"
                 exit 1
             fi
         elif [ $(tox -a | grep -c flake8) -gt 0 ]
@@ -54,6 +55,20 @@ function run_tests {
             if [ $? -gt 0 ]; then
                 echo -e "${H3}tox -eflake8 failed!${Color_Off}"
                 exit 1
+            fi
+        fi
+
+        # Nova has functional tests which do not require devstack. Other projects
+        # require devstack, which we don't do right now.
+        if [ $(echo ${repo} | grep -c "/nova" || true) -gt 0 ]; then
+            if [ $(tox -a | egrep -c "functional$") -gt 0 ]
+            then
+                echo -e "${H3}tox -efunctional${Color_Off}"
+                tox -efunctional | ts "%b %d %H:%M:%S ${1} ${shortpatch} functional"
+                if [ $? -gt 0 ]; then
+                    echo -e "${H3}tox -efunctional failed!${Color_Off}"
+                    exit 1
+                fi
             fi
         fi
     fi
@@ -136,7 +151,7 @@ for project in ${positional_args}; do
         echo
 
         if [ "${defer_tests}" != "true" ]; then
-            run_tests ${branch}
+            run_tests ${repo} ${branch}
         fi
 
         popd
@@ -144,7 +159,7 @@ for project in ${positional_args}; do
 
     pushd ${topsrcdir}/${directory}
     if [ "${defer_tests}" == "true" ]; then
-        run_tests ${branch}
+        run_tests ${repo} ${branch}
     fi
     popd
 
