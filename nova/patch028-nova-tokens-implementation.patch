@@ -549,3 +549,57 @@ index 0000000000..a129e1e08c
 +        "type": "serial"
 +    }
 +}
+
+diff --git a/nova/tests/functional/api_sample_tests/api_samples/os-remote-consoles/v2.97/create-spice-direct-console-req.json.tpl b/nova/tests/functional/api_sample_tests/api_samples/os-remote-consoles/v2.97/create-spice-direct-console-req.json.tpl
+new file mode 100644
+index 0000000..552ab30
+--- /dev/null
++++ b/nova/tests/functional/api_sample_tests/api_samples/os-remote-consoles/v2.97/create-spice-direct-console-req.json.tpl
+@@ -0,0 +1,6 @@
++{
++    "remote_console": {
++        "protocol": "spice",
++        "type": "spice-direct"
++    }
++}
+diff --git a/nova/tests/functional/api_sample_tests/api_samples/os-remote-consoles/v2.97/create-spice-direct-console-resp.json.tpl b/nova/tests/functional/api_sample_tests/api_samples/os-remote-consoles/v2.97/create-spice-direct-console-resp.json.tpl
+new file mode 100644
+index 0000000..ea6c175
+--- /dev/null
++++ b/nova/tests/functional/api_sample_tests/api_samples/os-remote-consoles/v2.97/create-spice-direct-console-resp.json.tpl
+@@ -0,0 +1,7 @@
++{
++    "remote_console": {
++        "protocol": "spice",
++        "type": "spice-direct",
++        "url": "http://127.0.0.1:13002/nova?token=401c0bd9-5794-45b9-b6c6-c217c77c1fd5"
++    }
++}
+
+diff --git a/doc/api_samples/os-remote-consoles/v2.97/create-spice-direct-console-req.json b/doc/api_samples/os-remote-consoles/v2.97/create-spice-direct-console-req.json
+new file mode 100644
+index 0000000..6a04d75
+--- /dev/null
++++ b/doc/api_samples/os-remote-consoles/v2.97/create-spice-direct-console-req.json
+@@ -0,0 +1,6 @@
++{
++    "remote_console": {
++        "protocol": "spice",
++        "type": "spice-direct"
++    }
++}
+\ No newline at end of file
+diff --git a/doc/api_samples/os-remote-consoles/v2.97/create-spice-direct-console-resp.json b/doc/api_samples/os-remote-consoles/v2.97/create-spice-direct-console-resp.json
+new file mode 100644
+index 0000000..9f30bfa
+--- /dev/null
++++ b/doc/api_samples/os-remote-consoles/v2.97/create-spice-direct-console-resp.json
+@@ -0,0 +1,7 @@
++{
++    "remote_console": {
++        "protocol": "spice",
++        "type": "spice-direct",
++        "url": "http://127.0.0.1:13002/nova?token=d6850e86-6169-4e39-aae5-5648f70099c7"
++    }
++}
+\ No newline at end of file
