@@ -305,3 +305,38 @@ index f3e4dec..1512ffd 100644
      'Instance': '2.8-2727dba5e4a078e6cc848c1f94f7eb24',
      'InstanceAction': '1.2-9a5abc87fdd3af46f45731960651efb5',
      'InstanceActionEvent': '1.4-5b1f361bd81989f8bb2c20bb7e8a4cb4',
+
+diff --git a/nova/tests/functional/notification_sample_tests/test_instance.py b/nova/tests/functional/notification_sample_tests/test_instance.py
+index 1f6d8d2..a3ba04e 100644
+--- a/nova/tests/functional/notification_sample_tests/test_instance.py
++++ b/nova/tests/functional/notification_sample_tests/test_instance.py
+@@ -1238,7 +1238,7 @@ class TestInstanceNotificationSample(
+                     'nova_object.data': {},
+                     'nova_object.name': 'ImageMetaPropsPayload',
+                     'nova_object.namespace': 'nova',
+-                    'nova_object.version': '1.13',
++                    'nova_object.version': '1.14',
+                 },
+                 'image.size': 58145823,
+                 'image.tags': [],
+@@ -1334,7 +1334,7 @@ class TestInstanceNotificationSample(
+                     'nova_object.data': {},
+                     'nova_object.name': 'ImageMetaPropsPayload',
+                     'nova_object.namespace': 'nova',
+-                    'nova_object.version': '1.13',
++                    'nova_object.version': '1.14',
+                 },
+                 'image.size': 58145823,
+                 'image.tags': [],
+
+diff --git a/doc/notification_samples/common_payloads/ImageMetaPropsPayload.json b/doc/notification_samples/common_payloads/ImageMetaPropsPayload.json
+index 913c75c..eb100b7 100644
+--- a/doc/notification_samples/common_payloads/ImageMetaPropsPayload.json
++++ b/doc/notification_samples/common_payloads/ImageMetaPropsPayload.json
+@@ -4,5 +4,5 @@
+         "hw_architecture": "x86_64"
+     },
+     "nova_object.name": "ImageMetaPropsPayload",
+-    "nova_object.version": "1.13"
++    "nova_object.version": "1.14"
+ }
