@@ -3,4 +3,5 @@ patch026-nova-tokens-objects.patch
 patch027-nova-tokens-migration.patch
 patch028-nova-tokens-implementation.patch
 patch025-sound-model-extra-spec.patch
+patch029-usb-redirection-extra-spec.patch
 patch010-allow-concurrent-spice-connections.patch
