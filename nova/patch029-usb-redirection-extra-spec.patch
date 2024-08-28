@@ -193,7 +193,7 @@ index 6c9cc73..b7d076c 100644
 +    :returns: A string containing the USB controller model, else None.
 +    """
 +    model = _get_unique_flavor_image_meta('usb_model', flavor, image_meta)
-+    if model and model not in fields.SoundModelType.ALL:
++    if model and model not in fields.USBControllerModelType.ALL:
 +        raise exception.Invalid(
 +            'Invalid USB controller model %(model)r. '
 +            'Allowed values: %(valid)s.'
