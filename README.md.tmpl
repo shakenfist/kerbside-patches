@@ -158,6 +158,9 @@ cd ..
 # images, but not for patch development. To skip the tests entirely because
 # they're quite slow and fail on machines running OpenStack, use --skip-tests
 # instead of --defer-tests.
+#
+# Note that we use the most recent release here because Kolla-Ansible does not
+# always have support for master.
 for item in *-2024.1; do
     ./testapply.sh --defer-tests $item || break
 done
