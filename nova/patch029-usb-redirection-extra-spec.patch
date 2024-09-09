@@ -1,16 +1,29 @@
+commit b466a913214192517993cdb8debff9894cafc4dd
 Author: Michael Still <mikal@stillhq.com>
+Date:   Wed Aug 28 17:49:49 2024 +1000
 
     libvirt: Add extra specs for USB redirection.
-
+    
     This patch adds an extra spec to configure a USB controller inside
     the guest and another which specifies how many USB redirection
     devices to create. This is useful for SPICE consoles using the native
     protocol.
+    
+    Change-Id: I791b16c5bf0e860a188783c863e95dc423998b0a
 
-    Change-Id: I790b16c5bf0e860a188783c863e95dc423998b0a
-
+diff --git a/doc/notification_samples/common_payloads/ImageMetaPropsPayload.json b/doc/notification_samples/common_payloads/ImageMetaPropsPayload.json
+index eb100b7c97..cc055229ab 100644
+--- a/doc/notification_samples/common_payloads/ImageMetaPropsPayload.json
++++ b/doc/notification_samples/common_payloads/ImageMetaPropsPayload.json
+@@ -4,5 +4,5 @@
+         "hw_architecture": "x86_64"
+     },
+     "nova_object.name": "ImageMetaPropsPayload",
+-    "nova_object.version": "1.14"
++    "nova_object.version": "1.15"
+ }
 diff --git a/nova/api/validation/extra_specs/hw.py b/nova/api/validation/extra_specs/hw.py
-index c50355b..b98839e 100644
+index c50355b794..b98839e8fe 100644
 --- a/nova/api/validation/extra_specs/hw.py
 +++ b/nova/api/validation/extra_specs/hw.py
 @@ -552,6 +552,32 @@ feature_flag_validators = [
@@ -44,30 +57,30 @@ index c50355b..b98839e 100644
 +        },
 +    ),
  ]
-
+ 
  ephemeral_encryption_validators = [
 diff --git a/nova/notifications/objects/image.py b/nova/notifications/objects/image.py
-index 932caa1..f0ca47c 100644
+index 5fd9b27a1a..895cb64445 100644
 --- a/nova/notifications/objects/image.py
 +++ b/nova/notifications/objects/image.py
-@@ -132,7 +132,8 @@ class ImageMetaPropsPayload(base.NotificationPayloadBase):
-     # Version 1.12: Added 'hw_viommu_model' field
+@@ -133,7 +133,8 @@ class ImageMetaPropsPayload(base.NotificationPayloadBase):
      # Version 1.13: Added 'hw_virtio_packed_ring' field
-     # Version 1.14: Added 'hw_sound_model' field
--    VERSION = '1.14'
-+    # Version 1.15: Added 'hw_usb_model' and 'hw_redirected_usb_ports' fields
-+    VERSION = '1.15'
-
+     # Version 1.14: Added 'hw_firmware_stateless' field
+     # Version 1.15: Added 'hw_sound_model' field
+-    VERSION = '1.15'
++    # Version 1.16: Added 'hw_usb_model' and 'hw_redirected_usb_ports' fields
++    VERSION = '1.16'
+ 
      # NOTE(efried): This logic currently relies on all of the fields of
      # ImageMetaProps being initialized with no arguments. See the docstring.
 diff --git a/nova/objects/fields.py b/nova/objects/fields.py
-index 1171dcf..78855f9 100644
+index 1171dcf850..86b276eca1 100644
 --- a/nova/objects/fields.py
 +++ b/nova/objects/fields.py
 @@ -867,6 +867,24 @@ class SoundModelType(BaseNovaEnum):
      ALL = (SB16, ES1370, PCSPK, AC97, ICH6, ICH9, USB, VIRTIO,)
-
-
+ 
+ 
 +class USBControllerModelType(BaseNovaEnum):
 +
 +    NONE = 'none'
@@ -91,30 +104,30 @@ index 1171dcf..78855f9 100644
      CRITICAL = 'critical'
 @@ -1407,6 +1425,10 @@ class SoundModelField(BaseEnumField):
      AUTO_TYPE = SoundModelType()
-
-
+ 
+ 
 +class USBControllerModelField(BaseEnumField):
 +    AUTO_TYPE = USBControllerModelType()
 +
 +
  class NotificationPriorityField(BaseEnumField):
      AUTO_TYPE = NotificationPriority()
-
+ 
 diff --git a/nova/objects/image_meta.py b/nova/objects/image_meta.py
-index 68203ef..6632b90 100644
+index 4e77c7b950..299a6def7a 100644
 --- a/nova/objects/image_meta.py
 +++ b/nova/objects/image_meta.py
-@@ -197,15 +197,22 @@ class ImageMetaProps(base.NovaObject):
-     #                     'hw_maxphysaddr_bits' field
+@@ -198,15 +198,22 @@ class ImageMetaProps(base.NovaObject):
      # Version 1.37: Added 'hw_ephemeral_encryption_secret_uuid' field
-     # Version 1.38: Added 'hw_sound_model' field
-+    # Version 1.39: Added 'hw_usb_model' and 'hw_redirected_usb_ports' fields
-
+     # Version 1.38: Added 'hw_firmware_stateless' field
+     # Version 1.39: Added 'hw_sound_model' field
++    # Version 1.40: Added 'hw_usb_model' and 'hw_redirected_usb_ports' fields
+ 
      # NOTE(efried): When bumping this version, the version of
      # ImageMetaPropsPayload must also be bumped. See its docstring for details.
--    VERSION = '1.38'
-+    VERSION = '1.39'
-
+-    VERSION = '1.39'
++    VERSION = '1.40'
+ 
 -    def obj_make_compatible(self, primitive, target_version):
 +    # NOTE(mikal): This method is detected as being too complex by flake8 with
 +    # error C901. We should think about ways to simplify this method.
@@ -123,16 +136,16 @@ index 68203ef..6632b90 100644
          super(ImageMetaProps, self).obj_make_compatible(primitive,
                                                          target_version)
          target_version = versionutils.convert_version_to_tuple(target_version)
-+        if target_version < (1, 39):
++        if target_version < (1, 40):
 +            primitive.pop('hw_usb_model', None)
 +            primitive.pop('hw_redirected_usb_ports', None)
-         if target_version < (1, 38):
+         if target_version < (1, 39):
              primitive.pop('hw_sound_model', None)
-         if target_version < (1, 37):
-@@ -502,6 +506,12 @@ class ImageMetaProps(base.NovaObject):
+         if target_version < (1, 38):
+@@ -508,6 +515,12 @@ class ImageMetaProps(base.NovaObject):
          # Name of sound device model to use.
          'hw_sound_model': fields.SoundModelField(),
-
+ 
 +        # Name of the USB Controller model to use.
 +        'hw_usb_model': fields.USBControllerModelField(),
 +
@@ -141,15 +154,50 @@ index 68203ef..6632b90 100644
 +
          # if true download using bittorrent
          'img_bittorrent': fields.FlexibleBooleanField(),
-
+ 
+diff --git a/nova/tests/functional/notification_sample_tests/test_instance.py b/nova/tests/functional/notification_sample_tests/test_instance.py
+index a3ba04e470..bf04c2b4b1 100644
+--- a/nova/tests/functional/notification_sample_tests/test_instance.py
++++ b/nova/tests/functional/notification_sample_tests/test_instance.py
+@@ -1238,7 +1238,7 @@ class TestInstanceNotificationSample(
+                     'nova_object.data': {},
+                     'nova_object.name': 'ImageMetaPropsPayload',
+                     'nova_object.namespace': 'nova',
+-                    'nova_object.version': '1.14',
++                    'nova_object.version': '1.15',
+                 },
+                 'image.size': 58145823,
+                 'image.tags': [],
+@@ -1334,7 +1334,7 @@ class TestInstanceNotificationSample(
+                     'nova_object.data': {},
+                     'nova_object.name': 'ImageMetaPropsPayload',
+                     'nova_object.namespace': 'nova',
+-                    'nova_object.version': '1.14',
++                    'nova_object.version': '1.15',
+                 },
+                 'image.size': 58145823,
+                 'image.tags': [],
+diff --git a/nova/tests/unit/notifications/objects/test_notification.py b/nova/tests/unit/notifications/objects/test_notification.py
+index f0ac645198..a70dd04d6f 100644
+--- a/nova/tests/unit/notifications/objects/test_notification.py
++++ b/nova/tests/unit/notifications/objects/test_notification.py
+@@ -385,7 +385,7 @@ notification_object_data = {
+     # ImageMetaProps, so when you see a fail here for that reason, you must
+     # *also* bump the version of ImageMetaPropsPayload. See its docstring for
+     # more information.
+-    'ImageMetaPropsPayload': '1.15-c7e7f9ce75112c1a92972da646d2ec9e',
++    'ImageMetaPropsPayload': '1.16-d33c0a9efdc8edf9bb9c69473f0a6ed3',
+     'InstanceActionNotification': '1.0-a73147b93b520ff0061865849d3dfa56',
+     'InstanceActionPayload': '1.8-b948818df6ec562e4eb4b23e515e451b',
+     'InstanceActionRebuildNotification':
 diff --git a/nova/tests/unit/objects/test_image_meta.py b/nova/tests/unit/objects/test_image_meta.py
-index a2ac6e4..5a0724d 100644
+index 54a77c17ed..7c6f928eed 100644
 --- a/nova/tests/unit/objects/test_image_meta.py
 +++ b/nova/tests/unit/objects/test_image_meta.py
 @@ -562,6 +562,21 @@ class TestImageMetaProps(test.NoDBTestCase):
          primitive = obj.obj_to_primitive('1.27')
          self.assertNotIn('hw_sound_model', primitive['nova_object.data'])
-
+ 
 +    def test_obj_make_compatible_usb_model_and_redirected_ports(self):
 +        """Check if we pop hw_usb_model and hw_redirected_usb_ports."""
 +        obj = objects.ImageMetaProps(
@@ -168,13 +216,26 @@ index a2ac6e4..5a0724d 100644
      def test_obj_make_compatible_socket_policy(self):
          obj = objects.ImageMetaProps(
              hw_pci_numa_affinity_policy=fields.PCINUMAAffinityPolicy.SOCKET)
+diff --git a/nova/tests/unit/objects/test_objects.py b/nova/tests/unit/objects/test_objects.py
+index e630181827..e0224db22c 100644
+--- a/nova/tests/unit/objects/test_objects.py
++++ b/nova/tests/unit/objects/test_objects.py
+@@ -1105,7 +1105,7 @@ object_data = {
+     'HyperVLiveMigrateData': '1.4-e265780e6acfa631476c8170e8d6fce0',
+     'IDEDeviceBus': '1.0-29d4c9f27ac44197f01b6ac1b7e16502',
+     'ImageMeta': '1.8-642d1b2eb3e880a367f37d72dd76162d',
+-    'ImageMetaProps': '1.39-f91a50ba4316bee4924524b0f4c1e3ad',
++    'ImageMetaProps': '1.40-76e22c10bda5a372b27d250bc5bbf326',
+     'Instance': '2.8-2727dba5e4a078e6cc848c1f94f7eb24',
+     'InstanceAction': '1.2-9a5abc87fdd3af46f45731960651efb5',
+     'InstanceActionEvent': '1.4-5b1f361bd81989f8bb2c20bb7e8a4cb4',
 diff --git a/nova/virt/hardware.py b/nova/virt/hardware.py
-index 6c9cc73..b7d076c 100644
+index 6c9cc73a02..e460f0186d 100644
 --- a/nova/virt/hardware.py
 +++ b/nova/virt/hardware.py
 @@ -2884,3 +2884,51 @@ def get_sound_model(
          )
-
+ 
      return model
 +
 +
@@ -225,7 +286,7 @@ index 6c9cc73..b7d076c 100644
 +        count = 0
 +    return count
 diff --git a/nova/virt/libvirt/config.py b/nova/virt/libvirt/config.py
-index 1a0d0a8..8cc1fc1 100644
+index 1a0d0a8047..8cc1fc1ff5 100644
 --- a/nova/virt/libvirt/config.py
 +++ b/nova/virt/libvirt/config.py
 @@ -4040,3 +4040,19 @@ class LibvirtConfigGuestSound(LibvirtConfigObject):
@@ -249,13 +310,13 @@ index 1a0d0a8..8cc1fc1 100644
 +        meta.set('bus', str(self.bus))
 +        return meta
 diff --git a/nova/virt/libvirt/driver.py b/nova/virt/libvirt/driver.py
-index 6ce8cc9..d423276 100644
+index 6bb26e7966..7381fc45b1 100644
 --- a/nova/virt/libvirt/driver.py
 +++ b/nova/virt/libvirt/driver.py
-@@ -6761,6 +6761,18 @@ class LibvirtDriver(driver.ComputeDriver):
+@@ -6779,6 +6779,18 @@ class LibvirtDriver(driver.ComputeDriver):
          sound_device = vconfig.LibvirtConfigGuestSound(sound_model)
          guest.add_device(sound_device)
-
+ 
 +    def _add_redirected_usb_ports(
 +        self,
 +        guest: vconfig.LibvirtConfigGuest,
@@ -271,16 +332,16 @@ index 6ce8cc9..d423276 100644
      def _set_qemu_guest_agent(self, guest, flavor, instance, image_meta):
          # Enable qga only if the 'hw_qemu_guest_agent' is equal to yes
          if image_meta.properties.get('hw_qemu_guest_agent', False):
-@@ -7269,7 +7281,7 @@ class LibvirtDriver(driver.ComputeDriver):
-
+@@ -7287,7 +7299,7 @@ class LibvirtDriver(driver.ComputeDriver):
+ 
          return False
-
+ 
 -    def _guest_add_usb_root_controller(self, guest, image_meta):
 +    def _guest_add_usb_root_controller(self, guest, flavor, image_meta):
          """Add USB root controller, if necessary.
-
+ 
          Note that these are added by default on x86-64. We add the controller
-@@ -7278,9 +7290,11 @@ class LibvirtDriver(driver.ComputeDriver):
+@@ -7296,9 +7308,11 @@ class LibvirtDriver(driver.ComputeDriver):
          """
          usbhost = vconfig.LibvirtConfigGuestUSBHostController()
          usbhost.index = 0
@@ -292,7 +353,7 @@ index 6ce8cc9..d423276 100644
          if not self._guest_needs_usb(guest, image_meta):
              archs = (
                  fields.Architecture.PPC,
-@@ -7293,6 +7307,8 @@ class LibvirtDriver(driver.ComputeDriver):
+@@ -7311,6 +7325,8 @@ class LibvirtDriver(driver.ComputeDriver):
                  # xml, where 'none' adds it but then disables it causing
                  # libvirt errors and the instances not being able to build
                  usbhost.model = None
@@ -301,74 +362,13 @@ index 6ce8cc9..d423276 100644
              else:
                  usbhost.model = 'none'
          guest.add_device(usbhost)
-@@ -7453,7 +7469,8 @@ class LibvirtDriver(driver.ComputeDriver):
+@@ -7473,7 +7489,8 @@ class LibvirtDriver(driver.ComputeDriver):
          if self._guest_needs_pcie(guest):
              self._guest_add_pcie_root_ports(guest)
-
+ 
 -        self._guest_add_usb_root_controller(guest, image_meta)
 +        self._guest_add_usb_root_controller(guest, flavor, image_meta)
 +        self._add_redirected_usb_ports(guest, flavor, instance, image_meta)
-
+ 
          self._guest_add_pci_devices(guest, instance)
-
-diff --git a/nova/tests/unit/notifications/objects/test_notification.py b/nova/tests/unit/notifications/objects/test_notification.py
-index b356093..884447b 100644
---- a/nova/tests/unit/notifications/objects/test_notification.py
-+++ b/nova/tests/unit/notifications/objects/test_notification.py
-@@ -385,7 +384,7 @@ notification_object_data = {
-     # ImageMetaProps, so when you see a fail here for that reason, you must
-     # *also* bump the version of ImageMetaPropsPayload. See its docstring for
-     # more information.
--    'ImageMetaPropsPayload': '1.14-c7e7f9ce75112c1a92972da646d2ec9e',
-+    'ImageMetaPropsPayload': '1.15-d33c0a9efdc8edf9bb9c69473f0a6ed3',
-     'InstanceActionNotification': '1.0-a73147b93b520ff0061865849d3dfa56',
-     'InstanceActionPayload': '1.8-b948818df6ec562e4eb4b23e515e451b',
-     'InstanceActionRebuildNotification':
-diff --git a/nova/tests/unit/objects/test_objects.py b/nova/tests/unit/objects/test_objects.py
-index 3c705ba..a5a4a4d 100644
---- a/nova/tests/unit/objects/test_objects.py
-+++ b/nova/tests/unit/objects/test_objects.py
-@@ -1105,7 +1105,7 @@ object_data = {
-     'HyperVLiveMigrateData': '1.4-e265780e6acfa631476c8170e8d6fce0',
-     'IDEDeviceBus': '1.0-29d4c9f27ac44197f01b6ac1b7e16502',
-     'ImageMeta': '1.8-642d1b2eb3e880a367f37d72dd76162d',
--    'ImageMetaProps': '1.38-f91a50ba4316bee4924524b0f4c1e3ad',
-+    'ImageMetaProps': '1.39-76e22c10bda5a372b27d250bc5bbf326',
-     'Instance': '2.8-2727dba5e4a078e6cc848c1f94f7eb24',
-     'InstanceAction': '1.2-9a5abc87fdd3af46f45731960651efb5',
-     'InstanceActionEvent': '1.4-5b1f361bd81989f8bb2c20bb7e8a4cb4',
-
-diff --git a/nova/tests/functional/notification_sample_tests/test_instance.py b/nova/tests/functional/notification_sample_tests/test_instance.py
-index 1f6d8d2..a3ba04e 100644
---- a/nova/tests/functional/notification_sample_tests/test_instance.py
-+++ b/nova/tests/functional/notification_sample_tests/test_instance.py
-@@ -1238,7 +1238,7 @@ class TestInstanceNotificationSample(
-                     'nova_object.data': {},
-                     'nova_object.name': 'ImageMetaPropsPayload',
-                     'nova_object.namespace': 'nova',
--                    'nova_object.version': '1.14',
-+                    'nova_object.version': '1.15',
-                 },
-                 'image.size': 58145823,
-                 'image.tags': [],
-@@ -1334,7 +1334,7 @@ class TestInstanceNotificationSample(
-                     'nova_object.data': {},
-                     'nova_object.name': 'ImageMetaPropsPayload',
-                     'nova_object.namespace': 'nova',
--                    'nova_object.version': '1.14',
-+                    'nova_object.version': '1.15',
-                 },
-                 'image.size': 58145823,
-                 'image.tags': [],
-
-diff --git a/doc/notification_samples/common_payloads/ImageMetaPropsPayload.json b/doc/notification_samples/common_payloads/ImageMetaPropsPayload.json
-index 913c75c..eb100b7 100644
---- a/doc/notification_samples/common_payloads/ImageMetaPropsPayload.json
-+++ b/doc/notification_samples/common_payloads/ImageMetaPropsPayload.json
-@@ -4,5 +4,5 @@
-         "hw_architecture": "x86_64"
-     },
-     "nova_object.name": "ImageMetaPropsPayload",
--    "nova_object.version": "1.14"
-+    "nova_object.version": "1.15"
- }
+ 
