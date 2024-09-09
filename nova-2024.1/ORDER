@@ -1,3 +1,4 @@
+upstream002-5890c257befe65d3f5cee262061dbaf41cca40b1.patch
 patch002-nova-require-secure.patch
 patch026-nova-tokens-objects.patch
 patch027-nova-tokens-migration.patch
