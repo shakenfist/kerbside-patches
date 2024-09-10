@@ -24,98 +24,112 @@ jobs:
               'name': 'rocky-9-kolla',
               'baseimage': 'sf://label/ci-images/rocky-9',
               'baseuser': 'cloud-user',
-              'targets': 'kolla-2024.1 kolla'
+              'targets': 'kolla:2024.1 kolla:master'
           },
           {
               'description': "kolla on debian 12",
               'name': 'debian-12-kolla',
               'baseimage': 'sf://label/ci-images/debian-12',
               'baseuser': 'debian',
-              'targets': 'kolla-2024.1 kolla'
+              'targets': 'kolla:2024.1 kolla:master'
           },
           {
               'description': "kolla-ansible on rocky 9",
               'name': 'rocky-9-kolla-ansible',
               'baseimage': 'sf://label/ci-images/rocky-9',
               'baseuser': 'cloud-user',
-              'targets': 'kolla-ansible-2024.1 kolla-ansible'
+              'targets': 'kolla-ansible:2024.1 kolla-ansible:master'
           },
           {
               'description': "kolla-ansible on debian 12",
               'name': 'debian-12-kolla-ansible',
               'baseimage': 'sf://label/ci-images/debian-12',
               'baseuser': 'debian',
-              'targets': 'kolla-ansible-2024.1 kolla-ansible'
+              'targets': 'kolla-ansible:2024.1 kolla-ansible:master'
           },
           {
-              'description': "nova on rocky 9",
-              'name': 'rocky-9-nova',
+              'description': "nova master on rocky 9",
+              'name': 'rocky-9-nova-master',
               'baseimage': 'sf://label/ci-images/rocky-9',
               'baseuser': 'cloud-user',
-              'targets': 'nova-2024.1 nova'
+              'targets': 'nova:master'
           },
           {
-              'description': "nova on debian 12",
-              'name': 'debian-12-nova',
+              'description': "nova master on debian 12",
+              'name': 'debian-12-nova-master',
               'baseimage': 'sf://label/ci-images/debian-12',
               'baseuser': 'debian',
-              'targets': 'nova-2024.1 nova'
+              'targets': 'nova:master'
+          },
+          {
+              'description': "nova 2024.1 on rocky 9",
+              'name': 'rocky-9-nova-2024.1',
+              'baseimage': 'sf://label/ci-images/rocky-9',
+              'baseuser': 'cloud-user',
+              'targets': 'nova:2024.1'
+          },
+          {
+              'description': "nova 2024.1 on debian 12",
+              'name': 'debian-12-nova-2024.1',
+              'baseimage': 'sf://label/ci-images/debian-12',
+              'baseuser': 'debian',
+              'targets': 'nova:2024.1'
           },
           {
               'description': "openstacksdk on rocky 9",
               'name': 'rocky-9-openstacksdk',
               'baseimage': 'sf://label/ci-images/rocky-9',
               'baseuser': 'cloud-user',
-              'targets': 'openstacksdk-2024.1 openstacksdk'
+              'targets': 'openstacksdk:2024.1 openstacksdk:master'
           },
           {
               'description': "openstacksdk on debian 12",
               'name': 'debian-12-openstacksdk',
               'baseimage': 'sf://label/ci-images/debian-12',
               'baseuser': 'debian',
-              'targets': 'openstacksdk-2024.1 openstacksdk'
+              'targets': 'openstacksdk:2024.1 openstacksdk:master'
           },
           {
               'description': "osloconfig on rocky 9",
               'name': 'rocky-9-osloconfig',
               'baseimage': 'sf://label/ci-images/rocky-9',
               'baseuser': 'cloud-user',
-              'targets': 'oslo.config-2024.1 oslo.config'
+              'targets': 'oslo.config:2024.1 oslo.config:master'
           },
           {
               'description': "osloconfig on debian 12",
               'name': 'debian-12-osloconfig',
               'baseimage': 'sf://label/ci-images/debian-12',
               'baseuser': 'debian',
-              'targets': 'oslo.config-2024.1 oslo.config'
+              'targets': 'oslo.config:2024.1 oslo.config:master'
           },
           {
               'description': "python-novaclient on rocky 9",
               'name': 'rocky-9-python-novaclient',
               'baseimage': 'sf://label/ci-images/rocky-9',
               'baseuser': 'cloud-user',
-              'targets': 'python-novaclient-2024.1 python-novaclient'
+              'targets': 'python-novaclient:2024.1 python-novaclient:master'
           },
           {
               'description': "python-novaclient on debian 12",
               'name': 'debian-12-python-novaclient',
               'baseimage': 'sf://label/ci-images/debian-12',
               'baseuser': 'debian',
-              'targets': 'python-novaclient-2024.1 python-novaclient'
+              'targets': 'python-novaclient:2024.1 python-novaclient:master'
           },
           {
               'description': "python-openstackclient on rocky 9",
               'name': 'rocky-9-python-openstackclient',
               'baseimage': 'sf://label/ci-images/rocky-9',
               'baseuser': 'cloud-user',
-              'targets': 'python-openstackclient-2024.1 python-openstackclient'
+              'targets': 'python-openstackclient:2024.1 python-openstackclient:master'
           },
           {
               'description': "python-openstackclient on debian 12",
               'name': 'debian-12-python-openstackclient',
               'baseimage': 'sf://label/ci-images/debian-12',
               'baseuser': 'debian',
-              'targets': 'python-openstackclient-2024.1 python-openstackclient'
+              'targets': 'python-openstackclient:2024.1 python-openstackclient:master'
           },
         ]
     runs-on: self-hosted
@@ -172,7 +186,11 @@ jobs:
                 "sudo dnf install -y moreutils"
           fi
 
-      - name: Attempt to apply patches
+      - name: Log targets
+        run: |
+          echo "Testing targets are: ${{ matrix.test.targets }}"
+
+      - name: Attempt to apply patches (2024.1)
         run: |
           . ${GITHUB_WORKSPACE}/ci-environment.sh
           cd ${GITHUB_WORKSPACE}
@@ -181,15 +199,49 @@ jobs:
           Color_Off='\033[0m'       # Text Reset
 
           for target in ${{ matrix.test.targets }}; do
-            echo
-            echo -e "${Green}==================================================${Color_Off}"
-            echo -e "${Green}Attempting to apply patches for ${target}${Color_Off}"
-            echo -e "${Green}==================================================${Color_Off}"
+            project=$( echo ${target} | cut -f 1 -d ":" )
+            branch=$( echo ${target} | cut -f 2 -d ":" )
+            echo "Considering target ${target}, ${project} branch ${branch}"
 
-            ssh -i /srv/github/id_ci -o StrictHostKeyChecking=no \
-                -o UserKnownHostsFile=/dev/null ${{ matrix.test.baseuser }}@$primary \
-                "cd kerbside-patches; ./testapply.sh ${target}"
+            if [[ ${branch} == "2024.1" ]]; then
+              echo
+              echo -e "${Green}==================================================${Color_Off}"
+              echo -e "${Green}Attempting to apply patches for ${target}${Color_Off}"
+              echo -e "${Green}==================================================${Color_Off}"
 
-            echo
-            echo
+              ssh -i /srv/github/id_ci -o StrictHostKeyChecking=no \
+                  -o UserKnownHostsFile=/dev/null ${{ matrix.test.baseuser }}@$primary \
+                  "cd kerbside-patches; ./testapply.sh ${project}-${branch}"
+
+              echo
+              echo
+            fi
+          done
+
+      - name: Attempt to apply patches (master)
+        run: |
+          . ${GITHUB_WORKSPACE}/ci-environment.sh
+          cd ${GITHUB_WORKSPACE}
+
+          Green='\033[0;32m'        # Green
+          Color_Off='\033[0m'       # Text Reset
+
+          for target in ${{ matrix.test.targets }}; do
+            project=$( echo ${target} | cut -f 1 -d ":" )
+            branch=$( echo ${target} | cut -f 2 -d ":" )
+            echo "Considering target ${target}, ${project} branch ${branch}"
+
+            if [[ ${branch} == "master" ]]; then
+              echo
+              echo -e "${Green}==================================================${Color_Off}"
+              echo -e "${Green}Attempting to apply patches for ${target}${Color_Off}"
+              echo -e "${Green}==================================================${Color_Off}"
+
+              ssh -i /srv/github/id_ci -o StrictHostKeyChecking=no \
+                  -o UserKnownHostsFile=/dev/null ${{ matrix.test.baseuser }}@$primary \
+                  "cd kerbside-patches; ./testapply.sh ${project}"
+
+              echo
+              echo
+            fi
           done
