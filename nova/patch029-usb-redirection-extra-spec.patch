@@ -184,7 +184,7 @@ index 22e1ae1..a70dd04 100644
      # *also* bump the version of ImageMetaPropsPayload. See its docstring for
      # more information.
 -    'ImageMetaPropsPayload': '1.15-a0acc61287a0ad85805d43d804809856',
-+    'ImageMetaPropsPayload': '1.16-d33c0a9efdc8edf9bb9c69473f0a6ed3',
++    'ImageMetaPropsPayload': '1.16-72622790632521021bc18f4a9592ba76',
      'InstanceActionNotification': '1.0-a73147b93b520ff0061865849d3dfa56',
      'InstanceActionPayload': '1.8-b948818df6ec562e4eb4b23e515e451b',
      'InstanceActionRebuildNotification':
@@ -357,3 +357,16 @@ index c860a61..c6876cb 100644
 
          self._guest_add_pci_devices(guest, instance)
 
+diff --git a/nova/tests/unit/objects/test_objects.py b/nova/tests/unit/objects/test_objects.py
+index 582b95d..5680d46 100644
+--- a/nova/tests/unit/objects/test_objects.py
++++ b/nova/tests/unit/objects/test_objects.py
+@@ -1105,7 +1105,7 @@ object_data = {
+     'HyperVLiveMigrateData': '1.4-e265780e6acfa631476c8170e8d6fce0',
+     'IDEDeviceBus': '1.0-29d4c9f27ac44197f01b6ac1b7e16502',
+     'ImageMeta': '1.8-642d1b2eb3e880a367f37d72dd76162d',
+-    'ImageMetaProps': '1.39-3e49d23fb404b61c8d530cff5cc88da2',
++    'ImageMetaProps': '1.40-dcfc66332d721b4b447d4f25d6a6578e',
+     'Instance': '2.8-2727dba5e4a078e6cc848c1f94f7eb24',
+     'InstanceAction': '1.2-9a5abc87fdd3af46f45731960651efb5',
+     'InstanceActionEvent': '1.4-5b1f361bd81989f8bb2c20bb7e8a4cb4',

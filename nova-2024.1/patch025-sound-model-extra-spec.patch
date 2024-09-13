@@ -317,3 +317,26 @@ index eb100b7..cc05522 100644
 -    "nova_object.version": "1.14"
 +    "nova_object.version": "1.15"
  }
+
+diff --git a/nova/tests/functional/notification_sample_tests/test_instance.py b/nova/tests/functional/notification_sample_tests/test_instance.py
+index a3ba04e..bf04c2b 100644
+--- a/nova/tests/functional/notification_sample_tests/test_instance.py
++++ b/nova/tests/functional/notification_sample_tests/test_instance.py
+@@ -1238,7 +1238,7 @@ class TestInstanceNotificationSample(
+                     'nova_object.data': {},
+                     'nova_object.name': 'ImageMetaPropsPayload',
+                     'nova_object.namespace': 'nova',
+-                    'nova_object.version': '1.14',
++                    'nova_object.version': '1.15',
+                 },
+                 'image.size': 58145823,
+                 'image.tags': [],
+@@ -1334,7 +1334,7 @@ class TestInstanceNotificationSample(
+                     'nova_object.data': {},
+                     'nova_object.name': 'ImageMetaPropsPayload',
+                     'nova_object.namespace': 'nova',
+-                    'nova_object.version': '1.14',
++                    'nova_object.version': '1.15',
+                 },
+                 'image.size': 58145823,
+                 'image.tags': [],
