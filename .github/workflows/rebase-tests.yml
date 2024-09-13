@@ -211,7 +211,7 @@ jobs:
 
               ssh -i /srv/github/id_ci -o StrictHostKeyChecking=no \
                   -o UserKnownHostsFile=/dev/null ${{ matrix.test.baseuser }}@$primary \
-                  "cd kerbside-patches; ./testapply.sh ${project}-${branch}"
+                  "cd kerbside-patches; ./testapply.sh --skip-tests ${project}-${branch}"
 
               echo
               echo
@@ -219,6 +219,71 @@ jobs:
           done
 
       - name: Attempt to apply patches (master)
+        run: |
+          . ${GITHUB_WORKSPACE}/ci-environment.sh
+          cd ${GITHUB_WORKSPACE}
+
+          Green='\033[0;32m'        # Green
+          Color_Off='\033[0m'       # Text Reset
+
+          for target in ${{ matrix.test.targets }}; do
+            project=$( echo ${target} | cut -f 1 -d ":" )
+            branch=$( echo ${target} | cut -f 2 -d ":" )
+            echo "Considering target ${target}, ${project} branch ${branch}"
+
+            if [[ ${branch} == "master" ]]; then
+              echo
+              echo -e "${Green}==================================================${Color_Off}"
+              echo -e "${Green}Attempting to apply patches for ${target}${Color_Off}"
+              echo -e "${Green}==================================================${Color_Off}"
+
+              ssh -i /srv/github/id_ci -o StrictHostKeyChecking=no \
+                  -o UserKnownHostsFile=/dev/null ${{ matrix.test.baseuser }}@$primary \
+                  "cd kerbside-patches; ./testapply.sh --skip-tests ${project}"
+
+              echo
+              echo
+            fi
+          done
+
+      - name: Cleanup source directory
+        run: |
+          . ${GITHUB_WORKSPACE}/ci-environment.sh
+          cd ${GITHUB_WORKSPACE}
+
+          ssh -i /srv/github/id_ci -o StrictHostKeyChecking=no \
+              -o UserKnownHostsFile=/dev/null ${{ matrix.test.baseuser }}@$primary \
+              "cd kerbside-patches; rm -rf src"
+
+      - name: Deep test patches (2024.1)
+        run: |
+          . ${GITHUB_WORKSPACE}/ci-environment.sh
+          cd ${GITHUB_WORKSPACE}
+
+          Green='\033[0;32m'        # Green
+          Color_Off='\033[0m'       # Text Reset
+
+          for target in ${{ matrix.test.targets }}; do
+            project=$( echo ${target} | cut -f 1 -d ":" )
+            branch=$( echo ${target} | cut -f 2 -d ":" )
+            echo "Considering target ${target}, ${project} branch ${branch}"
+
+            if [[ ${branch} == "2024.1" ]]; then
+              echo
+              echo -e "${Green}==================================================${Color_Off}"
+              echo -e "${Green}Attempting to apply patches for ${target}${Color_Off}"
+              echo -e "${Green}==================================================${Color_Off}"
+
+              ssh -i /srv/github/id_ci -o StrictHostKeyChecking=no \
+                  -o UserKnownHostsFile=/dev/null ${{ matrix.test.baseuser }}@$primary \
+                  "cd kerbside-patches; ./testapply.sh ${project}-${branch}"
+
+              echo
+              echo
+            fi
+          done
+
+      - name: Deep test patches (master)
         run: |
           . ${GITHUB_WORKSPACE}/ci-environment.sh
           cd ${GITHUB_WORKSPACE}
