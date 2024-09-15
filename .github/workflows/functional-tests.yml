@@ -121,3 +121,27 @@ jobs:
               -o UserKnownHostsFile=/dev/null \
               cloud-user@10.0.2.2 \
               'cd kerbside-patches/tools; sudo ./bootstrap-kolla-ansible'
+
+      - name: Install Kolla-Ansible
+        run: |
+          . $GITHUB_ENV
+          ssh -i /srv/github/id_ci -o StrictHostKeyChecking=no \
+              -o UserKnownHostsFile=/dev/null \
+              cloud-user@10.0.2.2 \
+              'cd kerbside-patches/tools; sudo ./install-kolla-ansible'
+
+      - name: Install patched OpenStack clients
+        run: |
+          . $GITHUB_ENV
+          ssh -i /srv/github/id_ci -o StrictHostKeyChecking=no \
+              -o UserKnownHostsFile=/dev/null \
+              cloud-user@10.0.2.2 \
+              'cd kerbside-patches/tools; sudo ./install-openstack-clients'
+
+      - name: Post install Kolla-Ansible setup
+        run: |
+          . $GITHUB_ENV
+          ssh -i /srv/github/id_ci -o StrictHostKeyChecking=no \
+              -o UserKnownHostsFile=/dev/null \
+              cloud-user@10.0.2.2 \
+              'cd kerbside-patches/tools; sudo ./postinstall-kolla-ansible'

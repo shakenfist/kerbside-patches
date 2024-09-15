@@ -1,0 +1,26 @@
+#!/bin/bash -e
+
+cd /home/cloud-user/kerbside-patches
+. buildconfig.sh
+
+echo
+echo -e "${H1}==================================================${Color_Off}"
+echo -e "${H1}Install OpenStack clients${Color_Off}"
+echo -e "${H1}==================================================${Color_Off}"
+
+cd ../src
+
+for client in openstacksdk python-novaclient python-openstackclient; deploy
+  cd ${client}
+
+  echo -e "${H2}Installing ${client}${Color_Off}"
+  pip install -e .
+
+  cd ..
+done
+
+trap - EXIT
+
+echo -e "${H1}==================================================${Color_Off}"
+echo -e "${H1}OpenStack clients installed.${Color_Off}"
+echo -e "${H1}==================================================${Color_Off}"

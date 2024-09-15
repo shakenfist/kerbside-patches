@@ -18,9 +18,15 @@ python3 setup.py develop
 echo -e "${H2}Install Kolla-Ansible dependencies${Color_Off}"
 export PATH=$PATH:/usr/local/bin
 kolla-ansible install-deps
+
+echo -e "${H2}Bootstrap inventory${Color_Off}"
 mkdir /etc/kolla
 cp -r etc/kolla /etc/
 cp ansible/inventory/all-in-one /etc/kolla
+
+echo -e "${H2}Copy globals.yml${Color_Off}"
+cd ../..
+cp etc/globals-2024.1.yml /etc/kolla/
 
 echo -e "${H2}Generate passwords${Color_Off}"
 kolla-genpwd
