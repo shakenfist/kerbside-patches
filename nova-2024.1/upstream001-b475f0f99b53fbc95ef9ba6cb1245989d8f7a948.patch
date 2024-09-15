@@ -1,0 +1,118 @@
+commit b475f0f99b53fbc95ef9ba6cb1245989d8f7a948
+Author: Takashi Kajinami <kajinamit@oss.nttdata.com>
+Date:   Tue Feb 13 17:10:59 2024 +0900
+
+    Report availability of stateless firmware support
+
+    This is the first step to support launching instances with stateless
+    firmware. At this stage none of the virt drivers report the trait to
+    support the feature.
+
+    Depends-on: https://review.opendev.org/c/openstack/os-traits/+/908885
+    Partially-Implements: blueprint libvirt-stateless-firmware
+    Change-Id: I4c1df950af11687ae5a52e4eba7943029ec36e69
+
+diff --git a/nova/tests/functional/test_servers_provider_tree.py b/nova/tests/functional/test_servers_provider_tree.py
+index aa57255808..c7703cd089 100644
+--- a/nova/tests/functional/test_servers_provider_tree.py
++++ b/nova/tests/functional/test_servers_provider_tree.py
+@@ -47,6 +47,7 @@ class ProviderTreeTests(integrated_helpers.ProviderUsageBaseTestCase):
+             os_traits.COMPUTE_TRUSTED_CERTS,
+             os_traits.COMPUTE_ADDRESS_SPACE_EMULATED,
+             os_traits.COMPUTE_ADDRESS_SPACE_PASSTHROUGH,
++            os_traits.COMPUTE_SECURITY_STATELESS_FIRMWARE,
+         ]
+     ])
+
+diff --git a/nova/tests/unit/virt/libvirt/test_driver.py b/nova/tests/unit/virt/libvirt/test_driver.py
+index 660b671f2e..68a2851d7d 100644
+--- a/nova/tests/unit/virt/libvirt/test_driver.py
++++ b/nova/tests/unit/virt/libvirt/test_driver.py
+@@ -21829,6 +21829,13 @@ class LibvirtConnTestCase(test.NoDBTestCase,
+         self.assertTrue(
+             driver.capabilities.get('supports_address_space_emulated'))
+
++    def test_update_host_specific_capabilities_without_stateless_firmware(
++            self):
++        driver = libvirt_driver.LibvirtDriver(fake.FakeVirtAPI())
++        driver._update_host_specific_capabilities()
++        self.assertFalse(
++            driver.capabilities.get('supports_stateless_firmware'))
++
+     @mock.patch.object(fakelibvirt.Connection, 'getLibVersion',
+                        return_value=versionutils.convert_version_to_int(
+                            libvirt_driver.MIN_LIBVIRT_MAXPHYSADDR))
+diff --git a/nova/virt/driver.py b/nova/virt/driver.py
+index f7f3530c63..aa2f8aa8a0 100644
+--- a/nova/virt/driver.py
++++ b/nova/virt/driver.py
+@@ -167,6 +167,8 @@ CAPABILITY_TRAITS_MAP = {
+         os_traits.COMPUTE_ADDRESS_SPACE_PASSTHROUGH,
+     "supports_address_space_emulated":
+         os_traits.COMPUTE_ADDRESS_SPACE_EMULATED,
++    "supports_stateless_firmware":
++        os_traits.COMPUTE_SECURITY_STATELESS_FIRMWARE,
+ }
+
+
+diff --git a/nova/virt/fake.py b/nova/virt/fake.py
+index 1ac2bd668d..38e5d21db3 100644
+--- a/nova/virt/fake.py
++++ b/nova/virt/fake.py
+@@ -121,6 +121,7 @@ class FakeDriver(driver.ComputeDriver):
+         "supports_remote_managed_ports": True,
+         "supports_address_space_passthrough": True,
+         "supports_address_space_emulated": True,
++        "supports_stateless_firmware": True,
+
+         # Supported image types
+         "supports_image_type_raw": True,
+diff --git a/nova/virt/ironic/driver.py b/nova/virt/ironic/driver.py
+index c990218669..5a6fcdf7b6 100644
+--- a/nova/virt/ironic/driver.py
++++ b/nova/virt/ironic/driver.py
+@@ -163,6 +163,7 @@ class IronicDriver(virt_driver.ComputeDriver):
+         "supports_remote_managed_ports": False,
+         "supports_address_space_passthrough": False,
+         "supports_address_space_emulated": False,
++        "supports_stateless_firmware": False,
+
+         # Image type support flags
+         "supports_image_type_aki": False,
+diff --git a/nova/virt/vmwareapi/driver.py b/nova/virt/vmwareapi/driver.py
+index 456e964815..bbb00be558 100644
+--- a/nova/virt/vmwareapi/driver.py
++++ b/nova/virt/vmwareapi/driver.py
+@@ -74,6 +74,7 @@ class VMwareVCDriver(driver.ComputeDriver):
+         "supports_remote_managed_ports": False,
+         "supports_address_space_passthrough": False,
+         "supports_address_space_emulated": False,
++        "supports_stateless_firmware": False,
+
+         # Image type support flags
+         "supports_image_type_aki": False,
+diff --git a/nova/virt/zvm/driver.py b/nova/virt/zvm/driver.py
+index d996527f38..4d4cd7533f 100644
+--- a/nova/virt/zvm/driver.py
++++ b/nova/virt/zvm/driver.py
+@@ -49,6 +49,7 @@ class ZVMDriver(driver.ComputeDriver):
+         "supports_remote_managed_ports": False,
+         "supports_address_space_passthrough": False,
+         "supports_address_space_emulated": False,
++        "supports_stateless_firmware": False,
+
+         # Image type support flags
+         "supports_image_type_aki": False,
+diff --git a/requirements.txt b/requirements.txt
+index eb158af1c0..430e6e96d1 100644
+--- a/requirements.txt
++++ b/requirements.txt
+@@ -52,7 +52,7 @@ psutil>=3.2.2 # BSD
+ oslo.versionedobjects>=1.35.0 # Apache-2.0
+ os-brick>=5.2 # Apache-2.0
+ os-resource-classes>=1.1.0 # Apache-2.0
+-os-traits>=3.0.0 # Apache-2.0
++os-traits>=3.1.0 # Apache-2.0
+ os-vif>=3.1.0 # Apache-2.0
+ castellan>=0.16.0 # Apache-2.0
+ microversion-parse>=0.2.1 # Apache-2.0

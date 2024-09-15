@@ -1,4 +1,3 @@
-patch002-nova-require-secure.patch
 patch026-nova-tokens-objects.patch
 patch027-nova-tokens-migration.patch
 patch028-nova-tokens-implementation.patch

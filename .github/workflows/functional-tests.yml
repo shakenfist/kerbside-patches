@@ -41,17 +41,30 @@ jobs:
           short_sha=$(git rev-parse --short HEAD)
           echo "SF_SHORT_HEAD_SHA=${short_sha}" >> $GITHUB_ENV
 
-      - name: Install the github command line
+      # - name: Install the github command line
+      #   run: |
+      #     sudo apt update
+      #     sudo apt install -y curl
+
+      #     curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg | sudo dd of=/usr/share/keyrings/githubcli-archive-keyring.gpg
+      #     sudo chmod go+r /usr/share/keyrings/githubcli-archive-keyring.gpg
+      #     echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" | sudo tee /etc/apt/sources.list.d/github-cli.list > /dev/null
+
+      #     sudo apt update
+      #     sudo apt install -y gh
+
+      - name: Install required packages
         run: |
-          sudo apt update
-          sudo apt install -y curl
+          sudo pip3 install yq
 
-          curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg | sudo dd of=/usr/share/keyrings/githubcli-archive-keyring.gpg
-          sudo chmod go+r /usr/share/keyrings/githubcli-archive-keyring.gpg
-          echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" | sudo tee /etc/apt/sources.list.d/github-cli.list > /dev/null
+      - name: Attempt to apply patches (2024.1)
+        run: |
+          cd ${GITHUB_WORKSPACE}/kerbside-patches
 
-          sudo apt update
-          sudo apt install -y gh
+          for item in *-2024.1; do
+              echo -e "${H2}Patching ${item}${Color_Off}"
+              ./testapply.sh --skip-tests ${item}
+          done
 
       - name: Build infrastructure
         run: |
@@ -64,6 +77,7 @@ jobs:
       - name: Copy git repo
         run: |
           . $GITHUB_ENV
+          rm -rf kerbside-patches/src
           scp -rp -i /srv/github/id_ci -o StrictHostKeyChecking=no \
               -o UserKnownHostsFile=/dev/null \
               ${GITHUB_WORKSPACE}/kerbside-patches cloud-user@10.0.2.2:.

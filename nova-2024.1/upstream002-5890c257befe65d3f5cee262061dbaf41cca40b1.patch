@@ -1,0 +1,144 @@
+commit 5890c257befe65d3f5cee262061dbaf41cca40b1
+Author: Takashi Kajinami <kajinamit@oss.nttdata.com>
+Date:   Tue Aug 20 09:25:58 2024 +0900
+
+    Add hw_firmware_stateless image property
+
+    Add the new image property to request stateless firmware. The property
+    will be used by the libvirt driver once the actual logic to enable
+    the feature is implemented.
+
+    Partially-Implements: blueprint libvirt-stateless-firmware
+    Change-Id: I05d4ff89d2b713b217b6c690e40fd4a16a397b63
+
+diff --git a/doc/notification_samples/common_payloads/ImageMetaPropsPayload.json b/doc/notification_samples/common_payloads/ImageMetaPropsPayload.json
+index 913c75c..eb100b7 100644
+--- a/doc/notification_samples/common_payloads/ImageMetaPropsPayload.json
++++ b/doc/notification_samples/common_payloads/ImageMetaPropsPayload.json
+@@ -4,5 +4,5 @@
+         "hw_architecture": "x86_64"
+     },
+     "nova_object.name": "ImageMetaPropsPayload",
+-    "nova_object.version": "1.13"
++    "nova_object.version": "1.14"
+ }
+diff --git a/nova/notifications/objects/image.py b/nova/notifications/objects/image.py
+index 575081f..f714632 100644
+--- a/nova/notifications/objects/image.py
++++ b/nova/notifications/objects/image.py
+@@ -131,7 +131,8 @@ class ImageMetaPropsPayload(base.NotificationPayloadBase):
+     # Version 1.11: Added 'hw_locked_memory' field
+     # Version 1.12: Added 'hw_viommu_model' field
+     # Version 1.13: Added 'hw_virtio_packed_ring' field
+-    VERSION = '1.13'
++    # Version 1.14: Added 'hw_firmware_stateless' field
++    VERSION = '1.14'
+
+     # NOTE(efried): This logic currently relies on all of the fields of
+     # ImageMetaProps being initialized with no arguments. See the docstring.
+diff --git a/nova/objects/image_meta.py b/nova/objects/image_meta.py
+index ab486b3..4c3589a 100644
+--- a/nova/objects/image_meta.py
++++ b/nova/objects/image_meta.py
+@@ -196,14 +196,17 @@ class ImageMetaProps(base.NovaObject):
+     # Version 1.36: Added 'hw_maxphysaddr_mode' and
+     #                     'hw_maxphysaddr_bits' field
+     # Version 1.37: Added 'hw_ephemeral_encryption_secret_uuid' field
++    # Version 1.38: Added 'hw_firmware_stateless' field
+     # NOTE(efried): When bumping this version, the version of
+     # ImageMetaPropsPayload must also be bumped. See its docstring for details.
+-    VERSION = '1.37'
++    VERSION = '1.38'
+
+     def obj_make_compatible(self, primitive, target_version):
+         super(ImageMetaProps, self).obj_make_compatible(primitive,
+                                                         target_version)
+         target_version = versionutils.convert_version_to_tuple(target_version)
++        if target_version < (1, 38):
++            primitive.pop('hw_firmware_stateless', None)
+         if target_version < (1, 37):
+             primitive.pop('hw_ephemeral_encryption_secret_uuid', None)
+         if target_version < (1, 36):
+@@ -378,6 +381,9 @@ class ImageMetaProps(base.NovaObject):
+         # This indicates the guest needs UEFI firmware
+         'hw_firmware_type': fields.FirmwareTypeField(),
+
++        # This indicates the guest needs stateless firmware
++        'hw_firmware_stateless': fields.FlexibleBooleanField(),
++
+         # name of the input bus type to use, e.g. usb, virtio
+         'hw_input_bus': fields.InputBusField(),
+
+diff --git a/nova/tests/functional/notification_sample_tests/test_instance.py b/nova/tests/functional/notification_sample_tests/test_instance.py
+index 1f6d8d2..a3ba04e 100644
+--- a/nova/tests/functional/notification_sample_tests/test_instance.py
++++ b/nova/tests/functional/notification_sample_tests/test_instance.py
+@@ -1238,7 +1238,7 @@ class TestInstanceNotificationSample(
+                     'nova_object.data': {},
+                     'nova_object.name': 'ImageMetaPropsPayload',
+                     'nova_object.namespace': 'nova',
+-                    'nova_object.version': '1.13',
++                    'nova_object.version': '1.14',
+                 },
+                 'image.size': 58145823,
+                 'image.tags': [],
+@@ -1334,7 +1334,7 @@ class TestInstanceNotificationSample(
+                     'nova_object.data': {},
+                     'nova_object.name': 'ImageMetaPropsPayload',
+                     'nova_object.namespace': 'nova',
+-                    'nova_object.version': '1.13',
++                    'nova_object.version': '1.14',
+                 },
+                 'image.size': 58145823,
+                 'image.tags': [],
+diff --git a/nova/tests/unit/notifications/objects/test_notification.py b/nova/tests/unit/notifications/objects/test_notification.py
+index 8375631..9f6dfde 100644
+--- a/nova/tests/unit/notifications/objects/test_notification.py
++++ b/nova/tests/unit/notifications/objects/test_notification.py
+@@ -386,7 +386,7 @@ notification_object_data = {
+     # ImageMetaProps, so when you see a fail here for that reason, you must
+     # *also* bump the version of ImageMetaPropsPayload. See its docstring for
+     # more information.
+-    'ImageMetaPropsPayload': '1.13-2859fbb81af5ad2f83a0e9be0b30ea60',
++    'ImageMetaPropsPayload': '1.14-83e634a9474c038df50a41c47e0ee081',
+     'InstanceActionNotification': '1.0-a73147b93b520ff0061865849d3dfa56',
+     'InstanceActionPayload': '1.8-4fa3da9cbf0761f1f700ae578f36dc2f',
+     'InstanceActionRebuildNotification':
+diff --git a/nova/tests/unit/objects/test_image_meta.py b/nova/tests/unit/objects/test_image_meta.py
+index 0225d45..2b86c19 100644
+--- a/nova/tests/unit/objects/test_image_meta.py
++++ b/nova/tests/unit/objects/test_image_meta.py
+@@ -591,3 +591,20 @@ class TestImageMetaProps(test.NoDBTestCase):
+         self.assertNotIn(
+             'hw_ephemeral_encryption_secret_uuid',
+             primitive['nova_object.data'])
++
++    def test_obj_make_compatible_stateless_firmware(self):
++        """Check 'hw_firmware_stateless' compatibility."""
++        obj = objects.ImageMetaProps(
++            hw_firmware_stateless=True)
++
++        primitive = obj.obj_to_primitive('1.38')
++        self.assertIn(
++            'hw_firmware_stateless',
++            primitive['nova_object.data'])
++        self.assertTrue(
++            primitive['nova_object.data']['hw_firmware_stateless'])
++
++        primitive = obj.obj_to_primitive('1.37')
++        self.assertNotIn(
++            'hw_firmware_stateless',
++            primitive['nova_object.data'])
+diff --git a/nova/tests/unit/objects/test_objects.py b/nova/tests/unit/objects/test_objects.py
+index 23f2d7f..548f565 100644
+--- a/nova/tests/unit/objects/test_objects.py
++++ b/nova/tests/unit/objects/test_objects.py
+@@ -1105,7 +1105,7 @@ object_data = {
+     'HyperVLiveMigrateData': '1.4-e265780e6acfa631476c8170e8d6fce0',
+     'IDEDeviceBus': '1.0-29d4c9f27ac44197f01b6ac1b7e16502',
+     'ImageMeta': '1.8-642d1b2eb3e880a367f37d72dd76162d',
+-    'ImageMetaProps': '1.37-1e0d70fb51041c0446b00695c5ef0e21',
++    'ImageMetaProps': '1.38-1f4f4f1b60413aa543e446d716cfbc20',
+     'Instance': '2.8-2727dba5e4a078e6cc848c1f94f7eb24',
+     'InstanceAction': '1.2-9a5abc87fdd3af46f45731960651efb5',
+     'InstanceActionEvent': '1.4-5b1f361bd81989f8bb2c20bb7e8a4cb4',

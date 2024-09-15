@@ -1,17 +1,20 @@
+commit b9f568da607fc911f762d9b1e68b88ff5c378789
 Author: Michael Still <mikal@stillhq.com>
+Date:   Thu Aug 22 12:09:45 2024 +1000
 
     libvirt: direct SPICE console object changes
-
+    
     This patch changes just the objects required for the implementation
     of SPICE direct consoles, as requested during review. See change
     I1e701cbabc0e2c435685e31465159eec09e3b1a0 for the related feature
     implementation.
-
+    
     APIImpact
-
+    
     Change-Id: I8ec513fd818362d2f041c679a84e900952af61a2
+
 diff --git a/nova/objects/console_auth_token.py b/nova/objects/console_auth_token.py
-index 281d955498..be9df53222 100644
+index 281d955498..ff54ebb860 100644
 --- a/nova/objects/console_auth_token.py
 +++ b/nova/objects/console_auth_token.py
 @@ -41,13 +41,15 @@ class ConsoleAuthToken(base.NovaTimestampObject, base.NovaObject):
@@ -21,7 +24,7 @@ index 281d955498..be9df53222 100644
 -    VERSION = '1.2'
 +    # Version 1.3: Added tls_port field.
 +    VERSION = '1.3'
-
+ 
      fields = {
          'id': fields.IntegerField(),
          'console_type': fields.StringField(nullable=False),
@@ -31,7 +34,18 @@ index 281d955498..be9df53222 100644
          'internal_access_path': fields.StringField(nullable=True),
          'instance_uuid': fields.UUIDField(nullable=False),
          'access_url_base': fields.StringField(nullable=True),
-@@ -96,7 +96,7 @@ class ConsoleAuthToken(base.NovaTimestampObject, base.NovaObject):
+@@ -84,6 +86,10 @@ class ConsoleAuthToken(base.NovaTimestampObject, base.NovaObject):
+     def obj_make_compatible(self, primitive, target_version):
+         super().obj_make_compatible(primitive, target_version)
+         target_version = versionutils.convert_version_to_tuple(target_version)
++
++        if target_version < (1, 3) and 'tls_port' in primitive:
++            primitive.pop('tls_port', None)
++
+         if target_version < (1, 2) and 'expires' in primitive:
+             primitive.pop('expires', None)
+ 
+@@ -94,7 +100,7 @@ class ConsoleAuthToken(base.NovaTimestampObject, base.NovaObject):
          # field is populated in the authorize method after the token
          # authorization is created in the database.
          for field in obj.fields:
@@ -67,7 +81,7 @@ index 5cb27e8dfa..dd8ee82864 100644
      'instance_uuid': fake_instance_uuid,
      'expires': 100,
 diff --git a/nova/tests/unit/objects/test_console_auth_token.py b/nova/tests/unit/objects/test_console_auth_token.py
-index 4fe906c413..e3d712d87f 100644
+index 4fe906c413..8cfc1cd89a 100644
 --- a/nova/tests/unit/objects/test_console_auth_token.py
 +++ b/nova/tests/unit/objects/test_console_auth_token.py
 @@ -62,6 +62,7 @@ class _TestConsoleAuthToken(object):
@@ -102,8 +116,24 @@ index 4fe906c413..e3d712d87f 100644
              internal_access_path=fakes.fake_token_dict['internal_access_path'],
              instance_uuid=fakes.fake_token_dict['instance_uuid'],
              access_url_base=fakes.fake_token_dict['access_url_base'],
+@@ -183,6 +187,15 @@ class _TestConsoleAuthToken(object):
+         mock_destroy.assert_called_once_with(
+             self.context, 'fake-host')
+ 
++    def test_obj_make_compatible_tls_port(self):
++        """Test that checks if we pop tls_port."""
++        obj = token_obj.ConsoleAuthToken(tls_port=5901)
++        primitive = obj.obj_to_primitive()
++        self.assertIn('tls_port', primitive['nova_object.data'])
++
++        primitive = obj.obj_to_primitive('1.2')
++        self.assertNotIn('tls_port', primitive['nova_object.data'])
++
+ 
+ class TestConsoleAuthToken(test_objects._LocalTest,
+                            _TestConsoleAuthToken):
 diff --git a/nova/tests/unit/objects/test_objects.py b/nova/tests/unit/objects/test_objects.py
-index e1d1a0330e..64d236f01f 100644
+index 94bbb7b9d5..582b95d6b5 100644
 --- a/nova/tests/unit/objects/test_objects.py
 +++ b/nova/tests/unit/objects/test_objects.py
 @@ -1087,7 +1087,7 @@ object_data = {

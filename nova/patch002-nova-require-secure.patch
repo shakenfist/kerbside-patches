@@ -1,19 +1,20 @@
-commit adced6f6767970bab45b8fb7e037c04586e9673a
+commit e06890d10105a198404348d6fe9899a549387b7d
 Author: Michael Still <mikal@stillhq.com>
+Date:   Tue Jul 30 19:40:30 2024 +1000
 
     libvirt: Add config option to require secure SPICE.
-
+    
     This patch adds the following SPICE-related configuration option
     to the 'spice' configuration group:
-
+    
     - require_secure
-
+    
     When set to true, libvirt will be provided with domain XML which
     configures SPICE VDI consoles to require secure connections (that
     is, connections protected by TLS). Attempts to connect without
     TLS will receive an error indicating they should retry the connection
     on the TLS port.
-
+    
     Change-Id: Ica7083b0836f8d66cad8a4b4097613103fc91560
 
 diff --git a/doc/source/admin/remote-console-access.rst b/doc/source/admin/remote-console-access.rst
@@ -23,21 +24,21 @@ index 85ba556cfd..31f098fea2 100644
 @@ -318,7 +318,6 @@ be told where to find them. This requires editing :file:`nova.conf` to set.
     vencrypt_client_cert=/etc/pki/nova-novncproxy/client-cert.pem
     vencrypt_ca_certs=/etc/pki/nova-novncproxy/ca-cert.pem
-
+ 
 -
  .. _spice-console:
-
+ 
  SPICE console
 @@ -403,6 +402,10 @@ for SPICE consoles.
  - :oslo.config:option:`spice.playback_compression`
  - :oslo.config:option:`spice.streaming_mode`
-
+ 
 +As well as the following option to require that connections be protected by TLS:
 +
 +- :oslo.config:option:`spice.require_secure`
 +
  .. _serial-console:
-
+ 
  Serial console
 diff --git a/nova/conf/spice.py b/nova/conf/spice.py
 index e5854946f1..d01a83c3b9 100644
@@ -66,27 +67,27 @@ index e5854946f1..d01a83c3b9 100644
 +* True: console traffic is required to be protected by TLS.
  """),
  ]
-
+ 
 diff --git a/nova/tests/unit/virt/libvirt/test_config.py b/nova/tests/unit/virt/libvirt/test_config.py
-index b91c685571..0d1de7606c 100644
+index 01c5e43485..013307f0cd 100644
 --- a/nova/tests/unit/virt/libvirt/test_config.py
 +++ b/nova/tests/unit/virt/libvirt/test_config.py
-@@ -1660,9 +1660,9 @@ class LibvirtConfigGuestGraphicsTest(LibvirtConfigBaseTest):
+@@ -1715,9 +1715,9 @@ class LibvirtConfigGuestGraphicsTest(LibvirtConfigBaseTest):
          obj.listen = "127.0.0.1"
-
+ 
          xml = obj.to_xml()
 -        self.assertXmlEqual(xml, """
 +        self.assertXmlEqual("""
    <graphics type="vnc" autoport="yes" keymap="en_US" listen="127.0.0.1"/>
 -                            """)
 +                            """, xml)
-
+ 
      def test_config_graphics_spice(self):
          obj = config.LibvirtConfigGuestGraphics()
-@@ -1671,6 +1671,18 @@ class LibvirtConfigGuestGraphicsTest(LibvirtConfigBaseTest):
+@@ -1726,6 +1726,18 @@ class LibvirtConfigGuestGraphicsTest(LibvirtConfigBaseTest):
          obj.keymap = "en_US"
          obj.listen = "127.0.0.1"
-
+ 
 +        xml = obj.to_xml()
 +        self.assertXmlEqual("""
 +  <graphics type="spice" autoport="no" keymap="en_US" listen="127.0.0.1"/>
@@ -102,9 +103,9 @@ index b91c685571..0d1de7606c 100644
          obj.image_compression = "auto_glz"
          obj.jpeg_compression = "auto"
          obj.zlib_compression = "always"
-@@ -1678,15 +1690,72 @@ class LibvirtConfigGuestGraphicsTest(LibvirtConfigBaseTest):
+@@ -1733,15 +1745,72 @@ class LibvirtConfigGuestGraphicsTest(LibvirtConfigBaseTest):
          obj.streaming_mode = "filter"
-
+ 
          xml = obj.to_xml()
 -        self.assertXmlEqual(xml, """
 +        self.assertXmlEqual("""
@@ -174,46 +175,46 @@ index b91c685571..0d1de7606c 100644
    </graphics>
 -                            """)
 +                            """, xml)
-
-
+ 
+ 
  class LibvirtConfigGuestHostdev(LibvirtConfigBaseTest):
 diff --git a/nova/tests/unit/virt/libvirt/test_driver.py b/nova/tests/unit/virt/libvirt/test_driver.py
-index 2b6101fff7..263b416934 100644
+index 8046a4f7ef..ae37a57b92 100644
 --- a/nova/tests/unit/virt/libvirt/test_driver.py
 +++ b/nova/tests/unit/virt/libvirt/test_driver.py
-@@ -5831,6 +5831,7 @@ class LibvirtConnTestCase(test.NoDBTestCase,
+@@ -5897,6 +5897,7 @@ class LibvirtConnTestCase(test.NoDBTestCase,
          self.assertIsNone(cfg.devices[3].zlib_compression)
          self.assertIsNone(cfg.devices[3].playback_compression)
          self.assertIsNone(cfg.devices[3].streaming_mode)
 +        self.assertFalse(cfg.devices[3].secure)
-
+ 
      def test_get_guest_config_with_vnc_and_tablet(self):
          self.flags(enabled=True, group='vnc')
-@@ -5866,6 +5867,7 @@ class LibvirtConnTestCase(test.NoDBTestCase,
+@@ -5932,6 +5933,7 @@ class LibvirtConnTestCase(test.NoDBTestCase,
          self.assertIsNone(cfg.devices[3].zlib_compression)
          self.assertIsNone(cfg.devices[3].playback_compression)
          self.assertIsNone(cfg.devices[3].streaming_mode)
 +        self.assertFalse(cfg.devices[3].secure)
          self.assertEqual(cfg.devices[5].type, 'tablet')
-
+ 
      def test_get_guest_config_with_spice_and_tablet(self):
-@@ -5907,6 +5909,7 @@ class LibvirtConnTestCase(test.NoDBTestCase,
+@@ -5973,6 +5975,7 @@ class LibvirtConnTestCase(test.NoDBTestCase,
          self.assertIsNone(cfg.devices[3].zlib_compression)
          self.assertIsNone(cfg.devices[3].playback_compression)
          self.assertIsNone(cfg.devices[3].streaming_mode)
 +        self.assertFalse(cfg.devices[3].secure)
          self.assertEqual(cfg.devices[5].type, 'tablet')
-
+ 
      @mock.patch.object(host.Host, "_check_machine_type", new=mock.Mock())
-@@ -5971,6 +5974,7 @@ class LibvirtConnTestCase(test.NoDBTestCase,
+@@ -6037,6 +6040,7 @@ class LibvirtConnTestCase(test.NoDBTestCase,
              self.assertIsNone(cfg.devices[4].zlib_compression)
              self.assertIsNone(cfg.devices[4].playback_compression)
              self.assertIsNone(cfg.devices[4].streaming_mode)
 +            self.assertFalse(cfg.devices[4].secure)
              self.assertEqual(cfg.devices[5].type, video_type)
-
+ 
      def test_get_guest_config_with_spice_compression(self):
-@@ -6016,6 +6020,43 @@ class LibvirtConnTestCase(test.NoDBTestCase,
+@@ -6082,6 +6086,43 @@ class LibvirtConnTestCase(test.NoDBTestCase,
          self.assertEqual(cfg.devices[3].zlib_compression, 'always')
          self.assertFalse(cfg.devices[3].playback_compression)
          self.assertEqual(cfg.devices[3].streaming_mode, 'all')
@@ -254,22 +255,22 @@ index 2b6101fff7..263b416934 100644
 +        self.assertEqual(cfg.devices[3].type, 'spice')
 +        self.assertEqual(cfg.devices[3].listen, '10.0.0.1')
 +        self.assertTrue(cfg.devices[3].secure)
-
+ 
      @mock.patch.object(host.Host, 'get_guest')
      @mock.patch.object(libvirt_driver.LibvirtDriver,
 diff --git a/nova/virt/libvirt/config.py b/nova/virt/libvirt/config.py
-index ff1eb925b2..9bde7e62d4 100644
+index a4395b4d28..059b3c686d 100644
 --- a/nova/virt/libvirt/config.py
 +++ b/nova/virt/libvirt/config.py
-@@ -2143,6 +2143,7 @@ class LibvirtConfigGuestGraphics(LibvirtConfigGuestDevice):
+@@ -2188,6 +2188,7 @@ class LibvirtConfigGuestGraphics(LibvirtConfigGuestDevice):
          self.autoport = True
          self.keymap = None
          self.listen = None
 +        self.secure = None
-
+ 
          self.image_compression = None
          self.jpeg_compression = None
-@@ -2177,6 +2178,11 @@ class LibvirtConfigGuestGraphics(LibvirtConfigGuestDevice):
+@@ -2222,6 +2223,11 @@ class LibvirtConfigGuestGraphics(LibvirtConfigGuestDevice):
              if self.streaming_mode is not None:
                  dev.append(etree.Element(
                      'streaming', mode=self.streaming_mode))
@@ -278,18 +279,32 @@ index ff1eb925b2..9bde7e62d4 100644
 +                                'playback', 'record', 'smartcard', 'usbredir']:
 +                    dev.append(etree.Element('channel', name=channel,
 +                                             mode='secure'))
-
+ 
          return dev
-
+ 
 diff --git a/nova/virt/libvirt/driver.py b/nova/virt/libvirt/driver.py
-index af72060464..855c7caac0 100644
+index e90c628454..7e701c740d 100644
 --- a/nova/virt/libvirt/driver.py
 +++ b/nova/virt/libvirt/driver.py
-@@ -7627,6 +7627,7 @@ class LibvirtDriver(driver.ComputeDriver):
+@@ -7692,6 +7692,7 @@ class LibvirtDriver(driver.ComputeDriver):
              graphics.zlib_compression = CONF.spice.zlib_compression
              graphics.playback_compression = CONF.spice.playback_compression
              graphics.streaming_mode = CONF.spice.streaming_mode
 +            graphics.secure = CONF.spice.require_secure
              guest.add_device(graphics)
              add_video_driver = True
-
+ 
+diff --git a/releasenotes/notes/spice-direct-consoles-4bee40633633c971.yaml b/releasenotes/notes/spice-direct-consoles-4bee40633633c971.yaml
+new file mode 100644
+index 0000000000..0149fa051d
+--- /dev/null
++++ b/releasenotes/notes/spice-direct-consoles-4bee40633633c971.yaml
+@@ -0,0 +1,8 @@
++---
++features:
++  - |
++    This release adds a new config option require_secure to the spice
++    configuration group. Defaulting to false to match the previous
++    behavior, if set to true the SPICE consoles will require TLS
++    protected connections. Unencrypted connections will be gracefully
++    redirected to the TLS port via the SPICE protocol.

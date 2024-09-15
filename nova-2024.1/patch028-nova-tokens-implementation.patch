@@ -1,5 +1,6 @@
-commit e3204cf8f45e91e8de28dc30ed1ad6150fd546ff
+commit 6e179e0a3d3e0f860cf1f06eb6f13c31633ed2f5
 Author: Michael Still <mikal@stillhq.com>
+Date:   Tue Jul 30 19:40:31 2024 +1000
 
     libvirt: allow direct SPICE connections to qemu
 
@@ -27,7 +28,7 @@ Author: Michael Still <mikal@stillhq.com>
       "remote_console": {
         "protocol": "spice",
         "type": "spice-direct",
-        "url": "http://localhost:13200/nova?token=XXX"
+        "url": "http://localhost:13200/nova?token=XXX";
       }
     }
 
@@ -52,6 +53,45 @@ Author: Michael Still <mikal@stillhq.com>
 
     Change-Id: I1e701cbabc0e2c435685e31465159eec09e3b1a0
 
+diff --git a/api-ref/source/parameters.yaml b/api-ref/source/parameters.yaml
+index 90c508c..e2b1146 100644
+--- a/api-ref/source/parameters.yaml
++++ b/api-ref/source/parameters.yaml
+@@ -5396,7 +5396,8 @@ os-getSPICEConsole:
+   type: object
+ os-getSPICEConsole-type:
+   description: |
+-    The type of SPICE console. The only valid value is ``spice-html5``.
++    The type of SPICE console. The valid values are ``spice-html5``
++    and ``spice-direct``.
+   in: body
+   required: true
+   type: string
+@@ -7035,6 +7036,12 @@ tenant_usages:
+   in: body
+   required: true
+   type: array
++tls_port_number:
++  description: |
++    The port number of a port requiring a TLS connection.
++  in: body
++  required: true
++  type: integer
+ to_port:
+   description: |
+     The port at end of range.
+diff --git a/api-ref/source/servers-remote-consoles.inc b/api-ref/source/servers-remote-consoles.inc
+index 9393b31..6b7d4a7 100644
+--- a/api-ref/source/servers-remote-consoles.inc
++++ b/api-ref/source/servers-remote-consoles.inc
+@@ -90,6 +90,7 @@ Response
+   - instance_uuid: instance_id_body
+   - host: console_host
+   - port: port_number
++  - tls_port: tls_port_number
+   - internal_access_path: internal_access_path
+
+ **Example Show Console Authentication Token**
 diff --git a/doc/api_samples/versions/v21-version-get-resp.json b/doc/api_samples/versions/v21-version-get-resp.json
 index e1b7ace..197144b 100644
 --- a/doc/api_samples/versions/v21-version-get-resp.json
@@ -154,7 +194,7 @@ index 4943304..5744eba 100644
 -        return self._show(req, id)
 +        return self._show(req, id, include_tls_port=True)
 diff --git a/nova/api/openstack/compute/remote_consoles.py b/nova/api/openstack/compute/remote_consoles.py
-index 0479703..6b97169 100644
+index 0479703..d3ed65c 100644
 --- a/nova/api/openstack/compute/remote_consoles.py
 +++ b/nova/api/openstack/compute/remote_consoles.py
 @@ -67,12 +67,16 @@ class RemoteConsolesController(wsgi.Controller):
@@ -175,21 +215,7 @@ index 0479703..6b97169 100644
          console_type = body['os-getSPICEConsole'].get('type')
 
          instance = common.get_instance(self.compute_api, context, id)
-@@ -89,7 +93,12 @@ class RemoteConsolesController(wsgi.Controller):
-         except NotImplementedError:
-             common.raise_feature_not_supported()
-
--        return {'console': {'type': console_type, 'url': output['url']}}
-+        return {
-+            'console': {
-+                'type': console_type,
-+                'url': output['url']
-+                }
-+            }
-
-     @wsgi.Controller.api_version("2.1", "2.5")
-     @wsgi.expected_errors((400, 404, 409, 501))
-@@ -133,7 +142,8 @@ class RemoteConsolesController(wsgi.Controller):
+@@ -133,7 +137,8 @@ class RemoteConsolesController(wsgi.Controller):
      @wsgi.Controller.api_version("2.6")
      @wsgi.expected_errors((400, 404, 409, 501))
      @validation.schema(remote_consoles.create_v26, "2.6", "2.7")
@@ -199,38 +225,22 @@ index 0479703..6b97169 100644
      def create(self, req, server_id, body):
          context = req.environ['nova.context']
          instance = common.get_instance(self.compute_api, context, server_id)
-@@ -144,9 +154,13 @@ class RemoteConsolesController(wsgi.Controller):
-         try:
-             handler = self.handlers.get(protocol)
-             output = handler(context, instance, console_type)
--            return {'remote_console': {'protocol': protocol,
--                                       'type': console_type,
--                                       'url': output['url']}}
-+            return {
-+                'remote_console': {
-+                    'protocol': protocol,
-+                    'type': console_type,
-+                    'url': output['url']
-+                    }
-+                }
-
-         except exception.InstanceNotFound as e:
-             raise webob.exc.HTTPNotFound(explanation=e.format_message())
 diff --git a/nova/api/openstack/compute/rest_api_version_history.rst b/nova/api/openstack/compute/rest_api_version_history.rst
-index fcfd5f9..9f17a46 100644
+index fcfd5f9..18eb867 100644
 --- a/nova/api/openstack/compute/rest_api_version_history.rst
 +++ b/nova/api/openstack/compute/rest_api_version_history.rst
-@@ -1255,3 +1255,9 @@ behavior.
+@@ -1255,3 +1255,11 @@ behavior.
 
  The ``server show`` and ``server list --long`` responses now include the
  pinned availability zone as well.
++
++.. _microversion 2.97:
 +
 +2.97
 +----
 +
 +Add the spice-direct console type to the spice console protocol. This includes
 +adding a ``tls_port`` field to the return value from ``os-console-auth-token``.
-\ No newline at end of file
 diff --git a/nova/api/openstack/compute/schemas/remote_consoles.py b/nova/api/openstack/compute/schemas/remote_consoles.py
 index ea38666..6a9eefc 100644
 --- a/nova/api/openstack/compute/schemas/remote_consoles.py
@@ -290,10 +300,10 @@ index ea38666..6a9eefc 100644
 +    'additionalProperties': False,
 +}
 diff --git a/nova/compute/manager.py b/nova/compute/manager.py
-index baf44f9..226373c 100644
+index baf44f9..0d94ce0 100644
 --- a/nova/compute/manager.py
 +++ b/nova/compute/manager.py
-@@ -7310,33 +7310,39 @@ class ComputeManager(manager.Manager):
+@@ -7310,33 +7310,40 @@ class ComputeManager(manager.Manager):
          if not CONF.spice.enabled:
              raise exception.ConsoleTypeUnavailable(console_type=console_type)
 
@@ -327,7 +337,8 @@ index baf44f9..226373c 100644
 +                fields['access_url_base'] = CONF.spice.html5proxy_base_url
 +            if console_type == 'spice-direct':
 +                fields['internal_access_path'] = None
-+                fields['access_url_base'] = CONF.spice.proxy_base_url
++                fields['access_url_base'] = \
++                    CONF.spice.spice_direct_proxy_base_url
 +
 +            console_auth = objects.ConsoleAuthToken(**fields)
              console_auth.authorize(CONF.consoleauth.token_ttl)
@@ -345,7 +356,7 @@ index baf44f9..226373c 100644
      # TODO(gmann): HyperV virt driver has been removed in Nova 29.0.0
      # but we need to keep this method to avoid RPC error in case of using
      # old controller with new compute. This can be removed in RPC API 7.0
-@@ -7447,7 +7453,7 @@ class ComputeManager(manager.Manager):
+@@ -7447,7 +7454,7 @@ class ComputeManager(manager.Manager):
      @wrap_exception()
      @wrap_instance_fault
      def validate_console_port(self, ctxt, instance, port, console_type):
@@ -355,31 +366,29 @@ index baf44f9..226373c 100644
          elif console_type == "serial":
              console_info = self.driver.get_serial_console(ctxt, instance)
 diff --git a/nova/conf/spice.py b/nova/conf/spice.py
-index d01a83c..1cb62b8 100644
+index d01a83c..2f7e6bc 100644
 --- a/nova/conf/spice.py
 +++ b/nova/conf/spice.py
-@@ -161,6 +161,24 @@ Related options:
+@@ -161,6 +161,22 @@ Related options:
  * This option depends on ``html5proxy_host`` and ``html5proxy_port`` options.
    The access URL returned by the compute node must have the host
    and port where the ``nova-spicehtml5proxy`` service is listening.
 +"""),
-+    cfg.URIOpt('proxy_base_url',
++    cfg.URIOpt('spice_direct_proxy_base_url',
 +        default='http://127.0.0.1:13002/nova',
 +        help="""
-+Location of the SPICE protocol native console proxy.
++Location of a SPICE protocol native console proxy.
 +
 +A user can retrieve a virt-viewer style .vv connection configuration file by
 +accessing this URL with the attached token when a console is created.
 +
-+In order to use the SPICE protocol native console proxy, a proxy must
-+be deployed as well.
-+
 +Possible values:
 +
 +* Must be a valid URL of the form:  ``http://host:port/nova`` where host is the
-+  node running ``nova-spicehtml5proxy`` and the port is typically 13002.
-+  Consider not using the default value as it is not well defined for any real
-+  deployment.
++  node running the SPICE protocol native proxy and the port is typically 13002.
++  Note that the port component is optional if you are using the default port
++  for HTTP or HTTPS. Consider not using the default value as it is not well
++  defined for any real deployment.
  """),
      cfg.StrOpt('server_listen',
          default='127.0.0.1',
@@ -534,23 +543,30 @@ index 35ea223..375116e 100644
 +            }, output)
 +        mock_handler.assert_called_once_with(self.context, self.instance,
 +                                             'spice-direct')
-
-diff --git a/nova/tests/functional/api_sample_tests/api_samples/os-console-auth-tokens/v2.97/create-serial-console-req.json.tpl b/nova/tests/functional/api_sample_tests/api_samples/os-console-auth-tokens/v2.97/create-serial-console-req.json.tpl
-new file mode 100644
-index 0000000000..a129e1e08c
---- /dev/null
-+++ b/nova/tests/functional/api_sample_tests/api_samples/os-console-auth-tokens/v2.97/create-serial-console-req.json.tpl
-@@ -0,0 +1,6 @@
-+{
-+    "remote_console": {
-+        "protocol": "serial",
-+        "type": "serial"
-+    }
-+}
+diff --git a/releasenotes/notes/spice-direct-consoles-4bee40633633c971.yaml b/releasenotes/notes/spice-direct-consoles-4bee40633633c971.yaml
+index 0149fa0..b894343 100644
+--- a/releasenotes/notes/spice-direct-consoles-4bee40633633c971.yaml
++++ b/releasenotes/notes/spice-direct-consoles-4bee40633633c971.yaml
+@@ -6,3 +6,15 @@ features:
+     behavior, if set to true the SPICE consoles will require TLS
+     protected connections. Unencrypted connections will be gracefully
+     redirected to the TLS port via the SPICE protocol.
++  - |
++    This release adds a new console type, "spice-direct" which provides
++    the connection information required to talk the native SPICE
++    protocol directly to qemu on the hypervisor. This is intended to
++    be fronted by a proxy which will handle authentication separately.
++    This new console type is exposed in the Compute API v2.97
++    microversion. To facilitate this proxying, a new config option
++    spice_direct_proxy_base_url is added to the spice configuration group.
++    This option is used to construct a URL containing an access token for
++    the console, and that access token can be turned into hypervisor
++    connection information using the pre-existing
++    os-console-auth-tokens API.
 
 diff --git a/nova/tests/functional/api_sample_tests/api_samples/os-remote-consoles/v2.97/create-spice-direct-console-req.json.tpl b/nova/tests/functional/api_sample_tests/api_samples/os-remote-consoles/v2.97/create-spice-direct-console-req.json.tpl
 new file mode 100644
-index 0000000..552ab30
+index 0000000000..552ab30e15
 --- /dev/null
 +++ b/nova/tests/functional/api_sample_tests/api_samples/os-remote-consoles/v2.97/create-spice-direct-console-req.json.tpl
 @@ -0,0 +1,6 @@
@@ -562,7 +578,7 @@ index 0000000..552ab30
 +}
 diff --git a/nova/tests/functional/api_sample_tests/api_samples/os-remote-consoles/v2.97/create-spice-direct-console-resp.json.tpl b/nova/tests/functional/api_sample_tests/api_samples/os-remote-consoles/v2.97/create-spice-direct-console-resp.json.tpl
 new file mode 100644
-index 0000000..ea6c175
+index 0000000000..59fcbb083f
 --- /dev/null
 +++ b/nova/tests/functional/api_sample_tests/api_samples/os-remote-consoles/v2.97/create-spice-direct-console-resp.json.tpl
 @@ -0,0 +1,7 @@
@@ -574,22 +590,9 @@ index 0000000..ea6c175
 +    }
 +}
 
-diff --git a/doc/api_samples/os-remote-consoles/v2.97/create-spice-direct-console-req.json b/doc/api_samples/os-remote-consoles/v2.97/create-spice-direct-console-req.json
-new file mode 100644
-index 0000000..6a04d75
---- /dev/null
-+++ b/doc/api_samples/os-remote-consoles/v2.97/create-spice-direct-console-req.json
-@@ -0,0 +1,6 @@
-+{
-+    "remote_console": {
-+        "protocol": "spice",
-+        "type": "spice-direct"
-+    }
-+}
-\ No newline at end of file
 diff --git a/doc/api_samples/os-remote-consoles/v2.97/create-spice-direct-console-resp.json b/doc/api_samples/os-remote-consoles/v2.97/create-spice-direct-console-resp.json
 new file mode 100644
-index 0000000..9f30bfa
+index 0000000000..5bcac56fd1
 --- /dev/null
 +++ b/doc/api_samples/os-remote-consoles/v2.97/create-spice-direct-console-resp.json
 @@ -0,0 +1,7 @@
@@ -600,4 +603,3 @@ index 0000000..9f30bfa
 +        "url": "http://127.0.0.1:13002/nova?token=aeabd4ec-3acb-4898-9130-10521ccbe5f3"
 +    }
 +}
-\ No newline at end of file
