@@ -8,6 +8,12 @@ echo -e "${H1}==================================================${Color_Off}"
 echo -e "${H1}Install Kolla-Ansible${Color_Off}"
 echo -e "${H1}==================================================${Color_Off}"
 
+# This is in response to the rabbitmq pre-check being super thingie about
+# exactly what result it gets back here. The API interface value must be the
+# _first_ value returned.
+echo -e "${H2}Log DNS result for target node${Color_Off}"
+getent ahostsv4 kolla
+
 echo -e "${H2}Run pre-checks${Color_Off}"
 kolla-ansible -i /etc/kolla/all-in-one prechecks
 

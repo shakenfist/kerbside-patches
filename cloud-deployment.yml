@@ -11,6 +11,7 @@
         name: "kolla"
         namespace: "{{identifier}}"
         state: present
+        dns: true
       register: kolla_network
 
     - debug:
