@@ -13,7 +13,7 @@ The remainder of the patches are ancillary changes -- support for new Nova API
 microversions in clients, things which helped me debug along the way, and that
 sort of thing.
 
-These patches last successfully applied via CI on 28 August 2024.
+These patches last successfully applied via CI on 16 September 2024.
 
 # Not for production use
 
