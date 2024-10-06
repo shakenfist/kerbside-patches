@@ -40,7 +40,7 @@ echo -e "${H2}Generate passwords${Color_Off}"
 kolla-genpwd
 
 echo -e "${H2}Make certificates${Color_Off}"
-kolla-ansible -i /etc/kolla/all-in-one certifictates
+kolla-ansible -i /etc/kolla/all-in-one certificates
 
 echo -e "${H2}Bootstrap servers${Color_Off}"
 kolla-ansible -i /etc/kolla/all-in-one bootstrap-servers
