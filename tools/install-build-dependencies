@@ -14,7 +14,8 @@ sudo dnf install -y epel-release
 sudo dnf config-manager --set-enabled crb
 
 echo -e "${H2}Additional packages${Color_Off}"
-sudo dnf install -y moreutils pkg-config python3-lxml libxml2-devel libxslt jq
+sudo dnf install -y moreutils pkg-config python3-lxml libxml2-devel libxslt jq \
+    gcc python3-devel
 sudo dnf remove python3-virtualenv
 sudo pip3 install tox yq occystrap virtualenv
 
