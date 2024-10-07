@@ -9,7 +9,7 @@ echo -e "${H1}Bootstrap Kolla-Ansible${Color_Off}"
 echo -e "${H1}==================================================${Color_Off}"
 
 echo -e "${H2}Install Ansible${Color_Off}"
-pip3 install -U ansible
+pip3 install -U "ansible-core<2.17" ansible
 
 echo -e "${H2}Install patched Kolla-Ansible${Color_Off}"
 cd src/kolla-ansible
