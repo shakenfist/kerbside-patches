@@ -82,14 +82,14 @@ jobs:
               -o UserKnownHostsFile=/dev/null \
               ${GITHUB_WORKSPACE}/kerbside-patches cloud-user@10.0.2.2:.
 
-      - name: Upgrade python
-        run: |
-          . ${GITHUB_WORKSPACE}/ci-environment.sh
-          cd ${GITHUB_WORKSPACE}
+      # - name: Upgrade python
+      #   run: |
+      #     . ${GITHUB_WORKSPACE}/ci-environment.sh
+      #     cd ${GITHUB_WORKSPACE}
 
-          ssh -i /srv/github/id_ci -o StrictHostKeyChecking=no \
-                -o UserKnownHostsFile=/dev/null cloud-user@10.0.2.2 \
-                "cd kerbside-patches/tools; sudo ./upgrade-python"
+      #     ssh -i /srv/github/id_ci -o StrictHostKeyChecking=no \
+      #           -o UserKnownHostsFile=/dev/null cloud-user@10.0.2.2 \
+      #           "cd kerbside-patches/tools; sudo ./upgrade-python"
 
       - name: Install dependencies
         run: |
