@@ -30,7 +30,7 @@ echo
 
 echo -e "${H2}Copy globals.yml${Color_Off}"
 cd ../..
-cp etc/globals-2024.1.yml /etc/kolla/
+cp etc/globals-2024.1.yml /etc/kolla/globals.yml
 echo
 
 echo -e "${H2}Tweak /etc/hosts${Color_Off}"
