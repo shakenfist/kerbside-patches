@@ -10,6 +10,7 @@ echo -e "${H1}==================================================${Color_Off}"
 
 echo -e "${H2}Post deply${Color_Off}"
 kolla-ansible -i /etc/kolla/all-in-one post-deploy
+echo
 
 . /etc/kolla/admin-openrc.sh
 
@@ -18,6 +19,7 @@ export EXT_NET_CIDR='10.0.2.0/24'
 export EXT_NET_RANGE='start=10.0.2.100,end=10.0.2.150'
 export EXT_NET_GATEWAY='10.0.2.1'
 . /usr/local/share/kolla-ansible/init-runonce
+echo
 
 trap - EXIT
 

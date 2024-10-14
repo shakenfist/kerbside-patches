@@ -10,40 +10,50 @@ echo -e "${H1}==================================================${Color_Off}"
 
 echo -e "${H2}Install Ansible${Color_Off}"
 pip3 install -U "ansible-core<2.17" ansible
+echo
 
 echo -e "${H2}Install patched Kolla-Ansible${Color_Off}"
 cd src/kolla-ansible
 python3 setup.py develop
+echo
 
 echo -e "${H2}Install Kolla-Ansible dependencies${Color_Off}"
 export PATH=$PATH:/usr/local/bin
 kolla-ansible install-deps
+echo
 
 echo -e "${H2}Bootstrap inventory${Color_Off}"
 mkdir /etc/kolla
 cp -r etc/kolla /etc/
 cp ansible/inventory/all-in-one /etc/kolla
+echo
 
 echo -e "${H2}Copy globals.yml${Color_Off}"
 cd ../..
 cp etc/globals-2024.1.yml /etc/kolla/
+echo
 
 echo -e "${H2}Tweak /etc/hosts${Color_Off}"
 sed -i '1s/^/10.0.2.2 kolla\n\n/' /etc/hosts
+echo
 
 if [ -e /etc/cloud/templates/hosts.redhat.tmpl ]; then
     echo -e "${H2}Tweak /etc/hosts template for cloud-init${Color_Off}"
     sed -i '1s/^/10.0.2.2 kolla\n\n/' /etc/cloud/templates/hosts.redhat.tmpl
+echo
 fi
 
 echo -e "${H2}Generate passwords${Color_Off}"
 kolla-genpwd
+echo
 
 echo -e "${H2}Make certificates${Color_Off}"
 kolla-ansible -i /etc/kolla/all-in-one certificates
+echo
 
 echo -e "${H2}Bootstrap servers${Color_Off}"
 kolla-ansible -i /etc/kolla/all-in-one -vvv bootstrap-servers
+echo
 
 trap - EXIT
 

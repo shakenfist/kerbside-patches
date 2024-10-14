@@ -15,6 +15,7 @@ for client in openstacksdk python-novaclient python-openstackclient; deploy
 
   echo -e "${H2}Installing ${client}${Color_Off}"
   pip install -e .
+  echo
 
   cd ..
 done

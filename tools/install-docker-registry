@@ -39,12 +39,15 @@ EOF
 
 echo -e "${H2}Enable registry${Color_Off}"
 systemctl enable docker_registry.service
+echo
 
 echo -e "${H2}Start registry${Color_Off}"
 systemctl start docker_registry.service
+echo
 
 echo -e "${H2}Docker status${Color_Off}"
 docker ps | grep registry || true
+echo
 
 trap - EXIT
 

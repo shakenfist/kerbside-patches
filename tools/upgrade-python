@@ -13,3 +13,5 @@ if [ "${NAME}" == "Rocky Linux" ]; then
 else
   echo "OS is not Rocky Linux, skipping."
 fi
+
+echo
