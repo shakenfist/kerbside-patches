@@ -107,7 +107,7 @@ jobs:
               cloud-user@10.0.2.2 \
               'cd kerbside-patches/tools; sudo ./install-docker-registry'
 
-      - name: Build patched respositories
+      - name: Build patched repositories
         run: |
           . $GITHUB_ENV
           ssh -i /srv/github/id_ci -o StrictHostKeyChecking=no \

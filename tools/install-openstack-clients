@@ -8,7 +8,7 @@ echo -e "${H1}==================================================${Color_Off}"
 echo -e "${H1}Install OpenStack clients${Color_Off}"
 echo -e "${H1}==================================================${Color_Off}"
 
-cd ../src
+cd src
 
 for client in openstacksdk python-novaclient python-openstackclient; deploy
   cd ${client}
