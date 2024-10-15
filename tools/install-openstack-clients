@@ -10,7 +10,7 @@ echo -e "${H1}==================================================${Color_Off}"
 
 cd src
 
-for client in openstacksdk python-novaclient python-openstackclient; deploy
+for client in openstacksdk python-novaclient python-openstackclient; do
   cd ${client}
 
   echo -e "${H2}Installing ${client}${Color_Off}"
