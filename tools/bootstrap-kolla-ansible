@@ -17,10 +17,6 @@ cd src/kolla-ansible
 pip3 install -e .
 echo
 
-echo -e "${H2}Record Kolla-Ansible install path${Color_Off}"
-which kolla-ansible
-echo
-
 echo -e "${H2}Install Kolla-Ansible dependencies${Color_Off}"
 export PATH=$PATH:/usr/local/bin
 kolla-ansible install-deps
