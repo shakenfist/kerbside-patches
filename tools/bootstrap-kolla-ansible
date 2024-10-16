@@ -14,7 +14,11 @@ echo
 
 echo -e "${H2}Install patched Kolla-Ansible${Color_Off}"
 cd src/kolla-ansible
-python3 setup.py develop
+pip3 install -e .
+echo
+
+echo -e "${H2}Record Kolla-Ansible install path${Color_Off}"
+which kolla-ansible
 echo
 
 echo -e "${H2}Install Kolla-Ansible dependencies${Color_Off}"
