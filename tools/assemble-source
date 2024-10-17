@@ -15,6 +15,7 @@ cd src
 git clone https://github.com/shakenfist/kerbside
 tar cvf kerbside.tgz kerbside
 cd ..
+echo
 
 # Apply patches. We skip tests here because there are separate CI jobs to
 # cover that and the tests take ages to run.

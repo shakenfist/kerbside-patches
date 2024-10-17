@@ -80,6 +80,9 @@ for target in ${build_targets}; do
         echo -e "${H2}Using existing build venv ${venvdir}${Color_Off}"
     fi
 
+    # Install other required dependencies
+    ${venvdir}/bin/pip install setuptools
+
     # Install kolla, docker and oslo
     if [ ! -f ${venvdir}/bin/kolla-build ]; then
         # We need to override the version of oslo.config so that it doesn't get clobbered

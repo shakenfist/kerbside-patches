@@ -32,6 +32,8 @@ for item in archive/imgs/*.tar; do
    sudo docker image push 127.0.0.1:4000/openstack.kolla/${name}:${release}-debian-${debian_codename}
 done
 
+echo
+
 trap - EXIT
 
 echo -e "${H1}==================================================${Color_Off}"
