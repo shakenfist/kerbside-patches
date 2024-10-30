@@ -233,7 +233,7 @@ jobs:
           if [ ${{ matrix.test.baseuser }} == "debian" ]; then
             ssh -i /srv/github/id_ci -o StrictHostKeyChecking=no \
                 -o UserKnownHostsFile=/dev/null ${{ matrix.test.baseuser }}@$primary \
-                "sudo pip3 install --break-system-packages yq"
+                "sudo pip3 install --break-system-packages yq tox"
             ssh -i /srv/github/id_ci -o StrictHostKeyChecking=no \
                 -o UserKnownHostsFile=/dev/null ${{ matrix.test.baseuser }}@$primary \
                 "sudo apt-get install -y moreutils libpq-dev"
@@ -243,10 +243,10 @@ jobs:
                 "cd kerbside-patches/tools; sudo ./upgrade-python"
             ssh -i /srv/github/id_ci -o StrictHostKeyChecking=no \
                 -o UserKnownHostsFile=/dev/null ${{ matrix.test.baseuser }}@$primary \
-                "sudo pip3 install yq"
+                "sudo pip3 install yq tox"
             ssh -i /srv/github/id_ci -o StrictHostKeyChecking=no \
                 -o UserKnownHostsFile=/dev/null ${{ matrix.test.baseuser }}@$primary \
-                "sudo dnf install -y moreutils"
+                "sudo dnf install -y moreutils gcc python-devel"
           fi
 
       - name: Deep test patches (2024.1)
