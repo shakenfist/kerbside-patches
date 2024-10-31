@@ -24,28 +24,28 @@ jobs:
               'name': 'rocky-9-kolla',
               'baseimage': 'sf://label/ci-images/rocky-9',
               'baseuser': 'cloud-user',
-              'targets': 'kolla:2024.1 kolla:master'
+              'targets': 'kolla:2024.1 kolla:2024.2 kolla:master'
           },
           {
               'description': "kolla on debian 12",
               'name': 'debian-12-kolla',
               'baseimage': 'sf://label/ci-images/debian-12',
               'baseuser': 'debian',
-              'targets': 'kolla:2024.1 kolla:master'
+              'targets': 'kolla:2024.1 kolla:2024.2 kolla:master'
           },
           {
               'description': "kolla-ansible on rocky 9",
               'name': 'rocky-9-kolla-ansible',
               'baseimage': 'sf://label/ci-images/rocky-9',
               'baseuser': 'cloud-user',
-              'targets': 'kolla-ansible:2024.1 kolla-ansible:master'
+              'targets': 'kolla-ansible:2024.1 kolla-ansible:2024.2 kolla-ansible:master'
           },
           {
               'description': "kolla-ansible on debian 12",
               'name': 'debian-12-kolla-ansible',
               'baseimage': 'sf://label/ci-images/debian-12',
               'baseuser': 'debian',
-              'targets': 'kolla-ansible:2024.1 kolla-ansible:master'
+              'targets': 'kolla-ansible:2024.1 kolla-ansible:2024.2 kolla-ansible:master'
           },
           {
               'description': "nova master on rocky 9",
@@ -76,60 +76,74 @@ jobs:
               'targets': 'nova:2024.1'
           },
           {
+              'description': "nova 2024.2 on rocky 9",
+              'name': 'rocky-9-nova-2024.2',
+              'baseimage': 'sf://label/ci-images/rocky-9',
+              'baseuser': 'cloud-user',
+              'targets': 'nova:2024.2'
+          },
+          {
+              'description': "nova 2024.2 on debian 12",
+              'name': 'debian-12-nova-2024.2',
+              'baseimage': 'sf://label/ci-images/debian-12',
+              'baseuser': 'debian',
+              'targets': 'nova:2024.2'
+          },
+          {
               'description': "openstacksdk on rocky 9",
               'name': 'rocky-9-openstacksdk',
               'baseimage': 'sf://label/ci-images/rocky-9',
               'baseuser': 'cloud-user',
-              'targets': 'openstacksdk:2024.1 openstacksdk:master'
+              'targets': 'openstacksdk:2024.1 openstacksdk:2024.2 openstacksdk:master'
           },
           {
               'description': "openstacksdk on debian 12",
               'name': 'debian-12-openstacksdk',
               'baseimage': 'sf://label/ci-images/debian-12',
               'baseuser': 'debian',
-              'targets': 'openstacksdk:2024.1 openstacksdk:master'
+              'targets': 'openstacksdk:2024.1 openstacksdk:2024.2 openstacksdk:master'
           },
           {
               'description': "osloconfig on rocky 9",
               'name': 'rocky-9-osloconfig',
               'baseimage': 'sf://label/ci-images/rocky-9',
               'baseuser': 'cloud-user',
-              'targets': 'oslo.config:2024.1 oslo.config:master'
+              'targets': 'oslo.config:2024.1 oslo.config:2024.2 oslo.config:master'
           },
           {
               'description': "osloconfig on debian 12",
               'name': 'debian-12-osloconfig',
               'baseimage': 'sf://label/ci-images/debian-12',
               'baseuser': 'debian',
-              'targets': 'oslo.config:2024.1 oslo.config:master'
+              'targets': 'oslo.config:2024.1 oslo.config:2024.2 oslo.config:master'
           },
           {
               'description': "python-novaclient on rocky 9",
               'name': 'rocky-9-python-novaclient',
               'baseimage': 'sf://label/ci-images/rocky-9',
               'baseuser': 'cloud-user',
-              'targets': 'python-novaclient:2024.1 python-novaclient:master'
+              'targets': 'python-novaclient:2024.1 python-novaclient:2024.2 python-novaclient:master'
           },
           {
               'description': "python-novaclient on debian 12",
               'name': 'debian-12-python-novaclient',
               'baseimage': 'sf://label/ci-images/debian-12',
               'baseuser': 'debian',
-              'targets': 'python-novaclient:2024.1 python-novaclient:master'
+              'targets': 'python-novaclient:2024.1 python-novaclient:2024.2 python-novaclient:master'
           },
           {
               'description': "python-openstackclient on rocky 9",
               'name': 'rocky-9-python-openstackclient',
               'baseimage': 'sf://label/ci-images/rocky-9',
               'baseuser': 'cloud-user',
-              'targets': 'python-openstackclient:2024.1 python-openstackclient:master'
+              'targets': 'python-openstackclient:2024.1 python-openstackclient:2024.2 python-openstackclient:master'
           },
           {
               'description': "python-openstackclient on debian 12",
               'name': 'debian-12-python-openstackclient',
               'baseimage': 'sf://label/ci-images/debian-12',
               'baseuser': 'debian',
-              'targets': 'python-openstackclient:2024.1 python-openstackclient:master'
+              'targets': 'python-openstackclient:2024.1 python-openstackclient:2024.2 python-openstackclient:master'
           },
         ]
     runs-on: self-hosted
@@ -215,6 +229,9 @@ jobs:
               base_image=${{ matrix.test.baseimage }} base_image_user=${{ matrix.test.baseuser }}" \
               ci-topology.yml
 
+          echo "ci-environment:"
+          cat ${GITHUB_WORKSPACE}/ci-environment.sh
+
       - name: Copy source code to primary
         run: |
           . ${GITHUB_WORKSPACE}/ci-environment.sh
@@ -228,7 +245,6 @@ jobs:
       - name: Install missing dependencies
         run: |
           . ${GITHUB_WORKSPACE}/ci-environment.sh
-          cd ${GITHUB_WORKSPACE}
 
           if [ ${{ matrix.test.baseuser }} == "debian" ]; then
             script="set -x;"
@@ -239,7 +255,7 @@ jobs:
 
             ssh -i /srv/github/id_ci -o StrictHostKeyChecking=no \
               -o UserKnownHostsFile=/dev/null \
-              debian@${primary} \
+              ${{ matrix.test.baseuser }}@${primary} \
               "${script}"
           else
             script="set -x;"
@@ -252,14 +268,13 @@ jobs:
 
             ssh -i /srv/github/id_ci -o StrictHostKeyChecking=no \
               -o UserKnownHostsFile=/dev/null \
-              cloud-user@@${primary} \
+              ${{ matrix.test.baseuser }}@${primary} \
               "${script}"
           fi
 
       - name: Deep test patches (2024.1)
         run: |
           . ${GITHUB_WORKSPACE}/ci-environment.sh
-          cd ${GITHUB_WORKSPACE}
 
           Green='\033[0;32m'        # Green
           Color_Off='\033[0m'       # Text Reset
@@ -284,7 +299,7 @@ jobs:
             fi
           done
 
-      - name: Install missing dependencies required just by master
+      - name: 2024.2 onwards requires a newer python than the system default in Rocky 9
         run: |
           . ${GITHUB_WORKSPACE}/ci-environment.sh
           cd ${GITHUB_WORKSPACE}
@@ -297,14 +312,40 @@ jobs:
 
             ssh -i /srv/github/id_ci -o StrictHostKeyChecking=no \
               -o UserKnownHostsFile=/dev/null \
-              cloud-user@@${primary} \
+              ${{ matrix.test.baseuser }}@${primary} \
               "${script}"
           fi
+
+      - name: Deep test patches (2024.2)
+        run: |
+          . ${GITHUB_WORKSPACE}/ci-environment.sh
+
+          Green='\033[0;32m'        # Green
+          Color_Off='\033[0m'       # Text Reset
+
+          for target in ${{ matrix.test.targets }}; do
+            project=$( echo ${target} | cut -f 1 -d ":" )
+            branch=$( echo ${target} | cut -f 2 -d ":" )
+            echo "Considering target ${target}, ${project} branch ${branch}"
+
+            if [[ ${branch} == "2024.2" ]]; then
+              echo
+              echo -e "${Green}==================================================${Color_Off}"
+              echo -e "${Green}Attempting to apply patches for ${target}${Color_Off}"
+              echo -e "${Green}==================================================${Color_Off}"
+
+              ssh -i /srv/github/id_ci -o StrictHostKeyChecking=no \
+                  -o UserKnownHostsFile=/dev/null ${{ matrix.test.baseuser }}@${primary} \
+                  "cd kerbside-patches; ./testapply.sh ${project}-${branch}"
+
+              echo
+              echo
+            fi
+          done
 
       - name: Deep test patches (master)
         run: |
           . ${GITHUB_WORKSPACE}/ci-environment.sh
-          cd ${GITHUB_WORKSPACE}
 
           Green='\033[0;32m'        # Green
           Color_Off='\033[0m'       # Text Reset

@@ -1,0 +1,37 @@
+commit 110492e5a0c6341609ca2d8618abc6ea54bdc97b
+Author: Michael Still <mikal@stillhq.com>
+Date:   Thu May 30 17:29:40 2024 +1000
+
+    Use mypy syntax compatible with older pythons.
+    
+    Change I1cb1efbf1f243cca0c5bb6e1058d25b2ad863355 introduced mypy
+    syntax which breaks Python releases before 3.10. Unfortunately, for
+    2024.1 we commit to supporting Python back to 3.8.
+    
+    Specifically, you receive this error message if you run pep8:
+    
+    pep8 mypy.....................................................................Failed
+    pep8 - hook id: mypy
+    pep8 - exit code: 1
+    pep8
+    pep8 openstack/dns/v2/_base.py: note: In member "list" of class "Resource":
+    pep8 openstack/dns/v2/_base.py:83:27: error: X | Y syntax for unions requires Python 3.10  [syntax]
+    pep8 Found 1 error in 1 file (checked 414 source files)
+    
+    So instead, let's use typing syntax compatible with other pythons.
+    
+    Change-Id: Ifcf68075e572ccfc910dbef449cd58986c2a1bf5
+
+diff --git a/openstack/dns/v2/_base.py b/openstack/dns/v2/_base.py
+index 756e42939..6bba5b048 100644
+--- a/openstack/dns/v2/_base.py
++++ b/openstack/dns/v2/_base.py
+@@ -80,7 +80,7 @@ class Resource(resource.Resource):
+         all_projects=None,
+         **params,
+     ):
+-        headers: ty.Union[ty.Dict[str, str] | None] = (
++        headers: ty.Union[ty.Union[ty.Dict[str, str], None]] = (
+             {} if project_id or all_projects else None
+         )
+ 
