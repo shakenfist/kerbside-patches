@@ -129,6 +129,13 @@ for project in ${positional_args}; do
     cd ${topsrcdir}/${directory}
     git checkout -b ${branch}-patches
     echo -e "${H2}Working in branch ${branch}-patches${Color_Off}"
+
+    echo -e "${H3}Ensure tests pass on a clean ${project} ${branch} branch${Color_Off}"
+    if [ "${defer_tests}" != "true" ]; then
+        run_tests ${repo} ${branch}
+    fi
+    echo
+
     cd ${topdir}
 
     for patch in $(cat ${project}/ORDER)

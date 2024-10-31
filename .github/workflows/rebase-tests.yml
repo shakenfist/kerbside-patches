@@ -223,7 +223,7 @@ jobs:
 
           scp -i /srv/github/id_ci -o StrictHostKeyChecking=no \
               -o UserKnownHostsFile=/dev/null -rp kerbside-patches \
-              ${{ matrix.test.baseuser }}@$primary:.
+              ${{ matrix.test.baseuser }}@${primary}:.
 
       - name: Install missing dependencies
         run: |
@@ -231,22 +231,29 @@ jobs:
           cd ${GITHUB_WORKSPACE}
 
           if [ ${{ matrix.test.baseuser }} == "debian" ]; then
+            script="set -x;"
+            script="${script} sudo apt-get update;"
+            script="${script} sudo apt-get dist-upgrade -y;"
+            script="${script} sudo pip3 install --break-system-packages yq tox;"
+            script="${script} sudo apt-get install -y moreutils libpq-dev"
+
             ssh -i /srv/github/id_ci -o StrictHostKeyChecking=no \
-                -o UserKnownHostsFile=/dev/null ${{ matrix.test.baseuser }}@$primary \
-                "sudo pip3 install --break-system-packages yq tox"
-            ssh -i /srv/github/id_ci -o StrictHostKeyChecking=no \
-                -o UserKnownHostsFile=/dev/null ${{ matrix.test.baseuser }}@$primary \
-                "sudo apt-get install -y moreutils libpq-dev"
+              -o UserKnownHostsFile=/dev/null \
+              debian@${primary} \
+              "${script}"
           else
+            script="set -x;"
+            script="${script} sudo dnf update -y;"
+            script="${script} sudo dnf install -y epel-release;"
+            script="${script} sudo dnf config-manager --set-enabled crb;"
+            script="${script} cd kerbside-patches/tools;"
+            script="${script} sudo pip3 install yq tox flake8;"
+            script="${script} sudo dnf install -y moreutils gcc"
+
             ssh -i /srv/github/id_ci -o StrictHostKeyChecking=no \
-                -o UserKnownHostsFile=/dev/null ${{ matrix.test.baseuser }}@$primary \
-                "cd kerbside-patches/tools; sudo ./upgrade-python"
-            ssh -i /srv/github/id_ci -o StrictHostKeyChecking=no \
-                -o UserKnownHostsFile=/dev/null ${{ matrix.test.baseuser }}@$primary \
-                "sudo pip3 install yq tox"
-            ssh -i /srv/github/id_ci -o StrictHostKeyChecking=no \
-                -o UserKnownHostsFile=/dev/null ${{ matrix.test.baseuser }}@$primary \
-                "sudo dnf install -y moreutils gcc python-devel"
+              -o UserKnownHostsFile=/dev/null \
+              cloud-user@@${primary} \
+              "${script}"
           fi
 
       - name: Deep test patches (2024.1)
@@ -269,13 +276,30 @@ jobs:
               echo -e "${Green}==================================================${Color_Off}"
 
               ssh -i /srv/github/id_ci -o StrictHostKeyChecking=no \
-                  -o UserKnownHostsFile=/dev/null ${{ matrix.test.baseuser }}@$primary \
+                  -o UserKnownHostsFile=/dev/null ${{ matrix.test.baseuser }}@${primary} \
                   "cd kerbside-patches; ./testapply.sh ${project}-${branch}"
 
               echo
               echo
             fi
           done
+
+      - name: Install missing dependencies required just by master
+        run: |
+          . ${GITHUB_WORKSPACE}/ci-environment.sh
+          cd ${GITHUB_WORKSPACE}
+
+          if [ ${{ matrix.test.baseuser }} == "cloud-user" ]; then
+            script="set -x;"
+            script="${script} cd kerbside-patches/tools;"
+            script="${script} sudo ./upgrade-python;"
+            script="${script} sudo pip3 install yq tox flake8"
+
+            ssh -i /srv/github/id_ci -o StrictHostKeyChecking=no \
+              -o UserKnownHostsFile=/dev/null \
+              cloud-user@@${primary} \
+              "${script}"
+          fi
 
       - name: Deep test patches (master)
         run: |
@@ -297,7 +321,7 @@ jobs:
               echo -e "${Green}==================================================${Color_Off}"
 
               ssh -i /srv/github/id_ci -o StrictHostKeyChecking=no \
-                  -o UserKnownHostsFile=/dev/null ${{ matrix.test.baseuser }}@$primary \
+                  -o UserKnownHostsFile=/dev/null ${{ matrix.test.baseuser }}@${primary} \
                   "cd kerbside-patches; ./testapply.sh ${project}"
 
               echo
