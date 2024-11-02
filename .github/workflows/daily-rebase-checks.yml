@@ -3,7 +3,7 @@ name: Ensure patches still apply once a day
 on:
   workflow_dispatch:
   schedule:
-    - cron: '00 00 * * *'        # utc
+    - cron: '14 00 * * *'        # utc
 
 jobs:
   daily-rebase:
