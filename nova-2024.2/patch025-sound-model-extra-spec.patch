@@ -1,4 +1,4 @@
-commit 028f31ba46588784b318bce4090e8429dd5a9744
+commit cace49e07a53c76bad6f46944a7d6370b1b48ebd
 Author: Michael Still <mikal@stillhq.com>
 Date:   Mon Aug 26 10:05:16 2024 +1000
 
@@ -18,8 +18,8 @@ index eb100b7..cc05522 100644
          "hw_architecture": "x86_64"
      },
      "nova_object.name": "ImageMetaPropsPayload",
--    "nova_object.version": "1.15"
-+    "nova_object.version": "1.16"
+-    "nova_object.version": "1.14"
++    "nova_object.version": "1.15"
  }
 diff --git a/nova/api/validation/extra_specs/hw.py b/nova/api/validation/extra_specs/hw.py
 index ab558d4..c50355b 100644
@@ -46,16 +46,16 @@ index ab558d4..c50355b 100644
 
  ephemeral_encryption_validators = [
 diff --git a/nova/notifications/objects/image.py b/nova/notifications/objects/image.py
-index 513c257..42e6153 100644
+index f714632..5fd9b27 100644
 --- a/nova/notifications/objects/image.py
 +++ b/nova/notifications/objects/image.py
-@@ -133,7 +133,8 @@ class ImageMetaPropsPayload(base.NotificationPayloadBase):
+@@ -132,7 +132,8 @@ class ImageMetaPropsPayload(base.NotificationPayloadBase):
+     # Version 1.12: Added 'hw_viommu_model' field
      # Version 1.13: Added 'hw_virtio_packed_ring' field
      # Version 1.14: Added 'hw_firmware_stateless' field
-     # Version 1.15: Added igb value to 'hw_vif_model' enum
--    VERSION = '1.15'
-+    # Version 1.16: Added 'hw_sound_model' field
-+    VERSION = '1.16'
+-    VERSION = '1.14'
++    # Version 1.15: Added 'hw_sound_model' field
++    VERSION = '1.15'
 
      # NOTE(efried): This logic currently relies on all of the fields of
      # ImageMetaProps being initialized with no arguments. See the docstring.
@@ -96,30 +96,34 @@ index 332acf9..1171dcf 100644
      AUTO_TYPE = NotificationPriority()
 
 diff --git a/nova/objects/image_meta.py b/nova/objects/image_meta.py
-index 2029b27..1488f3f 100644
+index 4c3589a..b28c1d6 100644
 --- a/nova/objects/image_meta.py
 +++ b/nova/objects/image_meta.py
-@@ -198,14 +198,18 @@ class ImageMetaProps(base.NovaObject):
+@@ -197,14 +197,21 @@ class ImageMetaProps(base.NovaObject):
+     #                     'hw_maxphysaddr_bits' field
      # Version 1.37: Added 'hw_ephemeral_encryption_secret_uuid' field
      # Version 1.38: Added 'hw_firmware_stateless' field
-     # Version 1.39: Added igb value to 'hw_vif_model' enum
-+    # Version 1.40: Added 'hw_sound_model' field
++    # Version 1.39: Added 'hw_sound_model' field
 +
      # NOTE(efried): When bumping this version, the version of
      # ImageMetaPropsPayload must also be bumped. See its docstring for details.
--    VERSION = '1.39'
-+    VERSION = '1.40'
+-    VERSION = '1.38'
++    VERSION = '1.39'
++
++    # NOTE(mikal): This method is detected as being too complex by flake8 with
++    # error C901. We should think about ways to simplify this method.
 
-     def obj_make_compatible(self, primitive, target_version):
+-    def obj_make_compatible(self, primitive, target_version):
++    def obj_make_compatible(self, primitive, target_version):  # noqa: C901
          super(ImageMetaProps, self).obj_make_compatible(primitive,
                                                          target_version)
          target_version = versionutils.convert_version_to_tuple(target_version)
-+        if target_version < (1, 40):
++        if target_version < (1, 39):
 +            primitive.pop('hw_sound_model', None)
-         if target_version < (1, 39):
-             base.raise_on_too_new_values(
-                 target_version, primitive,
-@@ -494,6 +498,9 @@ class ImageMetaProps(base.NovaObject):
+         if target_version < (1, 38):
+             primitive.pop('hw_firmware_stateless', None)
+         if target_version < (1, 37):
+@@ -501,6 +508,9 @@ class ImageMetaProps(base.NovaObject):
          # Control bits for the physical memory address bit of Libvirt guests.
          'hw_maxphysaddr_bits': fields.IntegerField(),
 
@@ -130,23 +134,23 @@ index 2029b27..1488f3f 100644
          'img_bittorrent': fields.FlexibleBooleanField(),
 
 diff --git a/nova/tests/unit/notifications/objects/test_notification.py b/nova/tests/unit/notifications/objects/test_notification.py
-index 521fcbe..786f873 100644
+index 8204d2b..22e1ae1 100644
 --- a/nova/tests/unit/notifications/objects/test_notification.py
 +++ b/nova/tests/unit/notifications/objects/test_notification.py
 @@ -385,7 +385,7 @@ notification_object_data = {
      # ImageMetaProps, so when you see a fail here for that reason, you must
      # *also* bump the version of ImageMetaPropsPayload. See its docstring for
      # more information.
--    'ImageMetaPropsPayload': '1.15-a3d7a75fedbf373bcab2d9d6ece249df',
-+    'ImageMetaPropsPayload': '1.16-871cffafce16ab4b6296c1f071262aa8',
+-    'ImageMetaPropsPayload': '1.14-af9efd17cd034596be792fa25f24e83d',
++    'ImageMetaPropsPayload': '1.15-a0acc61287a0ad85805d43d804809856',
      'InstanceActionNotification': '1.0-a73147b93b520ff0061865849d3dfa56',
      'InstanceActionPayload': '1.8-b948818df6ec562e4eb4b23e515e451b',
      'InstanceActionRebuildNotification':
 diff --git a/nova/tests/unit/objects/test_image_meta.py b/nova/tests/unit/objects/test_image_meta.py
-index 81b54a1..5b05fcc 100644
+index 2b86c19..54a77c1 100644
 --- a/nova/tests/unit/objects/test_image_meta.py
 +++ b/nova/tests/unit/objects/test_image_meta.py
-@@ -552,6 +552,17 @@ class TestImageMetaProps(test.NoDBTestCase):
+@@ -551,6 +551,17 @@ class TestImageMetaProps(test.NoDBTestCase):
          self.assertNotIn('hw_tpm_model', primitive['nova_object.data'])
          self.assertNotIn('hw_tpm_version', primitive['nova_object.data'])
 
@@ -165,23 +169,23 @@ index 81b54a1..5b05fcc 100644
          obj = objects.ImageMetaProps(
              hw_pci_numa_affinity_policy=fields.PCINUMAAffinityPolicy.SOCKET)
 diff --git a/nova/tests/unit/objects/test_objects.py b/nova/tests/unit/objects/test_objects.py
-index c8529aa..d7361ab 100644
+index 582b95d..5680d46 100644
 --- a/nova/tests/unit/objects/test_objects.py
 +++ b/nova/tests/unit/objects/test_objects.py
 @@ -1105,7 +1105,7 @@ object_data = {
      'HyperVLiveMigrateData': '1.4-e265780e6acfa631476c8170e8d6fce0',
      'IDEDeviceBus': '1.0-29d4c9f27ac44197f01b6ac1b7e16502',
      'ImageMeta': '1.8-642d1b2eb3e880a367f37d72dd76162d',
--    'ImageMetaProps': '1.39-b0fb2690fa477480e42a1469769cb9fc',
-+    'ImageMetaProps': '1.40-6cd46dc34799f30e98a3a79d72c3b6eb',
+-    'ImageMetaProps': '1.38-1f4f4f1b60413aa543e446d716cfbc20',
++    'ImageMetaProps': '1.39-3e49d23fb404b61c8d530cff5cc88da2',
      'Instance': '2.8-2727dba5e4a078e6cc848c1f94f7eb24',
      'InstanceAction': '1.2-9a5abc87fdd3af46f45731960651efb5',
      'InstanceActionEvent': '1.4-5b1f361bd81989f8bb2c20bb7e8a4cb4',
 diff --git a/nova/tests/unit/virt/libvirt/test_driver.py b/nova/tests/unit/virt/libvirt/test_driver.py
-index 12d9cb2..df79815 100644
+index edea017..509399c 100644
 --- a/nova/tests/unit/virt/libvirt/test_driver.py
 +++ b/nova/tests/unit/virt/libvirt/test_driver.py
-@@ -7053,6 +7053,43 @@ class LibvirtConnTestCase(test.NoDBTestCase,
+@@ -7043,6 +7043,43 @@ class LibvirtConnTestCase(test.NoDBTestCase,
          self.assertEqual(cfg.devices[7].model, 'tpm-crb')
          self.assertEqual(cfg.devices[7].secret_uuid, uuids.vtpm)
 
@@ -278,10 +282,10 @@ index 0e8f159..2c185c4 100644
 +        meta.set('model', str(self.model))
 +        return meta
 diff --git a/nova/virt/libvirt/driver.py b/nova/virt/libvirt/driver.py
-index 305def3..b9573f9 100644
+index 1683484..c860a61 100644
 --- a/nova/virt/libvirt/driver.py
 +++ b/nova/virt/libvirt/driver.py
-@@ -6775,6 +6775,22 @@ class LibvirtDriver(driver.ComputeDriver):
+@@ -6773,6 +6773,22 @@ class LibvirtDriver(driver.ComputeDriver):
          vtpm = vconfig.LibvirtConfigGuestVTPM(vtpm_config, vtpm_secret_uuid)
          guest.add_device(vtpm)
 
@@ -304,7 +308,7 @@ index 305def3..b9573f9 100644
      def _set_qemu_guest_agent(self, guest, flavor, instance, image_meta):
          # Enable qga only if the 'hw_qemu_guest_agent' is equal to yes
          if image_meta.properties.get('hw_qemu_guest_agent', False):
-@@ -7457,6 +7473,7 @@ class LibvirtDriver(driver.ComputeDriver):
+@@ -7455,6 +7471,7 @@ class LibvirtDriver(driver.ComputeDriver):
          self._create_consoles(guest, instance, flavor, image_meta)
 
          self._guest_add_spice_channel(guest)
@@ -321,8 +325,8 @@ index a3ba04e..bf04c2b 100644
                      'nova_object.data': {},
                      'nova_object.name': 'ImageMetaPropsPayload',
                      'nova_object.namespace': 'nova',
--                    'nova_object.version': '1.15',
-+                    'nova_object.version': '1.16',
+-                    'nova_object.version': '1.14',
++                    'nova_object.version': '1.15',
                  },
                  'image.size': 58145823,
                  'image.tags': [],
@@ -330,8 +334,8 @@ index a3ba04e..bf04c2b 100644
                      'nova_object.data': {},
                      'nova_object.name': 'ImageMetaPropsPayload',
                      'nova_object.namespace': 'nova',
--                    'nova_object.version': '1.15',
-+                    'nova_object.version': '1.16',
+-                    'nova_object.version': '1.14',
++                    'nova_object.version': '1.15',
                  },
                  'image.size': 58145823,
                  'image.tags': [],

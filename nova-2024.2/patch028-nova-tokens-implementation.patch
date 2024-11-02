@@ -1,4 +1,4 @@
-commit 4862c34fb9822023b7b4776091a3411303d998fa
+commit 6e179e0a3d3e0f860cf1f06eb6f13c31633ed2f5
 Author: Michael Still <mikal@stillhq.com>
 Date:   Tue Jul 30 19:40:31 2024 +1000
 
@@ -281,7 +281,7 @@ index 08f87caa96..13fb09e4e3 100644
          context = req.environ['nova.context']
          instance = common.get_instance(self.compute_api, context, server_id)
 diff --git a/nova/api/openstack/compute/rest_api_version_history.rst b/nova/api/openstack/compute/rest_api_version_history.rst
-index 033ad3c82a..ddb7567f5e 100644
+index fcfd5f95bf..18eb8671f8 100644
 --- a/nova/api/openstack/compute/rest_api_version_history.rst
 +++ b/nova/api/openstack/compute/rest_api_version_history.rst
 @@ -1255,3 +1255,11 @@ behavior.
@@ -355,7 +355,7 @@ index 71d3cc403d..d39d7043c7 100644
 +    'additionalProperties': False,
 +}
 diff --git a/nova/compute/manager.py b/nova/compute/manager.py
-index d5434a15cd..782561d698 100644
+index 0d169e7a4c..311e268f0a 100644
 --- a/nova/compute/manager.py
 +++ b/nova/compute/manager.py
 @@ -7319,33 +7319,40 @@ class ComputeManager(manager.Manager):

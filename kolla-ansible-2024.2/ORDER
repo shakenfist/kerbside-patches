@@ -1,0 +1,7 @@
+patch003-kolla-ansible-expose-spice-configuration.patch
+patch008-use-routable-ip-for-spice-consoles.patch
+patch009-support-secure-spice.patch
+patch011-allow-concurrent-spice-connections.patch
+patch014-deploy-kerbside-container.patch
+patch018-expose-spice-debug-logging.patch
+patch021-support-sound-enabled.patch

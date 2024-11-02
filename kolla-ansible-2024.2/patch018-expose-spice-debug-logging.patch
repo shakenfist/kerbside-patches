@@ -1,0 +1,45 @@
+commit ac2798043899d5418139873cadd4c9f2ef49ecb3
+Author: Michael Still <mikal@stillhq.com>
+
+    Allow setting of the new SPICE debug_logging option.
+
+    This emits debug logs to the libvirt qemu log if enabled, which
+    can be helpful when debugging connnectivity issues.
+
+diff --git a/ansible/group_vars/all.yml b/ansible/group_vars/all.yml
+index e753899..80f1f0d 100644
+--- a/ansible/group_vars/all.yml
++++ b/ansible/group_vars/all.yml
+@@ -1052,6 +1052,7 @@ nova_spice_playback_compression: "yes"
+ nova_spice_streaming_mode: "filter"
+ nova_spice_require_secure: "no"
+ nova_spice_allow_concurrent: "yes"
++nova_spice_debug_logging: "no"
+
+
+ #######################
+diff --git a/ansible/roles/nova-cell/templates/nova.conf.j2 b/ansible/roles/nova-cell/templates/nova.conf.j2
+index 7c1fcfc..c01c06c 100644
+--- a/ansible/roles/nova-cell/templates/nova.conf.j2
++++ b/ansible/roles/nova-cell/templates/nova.conf.j2
+@@ -60,6 +60,7 @@ enabled = false
+ enabled = true
+ require_secure = {{ nova_spice_require_secure | bool | lower }}
+ allow_concurrent = {{ nova_spice_allow_concurrent | bool | lower }}
++debug_logging = {{ nova_spice_debug_logging | bool | lower }}
+ server_listen = {{ api_interface_address }}
+ image_compression = {{ nova_spice_image_compression }}
+ jpeg_compression = {{ nova_spice_jpeg_compression }}
+diff --git a/doc/source/reference/compute/nova-guide.rst b/doc/source/reference/compute/nova-guide.rst
+index d229336..cc6c8a2 100644
+--- a/doc/source/reference/compute/nova-guide.rst
++++ b/doc/source/reference/compute/nova-guide.rst
+@@ -75,6 +75,8 @@ through to ``nova``:
+   playback. Defaults to ``yes``.
+ * nova_spice_streaming_mode: what streaming mode to use with SPICE consoles.
+   Defaults to ``filter``.
++* nova_spice_debug_logging: whether to emit debug logs from SPICE sessions to
++  the libvirt qemu log. Defaults to ``no``.
+
+ Cells
+ =====

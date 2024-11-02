@@ -1,0 +1,28 @@
+commit 939a6c98312ee0d15c7c09abbbcdf6a0e4712722
+Author: Michael Still <mikal@stillhq.com>
+
+    Disable upper constraints for Kerbside container builds.
+
+    Kerbside comes from outside of the OpenStack universe and requires
+    versions of its dependencies that are newer than what is allowed by
+    the current OpenStack upper constraints. For now, ignore upper
+    contraints. We will add this back in when OpenStack has caught up.
+
+diff --git a/docker/kerbside/kerbside/Dockerfile.j2 b/docker/kerbside/kerbside/Dockerfile.j2
+index 353a286..49d2954 100644
+--- a/docker/kerbside/kerbside/Dockerfile.j2
++++ b/docker/kerbside/kerbside/Dockerfile.j2
+@@ -31,9 +31,12 @@ RUN pip3 --no-cache-dir install /plugins/*
+     '/kerbside'
+ ] %}
+
++# Note that we disable upper-constraints for kerbside, because it comes from an
++# alternate universe which requires more modern dependencies that you get with
++# 2023.1. This should change as OpenStack releases newer versions.
+ ADD kerbside-archive /kerbside-source
+ RUN ln -s kerbside-source/* kerbside \
+-    && {{ macros.install_pip(kerbside_pip_packages | customizable("pip_packages")) }} \
++    && {{ macros.install_pip(kerbside_pip_packages | customizable("pip_packages"), false) }} \
+     && rm -f /etc/machine-id
+
+ {% block kerbside_footer %}{% endblock %}
