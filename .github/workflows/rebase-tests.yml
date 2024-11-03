@@ -196,6 +196,31 @@ jobs:
             fi
           done
 
+      - name: Attempt to apply patches (2024.2)
+        run: |
+          cd ${GITHUB_WORKSPACE}/kerbside-patches
+
+          Green='\033[0;32m'        # Green
+          Color_Off='\033[0m'       # Text Reset
+
+          for target in ${{ matrix.test.targets }}; do
+            project=$( echo ${target} | cut -f 1 -d ":" )
+            branch=$( echo ${target} | cut -f 2 -d ":" )
+            echo "Considering target ${target}, ${project} branch ${branch}"
+
+            if [[ ${branch} == "2024.2" ]]; then
+              echo
+              echo -e "${Green}==================================================${Color_Off}"
+              echo -e "${Green}Attempting to apply patches for ${target}${Color_Off}"
+              echo -e "${Green}==================================================${Color_Off}"
+
+              ./testapply.sh --skip-tests ${project}-${branch}
+
+              echo
+              echo
+            fi
+          done
+
       - name: Attempt to apply patches (master)
         run: |
           cd ${GITHUB_WORKSPACE}/kerbside-patches

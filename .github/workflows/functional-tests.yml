@@ -2,8 +2,6 @@ name: Ensure the cloud is still installable
 
 on:
   workflow_dispatch:
-  schedule:
-    - cron: '8 00 * * *'        # utc
   pull_request:
     branches:
       - develop
