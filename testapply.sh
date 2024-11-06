@@ -129,8 +129,34 @@ for project in ${positional_args}; do
     cd ${topsrcdir}/${directory}
     git checkout -b ${branch}-patches
     echo -e "${H2}Working in branch ${branch}-patches${Color_Off}"
+    cd ${topdir}
+
+    if [ -e ${project}/PREPATCH ]; then
+        for patch in $(cat ${project}/PREPATCH)
+        do
+            echo
+            shortpatch=$(echo $patch | cut -f 2 -d "/" | cut -f 1 -d "-")
+
+            echo -e "${H3}Applying ${branch} ${project}/${patch}${Color_Off}"
+            git -C ${topsrcdir}/${directory} apply -v ${topdir}/${project}/${patch}
+            if [ $? -gt 0 ]; then
+                echo -e "${H3}Applying ${branch} ${project}/${patch} failed!${Color_Off}"
+                exit 1
+            fi
+
+            pushd ${topsrcdir}/${directory}
+            echo -e "${H3}Commiting ${branch} ${patch}${Color_Off}"
+            git add -A .
+            git status
+            git commit -a -m "${patch}"
+            echo
+
+            popd
+        done
+    fi
 
     echo -e "${H3}Ensure tests pass on a clean ${project} ${branch} branch${Color_Off}"
+    cd ${topsrcdir}/${directory}
     if [ "${defer_tests}" != "true" ]; then
         run_tests ${repo} ${branch}
     fi
