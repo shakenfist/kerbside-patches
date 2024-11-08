@@ -1,0 +1,28 @@
+diff --git a/openstack/tests/unit/test_stats.py b/openstack/tests/unit/test_stats.py
+index 6a466b1bb..274a50654 100644
+--- a/openstack/tests/unit/test_stats.py
++++ b/openstack/tests/unit/test_stats.py
+@@ -131,8 +131,10 @@ class TestStats(base.TestCase):
+             stats = itertools.chain.from_iterable(
+                 [s.decode('utf-8').split('\n') for s in self.statsd.stats]
+             )
++            considered_stats = []
+             for stat in stats:
+                 k, v = stat.split(':')
++                considered_stats.append((k, v))
+                 if key == k:
+                     if kind is None:
+                         # key with no qualifiers is found
+@@ -160,7 +162,11 @@ class TestStats(base.TestCase):
+                     return True
+             time.sleep(0.1)
+
+-        raise Exception("Key %s not found in reported stats" % key)
++        raise Exception(
++            "Key {} not found in reported stats {}".format(
++                key, considered_stats
++            )
++        )
+
+     def assert_prometheus_stat(self, name, value, labels=None):
+         sample_value = self._registry.get_sample_value(name, labels)
