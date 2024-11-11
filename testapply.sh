@@ -135,9 +135,9 @@ for project in ${positional_args}; do
         for patch in $(cat ${project}/PREPATCH)
         do
             echo
-            shortpatch=$(echo $patch | cut -f 2 -d "/" | cut -f 1 -d "-")
 
             echo -e "${H3}Applying ${branch} ${project}/${patch}${Color_Off}"
+            ls -l ${topdir}/${project}
             git -C ${topsrcdir}/${directory} apply -v ${topdir}/${project}/${patch}
             if [ $? -gt 0 ]; then
                 echo -e "${H3}Applying ${branch} ${project}/${patch} failed!${Color_Off}"
@@ -167,7 +167,6 @@ for project in ${positional_args}; do
     for patch in $(cat ${project}/ORDER)
     do
         echo
-        shortpatch=$(echo $patch | cut -f 2 -d "/" | cut -f 1 -d "-")
 
         echo -e "${H3}Applying ${branch} ${project}/${patch}${Color_Off}"
         git -C ${topsrcdir}/${directory} apply -v ${topdir}/${project}/${patch}
