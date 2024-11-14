@@ -24,129 +24,149 @@ jobs:
               'name': 'rocky-9-kolla',
               'baseimage': 'sf://label/ci-images/rocky-9',
               'baseuser': 'cloud-user',
-              'targets': 'kolla:2024.1 kolla:2024.2 kolla:master'
+              'targets': 'kolla:2024.1 kolla:2024.2 kolla:master',
+              'infrastructure': 'vm'
           },
           {
               'description': "kolla on debian 12",
               'name': 'debian-12-kolla',
               'baseimage': 'sf://label/ci-images/debian-12',
               'baseuser': 'debian',
-              'targets': 'kolla:2024.1 kolla:2024.2 kolla:master'
+              'targets': 'kolla:2024.1 kolla:2024.2 kolla:master',
+              'infrastructure': 'vm'
           },
           {
               'description': "kolla-ansible on rocky 9",
               'name': 'rocky-9-kolla-ansible',
               'baseimage': 'sf://label/ci-images/rocky-9',
               'baseuser': 'cloud-user',
-              'targets': 'kolla-ansible:2024.1 kolla-ansible:2024.2 kolla-ansible:master'
+              'targets': 'kolla-ansible:2024.1 kolla-ansible:2024.2 kolla-ansible:master',
+              'infrastructure': 'vm'
           },
           {
               'description': "kolla-ansible on debian 12",
               'name': 'debian-12-kolla-ansible',
               'baseimage': 'sf://label/ci-images/debian-12',
               'baseuser': 'debian',
-              'targets': 'kolla-ansible:2024.1 kolla-ansible:2024.2 kolla-ansible:master'
+              'targets': 'kolla-ansible:2024.1 kolla-ansible:2024.2 kolla-ansible:master',
+              'infrastructure': 'vm'
           },
           {
               'description': "nova master on rocky 9",
               'name': 'rocky-9-nova-master',
               'baseimage': 'sf://label/ci-images/rocky-9',
               'baseuser': 'cloud-user',
-              'targets': 'nova:master'
+              'targets': 'nova:master',
+              'infrastructure': 'rocky-9-metal'
           },
           {
               'description': "nova master on debian 12",
               'name': 'debian-12-nova-master',
               'baseimage': 'sf://label/ci-images/debian-12',
               'baseuser': 'debian',
-              'targets': 'nova:master'
+              'targets': 'nova:master',
+              'infrastructure': 'debian-12-metal'
           },
           {
+              # I am not sure why this test fails on metal, but for now let's
+              # just keep running it on a VM until that's sorted out.
               'description': "nova 2024.1 on rocky 9",
               'name': 'rocky-9-nova-2024.1',
               'baseimage': 'sf://label/ci-images/rocky-9',
               'baseuser': 'cloud-user',
-              'targets': 'nova:2024.1'
+              'targets': 'nova:2024.1',
+              'infrastructure': 'vm'
           },
           {
               'description': "nova 2024.1 on debian 12",
               'name': 'debian-12-nova-2024.1',
               'baseimage': 'sf://label/ci-images/debian-12',
               'baseuser': 'debian',
-              'targets': 'nova:2024.1'
+              'targets': 'nova:2024.1',
+              'infrastructure': 'debian-12-metal'
           },
           {
               'description': "nova 2024.2 on rocky 9",
               'name': 'rocky-9-nova-2024.2',
               'baseimage': 'sf://label/ci-images/rocky-9',
               'baseuser': 'cloud-user',
-              'targets': 'nova:2024.2'
+              'targets': 'nova:2024.2',
+              'infrastructure': 'rocky-9-metal'
           },
           {
               'description': "nova 2024.2 on debian 12",
               'name': 'debian-12-nova-2024.2',
               'baseimage': 'sf://label/ci-images/debian-12',
               'baseuser': 'debian',
-              'targets': 'nova:2024.2'
+              'targets': 'nova:2024.2',
+              'infrastructure': 'debian-12-metal'
           },
           {
               'description': "openstacksdk on rocky 9",
               'name': 'rocky-9-openstacksdk',
               'baseimage': 'sf://label/ci-images/rocky-9',
               'baseuser': 'cloud-user',
-              'targets': 'openstacksdk:2024.1 openstacksdk:2024.2 openstacksdk:master'
+              'targets': 'openstacksdk:2024.1 openstacksdk:2024.2 openstacksdk:master',
+              'infrastructure': 'vm'
           },
           {
               'description': "openstacksdk on debian 12",
               'name': 'debian-12-openstacksdk',
               'baseimage': 'sf://label/ci-images/debian-12',
               'baseuser': 'debian',
-              'targets': 'openstacksdk:2024.1 openstacksdk:2024.2 openstacksdk:master'
+              'targets': 'openstacksdk:2024.1 openstacksdk:2024.2 openstacksdk:master',
+              'infrastructure': 'vm'
           },
           {
               'description': "osloconfig on rocky 9",
               'name': 'rocky-9-osloconfig',
               'baseimage': 'sf://label/ci-images/rocky-9',
               'baseuser': 'cloud-user',
-              'targets': 'oslo.config:2024.1 oslo.config:2024.2 oslo.config:master'
+              'targets': 'oslo.config:2024.1 oslo.config:2024.2 oslo.config:master',
+              'infrastructure': 'vm'
           },
           {
               'description': "osloconfig on debian 12",
               'name': 'debian-12-osloconfig',
               'baseimage': 'sf://label/ci-images/debian-12',
               'baseuser': 'debian',
-              'targets': 'oslo.config:2024.1 oslo.config:2024.2 oslo.config:master'
+              'targets': 'oslo.config:2024.1 oslo.config:2024.2 oslo.config:master',
+              'infrastructure': 'vm'
           },
           {
               'description': "python-novaclient on rocky 9",
               'name': 'rocky-9-python-novaclient',
               'baseimage': 'sf://label/ci-images/rocky-9',
               'baseuser': 'cloud-user',
-              'targets': 'python-novaclient:2024.1 python-novaclient:2024.2 python-novaclient:master'
+              'targets': 'python-novaclient:2024.1 python-novaclient:2024.2 python-novaclient:master',
+              'infrastructure': 'vm'
           },
           {
               'description': "python-novaclient on debian 12",
               'name': 'debian-12-python-novaclient',
               'baseimage': 'sf://label/ci-images/debian-12',
               'baseuser': 'debian',
-              'targets': 'python-novaclient:2024.1 python-novaclient:2024.2 python-novaclient:master'
+              'targets': 'python-novaclient:2024.1 python-novaclient:2024.2 python-novaclient:master',
+              'infrastructure': 'vm'
           },
           {
               'description': "python-openstackclient on rocky 9",
               'name': 'rocky-9-python-openstackclient',
               'baseimage': 'sf://label/ci-images/rocky-9',
               'baseuser': 'cloud-user',
-              'targets': 'python-openstackclient:2024.1 python-openstackclient:2024.2 python-openstackclient:master'
+              'targets': 'python-openstackclient:2024.1 python-openstackclient:2024.2 python-openstackclient:master',
+              'infrastructure': 'vm'
           },
           {
               'description': "python-openstackclient on debian 12",
               'name': 'debian-12-python-openstackclient',
               'baseimage': 'sf://label/ci-images/debian-12',
               'baseuser': 'debian',
-              'targets': 'python-openstackclient:2024.1 python-openstackclient:2024.2 python-openstackclient:master'
+              'targets': 'python-openstackclient:2024.1 python-openstackclient:2024.2 python-openstackclient:master',
+              'infrastructure': 'vm'
           },
         ]
-    runs-on: self-hosted
+    runs-on: [self-hosted, "${{ matrix.test.infrastructure }}"]
     concurrency:
       group: ${{ github.workflow }}-${{ github.ref }}-${{ matrix.test.name }}
       cancel-in-progress: true
@@ -168,10 +188,12 @@ jobs:
           echo "Testing targets are: ${{ matrix.test.targets }}"
 
       - name: Install required packages
+        if: "!contains(matrix.test.infrastructure, 'metal')"
         run: |
           sudo pip3 install yq
 
       - name: Attempt to apply patches (2024.1)
+        if: "!contains(matrix.test.infrastructure, 'metal')"
         run: |
           cd ${GITHUB_WORKSPACE}/kerbside-patches
 
@@ -197,6 +219,7 @@ jobs:
           done
 
       - name: Attempt to apply patches (2024.2)
+        if: "!contains(matrix.test.infrastructure, 'metal')"
         run: |
           cd ${GITHUB_WORKSPACE}/kerbside-patches
 
@@ -222,6 +245,7 @@ jobs:
           done
 
       - name: Attempt to apply patches (master)
+        if: "!contains(matrix.test.infrastructure, 'metal')"
         run: |
           cd ${GITHUB_WORKSPACE}/kerbside-patches
 
@@ -247,6 +271,7 @@ jobs:
           done
 
       - name: Build the instance which actually runs tests
+        if: "!contains(matrix.test.infrastructure, 'metal')"
         run: |
           cd ${GITHUB_WORKSPACE}/kerbside-patches/.github
           ansible-playbook -i /home/debian/ansible-hosts \
@@ -258,6 +283,7 @@ jobs:
           cat ${GITHUB_WORKSPACE}/ci-environment.sh
 
       - name: Copy source code to primary
+        if: "!contains(matrix.test.infrastructure, 'metal')"
         run: |
           . ${GITHUB_WORKSPACE}/ci-environment.sh
           cd ${GITHUB_WORKSPACE}
@@ -268,6 +294,7 @@ jobs:
               ${{ matrix.test.baseuser }}@${primary}:.
 
       - name: Install missing dependencies
+        if: "!contains(matrix.test.infrastructure, 'metal')"
         run: |
           . ${GITHUB_WORKSPACE}/ci-environment.sh
 
@@ -287,7 +314,6 @@ jobs:
             script="${script} sudo dnf update -y;"
             script="${script} sudo dnf install -y epel-release;"
             script="${script} sudo dnf config-manager --set-enabled crb;"
-            script="${script} cd kerbside-patches/tools;"
             script="${script} sudo pip3 install yq tox flake8;"
             script="${script} sudo dnf install -y moreutils gcc"
 
@@ -299,8 +325,6 @@ jobs:
 
       - name: Deep test patches (2024.1)
         run: |
-          . ${GITHUB_WORKSPACE}/ci-environment.sh
-
           Green='\033[0;32m'        # Green
           Color_Off='\033[0m'       # Text Reset
 
@@ -315,16 +339,26 @@ jobs:
               echo -e "${Green}Attempting to apply patches for ${target}${Color_Off}"
               echo -e "${Green}==================================================${Color_Off}"
 
-              ssh -i /srv/github/id_ci -o StrictHostKeyChecking=no \
-                  -o UserKnownHostsFile=/dev/null ${{ matrix.test.baseuser }}@${primary} \
-                  "cd kerbside-patches; ./testapply.sh ${project}-${branch}"
-
-              echo
-              echo
+              if [ $(echo ${{ matrix.test.infrastructure }} | grep metal) ]; then
+                echo
+                echo -e "${Green}Running test locally${Color_Off}"
+                echo
+                cd ${GITHUB_WORKSPACE}/kerbside-patches
+                ./testapply.sh ${project}-${branch}
+              else
+                echo
+                echo -e "${Green}Running test on a VM${Color_Off}"
+                echo
+                . ${GITHUB_WORKSPACE}/ci-environment.sh
+                ssh -i /srv/github/id_ci -o StrictHostKeyChecking=no \
+                    -o UserKnownHostsFile=/dev/null ${{ matrix.test.baseuser }}@${primary} \
+                    "cd kerbside-patches; ./testapply.sh ${project}-${branch}"
+              fi
             fi
           done
 
       - name: 2024.2 onwards requires a newer python than the system default in Rocky 9
+        if: "!contains(matrix.test.infrastructure, 'metal')"
         run: |
           . ${GITHUB_WORKSPACE}/ci-environment.sh
           cd ${GITHUB_WORKSPACE}
@@ -341,10 +375,16 @@ jobs:
               "${script}"
           fi
 
+      - name: 2024.2 onwards requires a newer python than the system default in Rocky 9
+        if: "contains(matrix.test.infrastructure, 'rocky-9-metal')"
+        run: |
+          cd ${GITHUB_WORKSPACE}
+          rm -rf .venv
+          python3.12 -mvenv .venv
+          .venv/bin/pip3 install yq tox flake8
+
       - name: Deep test patches (2024.2)
         run: |
-          . ${GITHUB_WORKSPACE}/ci-environment.sh
-
           Green='\033[0;32m'        # Green
           Color_Off='\033[0m'       # Text Reset
 
@@ -359,19 +399,30 @@ jobs:
               echo -e "${Green}Attempting to apply patches for ${target}${Color_Off}"
               echo -e "${Green}==================================================${Color_Off}"
 
-              ssh -i /srv/github/id_ci -o StrictHostKeyChecking=no \
-                  -o UserKnownHostsFile=/dev/null ${{ matrix.test.baseuser }}@${primary} \
-                  "cd kerbside-patches; ./testapply.sh ${project}-${branch}"
-
-              echo
-              echo
+              if [ $(echo ${{ matrix.test.infrastructure }} | grep metal) ]; then
+                echo
+                echo -e "${Green}Running test locally${Color_Off}"
+                echo
+                cd ${GITHUB_WORKSPACE}
+                if [ -e .venv ]; then
+                  . .venv/bin/activate
+                fi
+                cd kerbside-patches
+                ./testapply.sh ${project}-${branch}
+              else
+                echo
+                echo -e "${Green}Running test on a VM${Color_Off}"
+                echo
+                . ${GITHUB_WORKSPACE}/ci-environment.sh
+                ssh -i /srv/github/id_ci -o StrictHostKeyChecking=no \
+                    -o UserKnownHostsFile=/dev/null ${{ matrix.test.baseuser }}@${primary} \
+                    "cd kerbside-patches; ./testapply.sh ${project}-${branch}"
+              fi
             fi
           done
 
       - name: Deep test patches (master)
         run: |
-          . ${GITHUB_WORKSPACE}/ci-environment.sh
-
           Green='\033[0;32m'        # Green
           Color_Off='\033[0m'       # Text Reset
 
@@ -386,11 +437,24 @@ jobs:
               echo -e "${Green}Attempting to apply patches for ${target}${Color_Off}"
               echo -e "${Green}==================================================${Color_Off}"
 
-              ssh -i /srv/github/id_ci -o StrictHostKeyChecking=no \
-                  -o UserKnownHostsFile=/dev/null ${{ matrix.test.baseuser }}@${primary} \
-                  "cd kerbside-patches; ./testapply.sh ${project}"
-
-              echo
-              echo
+              if [ $(echo ${{ matrix.test.infrastructure }} | grep metal) ]; then
+                echo
+                echo -e "${Green}Running test locally${Color_Off}"
+                echo
+                cd ${GITHUB_WORKSPACE}
+                if [ -e .venv ]; then
+                  . .venv/bin/activate
+                fi
+                cd kerbside-patches
+                ./testapply.sh ${project}
+              else
+                echo
+                echo -e "${Green}Running test on a VM${Color_Off}"
+                echo
+                . ${GITHUB_WORKSPACE}/ci-environment.sh
+                ssh -i /srv/github/id_ci -o StrictHostKeyChecking=no \
+                    -o UserKnownHostsFile=/dev/null ${{ matrix.test.baseuser }}@${primary} \
+                    "cd kerbside-patches; ./testapply.sh ${project}"
+              fi
             fi
           done

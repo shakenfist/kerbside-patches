@@ -9,7 +9,7 @@ on:
 jobs:
   rocky-9:
     name: "Build a test cloud"
-    runs-on: self-hosted
+    runs-on: [self-hosted, vm]
     timeout-minutes: 300
     concurrency:
       group: ${{ github.workflow }}-${{ github.ref }}
