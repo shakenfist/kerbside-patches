@@ -15,6 +15,7 @@
 function run_tests {
     # $1 is the repo
     # $2 is the name of the branch
+    # $3 is the short name of the patch
 
     if [ "${skip_tests}" == "true" ]; then
         echo -e "${H3}Skipping tests${Color_Off}"
@@ -30,7 +31,7 @@ function run_tests {
             if [ $(tox -a | grep -c py3) -gt 0 ]
             then
                 echo -e "${H3}tox -epy3${Color_Off}"
-                tox -epy3 | ts "%b %d %H:%M:%S ${1} ${shortpatch} py3"
+                tox -epy3 | ts "%b %d %H:%M:%S ${2} ${3} py3"
                 if [ $? -gt 0 ]; then
                     echo -e "${H3}tox -epy3 failed!${Color_Off}"
                     exit 1
@@ -43,7 +44,7 @@ function run_tests {
         if [ $(tox -a | grep -c pep8) -gt 0 ]
         then
             echo -e "${H3}tox -epep8${Color_Off}"
-            tox -epep8 | ts "%b %d %H:%M:%S ${1} ${shortpatch} pep8"
+            tox -epep8 | ts "%b %d %H:%M:%S ${2} ${3} pep8"
             if [ $? -gt 0 ]; then
                 echo -e "${H3}tox -epep8 failed!${Color_Off}"
                 exit 1
@@ -51,7 +52,7 @@ function run_tests {
         elif [ $(tox -a | grep -c flake8) -gt 0 ]
         then
             echo -e "${H3}tox -eflake8${Color_Off}"
-            tox -eflake8 | ts "%b %d %H:%M:%S ${1} ${shortpatch} flake8"
+            tox -eflake8 | ts "%b %d %H:%M:%S ${2} ${3} flake8"
             if [ $? -gt 0 ]; then
                 echo -e "${H3}tox -eflake8 failed!${Color_Off}"
                 exit 1
@@ -64,7 +65,7 @@ function run_tests {
             if [ $(tox -a | egrep -c "functional$") -gt 0 ]
             then
                 echo -e "${H3}tox -efunctional${Color_Off}"
-                tox -efunctional | ts "%b %d %H:%M:%S ${1} ${shortpatch} functional"
+                tox -efunctional | ts "%b %d %H:%M:%S ${2} ${3} functional"
                 if [ $? -gt 0 ]; then
                     echo -e "${H3}tox -efunctional failed!${Color_Off}"
                     exit 1
@@ -158,7 +159,7 @@ for project in ${positional_args}; do
     echo -e "${H3}Ensure tests pass on a clean ${project} ${branch} branch${Color_Off}"
     cd ${topsrcdir}/${directory}
     if [ "${defer_tests}" != "true" ]; then
-        run_tests ${repo} ${branch}
+        run_tests ${repo} ${branch} "upstream"
     fi
     echo
 
@@ -167,6 +168,7 @@ for project in ${positional_args}; do
     for patch in $(cat ${project}/ORDER)
     do
         echo
+        shortpatch=$(echo ${patch} | sed -e 's|.*/||' -e 's/.patch$//')
 
         echo -e "${H3}Applying ${branch} ${project}/${patch}${Color_Off}"
         git -C ${topsrcdir}/${directory} apply -v ${topdir}/${project}/${patch}
@@ -183,7 +185,7 @@ for project in ${positional_args}; do
         echo
 
         if [ "${defer_tests}" != "true" ]; then
-            run_tests ${repo} ${branch}
+            run_tests ${repo} ${branch} ${shortpatch}
         fi
 
         popd
@@ -191,7 +193,7 @@ for project in ${positional_args}; do
 
     pushd ${topsrcdir}/${directory}
     if [ "${defer_tests}" == "true" ]; then
-        run_tests ${repo} ${branch}
+        run_tests ${repo} ${branch} "final"
     fi
     popd
 
