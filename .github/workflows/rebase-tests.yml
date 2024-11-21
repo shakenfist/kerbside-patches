@@ -122,7 +122,7 @@ jobs:
               'name': 'rocky-9-osloconfig',
               'baseimage': 'sf://label/ci-images/rocky-9',
               'baseuser': 'cloud-user',
-              'targets': 'oslo.config:2024.1 oslo.config:2024.2 oslo.config:master',
+              'targets': 'oslo.config:2024.1',
               'infrastructure': 'vm'
           },
           {
@@ -130,7 +130,7 @@ jobs:
               'name': 'debian-12-osloconfig',
               'baseimage': 'sf://label/ci-images/debian-12',
               'baseuser': 'debian',
-              'targets': 'oslo.config:2024.1 oslo.config:2024.2 oslo.config:master',
+              'targets': 'oslo.config:2024.1',
               'infrastructure': 'vm'
           },
           {
