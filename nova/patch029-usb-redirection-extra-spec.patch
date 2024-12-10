@@ -76,10 +76,10 @@ index 42e6153..68247b0 100644
      # NOTE(efried): This logic currently relies on all of the fields of
      # ImageMetaProps being initialized with no arguments. See the docstring.
 diff --git a/nova/objects/fields.py b/nova/objects/fields.py
-index 1171dcf..86b276e 100644
+index 0cb7922..fd7ff93 100644
 --- a/nova/objects/fields.py
 +++ b/nova/objects/fields.py
-@@ -867,6 +867,24 @@ class SoundModelType(BaseNovaEnum):
+@@ -869,6 +869,24 @@ class SoundModelType(BaseNovaEnum):
      ALL = (SB16, ES1370, PCSPK, AC97, ICH6, ICH9, USB, VIRTIO,)
 
 
@@ -104,7 +104,7 @@ index 1171dcf..86b276e 100644
  class NotificationPriority(BaseNovaEnum):
      AUDIT = 'audit'
      CRITICAL = 'critical'
-@@ -1407,6 +1425,10 @@ class SoundModelField(BaseEnumField):
+@@ -1411,6 +1429,10 @@ class SoundModelField(BaseEnumField):
      AUTO_TYPE = SoundModelType()
 
 
@@ -154,10 +154,10 @@ index 1488f3f..ada33dd 100644
          'img_bittorrent': fields.FlexibleBooleanField(),
 
 diff --git a/nova/tests/functional/notification_sample_tests/test_instance.py b/nova/tests/functional/notification_sample_tests/test_instance.py
-index a9bc017..347c935 100644
+index 471fb92..1f96029 100644
 --- a/nova/tests/functional/notification_sample_tests/test_instance.py
 +++ b/nova/tests/functional/notification_sample_tests/test_instance.py
-@@ -1238,7 +1238,7 @@ class TestInstanceNotificationSample(
+@@ -1244,7 +1244,7 @@ class TestInstanceNotificationSample(
                      'nova_object.data': {},
                      'nova_object.name': 'ImageMetaPropsPayload',
                      'nova_object.namespace': 'nova',
@@ -166,7 +166,7 @@ index a9bc017..347c935 100644
                  },
                  'image.size': 58145823,
                  'image.tags': [],
-@@ -1334,7 +1334,7 @@ class TestInstanceNotificationSample(
+@@ -1340,7 +1340,7 @@ class TestInstanceNotificationSample(
                      'nova_object.data': {},
                      'nova_object.name': 'ImageMetaPropsPayload',
                      'nova_object.namespace': 'nova',
@@ -176,7 +176,7 @@ index a9bc017..347c935 100644
                  'image.size': 58145823,
                  'image.tags': [],
 diff --git a/nova/tests/unit/notifications/objects/test_notification.py b/nova/tests/unit/notifications/objects/test_notification.py
-index 7b618ef..252079d 100644
+index 319892a..8b00640 100644
 --- a/nova/tests/unit/notifications/objects/test_notification.py
 +++ b/nova/tests/unit/notifications/objects/test_notification.py
 @@ -385,7 +385,7 @@ notification_object_data = {
@@ -186,7 +186,7 @@ index 7b618ef..252079d 100644
 -    'ImageMetaPropsPayload': '1.16-871cffafce16ab4b6296c1f071262aa8',
 +    'ImageMetaPropsPayload': '1.17-075df9804e3b33ec1539d093380f768e',
      'InstanceActionNotification': '1.0-a73147b93b520ff0061865849d3dfa56',
-     'InstanceActionPayload': '1.8-b948818df6ec562e4eb4b23e515e451b',
+     'InstanceActionPayload': '1.9-525dcf81b6e4592d935712a2675309dc',
      'InstanceActionRebuildNotification':
 diff --git a/nova/tests/unit/objects/test_image_meta.py b/nova/tests/unit/objects/test_image_meta.py
 index 5b05fcc..b9a6e0d 100644
@@ -215,7 +215,7 @@ index 5b05fcc..b9a6e0d 100644
          obj = objects.ImageMetaProps(
              hw_pci_numa_affinity_policy=fields.PCINUMAAffinityPolicy.SOCKET)
 diff --git a/nova/tests/unit/objects/test_objects.py b/nova/tests/unit/objects/test_objects.py
-index b470cb5..6e629c9 100644
+index fd4dd9e..e325482 100644
 --- a/nova/tests/unit/objects/test_objects.py
 +++ b/nova/tests/unit/objects/test_objects.py
 @@ -1105,7 +1105,7 @@ object_data = {
@@ -228,10 +228,10 @@ index b470cb5..6e629c9 100644
      'InstanceAction': '1.2-9a5abc87fdd3af46f45731960651efb5',
      'InstanceActionEvent': '1.4-5b1f361bd81989f8bb2c20bb7e8a4cb4',
 diff --git a/nova/virt/hardware.py b/nova/virt/hardware.py
-index 8618bc4..e9e24e6 100644
+index 01ebaf8..662eee7 100644
 --- a/nova/virt/hardware.py
 +++ b/nova/virt/hardware.py
-@@ -2905,3 +2905,51 @@ def get_sound_model(
+@@ -2936,3 +2936,51 @@ def get_sound_model(
          )
 
      return model
@@ -308,10 +308,10 @@ index 2c185c4..d2bcf5f 100644
 +        meta.set('bus', str(self.bus))
 +        return meta
 diff --git a/nova/virt/libvirt/driver.py b/nova/virt/libvirt/driver.py
-index b9573f9..a0adbf1 100644
+index cdc96be..dafc9c9 100644
 --- a/nova/virt/libvirt/driver.py
 +++ b/nova/virt/libvirt/driver.py
-@@ -6791,6 +6791,18 @@ class LibvirtDriver(driver.ComputeDriver):
+@@ -6844,6 +6844,18 @@ class LibvirtDriver(driver.ComputeDriver):
          sound_device = vconfig.LibvirtConfigGuestSound(sound_model)
          guest.add_device(sound_device)
 
@@ -330,7 +330,7 @@ index b9573f9..a0adbf1 100644
      def _set_qemu_guest_agent(self, guest, flavor, instance, image_meta):
          # Enable qga only if the 'hw_qemu_guest_agent' is equal to yes
          if image_meta.properties.get('hw_qemu_guest_agent', False):
-@@ -7304,7 +7316,7 @@ class LibvirtDriver(driver.ComputeDriver):
+@@ -7357,7 +7369,7 @@ class LibvirtDriver(driver.ComputeDriver):
 
          return False
 
@@ -339,7 +339,7 @@ index b9573f9..a0adbf1 100644
          """Add USB root controller, if necessary.
 
          Note that these are added by default on x86-64. We add the controller
-@@ -7313,9 +7325,11 @@ class LibvirtDriver(driver.ComputeDriver):
+@@ -7366,9 +7378,11 @@ class LibvirtDriver(driver.ComputeDriver):
          """
          usbhost = vconfig.LibvirtConfigGuestUSBHostController()
          usbhost.index = 0
@@ -351,7 +351,7 @@ index b9573f9..a0adbf1 100644
          if not self._guest_needs_usb(guest, image_meta):
              archs = (
                  fields.Architecture.PPC,
-@@ -7328,6 +7342,8 @@ class LibvirtDriver(driver.ComputeDriver):
+@@ -7381,6 +7395,8 @@ class LibvirtDriver(driver.ComputeDriver):
                  # xml, where 'none' adds it but then disables it causing
                  # libvirt errors and the instances not being able to build
                  usbhost.model = None
@@ -360,7 +360,7 @@ index b9573f9..a0adbf1 100644
              else:
                  usbhost.model = 'none'
          guest.add_device(usbhost)
-@@ -7490,7 +7506,8 @@ class LibvirtDriver(driver.ComputeDriver):
+@@ -7545,7 +7561,8 @@ class LibvirtDriver(driver.ComputeDriver):
          if self._guest_needs_pcie(guest):
              self._guest_add_pcie_root_ports(guest)
 
