@@ -14,10 +14,10 @@ Author: Michael Still <mikal@stillhq.com>
     the nova_libvirt container.
 
 diff --git a/ansible/group_vars/all.yml b/ansible/group_vars/all.yml
-index 2227a5c..480dd44 100644
+index 53e395f..6cba95d 100644
 --- a/ansible/group_vars/all.yml
 +++ b/ansible/group_vars/all.yml
-@@ -1045,6 +1045,7 @@ nova_spice_jpeg_compression: "auto"
+@@ -1239,6 +1239,7 @@ nova_spice_jpeg_compression: "auto"
  nova_spice_zlib_compression: "auto"
  nova_spice_playback_compression: "yes"
  nova_spice_streaming_mode: "filter"
@@ -26,11 +26,11 @@ index 2227a5c..480dd44 100644
 
  #######################
 diff --git a/ansible/roles/nova-cell/templates/nova-libvirt.json.j2 b/ansible/roles/nova-cell/templates/nova-libvirt.json.j2
-index d2ddc9e..6a38098 100644
+index e81413b..caf1176 100644
 --- a/ansible/roles/nova-cell/templates/nova-libvirt.json.j2
 +++ b/ansible/roles/nova-cell/templates/nova-libvirt.json.j2
-@@ -67,6 +67,24 @@
-             "dest": "/root/.config/libvirt/auth.conf",
+@@ -73,6 +73,24 @@
+             "dest": "/var/lib/kolla/share/ca-certificates",
              "owner": "root",
              "perm": "0600"
 +        }{% endif %}{% if nova_spice_require_secure | bool %},
@@ -55,10 +55,10 @@ index d2ddc9e..6a38098 100644
      ]
  }
 diff --git a/ansible/roles/nova-cell/templates/nova.conf.j2 b/ansible/roles/nova-cell/templates/nova.conf.j2
-index 930e9c2..cb39062 100644
+index 8e7443d..06d5216 100644
 --- a/ansible/roles/nova-cell/templates/nova.conf.j2
 +++ b/ansible/roles/nova-cell/templates/nova.conf.j2
-@@ -58,6 +58,7 @@ novncproxy_base_url = {{ public_protocol }}://{{ nova_novncproxy_fqdn | put_addr
+@@ -63,6 +63,7 @@ novncproxy_base_url = {{ nova_novncproxy_fqdn | kolla_url(public_protocol,  nova
  enabled = false
  [spice]
  enabled = true
