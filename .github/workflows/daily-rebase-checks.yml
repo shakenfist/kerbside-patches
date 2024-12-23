@@ -70,6 +70,7 @@ jobs:
               --assignee mikalstill \
               --reviewer mikalstill \
               --title "Daily rebase for ${datestamp}." \
-              --body "A daily rebase was attempted."
+              --body "A daily rebase was attempted." \
+              --head $(git branch --show-current)
           echo
           echo "Pull request created."
