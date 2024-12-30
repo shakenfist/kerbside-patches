@@ -146,10 +146,20 @@ for project in ${positional_args}; do
             fi
 
             pushd ${topsrcdir}/${directory}
-            echo -e "${H3}Commiting ${branch} ${patch}${Color_Off}"
+            echo -e "${H3}Committing ${branch} ${patch}${Color_Off}"
             git add -A .
-            git status
-            git commit -a -m "${patch}"
+
+            if [ $(git status | grep -c "Untracked files:" || true) -gt 0 ]; then
+                echo "Untracked files!"
+                exit 1
+            fi
+
+            if [ ! -e ${topdir}/${project}/${patch}-message ]; then
+                echo -e "${H3}Extracting commit message from ${topdir}/${project}/${patch}${Color_Off}"
+                python3 ${topdir}/tools/extract-commit-message ${topdir}/${project}/${patch}
+            fi
+
+            git commit -a --file ${topdir}/${project}/${patch}-message
             echo
 
             popd
@@ -178,10 +188,20 @@ for project in ${positional_args}; do
         fi
 
         pushd ${topsrcdir}/${directory}
-        echo -e "${H3}Commiting ${branch} ${patch}${Color_Off}"
+        echo -e "${H3}Committing ${branch} ${patch}${Color_Off}"
         git add -A .
-        git status
-        git commit -a -m "${patch}"
+
+        if [ $(git status | grep -c "Untracked files:" || true) -gt 0 ]; then
+            echo "Untracked files!"
+            exit 1
+        fi
+
+        if [ ! -e ${topdir}/${project}/${patch}-message ]; then
+            echo -e "${H3}Extracting commit message from ${topdir}/${project}/${patch}${Color_Off}"
+            python3 ${topdir}/tools/extract-commit-message ${topdir}/${project}/${patch}
+        fi
+
+        git commit -a --file ${topdir}/${project}/${patch}-message
         echo
 
         if [ "${defer_tests}" != "true" ]; then
