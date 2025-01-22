@@ -18,10 +18,10 @@ index 772aa2f..04cbc87 100644
  - name: Apply role certificates
    hosts: localhost
 diff --git a/ansible/group_vars/all.yml b/ansible/group_vars/all.yml
-index 215e580..5589117 100644
+index 8702feb..230187e 100644
 --- a/ansible/group_vars/all.yml
 +++ b/ansible/group_vars/all.yml
-@@ -903,6 +903,7 @@ enable_ironic: "no"
+@@ -905,6 +905,7 @@ enable_ironic_inspector: "no"
  enable_ironic_neutron_agent: "{{ enable_neutron | bool and enable_ironic | bool }}"
  enable_ironic_prometheus_exporter: "{{ enable_ironic | bool and enable_prometheus | bool }}"
  enable_iscsid: "{{ enable_cinder | bool and enable_cinder_backend_iscsi | bool }}"
@@ -29,7 +29,7 @@ index 215e580..5589117 100644
  enable_kuryr: "no"
  enable_letsencrypt: "no"
  enable_magnum: "no"
-@@ -970,6 +971,14 @@ placement_keystone_user: "placement"
+@@ -972,6 +973,14 @@ placement_keystone_user: "placement"
  cinder_keystone_user: "cinder"
  glance_keystone_user: "glance"
 
@@ -45,10 +45,10 @@ index 215e580..5589117 100644
  enable_nova_fake: "no"
  num_nova_fake_per_node: 5
 diff --git a/ansible/inventory/all-in-one b/ansible/inventory/all-in-one
-index 8d5c223..d05d6a5 100644
+index 6e1bbe6..fe3c392 100644
 --- a/ansible/inventory/all-in-one
 +++ b/ansible/inventory/all-in-one
-@@ -229,6 +229,9 @@ nova
+@@ -232,6 +232,9 @@ nova
  [nova-serialproxy:children]
  nova
 
@@ -59,10 +59,10 @@ index 8d5c223..d05d6a5 100644
  [neutron-server:children]
  control
 diff --git a/ansible/inventory/multinode b/ansible/inventory/multinode
-index a12c51d..d0b77d8 100644
+index 0485a33..2a728ef 100644
 --- a/ansible/inventory/multinode
 +++ b/ansible/inventory/multinode
-@@ -247,6 +247,9 @@ nova
+@@ -250,6 +250,9 @@ nova
  [nova-serialproxy:children]
  nova
 
@@ -128,10 +128,10 @@ index ee761a3..be8fc70 100644
    </rule>
    <rule>
 diff --git a/ansible/roles/nova/defaults/main.yml b/ansible/roles/nova/defaults/main.yml
-index 038257b..e73b783 100644
+index 8a24f43..ccabfb1 100644
 --- a/ansible/roles/nova/defaults/main.yml
 +++ b/ansible/roles/nova/defaults/main.yml
-@@ -56,6 +56,14 @@ nova_services:
+@@ -75,6 +75,14 @@ nova_services:
      volumes: "{{ nova_super_conductor_default_volumes + nova_super_conductor_extra_volumes }}"
      dimensions: "{{ nova_super_conductor_dimensions }}"
      healthcheck: "{{ nova_super_conductor_healthcheck }}"
@@ -146,7 +146,7 @@ index 038257b..e73b783 100644
 
  ####################
  # Config Validate
-@@ -194,6 +202,30 @@ nova_super_conductor_extra_volumes: "{{ nova_extra_volumes }}"
+@@ -234,6 +242,30 @@ nova_super_conductor_extra_volumes: "{{ nova_extra_volumes }}"
  # Used by bootstrapping containers.
  nova_api_bootstrap_extra_volumes: "{{ nova_extra_volumes }}"
 
@@ -177,10 +177,10 @@ index 038257b..e73b783 100644
 
  ####################
  # OpenStack
-@@ -274,3 +306,10 @@ nova_source_version: "{{ kolla_source_version }}"
- nova_enable_tls_backend: "{{ kolla_enable_tls_backend }}"
-
- nova_copy_certs: "{{ kolla_copy_ca_into_containers | bool or nova_enable_tls_backend | bool }}"
+@@ -318,3 +350,10 @@ nova_copy_certs: "{{ kolla_copy_ca_into_containers | bool or nova_enable_tls_bac
+ # WSGI
+ ####################
+ nova_wsgi_provider: "uwsgi"
 +
 +####################
 +# Kerbside Database
@@ -189,10 +189,10 @@ index 038257b..e73b783 100644
 +kerbside_database_user: "kerbside"
 +kerbside_database_address: "{{ database_address | put_address_in_context('url') }}:{{ database_port }}"
 diff --git a/ansible/roles/nova/handlers/main.yml b/ansible/roles/nova/handlers/main.yml
-index e478445..7c3d1c2 100644
+index 917113c..5cd6b8c 100644
 --- a/ansible/roles/nova/handlers/main.yml
 +++ b/ansible/roles/nova/handlers/main.yml
-@@ -49,3 +49,21 @@
+@@ -66,3 +66,21 @@
      healthcheck: "{{ service.healthcheck | default(omit) }}"
    when:
      - kolla_action != "upgrade" or not nova_safety_upgrade | bool
@@ -258,7 +258,7 @@ index 57295ef..35d47fa 100644
 
  - include_tasks: clone.yml
 diff --git a/ansible/roles/nova/tasks/config.yml b/ansible/roles/nova/tasks/config.yml
-index d7134ab..20e7510 100644
+index abbcf93..e7d155d 100644
 --- a/ansible/roles/nova/tasks/config.yml
 +++ b/ansible/roles/nova/tasks/config.yml
 @@ -68,6 +68,54 @@
@@ -317,7 +317,7 @@ index d7134ab..20e7510 100644
    become: true
    template:
 diff --git a/etc/kolla/passwords.yml b/etc/kolla/passwords.yml
-index 5ce37b5..e305bf3 100644
+index c833029..a1dec97 100644
 --- a/etc/kolla/passwords.yml
 +++ b/etc/kolla/passwords.yml
 @@ -70,6 +70,10 @@ glance_keystone_password:
@@ -332,10 +332,10 @@ index 5ce37b5..e305bf3 100644
 
  nova_database_password:
 diff --git a/tests/templates/inventory.j2 b/tests/templates/inventory.j2
-index b5aadac..4b67688 100644
+index 22ae075..aacb54b 100644
 --- a/tests/templates/inventory.j2
 +++ b/tests/templates/inventory.j2
-@@ -299,6 +299,9 @@ nova
+@@ -302,6 +302,9 @@ nova
  [nova-serialproxy:children]
  nova
 
