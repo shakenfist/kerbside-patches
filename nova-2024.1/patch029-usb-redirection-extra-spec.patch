@@ -1,6 +1,6 @@
-commit b466a913214192517993cdb8debff9894cafc4dd
+commit ef1cb0d1c93c8cb26a91b280e8cc10e926f6e65f
 Author: Michael Still <mikal@stillhq.com>
-Date:   Wed Aug 28 17:49:49 2024 +1000
+Date:   Tue Jan 28 05:56:18 2025 +1100
 
     libvirt: Add extra specs for USB redirection.
 
@@ -12,7 +12,7 @@ Date:   Wed Aug 28 17:49:49 2024 +1000
     Change-Id: I791b16c5bf0e860a188783c863e95dc423998b0a
 
 diff --git a/doc/notification_samples/common_payloads/ImageMetaPropsPayload.json b/doc/notification_samples/common_payloads/ImageMetaPropsPayload.json
-index eb100b7..cc05522 100644
+index cc05522..79f2559 100644
 --- a/doc/notification_samples/common_payloads/ImageMetaPropsPayload.json
 +++ b/doc/notification_samples/common_payloads/ImageMetaPropsPayload.json
 @@ -4,5 +4,5 @@
@@ -23,7 +23,7 @@ index eb100b7..cc05522 100644
 +    "nova_object.version": "1.16"
  }
 diff --git a/nova/api/validation/extra_specs/hw.py b/nova/api/validation/extra_specs/hw.py
-index 881dbbb..1c44527 100644
+index 881dbbb..db96448 100644
 --- a/nova/api/validation/extra_specs/hw.py
 +++ b/nova/api/validation/extra_specs/hw.py
 @@ -552,6 +552,32 @@ feature_flag_validators = [
@@ -46,9 +46,9 @@ index 881dbbb..1c44527 100644
 +    base.ExtraSpecValidator(
 +        name='hw:redirected_usb_ports',
 +        description=(
-+            'The number of redirected USB ports to add to the '
-+            'virtual machine. Only supported by the libvirt virt driver. '
-+            'If unset, no redirected USB ports are added.'
++            'The number of redirected USB ports to add to the virtual machine.'
++            'Only supported by the libvirt virt driver. If unset, no '
++            'redirected USB ports are added. The maximum value is 15.'
 +        ),
 +        value={
 +            'type': int,
@@ -74,35 +74,41 @@ index 5fd9b27..895cb64 100644
      # NOTE(efried): This logic currently relies on all of the fields of
      # ImageMetaProps being initialized with no arguments. See the docstring.
 diff --git a/nova/objects/fields.py b/nova/objects/fields.py
-index 1171dcf..86b276e 100644
+index 1171dcf..29606b3 100644
 --- a/nova/objects/fields.py
 +++ b/nova/objects/fields.py
-@@ -867,6 +867,24 @@ class SoundModelType(BaseNovaEnum):
+@@ -630,7 +630,7 @@ class VIFModel(BaseNovaEnum):
+                      network_model.VIF_MODEL_VMXNET,
+                      "virtualvmxnet3":
+                      network_model.VIF_MODEL_VMXNET3,
+-                    }
++                     }
+
+     ALL = network_model.VIF_MODEL_ALL
+
+@@ -867,6 +867,21 @@ class SoundModelType(BaseNovaEnum):
      ALL = (SB16, ES1370, PCSPK, AC97, ICH6, ICH9, USB, VIRTIO,)
 
 
 +class USBControllerModelType(BaseNovaEnum):
++    # NOTE(mikal): qemu itself (and therefore libvirt) supports a lot more
++    # USB controllers than this, but they're all very old and don't support
++    # USB3. So while we could turn them on, it would be like adding in IDE
++    # disk bus emulation -- the performance isn't great and its been a very
++    # long time since an operating system was released which genuinely couldn't
++    # use something better.
 +
 +    NONE = 'none'
-+    PIIX3_UHCI = 'piix3-uhci'
-+    PIIX4_UHCI = 'piix4-uhci'
-+    EHCI = 'ehci'
-+    ICH9_ECHI1 = 'ich9-ehci1'
-+    ICH9_UCHI1 = 'ich9-uhci1'
-+    ICH9_UCHI2 = 'ich9-uhci2'
-+    ICH9_UCHI3 = 'ich9-uhci3'
-+    PCI_OHCI = 'pci-ohci'
 +    NEC_XHCI = 'nec-xhci'
 +    QEMU_XHCI = 'qemu-xhci'
 +
-+    ALL = (NONE, PIIX3_UHCI, PIIX4_UHCI, EHCI, ICH9_ECHI1, ICH9_UCHI1,
-+           ICH9_UCHI2, ICH9_UCHI3, PCI_OHCI, NEC_XHCI, QEMU_XHCI)
++    ALL = (NONE, NEC_XHCI, QEMU_XHCI)
 +
 +
  class NotificationPriority(BaseNovaEnum):
      AUDIT = 'audit'
      CRITICAL = 'critical'
-@@ -1407,6 +1425,10 @@ class SoundModelField(BaseEnumField):
+@@ -1407,6 +1422,10 @@ class SoundModelField(BaseEnumField):
      AUTO_TYPE = SoundModelType()
 
 
@@ -154,7 +160,7 @@ index b28c1d6..299a6de 100644
          'img_bittorrent': fields.FlexibleBooleanField(),
 
 diff --git a/nova/tests/functional/notification_sample_tests/test_instance.py b/nova/tests/functional/notification_sample_tests/test_instance.py
-index a3ba04e..bf04c2b 100644
+index bf04c2b..a9bc017 100644
 --- a/nova/tests/functional/notification_sample_tests/test_instance.py
 +++ b/nova/tests/functional/notification_sample_tests/test_instance.py
 @@ -1238,7 +1238,7 @@ class TestInstanceNotificationSample(
@@ -176,7 +182,7 @@ index a3ba04e..bf04c2b 100644
                  'image.size': 58145823,
                  'image.tags': [],
 diff --git a/nova/tests/unit/notifications/objects/test_notification.py b/nova/tests/unit/notifications/objects/test_notification.py
-index 3237af0..52794ba 100644
+index 3237af0..03672a3 100644
 --- a/nova/tests/unit/notifications/objects/test_notification.py
 +++ b/nova/tests/unit/notifications/objects/test_notification.py
 @@ -386,7 +386,7 @@ notification_object_data = {
@@ -184,7 +190,7 @@ index 3237af0..52794ba 100644
      # *also* bump the version of ImageMetaPropsPayload. See its docstring for
      # more information.
 -    'ImageMetaPropsPayload': '1.15-0bcf1661937f7f682eaf8b833c4ce99b',
-+    'ImageMetaPropsPayload': '1.16-f322a900ea212e48d44e33fc12914705',
++    'ImageMetaPropsPayload': '1.16-b4b8ac36141ea22bfad62edfc5335830',
      'InstanceActionNotification': '1.0-a73147b93b520ff0061865849d3dfa56',
      'InstanceActionPayload': '1.8-4fa3da9cbf0761f1f700ae578f36dc2f',
      'InstanceActionRebuildNotification':
@@ -215,7 +221,7 @@ index 54a77c1..7c6f928 100644
          obj = objects.ImageMetaProps(
              hw_pci_numa_affinity_policy=fields.PCINUMAAffinityPolicy.SOCKET)
 diff --git a/nova/tests/unit/objects/test_objects.py b/nova/tests/unit/objects/test_objects.py
-index f82a722..e7ac075 100644
+index f82a722..1a70916 100644
 --- a/nova/tests/unit/objects/test_objects.py
 +++ b/nova/tests/unit/objects/test_objects.py
 @@ -1105,7 +1105,7 @@ object_data = {
@@ -223,15 +229,15 @@ index f82a722..e7ac075 100644
      'IDEDeviceBus': '1.0-29d4c9f27ac44197f01b6ac1b7e16502',
      'ImageMeta': '1.8-642d1b2eb3e880a367f37d72dd76162d',
 -    'ImageMetaProps': '1.39-3e49d23fb404b61c8d530cff5cc88da2',
-+    'ImageMetaProps': '1.40-dcfc66332d721b4b447d4f25d6a6578e',
++    'ImageMetaProps': '1.40-fa8ecabb222592d376be586a440badb8',
      'Instance': '2.8-2727dba5e4a078e6cc848c1f94f7eb24',
      'InstanceAction': '1.2-9a5abc87fdd3af46f45731960651efb5',
      'InstanceActionEvent': '1.4-5b1f361bd81989f8bb2c20bb7e8a4cb4',
 diff --git a/nova/virt/hardware.py b/nova/virt/hardware.py
-index b294d9c..871622d 100644
+index b294d9c..1d37330 100644
 --- a/nova/virt/hardware.py
 +++ b/nova/virt/hardware.py
-@@ -2863,3 +2863,51 @@ def get_sound_model(
+@@ -2863,3 +2863,56 @@ def get_sound_model(
          )
 
      return model
@@ -282,6 +288,11 @@ index b294d9c..871622d 100644
 +        'redirected_usb_ports', flavor, image_meta)
 +    if not count:
 +        count = 0
++    elif count > 15:
++        # NOTE(mikal): XHCI controllers only support up to 15 ports. This isn't
++        # documented in the libvirt domain XML documentation at the moment, but
++        # is at https://www.kraxel.org/blog/2018/08/qemu-usb-tips/.
++        raise exception.Invalid('Nova  only supports up to 15 USB ports.')
 +    return count
 diff --git a/nova/virt/libvirt/config.py b/nova/virt/libvirt/config.py
 index 80826b7..c5d18d3 100644
@@ -308,7 +319,7 @@ index 80826b7..c5d18d3 100644
 +        meta.set('bus', str(self.bus))
 +        return meta
 diff --git a/nova/virt/libvirt/driver.py b/nova/virt/libvirt/driver.py
-index 3a0fffa..de8f859 100644
+index 6d81ead..d0b7ac7 100644
 --- a/nova/virt/libvirt/driver.py
 +++ b/nova/virt/libvirt/driver.py
 @@ -6693,6 +6693,18 @@ class LibvirtDriver(driver.ComputeDriver):

@@ -1,6 +1,6 @@
-commit b466a913214192517993cdb8debff9894cafc4dd
+commit 41f45d8df019a6f92719b9ea5a6f7f0b553b3d99
 Author: Michael Still <mikal@stillhq.com>
-Date:   Wed Aug 28 17:49:49 2024 +1000
+Date:   Tue Jan 28 05:38:23 2025 +1100
 
     libvirt: Add extra specs for USB redirection.
 
@@ -25,7 +25,7 @@ index 79f2559..e56e37a 100644
 +}
 \ No newline at end of file
 diff --git a/nova/api/validation/extra_specs/hw.py b/nova/api/validation/extra_specs/hw.py
-index c50355b..b98839e 100644
+index c50355b..4848d48 100644
 --- a/nova/api/validation/extra_specs/hw.py
 +++ b/nova/api/validation/extra_specs/hw.py
 @@ -552,6 +552,32 @@ feature_flag_validators = [
@@ -48,9 +48,9 @@ index c50355b..b98839e 100644
 +    base.ExtraSpecValidator(
 +        name='hw:redirected_usb_ports',
 +        description=(
-+            'The number of redirected USB ports to add to the '
-+            'virtual machine. Only supported by the libvirt virt driver. '
-+            'If unset, no redirected USB ports are added.'
++            'The number of redirected USB ports to add to the virtual machine.'
++            'Only supported by the libvirt virt driver. If unset, no '
++            'redirected USB ports are added. The maximum value is 15.'
 +        ),
 +        value={
 +            'type': int,
@@ -76,35 +76,32 @@ index 42e6153..68247b0 100644
      # NOTE(efried): This logic currently relies on all of the fields of
      # ImageMetaProps being initialized with no arguments. See the docstring.
 diff --git a/nova/objects/fields.py b/nova/objects/fields.py
-index 0cb7922..fd7ff93 100644
+index 0cb7922..8ddd81e 100644
 --- a/nova/objects/fields.py
 +++ b/nova/objects/fields.py
-@@ -869,6 +869,24 @@ class SoundModelType(BaseNovaEnum):
+@@ -869,6 +869,21 @@ class SoundModelType(BaseNovaEnum):
      ALL = (SB16, ES1370, PCSPK, AC97, ICH6, ICH9, USB, VIRTIO,)
 
 
 +class USBControllerModelType(BaseNovaEnum):
++    # NOTE(mikal): qemu itself (and therefore libvirt) supports a lot more
++    # USB controllers than this, but they're all very old and don't support
++    # USB3. So while we could turn them on, it would be like adding in IDE
++    # disk bus emulation -- the performance isn't great and its been a very
++    # long time since an operating system was released which genuinely couldn't
++    # use something better.
 +
 +    NONE = 'none'
-+    PIIX3_UHCI = 'piix3-uhci'
-+    PIIX4_UHCI = 'piix4-uhci'
-+    EHCI = 'ehci'
-+    ICH9_ECHI1 = 'ich9-ehci1'
-+    ICH9_UCHI1 = 'ich9-uhci1'
-+    ICH9_UCHI2 = 'ich9-uhci2'
-+    ICH9_UCHI3 = 'ich9-uhci3'
-+    PCI_OHCI = 'pci-ohci'
 +    NEC_XHCI = 'nec-xhci'
 +    QEMU_XHCI = 'qemu-xhci'
 +
-+    ALL = (NONE, PIIX3_UHCI, PIIX4_UHCI, EHCI, ICH9_ECHI1, ICH9_UCHI1,
-+           ICH9_UCHI2, ICH9_UCHI3, PCI_OHCI, NEC_XHCI, QEMU_XHCI)
++    ALL = (NONE, NEC_XHCI, QEMU_XHCI)
 +
 +
  class NotificationPriority(BaseNovaEnum):
      AUDIT = 'audit'
      CRITICAL = 'critical'
-@@ -1411,6 +1429,10 @@ class SoundModelField(BaseEnumField):
+@@ -1411,6 +1426,10 @@ class SoundModelField(BaseEnumField):
      AUTO_TYPE = SoundModelType()
 
 
@@ -176,7 +173,7 @@ index 471fb92..1f96029 100644
                  'image.size': 58145823,
                  'image.tags': [],
 diff --git a/nova/tests/unit/notifications/objects/test_notification.py b/nova/tests/unit/notifications/objects/test_notification.py
-index 319892a..8b00640 100644
+index 319892a..46f68b5 100644
 --- a/nova/tests/unit/notifications/objects/test_notification.py
 +++ b/nova/tests/unit/notifications/objects/test_notification.py
 @@ -385,7 +385,7 @@ notification_object_data = {
@@ -184,12 +181,12 @@ index 319892a..8b00640 100644
      # *also* bump the version of ImageMetaPropsPayload. See its docstring for
      # more information.
 -    'ImageMetaPropsPayload': '1.16-871cffafce16ab4b6296c1f071262aa8',
-+    'ImageMetaPropsPayload': '1.17-075df9804e3b33ec1539d093380f768e',
++    'ImageMetaPropsPayload': '1.17-60ebfe97483b0abee1ec22220613da40',
      'InstanceActionNotification': '1.0-a73147b93b520ff0061865849d3dfa56',
      'InstanceActionPayload': '1.9-525dcf81b6e4592d935712a2675309dc',
      'InstanceActionRebuildNotification':
 diff --git a/nova/tests/unit/objects/test_image_meta.py b/nova/tests/unit/objects/test_image_meta.py
-index 5b05fcc..b9a6e0d 100644
+index 5b05fcc..d5e38e6 100644
 --- a/nova/tests/unit/objects/test_image_meta.py
 +++ b/nova/tests/unit/objects/test_image_meta.py
 @@ -563,6 +563,21 @@ class TestImageMetaProps(test.NoDBTestCase):
@@ -215,7 +212,7 @@ index 5b05fcc..b9a6e0d 100644
          obj = objects.ImageMetaProps(
              hw_pci_numa_affinity_policy=fields.PCINUMAAffinityPolicy.SOCKET)
 diff --git a/nova/tests/unit/objects/test_objects.py b/nova/tests/unit/objects/test_objects.py
-index fd4dd9e..e325482 100644
+index fd4dd9e..010159e 100644
 --- a/nova/tests/unit/objects/test_objects.py
 +++ b/nova/tests/unit/objects/test_objects.py
 @@ -1105,7 +1105,7 @@ object_data = {
@@ -223,15 +220,15 @@ index fd4dd9e..e325482 100644
      'IDEDeviceBus': '1.0-29d4c9f27ac44197f01b6ac1b7e16502',
      'ImageMeta': '1.8-642d1b2eb3e880a367f37d72dd76162d',
 -    'ImageMetaProps': '1.40-6cd46dc34799f30e98a3a79d72c3b6eb',
-+    'ImageMetaProps': '1.41-e3d7ef2fae6bbc53bfd702a1e038535a',
++    'ImageMetaProps': '1.41-1b67f6d0ae2292c3e50b838564e329c8',
      'Instance': '2.8-2727dba5e4a078e6cc848c1f94f7eb24',
      'InstanceAction': '1.2-9a5abc87fdd3af46f45731960651efb5',
      'InstanceActionEvent': '1.4-5b1f361bd81989f8bb2c20bb7e8a4cb4',
 diff --git a/nova/virt/hardware.py b/nova/virt/hardware.py
-index 01ebaf8..662eee7 100644
+index 01ebaf8..2361bdb 100644
 --- a/nova/virt/hardware.py
 +++ b/nova/virt/hardware.py
-@@ -2936,3 +2936,51 @@ def get_sound_model(
+@@ -2936,3 +2936,57 @@ def get_sound_model(
          )
 
      return model
@@ -282,6 +279,12 @@ index 01ebaf8..662eee7 100644
 +        'redirected_usb_ports', flavor, image_meta)
 +    if not count:
 +        count = 0
++    elif count > 15:
++        # NOTE(mikal): XHCI controllers only support up to 15 ports. This isn't
++        # documented in the libvirt domain XML documentation at the moment, but
++        # is at https://www.kraxel.org/blog/2018/08/qemu-usb-tips/.
++        raise exception.Invalid('Nova  only supports up to 15 USB ports.')
++
 +    return count
 diff --git a/nova/virt/libvirt/config.py b/nova/virt/libvirt/config.py
 index 2c185c4..d2bcf5f 100644
