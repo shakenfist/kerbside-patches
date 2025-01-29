@@ -173,25 +173,6 @@ diff --git a/nova/api/openstack/compute/remote_consoles.py b/nova/api/openstack/
 index 408b118..58d65e6 100644
 --- a/nova/api/openstack/compute/remote_consoles.py
 +++ b/nova/api/openstack/compute/remote_consoles.py
-@@ -73,13 +73,17 @@ class RemoteConsolesController(wsgi.Controller):
-     @wsgi.expected_errors((400, 404, 409, 501))
-     @wsgi.action('os-getSPICEConsole')
-     @validation.schema(schema.get_spice_console)
-+    @validation.schema(schema.get_spice_console_v298, "2.98")
-     @validation.response_body_schema(schema.get_spice_console_response)
-     def get_spice_console(self, req, id, body):
-         """Get text console output."""
-         context = req.environ['nova.context']
-         context.can(rc_policies.BASE_POLICY_NAME)
-
--        # If type is not supplied or unknown, get_spice_console below will cope
-+        # NOTE(mikal): We support two types of SPICE console -- the traditional
-+        # "spice-html5" console (the default), and a direct connection to qemu
-+        # on the hypervisor ("spice-direct"). This second option is intended
-+        # for use with a SPICE protocol proxy sitting in front of Nova.
-         console_type = body['os-getSPICEConsole'].get('type')
-
-         instance = common.get_instance(self.compute_api, context, id)
 @@ -143,7 +147,8 @@ class RemoteConsolesController(wsgi.Controller):
      @wsgi.Controller.api_version("2.6")
      @wsgi.expected_errors((400, 404, 409, 501))
@@ -215,40 +196,14 @@ index 374e218..945d16e 100644
 +2.98
 +----
 +
-+Add the spice-direct console type to the spice console protocol. This includes
-+adding a ``tls_port`` field to the return value from ``os-console-auth-token``.
++Add the ``spice-direct`` console type to the spice console protocol. Also
++add a ``tls_port`` field to the return value from ``os-console-auth-token``.
 +
  .. _manage-shares documentation: https://docs.openstack.org/nova/latest/admin/manage-shares.html
 diff --git a/nova/api/openstack/compute/schemas/remote_consoles.py b/nova/api/openstack/compute/schemas/remote_consoles.py
 index 1f57e95..9567b17 100644
 --- a/nova/api/openstack/compute/schemas/remote_consoles.py
 +++ b/nova/api/openstack/compute/schemas/remote_consoles.py
-@@ -50,6 +50,25 @@ get_spice_console = {
-     'additionalProperties': False,
- }
-
-+get_spice_console_v298 = {
-+    'type': 'object',
-+    'properties': {
-+        'os-getSPICEConsole': {
-+            'type': 'object',
-+            'properties': {
-+                'type': {
-+                    'type': 'string',
-+                    'enum': ['spice-html5', 'spice-direct'],
-+                },
-+            },
-+            'required': ['type'],
-+            'additionalProperties': False,
-+        },
-+    },
-+    'required': ['os-getSPICEConsole'],
-+    'additionalProperties': False,
-+}
-+
- # NOTE(stephenfin): This schema is intentionally empty since the action has
- # been removed
- get_rdp_console = {}
 @@ -120,6 +139,30 @@ create_v28 = {
      'additionalProperties': False,
  }
@@ -554,13 +509,13 @@ index 0149fa0..4b2dfd4 100644
      protected connections. Unencrypted connections will be gracefully
      redirected to the TLS port via the SPICE protocol.
 +  - |
-+    This release adds a new console type, "spice-direct" which provides
++    This release adds a new console type, ``spice-direct`` which provides
 +    the connection information required to talk the native SPICE
 +    protocol directly to qemu on the hypervisor. This is intended to
 +    be fronted by a proxy which will handle authentication separately.
 +    This new console type is exposed in the Compute API v2.98
 +    microversion. To facilitate this proxying, a new config option
-+    spice_direct_proxy_base_url is added to the spice configuration group.
++    ``spice_direct_proxy_base_url`` is added to the spice configuration group.
 +    This option is used to construct a URL containing an access token for
 +    the console, and that access token can be turned into hypervisor
 +    connection information using the pre-existing
