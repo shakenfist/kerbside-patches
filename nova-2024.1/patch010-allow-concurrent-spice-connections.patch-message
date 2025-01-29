@@ -1,0 +1,8 @@
+libvirt: allow concurrent access to SPICE consoles.
+
+This patch introduces the spice.allow_concurrent configuration
+option, which if set to true alters the domain xml for the instance
+to allow concurrent connections to the SPICE console. In testing
+this has proven quite reliable, but unfortunately does require
+requesting that libvirt customize the qemu command line, with
+associated xml namespace fun.

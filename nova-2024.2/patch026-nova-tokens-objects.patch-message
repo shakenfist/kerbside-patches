@@ -1,0 +1,10 @@
+libvirt: direct SPICE console object changes
+
+This patch changes just the objects required for the implementation
+of SPICE direct consoles, as requested during review. See change
+I1e701cbabc0e2c435685e31465159eec09e3b1a0 for the related feature
+implementation.
+
+APIImpact
+
+Change-Id: I8ec513fd818362d2f041c679a84e900952af61a2
