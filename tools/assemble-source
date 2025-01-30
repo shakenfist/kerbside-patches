@@ -36,7 +36,7 @@ for project in ${projects}; do
 done
 echo
 echo
-echo -e "${H3}The following directories contain patches: ${directories}${Color_Off}"
+echo -e "${H3}The following directories contain patches: ${directories[@]}${Color_Off}"
 echo
 
 for directory in "${directories[@]}"; do
