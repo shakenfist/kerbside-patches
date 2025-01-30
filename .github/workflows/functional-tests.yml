@@ -14,10 +14,12 @@ jobs:
       matrix:
         test: [
           {
+            'name': '2024.1',
             'description': 'OpenStack release 2024.1',
             'release': '2024.1'
           },
           {
+            'name': 'master',
             'description': 'OpenStack master',
             'release': 'master'
           },
