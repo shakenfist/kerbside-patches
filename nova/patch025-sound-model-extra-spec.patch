@@ -131,10 +131,10 @@ index 2029b274fd..1488f3f99f 100644
          'img_bittorrent': fields.FlexibleBooleanField(),
 
 diff --git a/nova/scheduler/request_filter.py b/nova/scheduler/request_filter.py
-index 6f61e861cc..b55466b32b 100644
+index 6f61e861cc..0905043e09 100644
 --- a/nova/scheduler/request_filter.py
 +++ b/nova/scheduler/request_filter.py
-@@ -444,6 +444,26 @@ def ephemeral_encryption_filter(
+@@ -444,6 +444,27 @@ def ephemeral_encryption_filter(
      return True
 
 
@@ -156,12 +156,13 @@ index 6f61e861cc..b55466b32b 100644
 +
 +    request_spec.root_required.add(os_traits.COMPUTE_SOUND_VIRTIO)
 +    LOG.debug('virtio_sound_filter added trait COMPUTE_SOUND_VIRTIO')
++    return True
 +
 +
  ALL_REQUEST_FILTERS = [
      require_tenant_aggregate,
      map_az_to_placement_aggregate,
-@@ -456,6 +476,7 @@ ALL_REQUEST_FILTERS = [
+@@ -456,6 +477,7 @@ ALL_REQUEST_FILTERS = [
      routed_networks_filter,
      remote_managed_ports_filter,
      ephemeral_encryption_filter,
@@ -456,7 +457,7 @@ index 0e8f15958e..2c185c42de 100644
 +        meta.set('model', str(self.model))
 +        return meta
 diff --git a/nova/virt/libvirt/driver.py b/nova/virt/libvirt/driver.py
-index 3bb3b7d7d4..4533f69012 100644
+index 3bb3b7d7d4..e096c9e3d1 100644
 --- a/nova/virt/libvirt/driver.py
 +++ b/nova/virt/libvirt/driver.py
 @@ -266,6 +266,10 @@ MIN_LIBVIRT_STATELESS_FIRMWARE = (8, 6, 0)
@@ -509,7 +510,7 @@ index 3bb3b7d7d4..4533f69012 100644
 
          _, invalid_traits = ot.check_traits(traits)
          for invalid_trait in invalid_traits:
-@@ -13313,3 +13335,32 @@ class LibvirtDriver(driver.ComputeDriver):
+@@ -13313,3 +13335,33 @@ class LibvirtDriver(driver.ComputeDriver):
                  fs.source_dir = self._get_share_mount_path(instance, share)
                  fs.target_dir = share.tag
                  guest.add_device(fs)
@@ -529,7 +530,8 @@ index 3bb3b7d7d4..4533f69012 100644
 +        has_virtio = True
 +        if not self._host.has_min_version(MIN_VIRTIO_SOUND_LIBVIRT_VERSION):
 +            has_virtio = False
-+        if not self._host.has_min_version(hv_ver=MIN_VIRTIO_SOUND_QEMU_VERSION):
++        if not self._host.has_min_version(
++                hv_ver=MIN_VIRTIO_SOUND_QEMU_VERSION):
 +            has_virtio = False
 +
 +        return {
@@ -540,5 +542,5 @@ index 3bb3b7d7d4..4533f69012 100644
 +            'COMPUTE_SOUND_MODEL_ICH6': True,
 +            'COMPUTE_SOUND_MODEL_ICH9': True,
 +            'COMPUTE_SOUND_MODEL_USB': True,
-+            'COMPUTE_SOUND_MODEL_VIRTIO':  has_virtio
++            'COMPUTE_SOUND_MODEL_VIRTIO': has_virtio
 +        }
