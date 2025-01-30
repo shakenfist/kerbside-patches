@@ -9,6 +9,7 @@ Date:   Thu Jan 30 06:02:22 2025 +1100
     protocol. It also implements a sound device model trait so that
     scheduling and live migration can take this into account.
 
+    Depends-On: https://review.opendev.org/c/openstack/os-traits/+/940418
     Change-Id: I2faeda0fd0fb9c8894d69558a1ccaab8da9f6a1b
 
 diff --git a/doc/notification_samples/common_payloads/ImageMetaPropsPayload.json b/doc/notification_samples/common_payloads/ImageMetaPropsPayload.json

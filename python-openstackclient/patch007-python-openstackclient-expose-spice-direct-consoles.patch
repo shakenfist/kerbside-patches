@@ -3,7 +3,7 @@ Author: Michael Still <mikal@stillhq.com>
 
     Add support for spice-direct console types.
 
-    This patch adds support for Nova microversion 2.97 which exposes the new
+    This patch adds support for Nova microversion 2.98 which exposes the new
     spice-direct console type and the pre-existing /os-console-auth-token/ API.
 
     # openstack console url show --spice-direct f2477018-aa93-...
@@ -25,6 +25,8 @@ Author: Michael Still <mikal@stillhq.com>
     | port                 | 5900                                 |
     | tls_port             | 5901                                 |
     +----------------------+--------------------------------------+
+
+    Depends-On: https://review.opendev.org/c/openstack/nova/+/924844
 
 diff --git a/openstackclient/compute/v2/console.py b/openstackclient/compute/v2/console.py
 index 3059cb10..3f0a3995 100644

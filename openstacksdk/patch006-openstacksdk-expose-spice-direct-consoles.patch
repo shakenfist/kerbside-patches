@@ -3,7 +3,7 @@ Author: Michael Still <mikal@stillhq.com>
 
     Add support for spice-direct console types.
 
-    This patch adds support for Nova microversion 2.97 which exposes the new
+    This patch adds support for Nova microversion 2.98 which exposes the new
     spice-direct console type and the pre-existing /os-console-auth-token/ API.
 
     # openstack console url show --spice-direct f2477018-aa93-...
@@ -25,6 +25,8 @@ Author: Michael Still <mikal@stillhq.com>
     | port                 | 5900                                 |
     | tls_port             | 5901                                 |
     +----------------------+--------------------------------------+
+
+    Depends-On: https://review.opendev.org/c/openstack/nova/+/924844
 
 diff --git a/openstack/compute/v2/_proxy.py b/openstack/compute/v2/_proxy.py
 index 37af81395..f1dc19867 100644
@@ -71,7 +73,7 @@ index 37af81395..f1dc19867 100644
              * rdp-html5
              * serial
              * webmks (supported after 2.8)
-+            * spice-direct (supported after 2.97)
++            * spice-direct (supported after 2.98)
          :param console_protocol: Optional console protocol (is respected only
              after microversion 2.6).
 
@@ -111,7 +113,7 @@ index 000000000..bc912aa0f
 +    allow_fetch = True
 +    requires_id = False
 +
-+    _max_microversion = '2.97'
++    _max_microversion = '2.98'
 +
 +    # Request
 +    #: The console token to lookup connection information for.
@@ -170,7 +172,7 @@ index 7a845b6ab..d51f250ae 100644
      allow_list = False
 
 -    _max_microversion = '2.8'
-+    _max_microversion = '2.97'
++    _max_microversion = '2.98'
 
      #: Protocol of the remote console.
      protocol = resource.Body('protocol')
@@ -179,7 +181,7 @@ index 7a845b6ab..d51f250ae 100644
                  'Console type webmks is not supported on server side'
              )
 +        if (
-+            not utils.supports_microversion(session, '2.97')
++            not utils.supports_microversion(session, '2.98')
 +            and self.type == 'spice-direct'
 +        ):
 +            raise ValueError(

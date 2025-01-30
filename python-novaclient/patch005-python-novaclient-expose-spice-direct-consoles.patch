@@ -1,7 +1,7 @@
 commit 9b9afcf7c2a9dc0c2144540221126a61c3787a0f
 Author: Michael Still <mikal@stillhq.com>
 
-    Add support for microversion 2.97.
+    Add support for microversion 2.98.
 
     This microversion adds support for the new SPICE direct console
     type. Note that this patch does not add support for the
@@ -16,7 +16,7 @@ index bf021c6a..6629d744 100644
  # the client may break due to server side new version may include some
  # backward incompatible change.
 -API_MAX_VERSION = api_versions.APIVersion("2.96")
-+API_MAX_VERSION = api_versions.APIVersion("2.97")
++API_MAX_VERSION = api_versions.APIVersion("2.98")
 diff --git a/novaclient/tests/unit/v2/test_shell.py b/novaclient/tests/unit/v2/test_shell.py
 index 3f7bc396..25c05053 100644
 --- a/novaclient/tests/unit/v2/test_shell.py
