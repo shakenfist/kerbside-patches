@@ -1,4 +1,4 @@
-commit c3e057956882c69643b0fb4b19d89e826642c563
+commit 3268f8e1003d79bd0160d2ee7ff8e744e4c3e677
 Author: Michael Still <mikal@stillhq.com>
 Date:   Thu Jan 30 06:02:22 2025 +1100
 
@@ -6,7 +6,8 @@ Date:   Thu Jan 30 06:02:22 2025 +1100
 
     This patch adds an extra spec to configure a sound device inside
     the guest. This is useful for SPICE consoles using the native
-    protocol.
+    protocol. It also implements a sound device model trait so that
+    scheduling and live migration can take this into account.
 
     Change-Id: I2faeda0fd0fb9c8894d69558a1ccaab8da9f6a1b
 
@@ -455,10 +456,21 @@ index 0e8f15958e..2c185c42de 100644
 +        meta.set('model', str(self.model))
 +        return meta
 diff --git a/nova/virt/libvirt/driver.py b/nova/virt/libvirt/driver.py
-index 3bb3b7d7d4..da021e83d2 100644
+index 3bb3b7d7d4..4533f69012 100644
 --- a/nova/virt/libvirt/driver.py
 +++ b/nova/virt/libvirt/driver.py
-@@ -6828,6 +6828,22 @@ class LibvirtDriver(driver.ComputeDriver):
+@@ -266,6 +266,10 @@ MIN_LIBVIRT_STATELESS_FIRMWARE = (8, 6, 0)
+ MIN_IGB_LIBVIRT_VERSION = (9, 3, 0)
+ MIN_IGB_QEMU_VERSION = (8, 0, 0)
+
++# Minimum versions supporting the virtio sound model
++MIN_VIRTIO_SOUND_LIBVIRT_VERSION = (10, 4, 0)
++MIN_VIRTIO_SOUND_QEMU_VERSION = (8, 2, 0)
++
+ REGISTER_IMAGE_PROPERTY_DEFAULTS = [
+     'hw_machine_type',
+     'hw_cdrom_bus',
+@@ -6828,6 +6832,22 @@ class LibvirtDriver(driver.ComputeDriver):
          vtpm = vconfig.LibvirtConfigGuestVTPM(vtpm_config, vtpm_secret_uuid)
          guest.add_device(vtpm)
 
@@ -481,7 +493,7 @@ index 3bb3b7d7d4..da021e83d2 100644
      def _set_qemu_guest_agent(self, guest, flavor, instance, image_meta):
          # Enable qga only if the 'hw_qemu_guest_agent' is equal to yes
          if image_meta.properties.get('hw_qemu_guest_agent', False):
-@@ -7512,6 +7528,7 @@ class LibvirtDriver(driver.ComputeDriver):
+@@ -7512,6 +7532,7 @@ class LibvirtDriver(driver.ComputeDriver):
          self._create_consoles(guest, instance, flavor, image_meta)
 
          self._guest_add_spice_channel(guest)
@@ -489,7 +501,7 @@ index 3bb3b7d7d4..da021e83d2 100644
 
          if self._guest_add_video_device(guest):
              self._add_video_driver(guest, image_meta, flavor)
-@@ -9564,6 +9581,7 @@ class LibvirtDriver(driver.ComputeDriver):
+@@ -9564,6 +9585,7 @@ class LibvirtDriver(driver.ComputeDriver):
          traits.update(self._get_vif_model_traits())
          traits.update(self._get_iommu_model_traits())
          traits.update(self._get_tpm_traits())
@@ -497,7 +509,7 @@ index 3bb3b7d7d4..da021e83d2 100644
 
          _, invalid_traits = ot.check_traits(traits)
          for invalid_trait in invalid_traits:
-@@ -13313,3 +13331,27 @@ class LibvirtDriver(driver.ComputeDriver):
+@@ -13313,3 +13335,32 @@ class LibvirtDriver(driver.ComputeDriver):
                  fs.source_dir = self._get_share_mount_path(instance, share)
                  fs.target_dir = share.tag
                  guest.add_device(fs)
@@ -510,18 +522,23 @@ index 3bb3b7d7d4..da021e83d2 100644
 +
 +        :return: A dict of trait names mapped to boolean values.
 +        """
-+        all_models = fields.SoundModelType.ALL
++        # NOTE(mikal): sadly libvirt's `getDomainCapabilities()` call does not
++        # include details of the supported sound models, so we need to instead
++        # infer it from libvirt versions.
 +
-+        dom_caps = self._host.get_domain_capabilities()
-+        supported_models: ty.Set[str] = set()
-+        for arch_type in dom_caps:
-+            for machine_type in dom_caps[arch_type]:
-+                supported_models.update(
-+                    dom_caps[arch_type][machine_type].devices.sound.models
-+                )
++        has_virtio = True
++        if not self._host.has_min_version(MIN_VIRTIO_SOUND_LIBVIRT_VERSION):
++            has_virtio = False
++        if not self._host.has_min_version(hv_ver=MIN_VIRTIO_SOUND_QEMU_VERSION):
++            has_virtio = False
 +
-+        # construct the corresponding standard trait from the video model name
 +        return {
-+            f'COMPUTE_SOUND_MODEL_{model.replace("-", "_").upper()}': model
-+            in supported_models for model in all_models
++            'COMPUTE_SOUND_MODEL_SB16': True,
++            'COMPUTE_SOUND_MODEL_ES1370': True,
++            'COMPUTE_SOUND_MODEL_PCSPK': True,
++            'COMPUTE_SOUND_MODEL_AC97': True,
++            'COMPUTE_SOUND_MODEL_ICH6': True,
++            'COMPUTE_SOUND_MODEL_ICH9': True,
++            'COMPUTE_SOUND_MODEL_USB': True,
++            'COMPUTE_SOUND_MODEL_VIRTIO':  has_virtio
 +        }
