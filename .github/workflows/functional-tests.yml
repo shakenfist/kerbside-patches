@@ -17,6 +17,10 @@ jobs:
             'description': 'OpenStack release 2024.1',
             'release': '2024.1'
           },
+          {
+            'description': 'OpenStack master',
+            'release': 'master'
+          },
         ]
     runs-on: [self-hosted, vm]
     timeout-minutes: 300
