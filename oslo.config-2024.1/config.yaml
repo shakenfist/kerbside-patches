@@ -2,3 +2,4 @@ repo: https://github.com/openstack/oslo.config
 branch: stable/2024.1
 shallow_clone: false
 directory: oslo.config
+release: 2024.1

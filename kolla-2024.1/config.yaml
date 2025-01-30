@@ -2,3 +2,4 @@ repo: https://github.com/openstack/kolla
 branch: stable/2024.1
 shallow_clone: true
 directory: kolla
+release: 2024.1

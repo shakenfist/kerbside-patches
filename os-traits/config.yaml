@@ -2,3 +2,4 @@ repo: https://github.com/openstack/os-traits
 branch: master
 shallow_clone: true
 directory: os-traits
+release: master

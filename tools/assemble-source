@@ -1,5 +1,7 @@
 #!/bin/bash -e
 
+# $1: is an OpenStack release version -- for example 2024.1
+
 cd ~/kerbside-patches
 . buildconfig.sh
 
@@ -19,9 +21,18 @@ echo
 
 # Apply patches. We skip tests here because there are separate CI jobs to
 # cover that and the tests take ages to run.
-for item in *-2024.1; do
-    echo -e "${H2}Patching ${item}${Color_Off}"
-    ./testapply.sh --skip-tests ${item}
+declare -a directories
+projects=$(find . -type f -name "config.yaml" | cut -f 2 -d "/")
+for project in ${projects}; do
+    release=$(yq -r .release ${project}/config.yaml)
+    if [ "${release}" == "${1}" ]; then
+        directories+=(${directory})
+    fi
+done
+
+for directory in "${directories[@]}"; do
+    echo -e "${H2}Applying patches from ${directory}${Color_Off}"
+    ./testapply.sh --skip-tests ${directory}
 done
 
 trap - EXIT

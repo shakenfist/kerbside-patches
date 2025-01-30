@@ -1,5 +1,7 @@
 #!/bin/bash -e
 
+# $1: is an OpenStack release version -- for example 2024.1
+
 cd /home/cloud-user/kerbside-patches
 . buildconfig.sh
 
@@ -30,7 +32,7 @@ echo
 
 echo -e "${H2}Copy globals.yml${Color_Off}"
 cd ../..
-cp etc/globals-2024.1.yml /etc/kolla/globals.yml
+cp etc/globals-${1}.yml /etc/kolla/globals.yml
 echo
 
 echo -e "${H2}Tweak /etc/hosts${Color_Off}"
