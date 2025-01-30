@@ -1,6 +1,7 @@
 #!/bin/bash -e
 
 # $1: is an OpenStack release version -- for example 2024.1
+target_release="${1}"
 
 cd /home/cloud-user/kerbside-patches
 . buildconfig.sh
@@ -11,7 +12,13 @@ echo -e "${H1}Bootstrap Kolla-Ansible${Color_Off}"
 echo -e "${H1}==================================================${Color_Off}"
 
 echo -e "${H2}Install Ansible${Color_Off}"
-pip3 install -U "ansible-core<2.17" ansible
+if [ "${target_release}" == "2024.1" ]; then
+    pip3 install -U "ansible-core<2.17" ansible
+elif [ "${target_release}" == "2024.2" ]; then
+    pip3 install -U "ansible-core>=2.16,<2.18" ansible
+else
+    pip3 install -U "ansible-core>=2.16,<2.18" ansible
+fi
 echo
 
 echo -e "${H2}Install patched Kolla-Ansible${Color_Off}"
@@ -32,7 +39,7 @@ echo
 
 echo -e "${H2}Copy globals.yml${Color_Off}"
 cd ../..
-cp etc/globals-${1}.yml /etc/kolla/globals.yml
+cp etc/globals-${target_release}.yml /etc/kolla/globals.yml
 echo
 
 echo -e "${H2}Tweak /etc/hosts${Color_Off}"
@@ -50,11 +57,11 @@ kolla-genpwd
 echo
 
 echo -e "${H2}Make certificates${Color_Off}"
-kolla-ansible -i /etc/kolla/all-in-one certificates
+kolla-ansible certificates -i /etc/kolla/all-in-one
 echo
 
 echo -e "${H2}Bootstrap servers${Color_Off}"
-kolla-ansible -i /etc/kolla/all-in-one bootstrap-servers
+kolla-ansible bootstrap-servers -i /etc/kolla/all-in-one
 echo
 
 trap - EXIT

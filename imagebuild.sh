@@ -9,36 +9,42 @@ topsrcdir="${topdir}/src"
 
 echo
 echo -e "${H1}==================================================${Color_Off}"
-echo -e "${H1}Preparing artifacts from previous stages${Color_Off}"
-echo -e "${H1}==================================================${Color_Off}"
-
-projects=$(find . -type f -name "config.yaml" | cut -f 2 -d "/")
-declare -a directories
-mkdir -p ${topsrcdir}
-for project in kerbside ${projects}; do
-    if [ ${project} == "kerbside" ]; then
-        directory="kerbside"
-    else
-        directory=$(yq -r .directory ${project}/config.yaml)
-    fi
-
-    if [ ! -e ${topsrcdir}/${directory} ]; then
-        echo -e "${H2}Extract ${directory}.tgz for ${project} ${Color_Off}"
-        tar xzf ${topsrcdir}/${directory}.tgz -C ${topsrcdir}/
-        directories+=(${directory})
-    else
-        echo -e "${H2}${project} shares ${directory}${Color_Off}"
-    fi
-done
-
-echo
-echo -e "${H1}==================================================${Color_Off}"
 echo -e "${H1}State of build dependencies${Color_Off}"
 echo -e "${H1}==================================================${Color_Off}"
 du -sh ${topsrcdir}/*
 
 # Docker image build steps, which are pre target branch
 for target in ${build_targets}; do
+    echo
+    echo -e "${H1}==================================================${Color_Off}"
+    echo -e "${H1}Preparing artifacts from previous stages${Color_Off}"
+    echo -e "${H1}==================================================${Color_Off}"
+    echo -e "${H2}Finding projects for release ${target}${Color_Off}"
+    declare -a directories
+    directories+=(kerbside)
+
+    projects=$(find . -type f -name "config.yaml" | cut -f 2 -d "/")
+    for project in ${projects}; do
+        echo -e "${H3}Considering ${project}${Color_Off}"
+        release=$(yq -r .release ${project}/config.yaml)
+        directory=$(yq -r .directory ${project}/config.yaml)
+
+        echo "${project} is release ${release}"
+        if [ "${release}" == "${target}" ]; then
+            num_patches=$(cat ${project}/ORDER | wc -l)
+            echo "...there are ${num_patches} queued patches"
+            if [ ${num_patches} -lt 1 ]; then
+                echo "...but there are are no active patches"
+            elif [ -e ${topsrcdir}/${directory} ]; then
+                echo "...will be included, but archive already extracted"
+            else
+                echo "...will be included, extracting archive"
+                tar xzf ${topsrcdir}/${directory}.tgz -C ${topsrcdir}/
+                directories+=(${project})
+            fi
+        fi
+    done
+
     echo
     echo -e "${H1}==================================================${Color_Off}"
     echo -e "${H1}Building docker images for ${target}${Color_Off}"
@@ -85,11 +91,14 @@ for target in ${build_targets}; do
 
     # Install kolla, docker and oslo
     if [ ! -f ${venvdir}/bin/kolla-build ]; then
-        # We need to override the version of oslo.config so that it doesn't get clobbered
-        # by the Kolla install
-        export PBR_VERSION=10.0.0
-        ${venvdir}/bin/pip install "${topsrcdir}/oslo.config"
-        unset PBR_VERSION
+        if [ $( echo "${directories[@]}" | grep -c "oslo.config" || true) -gt 0 ]; then
+            # We need to override the version of oslo.config so that it doesn't
+            # get clobbered by the Kolla install.
+            echo -e "${H2}Overriding the default oslo.config with patched version${Color_Off}"
+            export PBR_VERSION=10.0.0
+            ${venvdir}/bin/pip install "${topsrcdir}/oslo.config"
+            unset PBR_VERSION
+        fi
 
         ${venvdir}/bin/pip install "${topsrcdir}/kolla"
         ${venvdir}/bin/pip install docker

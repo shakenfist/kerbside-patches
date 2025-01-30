@@ -80,14 +80,20 @@ jobs:
               -o UserKnownHostsFile=/dev/null \
               ${GITHUB_WORKSPACE}/kerbside-patches cloud-user@10.0.2.2:.
 
-      # - name: Upgrade python
-      #   run: |
-      #     . ${GITHUB_WORKSPACE}/ci-environment.sh
-      #     cd ${GITHUB_WORKSPACE}
+      - name: Upgrade python for releases newer than 2024.2
+        run: |
+          . ${GITHUB_WORKSPACE}/ci-environment.sh
+          cd ${GITHUB_WORKSPACE}
 
-      #     ssh -i /srv/github/id_ci -o StrictHostKeyChecking=no \
-      #           -o UserKnownHostsFile=/dev/null cloud-user@10.0.2.2 \
-      #           "cd kerbside-patches/tools; sudo ./upgrade-python"
+          release_year=$(echo "${{ matrix.test.release }}" | cut -f 1 -d ".")
+
+          if [ "${release_year}" != "2024" ]; then
+            ssh -i /srv/github/id_ci -o StrictHostKeyChecking=no \
+                  -o UserKnownHostsFile=/dev/null cloud-user@10.0.2.2 \
+                  "cd kerbside-patches/tools; sudo ./upgrade-python"
+          else
+            echo "2024 releases do not require a newer python, skipping"
+          fi
 
       - name: Install dependencies
         run: |

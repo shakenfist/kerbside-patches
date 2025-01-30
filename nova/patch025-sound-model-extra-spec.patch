@@ -155,8 +155,8 @@ index 6f61e861cc..0905043e09 100644
 +        LOG.debug('virtio_sound_filter skipped')
 +        return False
 +
-+    request_spec.root_required.add(os_traits.COMPUTE_SOUND_VIRTIO)
-+    LOG.debug('virtio_sound_filter added trait COMPUTE_SOUND_VIRTIO')
++    request_spec.root_required.add(os_traits.COMPUTE_SOUND_MODEL_VIRTIO)
++    LOG.debug('virtio_sound_filter added trait COMPUTE_SOUND_MODEL_VIRTIO')
 +    return True
 +
 +
@@ -268,7 +268,7 @@ index 4a15f6b56a..15e1afd5bb 100644
 +        self.assertTrue(
 +            request_filter.virtio_sound_filter(self.context, reqspec))
 +        self.assertEqual(
-+            {ot.COMPUTE_SOUND_VIRTIO},
++            {ot.COMPUTE_SOUND_MODEL_VIRTIO},
 +            reqspec.root_required)
 +        self.assertEqual(set(), reqspec.root_forbidden)
 diff --git a/nova/tests/unit/virt/libvirt/test_driver.py b/nova/tests/unit/virt/libvirt/test_driver.py
@@ -295,14 +295,14 @@ index 54738567b9..7662ed12fd 100644
          # we don't mock out calls to os_traits intentionally, so we need to
          # return valid traits here
 +        mock_sound_traits.return_value = {
-+            'COMPUTE_SOUND_SB16': True,
-+            'COMPUTE_SOUND_ES1370': True,
-+            'COMPUTE_SOUND_PCSPK': True,
-+            'COMPUTE_SOUND_AC97': True,
-+            'COMPUTE_SOUND_ICH6': True,
-+            'COMPUTE_SOUND_ICH9': True,
-+            'COMPUTE_SOUND_USB': True,
-+            'COMPUTE_SOUND_VIRTIO': True
++            'COMPUTE_SOUND_MODEL_SB16': True,
++            'COMPUTE_SOUND_MODEL_ES1370': True,
++            'COMPUTE_SOUND_MODEL_PCSPK': True,
++            'COMPUTE_SOUND_MODEL_AC97': True,
++            'COMPUTE_SOUND_MODEL_ICH6': True,
++            'COMPUTE_SOUND_MODEL_ICH9': True,
++            'COMPUTE_SOUND_MODEL_USB': True,
++            'COMPUTE_SOUND_MODEL_VIRTIO': True
 +            }
          mock_cpu_traits.return_value = {'HW_CPU_HYPERTHREADING': True}
          mock_storage_traits.return_value = {'COMPUTE_STORAGE_BUS_VIRTIO': True}

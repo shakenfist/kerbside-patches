@@ -7,7 +7,6 @@
 topdir=$(pwd)
 topsrcdir="${topdir}/src"
 
-ARGS=$*
 . buildconfig.sh
 
 echo
@@ -21,7 +20,7 @@ echo -e "${H1}==================================================${Color_Off}"
 rm -rf archive
 mkdir -p archive
 
-./imagebuild.sh
+./imagebuild.sh --build-targets "${build_targets}" --build-images "${build_images}"
 ./imagearchive.sh
 
 echo
@@ -33,16 +32,26 @@ echo -e "${H2}Export patched source code to archive/src${Color_Off}"
 cd "${topdir}"
 mkdir -p "archive/src"
 
-projects=$(find . -type f -name "config.yaml" | cut -f 2 -d "/")
 declare -a directories
-for project in kerbside ${projects}; do
-    if [ ${project} == "kerbside" ]; then
-        directory="kerbside"
-    else
-        directory=$(yq -r .directory ${project}/config.yaml)
-    fi
+directories+=(kerbside)
 
-    directories+=(${directory})
+projects=$(find . -type f -name "config.yaml" | cut -f 2 -d "/")
+for project in ${projects}; do
+    echo -e "${H3}Considering ${project}${Color_Off}"
+    release=$(yq -r .release ${project}/config.yaml)
+    directory=$(yq -r .directory ${project}/config.yaml)
+
+    echo "${project} is release ${release}"
+    if [ "${release}" == "${target}" ]; then
+        num_patches=$(cat ${project}/ORDER | wc -l)
+        echo "...there are ${num_patches} queued patches"
+        if [ ${num_patches} -lt 1 ]; then
+            echo "...but there are are no active patches"
+        else
+            echo "...will be included"
+            directories+=(${directory})
+        fi
+    fi
 done
 
 for directory in "${directories[@]}"; do
