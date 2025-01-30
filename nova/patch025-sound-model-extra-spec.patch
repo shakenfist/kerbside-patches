@@ -1,17 +1,17 @@
-commit 028f31ba46588784b318bce4090e8429dd5a9744
+commit c3e057956882c69643b0fb4b19d89e826642c563
 Author: Michael Still <mikal@stillhq.com>
-Date:   Mon Aug 26 10:05:16 2024 +1000
+Date:   Thu Jan 30 06:02:22 2025 +1100
 
     libvirt: Add extra spec for sound device.
-
+    
     This patch adds an extra spec to configure a sound device inside
     the guest. This is useful for SPICE consoles using the native
     protocol.
-
+    
     Change-Id: I2faeda0fd0fb9c8894d69558a1ccaab8da9f6a1b
 
 diff --git a/doc/notification_samples/common_payloads/ImageMetaPropsPayload.json b/doc/notification_samples/common_payloads/ImageMetaPropsPayload.json
-index cc05522..79f2559 100644
+index cc055229ab..79f2559ec5 100644
 --- a/doc/notification_samples/common_payloads/ImageMetaPropsPayload.json
 +++ b/doc/notification_samples/common_payloads/ImageMetaPropsPayload.json
 @@ -4,5 +4,5 @@
@@ -22,7 +22,7 @@ index cc05522..79f2559 100644
 +    "nova_object.version": "1.16"
  }
 diff --git a/nova/api/validation/extra_specs/hw.py b/nova/api/validation/extra_specs/hw.py
-index ab558d4..c50355b 100644
+index ab558d432c..c50355b794 100644
 --- a/nova/api/validation/extra_specs/hw.py
 +++ b/nova/api/validation/extra_specs/hw.py
 @@ -539,6 +539,19 @@ feature_flag_validators = [
@@ -43,10 +43,10 @@ index ab558d4..c50355b 100644
 +        },
 +    ),
  ]
-
+ 
  ephemeral_encryption_validators = [
 diff --git a/nova/notifications/objects/image.py b/nova/notifications/objects/image.py
-index 513c257..42e6153 100644
+index 513c257b47..42e61530aa 100644
 --- a/nova/notifications/objects/image.py
 +++ b/nova/notifications/objects/image.py
 @@ -133,7 +133,8 @@ class ImageMetaPropsPayload(base.NotificationPayloadBase):
@@ -56,17 +56,17 @@ index 513c257..42e6153 100644
 -    VERSION = '1.15'
 +    # Version 1.16: Added 'hw_sound_model' field
 +    VERSION = '1.16'
-
+ 
      # NOTE(efried): This logic currently relies on all of the fields of
      # ImageMetaProps being initialized with no arguments. See the docstring.
 diff --git a/nova/objects/fields.py b/nova/objects/fields.py
-index d64234f..0cb7922 100644
+index d64234f00c..0cb7922e12 100644
 --- a/nova/objects/fields.py
 +++ b/nova/objects/fields.py
 @@ -855,6 +855,20 @@ class PointerModelType(BaseNovaEnum):
      ALL = (USBTABLET,)
-
-
+ 
+ 
 +class SoundModelType(BaseNovaEnum):
 +
 +    SB16 = 'sb16'
@@ -86,17 +86,17 @@ index d64234f..0cb7922 100644
      CRITICAL = 'critical'
 @@ -1393,6 +1407,10 @@ class PointerModelField(BaseEnumField):
      AUTO_TYPE = PointerModelType()
-
-
+ 
+ 
 +class SoundModelField(BaseEnumField):
 +    AUTO_TYPE = SoundModelType()
 +
 +
  class NotificationPriorityField(BaseEnumField):
      AUTO_TYPE = NotificationPriority()
-
+ 
 diff --git a/nova/objects/image_meta.py b/nova/objects/image_meta.py
-index 2029b27..1488f3f 100644
+index 2029b274fd..1488f3f99f 100644
 --- a/nova/objects/image_meta.py
 +++ b/nova/objects/image_meta.py
 @@ -198,14 +198,18 @@ class ImageMetaProps(base.NovaObject):
@@ -109,7 +109,7 @@ index 2029b27..1488f3f 100644
      # ImageMetaPropsPayload must also be bumped. See its docstring for details.
 -    VERSION = '1.39'
 +    VERSION = '1.40'
-
+ 
      def obj_make_compatible(self, primitive, target_version):
          super(ImageMetaProps, self).obj_make_compatible(primitive,
                                                          target_version)
@@ -122,15 +122,54 @@ index 2029b27..1488f3f 100644
 @@ -494,6 +498,9 @@ class ImageMetaProps(base.NovaObject):
          # Control bits for the physical memory address bit of Libvirt guests.
          'hw_maxphysaddr_bits': fields.IntegerField(),
-
+ 
 +        # Name of sound device model to use.
 +        'hw_sound_model': fields.SoundModelField(),
 +
          # if true download using bittorrent
          'img_bittorrent': fields.FlexibleBooleanField(),
-
+ 
+diff --git a/nova/scheduler/request_filter.py b/nova/scheduler/request_filter.py
+index 6f61e861cc..b55466b32b 100644
+--- a/nova/scheduler/request_filter.py
++++ b/nova/scheduler/request_filter.py
+@@ -444,6 +444,26 @@ def ephemeral_encryption_filter(
+     return True
+ 
+ 
++@trace_request_filter
++def virtio_sound_filter(
++    ctxt: nova_context.RequestContext,
++    request_spec: 'objects.RequestSpec'
++) -> bool:
++    """Filter out hosts which do not support virtio sound devices
++
++    This filter will only retain compute node resource providers that support
++    virtio sound devices.
++    """
++    # Skip if the instance does not request a virtio sound device
++    model = hardware.get_sound_model(request_spec.flavor, request_spec.image)
++    if model != objects.fields.SoundModelType.VIRTIO:
++        LOG.debug('virtio_sound_filter skipped')
++        return False
++
++    request_spec.root_required.add(os_traits.COMPUTE_SOUND_VIRTIO)
++    LOG.debug('virtio_sound_filter added trait COMPUTE_SOUND_VIRTIO')
++
++
+ ALL_REQUEST_FILTERS = [
+     require_tenant_aggregate,
+     map_az_to_placement_aggregate,
+@@ -456,6 +476,7 @@ ALL_REQUEST_FILTERS = [
+     routed_networks_filter,
+     remote_managed_ports_filter,
+     ephemeral_encryption_filter,
++    virtio_sound_filter
+ ]
+ 
+ 
 diff --git a/nova/tests/functional/notification_sample_tests/test_instance.py b/nova/tests/functional/notification_sample_tests/test_instance.py
-index fcb2812..471fb92 100644
+index fcb2812068..471fb9295e 100644
 --- a/nova/tests/functional/notification_sample_tests/test_instance.py
 +++ b/nova/tests/functional/notification_sample_tests/test_instance.py
 @@ -1244,7 +1244,7 @@ class TestInstanceNotificationSample(
@@ -152,7 +191,7 @@ index fcb2812..471fb92 100644
                  'image.size': 58145823,
                  'image.tags': [],
 diff --git a/nova/tests/unit/notifications/objects/test_notification.py b/nova/tests/unit/notifications/objects/test_notification.py
-index bde7fd3..319892a 100644
+index bde7fd3f5e..319892aaee 100644
 --- a/nova/tests/unit/notifications/objects/test_notification.py
 +++ b/nova/tests/unit/notifications/objects/test_notification.py
 @@ -385,7 +385,7 @@ notification_object_data = {
@@ -165,13 +204,13 @@ index bde7fd3..319892a 100644
      'InstanceActionPayload': '1.9-525dcf81b6e4592d935712a2675309dc',
      'InstanceActionRebuildNotification':
 diff --git a/nova/tests/unit/objects/test_image_meta.py b/nova/tests/unit/objects/test_image_meta.py
-index 81b54a1..5b05fcc 100644
+index 81b54a19d6..5b05fccb77 100644
 --- a/nova/tests/unit/objects/test_image_meta.py
 +++ b/nova/tests/unit/objects/test_image_meta.py
 @@ -552,6 +552,17 @@ class TestImageMetaProps(test.NoDBTestCase):
          self.assertNotIn('hw_tpm_model', primitive['nova_object.data'])
          self.assertNotIn('hw_tpm_version', primitive['nova_object.data'])
-
+ 
 +    def test_obj_make_compatible_sound_model(self):
 +        """Test that checks if we pop hw_sound_model."""
 +        obj = objects.ImageMetaProps(
@@ -187,7 +226,7 @@ index 81b54a1..5b05fcc 100644
          obj = objects.ImageMetaProps(
              hw_pci_numa_affinity_policy=fields.PCINUMAAffinityPolicy.SOCKET)
 diff --git a/nova/tests/unit/objects/test_objects.py b/nova/tests/unit/objects/test_objects.py
-index e11156b..fd4dd9e 100644
+index e11156b9ef..fd4dd9e730 100644
 --- a/nova/tests/unit/objects/test_objects.py
 +++ b/nova/tests/unit/objects/test_objects.py
 @@ -1105,7 +1105,7 @@ object_data = {
@@ -199,14 +238,76 @@ index e11156b..fd4dd9e 100644
      'Instance': '2.8-2727dba5e4a078e6cc848c1f94f7eb24',
      'InstanceAction': '1.2-9a5abc87fdd3af46f45731960651efb5',
      'InstanceActionEvent': '1.4-5b1f361bd81989f8bb2c20bb7e8a4cb4',
+diff --git a/nova/tests/unit/scheduler/test_request_filter.py b/nova/tests/unit/scheduler/test_request_filter.py
+index 4a15f6b56a..15e1afd5bb 100644
+--- a/nova/tests/unit/scheduler/test_request_filter.py
++++ b/nova/tests/unit/scheduler/test_request_filter.py
+@@ -724,3 +724,25 @@ class TestRequestFilter(test.NoDBTestCase):
+              ot.COMPUTE_EPHEMERAL_ENCRYPTION_LUKS},
+             reqspec.root_required)
+         self.assertEqual(set(), reqspec.root_forbidden)
++
++    def test_virtio_sound_filter(self):
++        # First ensure that virtio_sound_filter is included
++        self.assertIn(request_filter.virtio_sound_filter,
++                      request_filter.ALL_REQUEST_FILTERS)
++
++        # Request filter puts the trait into the request spec
++        reqspec = objects.RequestSpec(
++            flavor=objects.Flavor(
++                extra_specs={
++                    'hw:sound_model': 'virtio'
++                }),
++            image=objects.ImageMeta(
++                properties=objects.ImageMetaProps()))
++        self.assertEqual(set(), reqspec.root_required)
++        self.assertEqual(set(), reqspec.root_forbidden)
++        self.assertTrue(
++            request_filter.virtio_sound_filter(self.context, reqspec))
++        self.assertEqual(
++            {ot.COMPUTE_SOUND_VIRTIO},
++            reqspec.root_required)
++        self.assertEqual(set(), reqspec.root_forbidden)
 diff --git a/nova/tests/unit/virt/libvirt/test_driver.py b/nova/tests/unit/virt/libvirt/test_driver.py
-index 83ca165..8c7330d 100644
+index 54738567b9..7662ed12fd 100644
 --- a/nova/tests/unit/virt/libvirt/test_driver.py
 +++ b/nova/tests/unit/virt/libvirt/test_driver.py
-@@ -7100,6 +7100,43 @@ class LibvirtConnTestCase(test.NoDBTestCase,
+@@ -997,6 +997,7 @@ class LibvirtConnTestCase(test.NoDBTestCase,
+         inst = libvirt_driver.LibvirtDriver(fake.FakeVirtAPI(), True)
+         self.assertPublicAPISignatures(baseinst, inst)
+ 
++    @mock.patch.object(libvirt_driver.LibvirtDriver, '_get_sound_model_traits')
+     @mock.patch.object(libvirt_driver.LibvirtDriver, '_get_cpu_traits')
+     @mock.patch.object(libvirt_driver.LibvirtDriver, '_get_storage_bus_traits')
+     @mock.patch.object(libvirt_driver.LibvirtDriver, '_get_video_model_traits')
+@@ -1004,12 +1005,22 @@ class LibvirtConnTestCase(test.NoDBTestCase,
+     @mock.patch.object(host.Host, "has_min_version")
+     def test_static_traits(
+         self, mock_version, mock_vif_traits, mock_video_traits,
+-        mock_storage_traits, mock_cpu_traits,
++        mock_storage_traits, mock_cpu_traits, mock_sound_traits
+     ):
+         """Ensure driver capabilities are correctly retrieved and cached."""
+ 
+         # we don't mock out calls to os_traits intentionally, so we need to
+         # return valid traits here
++        mock_sound_traits.return_value = {
++            'COMPUTE_SOUND_SB16': True,
++            'COMPUTE_SOUND_ES1370': True,
++            'COMPUTE_SOUND_PCSPK': True,
++            'COMPUTE_SOUND_AC97': True,
++            'COMPUTE_SOUND_ICH6': True,
++            'COMPUTE_SOUND_ICH9': True,
++            'COMPUTE_SOUND_USB': True,
++            'COMPUTE_SOUND_VIRTIO': True
++            }
+         mock_cpu_traits.return_value = {'HW_CPU_HYPERTHREADING': True}
+         mock_storage_traits.return_value = {'COMPUTE_STORAGE_BUS_VIRTIO': True}
+         mock_video_traits.return_value = {'COMPUTE_GRAPHICS_MODEL_VGA': True}
+@@ -7100,6 +7111,43 @@ class LibvirtConnTestCase(test.NoDBTestCase,
          self.assertEqual(cfg.devices[7].model, 'tpm-crb')
          self.assertEqual(cfg.devices[7].secret_uuid, uuids.vtpm)
-
+ 
 +    def test_get_guest_config_with_sound_model(self):
 +        self.flags(virt_type='kvm', group='libvirt')
 +
@@ -248,12 +349,12 @@ index 83ca165..8c7330d 100644
          self.flags(enabled=False, group='vnc')
          self.flags(virt_type='kvm', group='libvirt')
 diff --git a/nova/virt/hardware.py b/nova/virt/hardware.py
-index d65b175..01ebaf8 100644
+index d65b175bc2..01ebaf836c 100644
 --- a/nova/virt/hardware.py
 +++ b/nova/virt/hardware.py
 @@ -665,16 +665,16 @@ def _pack_instance_onto_cores(host_cell, instance_cell,
      threads_per_core = max(map(len, host_cell.siblings)) or 1
-
+ 
      LOG.debug('Packing an instance onto a set of siblings: '
 -             '    host_cell_free_siblings: %(siblings)s'
 -             '    instance_cell: %(cells)s'
@@ -275,7 +376,7 @@ index d65b175..01ebaf8 100644
 +               'host_cell_id': host_cell.id,
 +               'threads_per_core': threads_per_core,
 +               'num_cpu_reserved': num_cpu_reserved})
-
+ 
      # We build up a data structure that answers the question: 'Given the
      # number of threads I want to pack, give me a list of all the available
 @@ -907,7 +907,7 @@ def _pack_instance_onto_cores(host_cell, instance_cell,
@@ -284,17 +385,17 @@ index d65b175..01ebaf8 100644
      LOG.debug('Selected cores for pinning: %s, in cell %s', pinning,
 -                                                            host_cell.id)
 +              host_cell.id)
-
+ 
      instance_cell.pin_vcpus(*pinning)
      instance_cell.id = host_cell.id
 @@ -1507,7 +1507,7 @@ def _get_numa_node_count_constraint(
-
+ 
      nodes = flavor_nodes or image_nodes
      if nodes is not None and (not strutils.is_int_like(nodes) or
 -            int(nodes) < 1):
 +                              int(nodes) < 1):
          raise exception.InvalidNUMANodesNumber(nodes=nodes)
-
+ 
      return int(nodes) if nodes else nodes
 @@ -2578,7 +2578,7 @@ def numa_fit_instance_to_host(
              try:
@@ -334,7 +435,7 @@ index d65b175..01ebaf8 100644
 +
 +    return model
 diff --git a/nova/virt/libvirt/config.py b/nova/virt/libvirt/config.py
-index 0e8f159..2c185c4 100644
+index 0e8f15958e..2c185c42de 100644
 --- a/nova/virt/libvirt/config.py
 +++ b/nova/virt/libvirt/config.py
 @@ -4033,3 +4033,15 @@ class LibvirtConfigGuestMetaNovaIp(LibvirtConfigObject):
@@ -354,13 +455,13 @@ index 0e8f159..2c185c4 100644
 +        meta.set('model', str(self.model))
 +        return meta
 diff --git a/nova/virt/libvirt/driver.py b/nova/virt/libvirt/driver.py
-index 3bb3b7d..cdc96be 100644
+index 3bb3b7d7d4..da021e83d2 100644
 --- a/nova/virt/libvirt/driver.py
 +++ b/nova/virt/libvirt/driver.py
 @@ -6828,6 +6828,22 @@ class LibvirtDriver(driver.ComputeDriver):
          vtpm = vconfig.LibvirtConfigGuestVTPM(vtpm_config, vtpm_secret_uuid)
          guest.add_device(vtpm)
-
+ 
 +    def _add_sound_device(
 +        self,
 +        guest: vconfig.LibvirtConfigGuest,
@@ -382,9 +483,45 @@ index 3bb3b7d..cdc96be 100644
          if image_meta.properties.get('hw_qemu_guest_agent', False):
 @@ -7512,6 +7528,7 @@ class LibvirtDriver(driver.ComputeDriver):
          self._create_consoles(guest, instance, flavor, image_meta)
-
+ 
          self._guest_add_spice_channel(guest)
 +        self._add_sound_device(guest, flavor, instance, image_meta)
-
+ 
          if self._guest_add_video_device(guest):
              self._add_video_driver(guest, image_meta, flavor)
+@@ -9564,6 +9581,7 @@ class LibvirtDriver(driver.ComputeDriver):
+         traits.update(self._get_vif_model_traits())
+         traits.update(self._get_iommu_model_traits())
+         traits.update(self._get_tpm_traits())
++        traits.update(self._get_sound_model_traits())
+ 
+         _, invalid_traits = ot.check_traits(traits)
+         for invalid_trait in invalid_traits:
+@@ -13313,3 +13331,27 @@ class LibvirtDriver(driver.ComputeDriver):
+                 fs.source_dir = self._get_share_mount_path(instance, share)
+                 fs.target_dir = share.tag
+                 guest.add_device(fs)
++
++    def _get_sound_model_traits(self) -> ty.Dict[str, bool]:
++        """Get sound model traits from libvirt.
++
++        Not all traits generated by this function may be valid and the result
++        should be validated.
++
++        :return: A dict of trait names mapped to boolean values.
++        """
++        all_models = fields.SoundModelType.ALL
++
++        dom_caps = self._host.get_domain_capabilities()
++        supported_models: ty.Set[str] = set()
++        for arch_type in dom_caps:
++            for machine_type in dom_caps[arch_type]:
++                supported_models.update(
++                    dom_caps[arch_type][machine_type].devices.sound.models
++                )
++
++        # construct the corresponding standard trait from the video model name
++        return {
++            f'COMPUTE_SOUND_MODEL_{model.replace('-', '_').upper()}': model
++            in supported_models for model in all_models
++        }

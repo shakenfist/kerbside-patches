@@ -165,6 +165,22 @@ jobs:
               'targets': 'python-openstackclient:2024.1 python-openstackclient:2024.2 python-openstackclient:master',
               'infrastructure': 'vm'
           },
+          {
+              'description': "os-traits on rocky 9",
+              'name': 'rocky-9-os-traits',
+              'baseimage': 'sf://label/ci-images/rocky-9',
+              'baseuser': 'cloud-user',
+              'targets': 'os-traits:master',
+              'infrastructure': 'vm'
+          },
+          {
+              'description': "os-traits on debian 12",
+              'name': 'debian-12-os-traits',
+              'baseimage': 'sf://label/ci-images/debian-12',
+              'baseuser': 'debian',
+              'targets': 'os-traits:master',
+              'infrastructure': 'vm'
+          },
         ]
     runs-on: [self-hosted, "${{ matrix.test.infrastructure }}"]
     concurrency:
