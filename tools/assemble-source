@@ -2,7 +2,7 @@
 
 # $1: is an OpenStack release version -- for example 2024.1
 
-cd ~/kerbside-patches
+cd ..
 . buildconfig.sh
 
 echo

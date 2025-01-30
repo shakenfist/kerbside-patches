@@ -60,6 +60,7 @@ jobs:
 
       - name: Attempt to apply patches
         run: |
+          . $GITHUB_ENV
           cd ${GITHUB_WORKSPACE}/kerbside-patches/tools
           ./assemble-source ${{ matrix.test.release }}
 
