@@ -1,6 +1,15 @@
 #!/bin/bash -e
 
-cd /home/cloud-user/kerbside-patches
+. /etc/os-release
+echo "Claimed OS name: ${NAME}"
+if [ "${NAME}" == "Rocky Linux" ]; then
+    TOPDIR="/home/cloud-user/kerbside-patches"
+
+else
+    TOPDIR="/home/debian/kerbside-patches"
+fi
+
+cd "${TOPDIR}"
 . buildconfig.sh
 
 echo
@@ -9,7 +18,7 @@ echo -e "${H1}Post installation Kolla-Ansible steps${Color_Off}"
 echo -e "${H1}==================================================${Color_Off}"
 
 echo -e "${H2}Post deply${Color_Off}"
-kolla-ansible -i /etc/kolla/all-in-one post-deploy
+kolla-ansible post-deploy -i /etc/kolla/all-in-one
 echo
 
 . /etc/kolla/admin-openrc.sh

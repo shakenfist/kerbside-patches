@@ -1,6 +1,15 @@
 #!/bin/bash -e
 
-cd /home/cloud-user/kerbside-patches
+. /etc/os-release
+echo "Claimed OS name: ${NAME}"
+if [ "${NAME}" == "Rocky Linux" ]; then
+    TOPDIR="/home/cloud-user/kerbside-patches"
+
+else
+    TOPDIR="/home/debian/kerbside-patches"
+fi
+
+cd "${TOPDIR}"
 . buildconfig.sh
 
 echo
@@ -16,11 +25,11 @@ getent ahostsv4 kolla
 echo
 
 echo -e "${H2}Run pre-checks${Color_Off}"
-kolla-ansible -i /etc/kolla/all-in-one prechecks
+kolla-ansible prechecks -i /etc/kolla/all-in-one
 echo
 
 echo -e "${H2}Deploy servers${Color_Off}"
-kolla-ansible -i /etc/kolla/all-in-one deploy
+kolla-ansible deploy -i /etc/kolla/all-in-one
 echo
 
 trap - EXIT

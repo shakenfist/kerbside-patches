@@ -3,27 +3,37 @@
 # $1: is an OpenStack release version -- for example 2024.1
 target_release="${1}"
 
-cd /home/cloud-user/kerbside-patches
-. buildconfig.sh
+. /etc/os-release
+echo "Claimed OS name: ${NAME}"
+if [ "${NAME}" == "Rocky Linux" ]; then
+    TOPDIR="/home/cloud-user/kerbside-patches"
+
+else
+    TOPDIR="/home/debian/kerbside-patches"
+fi
+
+. "${TOPDIR}/buildconfig.sh"
 
 echo
 echo -e "${H1}==================================================${Color_Off}"
 echo -e "${H1}Bootstrap Kolla-Ansible${Color_Off}"
 echo -e "${H1}==================================================${Color_Off}"
 
+PIP_EXTRA=""
 echo -e "${H2}Install Ansible${Color_Off}"
 if [ "${target_release}" == "2024.1" ]; then
     pip3 install -U "ansible-core<2.17" ansible
 elif [ "${target_release}" == "2024.2" ]; then
     pip3 install -U "ansible-core>=2.16,<2.18" ansible
 else
-    pip3 install -U "ansible-core>=2.16,<2.18" ansible
+    PIP_EXTRA="--break-system-packages"
+    pip3 install ${PIP_EXTRA} -U "ansible-core>=2.16,<2.18" ansible
 fi
 echo
 
 echo -e "${H2}Install patched Kolla-Ansible${Color_Off}"
-cd src/kolla-ansible
-pip3 install -e .
+cd "${TOPDIR}/src/kolla-ansible"
+pip3 install ${PIP_EXTRA} -e .
 echo
 
 echo -e "${H2}Install Kolla-Ansible dependencies${Color_Off}"

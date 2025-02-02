@@ -16,12 +16,16 @@ jobs:
           {
             'name': '2024.1',
             'description': 'OpenStack release 2024.1',
-            'release': '2024.1'
+            'release': '2024.1',
+            'base': 'rocky:9',
+            'baseuser': 'cloud-user'
           },
           {
             'name': 'master',
             'description': 'OpenStack master',
-            'release': 'master'
+            'release': 'master',
+            'base': 'debian:12',
+            'baseuser': 'debian'
           },
         ]
     runs-on: [self-hosted, vm]
@@ -69,7 +73,7 @@ jobs:
           . $GITHUB_ENV
           cd ${GITHUB_WORKSPACE}/kerbside-patches
           ansible-playbook -i /home/debian/ansible-hosts \
-              --extra-vars "identifier=${SHAKENFIST_NAMESPACE}" \
+              --extra-vars "identifier=${SHAKENFIST_NAMESPACE} base=${{ matrix.test.base }}" \
               cloud-deployment.yml
 
       - name: Copy git repo
@@ -78,7 +82,7 @@ jobs:
           rm -rf kerbside-patches/src
           scp -rp -i /srv/github/id_ci -o StrictHostKeyChecking=no \
               -o UserKnownHostsFile=/dev/null \
-              ${GITHUB_WORKSPACE}/kerbside-patches cloud-user@10.0.2.2:.
+              ${GITHUB_WORKSPACE}/kerbside-patches ${{ matrix.test.baseuser }}@10.0.2.2:.
 
       - name: Upgrade python for releases newer than 2024.2
         run: |
@@ -89,7 +93,7 @@ jobs:
 
           if [ "${release_year}" != "2024" ]; then
             ssh -i /srv/github/id_ci -o StrictHostKeyChecking=no \
-                  -o UserKnownHostsFile=/dev/null cloud-user@10.0.2.2 \
+                  -o UserKnownHostsFile=/dev/null ${{ matrix.test.baseuser }}@10.0.2.2 \
                   "cd kerbside-patches/tools; sudo ./upgrade-python"
           else
             echo "2024 releases do not require a newer python, skipping"
@@ -100,7 +104,7 @@ jobs:
           . $GITHUB_ENV
           ssh -i /srv/github/id_ci -o StrictHostKeyChecking=no \
               -o UserKnownHostsFile=/dev/null \
-              cloud-user@10.0.2.2 \
+              ${{ matrix.test.baseuser }}@10.0.2.2 \
               'cd kerbside-patches/tools; ./install-build-dependencies'
 
       - name: Setup docker registry
@@ -108,7 +112,7 @@ jobs:
           . $GITHUB_ENV
           ssh -i /srv/github/id_ci -o StrictHostKeyChecking=no \
               -o UserKnownHostsFile=/dev/null \
-              cloud-user@10.0.2.2 \
+              ${{ matrix.test.baseuser }}@10.0.2.2 \
               'cd kerbside-patches/tools; sudo ./install-docker-registry'
 
       - name: Build patched repositories
@@ -116,7 +120,7 @@ jobs:
           . $GITHUB_ENV
           ssh -i /srv/github/id_ci -o StrictHostKeyChecking=no \
               -o UserKnownHostsFile=/dev/null \
-              cloud-user@10.0.2.2 \
+              ${{ matrix.test.baseuser }}@10.0.2.2 \
               'cd kerbside-patches/tools; ./assemble-source ${{ matrix.test.release }}'
 
       - name: Build container images
@@ -124,7 +128,7 @@ jobs:
           . $GITHUB_ENV
           ssh -i /srv/github/id_ci -o StrictHostKeyChecking=no \
               -o UserKnownHostsFile=/dev/null \
-              cloud-user@10.0.2.2 \
+              ${{ matrix.test.baseuser }}@10.0.2.2 \
               'cd kerbside-patches/tools; ./build-containers  ${{ matrix.test.release }}'
 
       - name: Disable /etc/hosts for name resolution
@@ -132,7 +136,7 @@ jobs:
           . $GITHUB_ENV
           ssh -i /srv/github/id_ci -o StrictHostKeyChecking=no \
               -o UserKnownHostsFile=/dev/null \
-              cloud-user@10.0.2.2 \
+              ${{ matrix.test.baseuser }}@10.0.2.2 \
               'sudo sed -i s"|hosts:      files dns myhostname|hosts:      dns myhostname|" /etc/nsswitch.conf'
 
       - name: Bootstrap Kolla-Ansible
@@ -140,7 +144,7 @@ jobs:
           . $GITHUB_ENV
           ssh -i /srv/github/id_ci -o StrictHostKeyChecking=no \
               -o UserKnownHostsFile=/dev/null \
-              cloud-user@10.0.2.2 \
+              ${{ matrix.test.baseuser }}@10.0.2.2 \
               'cd kerbside-patches/tools; sudo ./bootstrap-kolla-ansible ${{ matrix.test.release }}'
 
       - name: Install Kolla-Ansible
@@ -148,7 +152,7 @@ jobs:
           . $GITHUB_ENV
           ssh -i /srv/github/id_ci -o StrictHostKeyChecking=no \
               -o UserKnownHostsFile=/dev/null \
-              cloud-user@10.0.2.2 \
+              ${{ matrix.test.baseuser }}@10.0.2.2 \
               'cd kerbside-patches/tools; sudo ./install-kolla-ansible'
 
       - name: Install patched OpenStack clients
@@ -156,7 +160,7 @@ jobs:
           . $GITHUB_ENV
           ssh -i /srv/github/id_ci -o StrictHostKeyChecking=no \
               -o UserKnownHostsFile=/dev/null \
-              cloud-user@10.0.2.2 \
+              ${{ matrix.test.baseuser }}@10.0.2.2 \
               'cd kerbside-patches/tools; sudo ./install-openstack-clients'
 
       - name: Post install Kolla-Ansible setup
@@ -164,5 +168,5 @@ jobs:
           . $GITHUB_ENV
           ssh -i /srv/github/id_ci -o StrictHostKeyChecking=no \
               -o UserKnownHostsFile=/dev/null \
-              cloud-user@10.0.2.2 \
+              ${{ matrix.test.baseuser }}@10.0.2.2 \
               'cd kerbside-patches/tools; sudo ./postinstall-kolla-ansible'
