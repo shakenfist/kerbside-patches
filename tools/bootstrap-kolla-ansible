@@ -27,7 +27,8 @@ elif [ "${target_release}" == "2024.2" ]; then
     pip3 install -U "ansible-core>=2.16,<2.18" ansible
 else
     PIP_EXTRA="--break-system-packages"
-    pip3 install ${PIP_EXTRA} -U "ansible-core>=2.16,<2.18" ansible
+    pip3 install ${PIP_EXTRA} -U "ansible-core>=2.16,<2.18" ansible \
+        "selinux<0.3.0"
 fi
 echo
 

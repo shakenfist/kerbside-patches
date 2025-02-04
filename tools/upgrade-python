@@ -12,18 +12,6 @@ if [ "${NAME}" == "Rocky Linux" ]; then
     ln -s /usr/bin/python3.12 /usr/bin/python3
     ln -s /usr/bin/pip3.12 /usr/bin/pip3
     echo "Upgraded OS python to 3.12."
-
-    # We also need to rebuild libselinux-python which is used by ansible
-    dnf install -y wget rpm-build redhat-rpm-config make gcc rpmdevtools ruby \
-        ruby-devel libsepol-static python3-devel swig xz-devel vim
-    wget https://dl.rockylinux.org/pub/rocky/9/AppStream/source/tree/Packages/l/libselinux-3.6-1.el9.src.rpm
-    rpmdev-setuptree
-    mkdir selinux-python-src
-    cd selinux-python-src
-    rpm2cpio ../libselinux-3.6-1.el9.src.rpm | cpio -idmv
-    rpmbuild --rebuild libselinux-3.6-1.el9.src.rpm
-    rpm -i ~/rpmbuild/RPMS/*.rpm
-    echo "Rebuilt libselinux-python"
 else
     echo "OS is not Rocky Linux, skipping."
 fi
