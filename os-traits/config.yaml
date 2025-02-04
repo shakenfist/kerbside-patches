@@ -3,3 +3,4 @@ branch: master
 shallow_clone: true
 directory: os-traits
 release: master
+depends_on: ''

@@ -23,6 +23,7 @@ function run_tests {
     fi
 
     echo -e "${H3}Working in ${topsrcdir}/${directory} on branch ${1}${Color_Off}"
+
     if [ ! -e tox.ini ]
     then
         echo "${Red}No test configuration found!${Colour_off}"
@@ -95,10 +96,39 @@ for project in ${positional_args}; do
     branch=$(yq -r .branch ${project}/config.yaml)
     shallow_clone=$(yq -r .shallow_clone ${project}/config.yaml)
     directory=$(yq -r .directory ${project}/config.yaml)
+    depends_on=$(yq -r .depends_on ${project}/config.yaml)
 
     echo -e "${H2}${Arrow}Repository: ${repo}${Color_Off}"
     echo -e "${H2}${Arrow}Branch: ${branch}${Color_Off}"
     echo -e "${H2}${Arrow}Shallow cloning: ${shallow_clone}${Color_Off}"
+    echo -e "${H2}${Arrow}Dependencies: ${depends_on}${Color_Off}"
+    echo
+    echo -e "${H2}${Arrow}Skip tests: ${skip_tests}${Color_Off}"
+    echo
+
+    # Do this thing, but for our dependencies...
+    for dependency in ${depends_on}; do
+        echo
+        echo -e "${H1}**************************************************${Color_Off}"
+        echo -e "${H1}Entering ${dependency}${Color_Off}"
+        echo -e "${H1}**************************************************${Color_Off}"
+        echo
+
+        extra=""
+        if [ "${skip_tests}" == "true" ]; then
+            extra="--skip-tests"
+        fi
+        $0 ${dependency} ${extra}
+
+        echo
+        echo -e "${H1}**************************************************${Color_Off}"
+        echo -e "${H1}Finished with ${dependency}${Color_Off}"
+        echo -e "${H1}**************************************************${Color_Off}"
+        echo
+    done
+
+    echo
+    echo -e "${H2}${Arrow}Dependency processing complete${Color_Off}"
     echo
 
     mkdir -p "${topsrcdir}"
@@ -127,7 +157,7 @@ for project in ${positional_args}; do
         fi
     fi
 
-    cd ${topsrcdir}/${directory}
+    cd "${topsrcdir}/${directory}"
     git checkout -b ${branch}-patches
     echo -e "${H2}Working in branch ${branch}-patches${Color_Off}"
     cd ${topdir}

@@ -3,3 +3,4 @@ branch: master
 shallow_clone: false
 directory: python-novaclient
 release: master
+depends_on: ''

@@ -3,3 +3,4 @@ branch: stable/2024.2
 shallow_clone: false
 directory: python-openstackclient
 release: 2024.2
+depends_on: ''

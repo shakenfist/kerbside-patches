@@ -3,3 +3,4 @@ branch: stable/2023.1
 shallow_clone: false
 directory: openstacksdk
 release: 2023.1
+depends_on: ''

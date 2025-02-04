@@ -3,3 +3,4 @@ branch: stable/2023.1
 shallow_clone: true
 directory: kolla-ansible
 release: 2023.1
+depends_on: ''

@@ -1,0 +1,19 @@
+Author: Michael Still <mikal@stillhq.com>
+Date:   Rue Feb 04 18:20:30 2025 +1100
+
+    Force use of an upgraded os-traits so my local testing passes.
+
+diff --git a/tox.ini b/tox.ini
+index 2694fe0..9fb905e 100644
+--- a/tox.ini
++++ b/tox.ini
+@@ -48,7 +48,9 @@ passenv =
+   PYTHONOPTIMIZE
+ # there is also secret magic in subunit-trace which lets you run in a fail only
+ # mode. To do this define the TRACE_FAILONLY environmental variable.
++
+ commands =
++  bash -c "cd ../os-traits; pip3 install -U -e ."
+   stestr run {posargs}
+   env TEST_OSPROFILER=1 stestr run --combine --no-discover 'nova.tests.unit.test_profiler'
+   stestr slowest

@@ -3,3 +3,4 @@ branch: master
 shallow_clone: true
 directory: nova
 release: master
+depends_on: 'os-traits'
