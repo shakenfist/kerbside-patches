@@ -1,4 +1,4 @@
-commit a82e628b6addf06cacc8f00e1f33d690791e31f5
+commit a6685b7fb92ddc6815b6428b91f7c1dbe234e9c8
 Author: Michael Still <mikal@stillhq.com>
 Date:   Wed Feb 5 19:53:47 2025 +1100
 
@@ -13,9 +13,11 @@ Date:   Wed Feb 5 19:53:47 2025 +1100
     minimum compute manager versions, I didn't like how we looked up
     the minimum version several times for a single parent call for
     both create and resize.
+    
+    Change-Id: I33b8fc0136b4c1783b5c493e8ca9a15110767f6c
 
 diff --git a/nova/compute/api.py b/nova/compute/api.py
-index 58e55e6..2b2ae9c 100644
+index 58e55e6bf1..2b2ae9c570 100644
 --- a/nova/compute/api.py
 +++ b/nova/compute/api.py
 @@ -122,9 +122,10 @@ SUPPORT_VNIC_TYPE_REMOTE_MANAGED = 61
@@ -230,7 +232,7 @@ index 58e55e6..2b2ae9c 100644
          instance.task_state = task_states.RESIZE_PREP
          instance.progress = 0
 diff --git a/nova/exception.py b/nova/exception.py
-index 41c9492..3034105 100644
+index 41c9492bff..30341052da 100644
 --- a/nova/exception.py
 +++ b/nova/exception.py
 @@ -2171,6 +2171,12 @@ class InvalidReservedMemoryPagesOption(Invalid):
@@ -247,7 +249,7 @@ index 41c9492..3034105 100644
  # nova interaction.
  class ResourceProviderInUse(NovaException):
 diff --git a/nova/objects/service.py b/nova/objects/service.py
-index 12cd52b..edae7f7 100644
+index 12cd52ba77..edae7f7053 100644
 --- a/nova/objects/service.py
 +++ b/nova/objects/service.py
 @@ -31,7 +31,7 @@ LOG = logging.getLogger(__name__)
@@ -278,7 +280,7 @@ index 12cd52b..edae7f7 100644
  
  
 diff --git a/nova/tests/unit/compute/test_api.py b/nova/tests/unit/compute/test_api.py
-index ac8048b..89474f3 100644
+index ac8048b93e..89474f3b3c 100644
 --- a/nova/tests/unit/compute/test_api.py
 +++ b/nova/tests/unit/compute/test_api.py
 @@ -3989,6 +3989,8 @@ class _ComputeAPIUnitTestMixIn(object):

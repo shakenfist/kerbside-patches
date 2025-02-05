@@ -4,6 +4,7 @@
   vars:
     base: rocky:9
     identifier: unknown
+    sshkey: '/srv/github/id_ci.pub'
 
   tasks:
     - name: Create a kolla network
@@ -29,7 +30,7 @@
         networkspecs:
           - network_uuid=kolla,address=10.0.2.2,float=true
           - network_uuid=kolla,address=none
-        ssh_key: "{{ lookup('file', '/srv/github/id_ci.pub') }}"
+        ssh_key: "{{ lookup('file', sshkey) }}"
         namespace: "{{identifier}}"
         side_channels:
           - sf-agent
