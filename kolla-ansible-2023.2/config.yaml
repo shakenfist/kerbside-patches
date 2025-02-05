@@ -1,5 +1,5 @@
 repo: https://github.com/openstack/kolla-ansible
-branch: stable/2023.2
+source_branch: stable/2023.2
 shallow_clone: true
 directory: kolla-ansible
 release: 2023.2

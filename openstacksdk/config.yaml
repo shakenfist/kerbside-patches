@@ -1,5 +1,6 @@
 repo: https://github.com/openstack/openstacksdk
-branch: master
+source_branch: master
+destination_branch: master-patches
 shallow_clone: false
 directory: openstacksdk
 release: master

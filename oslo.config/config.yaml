@@ -1,5 +1,6 @@
 repo: https://github.com/openstack/oslo.config
-branch: master
+source_branch: master
+destination_branch: master-patches
 shallow_clone: false
 directory: oslo.config
 release: master
