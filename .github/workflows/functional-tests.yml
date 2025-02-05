@@ -15,21 +15,21 @@ jobs:
         test: [
           {
             'name': '2024.1-rocky9',
-            'description': 'OpenStack release 2024.1',
+            'description': 'OpenStack release 2024.1 on Rocky 9',
             'release': '2024.1',
             'base': 'rocky:9',
             'baseuser': 'cloud-user'
           },
           {
             'name': 'master-debian12',
-            'description': 'OpenStack master',
+            'description': 'OpenStack master on Debian 12',
             'release': 'master',
             'base': 'debian:12',
             'baseuser': 'debian'
           },
           {
             'name': 'master-rocky9',
-            'description': 'OpenStack master',
+            'description': 'OpenStack master on Rocky 9',
             'release': 'master',
             'base': 'rocky:9',
             'baseuser': 'cloud-user'
