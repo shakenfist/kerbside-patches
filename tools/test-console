@@ -1,0 +1,65 @@
+#!/bin/bash -e
+
+. /etc/kolla/admin-openrc.sh
+
+echo
+echo -e "${H1}==================================================${Color_Off}"
+echo -e "${H1}Download test image and setup glance${Color_Off}"
+echo -e "${H1}==================================================${Color_Off}"
+
+wget http://192.168.1.3/debian-11-desktop.qcow2
+openstack image create --public --disk-format qcow2 --container-format bare \
+    --file debian-11-desktop.qcow2 debian-11-desktop
+
+echo
+imageid=$(openstack image list -f json | \
+    jq -e -r ".[] | select(.Name == \"debian-11-desktop\") | .ID")
+echo "... image id is ${imageid}"
+
+echo
+echo -e "${H1}==================================================${Color_Off}"
+echo -e "${H1}Setup flavor and image extra specs${Color_Off}"
+echo -e "${H1}==================================================${Color_Off}"
+
+openstack image set --property hw_video_ram=64 ${imageid}
+openstack flavor create vdi --ram 4096 --disk 200 --vcpus 4 \
+    --property hw_video:ram_max_mb=64
+
+echo
+echo -e "${H1}==================================================${Color_Off}"
+echo -e "${H1}Start test instance${Color_Off}"
+echo -e "${H1}==================================================${Color_Off}"
+
+openstack server create --flavor vdi --image ${imageid} \
+    --network public1 test)
+
+echo
+echo -e "${H1}==================================================${Color_Off}"
+echo -e "${H1}Create console{Color_Off}"
+echo -e "${H1}==================================================${Color_Off}"
+
+consoleurl=$(openstack console url show test --spice-direct -f json | \
+    jq -e -r ".url")
+consoletoken=$(echo ${consoleurl} | sed 's/.*token=//')
+
+echo
+echo "... console url is ${consoleurl}"
+echo "... console token is ${consoletoken}"
+
+echo
+echo -e "${H1}==================================================${Color_Off}"
+echo -e "${H1}Lookup console connection details{Color_Off}"
+echo -e "${H1}==================================================${Color_Off}"
+
+connjson=$(openstack console connection show ${consoletoken} -f json)
+connhost=$(echo ${connjson} | jq -e -r ".host")
+connport=$(echo ${connjson} | jq -e -r ".port")
+
+echo
+echo "... connection is ${connhost}:${connport}"
+
+trap - EXIT
+
+echo -e "${H1}==================================================${Color_Off}"
+echo -e "${H1}OpenStack clients installed.${Color_Off}"
+echo -e "${H1}==================================================${Color_Off}"

@@ -1,20 +1,29 @@
 #!/bin/bash -e
 
-cd /home/cloud-user/kerbside-patches
-. buildconfig.sh
+. /etc/os-release
+echo "Claimed OS name: ${NAME}"
+if [ "${NAME}" == "Rocky Linux" ]; then
+    TOPDIR="/home/cloud-user/kerbside-patches"
+    PIP_EXTRA=""
+else
+    TOPDIR="/home/debian/kerbside-patches"
+    PIP_EXTRA="--break-system-packages"
+fi
+
+. "${TOPDIR}/buildconfig.sh"
 
 echo
 echo -e "${H1}==================================================${Color_Off}"
 echo -e "${H1}Install OpenStack clients${Color_Off}"
 echo -e "${H1}==================================================${Color_Off}"
 
-cd src
+cd "${TOPDIR}/src"
 
 for client in openstacksdk python-novaclient python-openstackclient; do
   cd ${client}
 
   echo -e "${H2}Installing ${client}${Color_Off}"
-  pip3 install -e .
+  pip3 install ${PIP_EXTRA} -e .
   echo
 
   cd ..

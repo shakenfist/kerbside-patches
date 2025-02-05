@@ -1,12 +1,12 @@
-commit 379b47c613798dba7de142e9bf5d7726979f739f
+commit 78453f8a4f34060054f2019523a238e02d0c1ae2
 Author: Michael Still <mikal@stillhq.com>
+Date:   Thu Feb 6 06:45:10 2025 +1100
 
     Add support for spice-direct console types.
-
+    
     This patch adds support for Nova microversion 2.98 which exposes the new
     spice-direct console type and the pre-existing /os-console-auth-token/ API.
-
-    # openstack console url show --spice-direct f2477018-aa93-...
+    
     +----------+----------------------------------------------------------+
     | Field    | Value                                                    |
     +----------+----------------------------------------------------------+
@@ -14,8 +14,7 @@ Author: Michael Still <mikal@stillhq.com>
     | type     | spice-direct                                             |
     | url      | http://127.0.0.1:13002/nova?token=f78009fb-41ad-...      |
     +----------+----------------------------------------------------------+
-
-    # openstack console connection show f78009fb-41ad-...
+    
     +----------------------+--------------------------------------+
     | Field                | Value                                |
     +----------------------+--------------------------------------+
@@ -25,31 +24,14 @@ Author: Michael Still <mikal@stillhq.com>
     | port                 | 5900                                 |
     | tls_port             | 5901                                 |
     +----------------------+--------------------------------------+
-
+    
     Depends-On: https://review.opendev.org/c/openstack/nova/+/924844
 
 diff --git a/openstackclient/compute/v2/console.py b/openstackclient/compute/v2/console.py
-index 3059cb10..3f0a3995 100644
+index 3059cb10..fe6fcf0b 100644
 --- a/openstackclient/compute/v2/console.py
 +++ b/openstackclient/compute/v2/console.py
-@@ -26,7 +26,15 @@ def _get_console_columns(item):
-     # To maintain backwards compatibility we need to rename sdk props to
-     # whatever OSC was using before
-     column_map = {}
--    hidden_columns = ['id', 'links', 'location', 'name']
-+    hidden_columns = [
-+        'id',
-+        'links',
-+        'location',
-+        'name',
-+        'host',
-+        'port',
-+        'tls_port',
-+    ]
-     return utils.get_osc_show_columns_for_sdk_resource(
-         item, column_map, hidden_columns
-     )
-@@ -107,6 +115,13 @@ class ShowConsoleURL(command.ShowOne):
+@@ -107,6 +107,13 @@ class ShowConsoleURL(command.ShowOne):
              const='spice-html5',
              help=_("Show SPICE console URL"),
          )
@@ -64,14 +46,14 @@ index 3059cb10..3f0a3995 100644
              '--rdp',
              dest='url_type',
 diff --git a/setup.cfg b/setup.cfg
-index d824afb1..d39d1143 100644
+index 0ce65134..71d6a817 100644
 --- a/setup.cfg
 +++ b/setup.cfg
 @@ -75,6 +75,7 @@ openstack.compute.v2 =
-
+ 
      console_log_show = openstackclient.compute.v2.console:ShowConsoleLog
      console_url_show = openstackclient.compute.v2.console:ShowConsoleURL
 +    console_connection_show = openstackclient.compute.v2.console_auth_token:ShowConsoleConnectionInformation
-
+ 
      flavor_create = openstackclient.compute.v2.flavor:CreateFlavor
      flavor_delete = openstackclient.compute.v2.flavor:DeleteFlavor
