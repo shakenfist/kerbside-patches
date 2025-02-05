@@ -1,0 +1,643 @@
+commit a82e628b6addf06cacc8f00e1f33d690791e31f5
+Author: Michael Still <mikal@stillhq.com>
+Date:   Wed Feb 5 19:53:47 2025 +1100
+
+    Protect older compute managers from sound model requests.
+    
+    This is broken out into a separate patch for now to make it easier
+    to review if this is itself a complete change. I am open to merging
+    it back into the sound model change if that is considered
+    desirable.
+    
+    I have chosen to do a bit of a cleanup of the lookup of
+    minimum compute manager versions, I didn't like how we looked up
+    the minimum version several times for a single parent call for
+    both create and resize.
+
+diff --git a/nova/compute/api.py b/nova/compute/api.py
+index 58e55e6..2b2ae9c 100644
+--- a/nova/compute/api.py
++++ b/nova/compute/api.py
+@@ -122,9 +122,10 @@ SUPPORT_VNIC_TYPE_REMOTE_MANAGED = 61
+ MIN_COMPUTE_VDPA_ATTACH_DETACH = 62
+ MIN_COMPUTE_VDPA_HOTPLUG_LIVE_MIGRATION = 63
+ 
+-
+ SUPPORT_SHARES = 67
+ 
++MIN_COMPUTE_SOUND_MODEL_TRAITS = 69
++
+ # FIXME(danms): Keep a global cache of the cells we find the
+ # first time we look. This needs to be refreshed on a timer or
+ # trigger.
+@@ -864,7 +865,7 @@ class API:
+     # TODO(huaqiang): Remove in Wallaby when there is no nova-compute node
+     # having a version prior to Victoria.
+     @staticmethod
+-    def _check_compute_service_for_mixed_instance(numa_topology):
++    def _check_compute_service_for_mixed_instance(numa_topology, min_comp_ver):
+         """Check if the nova-compute service is ready to support mixed instance
+         when the CPU allocation policy is 'mixed'.
+         """
+@@ -878,9 +879,7 @@ class API:
+ 
+         # Catch a request creating a mixed instance, make sure all nova-compute
+         # service have been upgraded and support the mixed policy.
+-        minimal_version = objects.service.get_minimum_version_all_cells(
+-            nova_context.get_admin_context(), ['nova-compute'])
+-        if minimal_version < MIN_VER_NOVA_COMPUTE_MIXED_POLICY:
++        if min_comp_ver < MIN_VER_NOVA_COMPUTE_MIXED_POLICY:
+             raise exception.MixedInstanceNotSupportByComputeService()
+ 
+     @staticmethod
+@@ -1042,7 +1041,7 @@ class API:
+ 
+     def _checks_for_create_and_rebuild(
+         self, context, image_id, image, flavor, metadata, files_to_inject,
+-        root_bdm, validate_numa=True,
++        root_bdm, min_comp_ver, validate_numa=True,
+     ):
+         self._check_metadata_properties_quota(context, metadata)
+         self._check_injected_file_quota(context, files_to_inject)
+@@ -1051,15 +1050,25 @@ class API:
+                                     flavor, root_bdm,
+                                     validate_numa=validate_numa)
+ 
+-    def _check_support_vnic_accelerator(self, context, requested_networks):
++        # Fetch flavor and image properties.
++        flavor_properties = flavor.get('extra_specs', {})
++        image_properties = image.get('properties', {})
++
++        # Do we support adding a sound device?
++        image_sound_model = image_properties.get('hw_sound_model')
++        flavor_sound_model = flavor_properties.get('hw:sound_model')
++        if (
++            (image_sound_model or flavor_sound_model) and
++            (min_comp_ver < MIN_COMPUTE_SOUND_MODEL_TRAITS)
++        ):
++            raise exception.SoundModelRequestOldCompute()
++
++    def _check_support_vnic_accelerator(
++            self, context, requested_networks, min_comp_ver):
+         if requested_networks:
+             for request_net in requested_networks:
+                 if request_net.device_profile:
+-                    min_version = (objects.service.
+-                        get_minimum_version_all_cells(
+-                            context,
+-                            ['nova-compute']))
+-                    if min_version < SUPPORT_VNIC_TYPE_ACCELERATOR:
++                    if min_comp_ver < SUPPORT_VNIC_TYPE_ACCELERATOR:
+                         msg = ("Port with cyborg profile is not available"
+                             " until upgrade finished.")
+                         raise exception.ForbiddenPortsWithAccelerator(msg)
+@@ -1086,7 +1095,7 @@ class API:
+         key_data, security_groups, availability_zone, user_data, metadata,
+         access_ip_v4, access_ip_v6, requested_networks, config_drive,
+         auto_disk_config, reservation_id, max_count,
+-        supports_port_resource_request,
++        supports_port_resource_request, min_comp_ver,
+     ):
+         """Verify all the input parameters regardless of the provisioning
+         strategy being performed.
+@@ -1149,7 +1158,8 @@ class API:
+             affinity_policy=pci_numa_affinity_policy)
+         network_metadata, port_resource_requests, req_lvl_params = result
+ 
+-        self._check_support_vnic_accelerator(context, requested_networks)
++        self._check_support_vnic_accelerator(
++            context, requested_networks, min_comp_ver)
+         self._check_support_vnic_remote_managed(context, requested_networks)
+ 
+         # Creating servers with ports that have resource requests, like QoS
+@@ -1165,9 +1175,7 @@ class API:
+         ):
+             # we only support the extended resource request if the computes are
+             # upgraded to Xena.
+-            min_version = objects.service.get_minimum_version_all_cells(
+-                context, ["nova-compute"])
+-            if min_version < MIN_COMPUTE_BOOT_WITH_EXTENDED_RESOURCE_REQUEST:
++            if min_comp_ver < MIN_COMPUTE_BOOT_WITH_EXTENDED_RESOURCE_REQUEST:
+                 raise exception.ExtendedResourceRequestOldCompute()
+ 
+         base_options = {
+@@ -1704,6 +1712,10 @@ class API:
+                 context, self.image_api, self.volume_api, block_device_mapping,
+                 legacy_bdm)
+ 
++        # Only lookup the minimum compute version once
++        min_comp_ver = objects.service.get_minimum_version_all_cells(
++            context, ["nova-compute"])
++
+         self._check_auto_disk_config(image=boot_meta,
+                                      auto_disk_config=auto_disk_config)
+ 
+@@ -1717,13 +1729,15 @@ class API:
+             user_data, metadata, access_ip_v4, access_ip_v6,
+             requested_networks, config_drive, auto_disk_config,
+             reservation_id, max_count, supports_port_resource_request,
++            min_comp_ver
+         )
+ 
+         # TODO(huaqiang): Remove in Wallaby
+         # check nova-compute nodes have been updated to Victoria to support the
+         # mixed CPU policy for creating a new instance.
+         numa_topology = base_options.get('numa_topology')
+-        self._check_compute_service_for_mixed_instance(numa_topology)
++        self._check_compute_service_for_mixed_instance(
++            numa_topology, min_comp_ver)
+ 
+         # max_net_count is the maximum number of instances requested by the
+         # user adjusted for any network quota constraints, including
+@@ -1754,7 +1768,8 @@ class API:
+         # _validate_and_build_base_options().
+         self._checks_for_create_and_rebuild(context, image_id, boot_meta,
+                 flavor, metadata, injected_files,
+-                block_device_mapping.root_bdm(), validate_numa=False)
++                block_device_mapping.root_bdm(), min_comp_ver,
++                validate_numa=False)
+ 
+         instance_group = self._get_requested_instance_group(
+             context, filter_properties)
+@@ -3649,6 +3664,10 @@ class API:
+                 instance.key_data = None
+                 instance.keypairs = objects.KeyPairList(objects=[])
+ 
++        # Only lookup the minimum compute version once
++        min_comp_ver = objects.service.get_minimum_version_all_cells(
++            context, ["nova-compute"])
++
+         # Use trusted_certs value from kwargs to create TrustedCerts object
+         trusted_certs = None
+         if 'trusted_certs' in kwargs:
+@@ -3721,7 +3740,7 @@ class API:
+             context, instance.uuid)
+ 
+         self._checks_for_create_and_rebuild(context, image_id, image,
+-                flavor, metadata, files_to_inject, root_bdm)
++                flavor, metadata, files_to_inject, root_bdm, min_comp_ver)
+ 
+         # Check the state of the volume. If it is not in-use, an exception
+         # will occur when creating attachment during reconstruction,
+@@ -4096,7 +4115,7 @@ class API:
+                                                migration,
+                                                migration.source_compute)
+ 
+-    def _allow_cross_cell_resize(self, context, instance):
++    def _allow_cross_cell_resize(self, context, instance, min_comp_ver):
+         """Determine if the request can perform a cross-cell resize on this
+         instance.
+ 
+@@ -4117,15 +4136,12 @@ class API:
+         if allowed:
+             # TODO(mriedem): We can remove this minimum compute version check
+             # in the 22.0.0 "V" release.
+-            min_compute_version = (
+-                objects.service.get_minimum_version_all_cells(
+-                    context, ['nova-compute']))
+-            if min_compute_version < MIN_COMPUTE_CROSS_CELL_RESIZE:
++            if min_comp_ver < MIN_COMPUTE_CROSS_CELL_RESIZE:
+                 LOG.debug('Request is allowed by policy to perform cross-cell '
+                           'resize but the minimum nova-compute service '
+                           'version in the deployment %s is less than %s so '
+                           'cross-cell resize is not allowed at this time.',
+-                          min_compute_version, MIN_COMPUTE_CROSS_CELL_RESIZE)
++                          min_comp_ver, MIN_COMPUTE_CROSS_CELL_RESIZE)
+                 return False
+ 
+             res_req, req_lvl_params = (
+@@ -4206,8 +4222,12 @@ class API:
+         host_name can be set in the cold migration case only.
+         """
+ 
++        # Only lookup the minimum compute version once
++        min_comp_ver = objects.service.get_minimum_version_all_cells(
++            context, ["nova-compute"])
++
+         allow_cross_cell_resize = self._allow_cross_cell_resize(
+-            context, instance)
++            context, instance, min_comp_ver)
+ 
+         if host_name is not None:
+             node = self._validate_host_for_cold_migrate(
+@@ -4339,7 +4359,7 @@ class API:
+             # instance to a new mixed instance from a dedicated or shared
+             # instance.
+             self._check_compute_service_for_mixed_instance(
+-                request_spec.numa_topology)
++                request_spec.numa_topology, min_comp_ver)
+ 
+         instance.task_state = task_states.RESIZE_PREP
+         instance.progress = 0
+diff --git a/nova/exception.py b/nova/exception.py
+index 41c9492..3034105 100644
+--- a/nova/exception.py
++++ b/nova/exception.py
+@@ -2171,6 +2171,12 @@ class InvalidReservedMemoryPagesOption(Invalid):
+                 "config-reference.")
+ 
+ 
++class SoundModelRequestOldCompute(Invalid):
++    msg_fmt = _("Setting a sound model is not supported on old nova compute "
++                "service version. Upgrade your compute services to Epoxy "
++                "(2025.1) or later.")
++
++
+ # An exception with this name is used on both sides of the placement/
+ # nova interaction.
+ class ResourceProviderInUse(NovaException):
+diff --git a/nova/objects/service.py b/nova/objects/service.py
+index 12cd52b..edae7f7 100644
+--- a/nova/objects/service.py
++++ b/nova/objects/service.py
+@@ -31,7 +31,7 @@ LOG = logging.getLogger(__name__)
+ 
+ 
+ # NOTE(danms): This is the global service version counter
+-SERVICE_VERSION = 68
++SERVICE_VERSION = 69
+ 
+ 
+ # NOTE(danms): This is our SERVICE_VERSION history. The idea is that any
+@@ -237,6 +237,9 @@ SERVICE_VERSION_HISTORY = (
+     # Version 68: Compute RPC v6.4:
+     # Add support for shares
+     {'compute_rpc': '6.4'},
++    # Version 69: Compute RPC v6.4:
++    # Compute manager supports sound model traits
++    {'compute_rpc': '6.4'},
+ )
+ 
+ # This is the version after which we can rely on having a persistent
+@@ -270,6 +273,7 @@ SERVICE_VERSION_ALIASES = {
+     'Bobcat': 66,
+     'Caracal': 66,
+     'Dalmatian': 67,
++    'Epoxy': 69
+ }
+ 
+ 
+diff --git a/nova/tests/unit/compute/test_api.py b/nova/tests/unit/compute/test_api.py
+index ac8048b..89474f3 100644
+--- a/nova/tests/unit/compute/test_api.py
++++ b/nova/tests/unit/compute/test_api.py
+@@ -3989,6 +3989,8 @@ class _ComputeAPIUnitTestMixIn(object):
+                           "new password")
+         self.assertIsNone(instance.task_state)
+ 
++    @mock.patch.object(objects.service, 'get_minimum_version_all_cells',
++                       return_value=compute_api.MIN_COMPUTE_SOUND_MODEL_TRAITS)
+     @mock.patch.object(objects.RequestSpec, 'get_by_instance_uuid')
+     @mock.patch.object(objects.Instance, 'save')
+     @mock.patch.object(objects.Instance, 'get_flavor')
+@@ -3998,11 +4000,13 @@ class _ComputeAPIUnitTestMixIn(object):
+     @mock.patch.object(compute_api.API, '_check_auto_disk_config')
+     @mock.patch.object(compute_api.API, '_checks_for_create_and_rebuild')
+     @mock.patch.object(compute_api.API, '_record_action_start')
+-    def test_rebuild_with_invalid_volume(self, _record_action_start,
++    def test_rebuild_with_invalid_volume(
++            self, _record_action_start,
+             _checks_for_create_and_rebuild, _check_auto_disk_config,
+             _check_image_arch, mock_get_image,
+             mock_get_bdms, get_flavor,
+-            instance_save, req_spec_get_by_inst_uuid):
++            instance_save, req_spec_get_by_inst_uuid,
++            mock_get_minimum_version_all_cells):
+         """Test a negative scenario where the instance has an
+         invalid volume.
+         """
+@@ -4051,9 +4055,12 @@ class _ComputeAPIUnitTestMixIn(object):
+                 image=image, auto_disk_config=None)
+             _check_image_arch.assert_called_once_with(image=image)
+             _checks_for_create_and_rebuild.assert_called_once_with(
+-                self.context, None, image, flavor, {}, [], None)
++                self.context, None, image, flavor, {}, [], None,
++                compute_api.MIN_COMPUTE_SOUND_MODEL_TRAITS)
+ 
+     @ddt.data(True, False)
++    @mock.patch.object(objects.service, 'get_minimum_version_all_cells',
++                       return_value=compute_api.MIN_COMPUTE_SOUND_MODEL_TRAITS)
+     @mock.patch.object(objects.RequestSpec, 'save')
+     @mock.patch.object(objects.RequestSpec, 'get_by_instance_uuid')
+     @mock.patch.object(objects.Instance, 'save')
+@@ -4069,7 +4076,8 @@ class _ComputeAPIUnitTestMixIn(object):
+             _check_auto_disk_config,
+             _check_image_arch, mock_get_image,
+             mock_get_bdms, get_flavor,
+-            instance_save, req_spec_get_by_inst_uuid, request_save):
++            instance_save, req_spec_get_by_inst_uuid, request_save,
++            mock_get_minimum_version_all_cells):
+         """Test a scenario where the instance is volume backed and we rebuild
+         with following cases:
+ 
+@@ -4131,7 +4139,8 @@ class _ComputeAPIUnitTestMixIn(object):
+                 _check_auto_disk_config.assert_called_once_with(
+                     image=image, auto_disk_config=None)
+                 _checks_for_create_and_rebuild.assert_called_once_with(
+-                    self.context, None, image, flavor, {}, [], root_bdm)
++                    self.context, None, image, flavor, {}, [], root_bdm,
++                    compute_api.MIN_COMPUTE_SOUND_MODEL_TRAITS)
+                 mock_get_bdms.assert_called_once_with(
+                     self.context, instance.uuid)
+             else:
+@@ -4205,6 +4214,8 @@ class _ComputeAPIUnitTestMixIn(object):
+                               reimage_boot_volume=False,
+                               target_state=None)
+ 
++    @mock.patch.object(objects.service, 'get_minimum_version_all_cells',
++                       return_value=compute_api.MIN_COMPUTE_SOUND_MODEL_TRAITS)
+     @mock.patch.object(objects.RequestSpec, 'get_by_instance_uuid')
+     @mock.patch.object(objects.Instance, 'save')
+     @mock.patch.object(objects.Instance, 'get_flavor')
+@@ -4216,7 +4227,7 @@ class _ComputeAPIUnitTestMixIn(object):
+     def test_rebuild(self, _record_action_start,
+             _checks_for_create_and_rebuild, _check_auto_disk_config,
+             _get_image, bdm_get_by_instance_uuid, get_flavor, instance_save,
+-            req_spec_get_by_inst_uuid):
++            req_spec_get_by_inst_uuid, mock_get_minimum_version_all_cells):
+         orig_system_metadata = {}
+         instance = fake_instance.fake_instance_obj(self.context,
+                 vm_state=vm_states.ACTIVE, cell_name='fake-cell',
+@@ -4259,11 +4270,14 @@ class _ComputeAPIUnitTestMixIn(object):
+         _check_auto_disk_config.assert_called_once_with(
+             image=image, auto_disk_config=None)
+         _checks_for_create_and_rebuild.assert_called_once_with(self.context,
+-                None, image, flavor, {}, [], None)
++                None, image, flavor, {}, [], None,
++                compute_api.MIN_COMPUTE_SOUND_MODEL_TRAITS)
+         self.assertNotEqual(orig_system_metadata, instance.system_metadata)
+         bdm_get_by_instance_uuid.assert_called_once_with(
+             self.context, instance.uuid)
+ 
++    @mock.patch.object(objects.service, 'get_minimum_version_all_cells',
++                       return_value=compute_api.MIN_COMPUTE_SOUND_MODEL_TRAITS)
+     @mock.patch.object(objects.RequestSpec, 'save')
+     @mock.patch.object(objects.RequestSpec, 'get_by_instance_uuid')
+     @mock.patch.object(objects.Instance, 'save')
+@@ -4276,7 +4290,8 @@ class _ComputeAPIUnitTestMixIn(object):
+     def test_rebuild_change_image(self, _record_action_start,
+             _checks_for_create_and_rebuild, _check_auto_disk_config,
+             _get_image, bdm_get_by_instance_uuid, get_flavor, instance_save,
+-            req_spec_get_by_inst_uuid, req_spec_save):
++            req_spec_get_by_inst_uuid, req_spec_save,
++            mock_get_minimum_version_all_cells):
+         orig_system_metadata = {}
+         get_flavor.return_value = test_flavor.fake_flavor
+         orig_image = {
+@@ -4339,9 +4354,12 @@ class _ComputeAPIUnitTestMixIn(object):
+         _check_auto_disk_config.assert_called_once_with(
+             image=new_image, auto_disk_config=None)
+         _checks_for_create_and_rebuild.assert_called_once_with(self.context,
+-                None, new_image, flavor, {}, [], None)
++                None, new_image, flavor, {}, [], None,
++                compute_api.MIN_COMPUTE_SOUND_MODEL_TRAITS)
+         self.assertEqual(fields_obj.VMMode.XEN, instance.vm_mode)
+ 
++    @mock.patch.object(objects.service, 'get_minimum_version_all_cells',
++                       return_value=compute_api.MIN_COMPUTE_SOUND_MODEL_TRAITS)
+     @mock.patch.object(objects.KeyPair, 'get_by_name')
+     @mock.patch.object(objects.RequestSpec, 'get_by_instance_uuid')
+     @mock.patch.object(objects.Instance, 'save')
+@@ -4354,7 +4372,8 @@ class _ComputeAPIUnitTestMixIn(object):
+     def test_rebuild_change_keypair(self, _record_action_start,
+             _checks_for_create_and_rebuild, _check_auto_disk_config,
+             _get_image, bdm_get_by_instance_uuid, get_flavor, instance_save,
+-            req_spec_get_by_inst_uuid, mock_get_keypair):
++            req_spec_get_by_inst_uuid, mock_get_keypair,
++            mock_get_minimum_version_all_cells):
+         orig_system_metadata = {}
+         orig_key_name = 'orig_key_name'
+         orig_key_data = 'orig_key_data_XXX'
+@@ -4402,10 +4421,13 @@ class _ComputeAPIUnitTestMixIn(object):
+         _check_auto_disk_config.assert_called_once_with(
+             image=image, auto_disk_config=None)
+         _checks_for_create_and_rebuild.assert_called_once_with(self.context,
+-                None, image, flavor, {}, [], None)
++                None, image, flavor, {}, [], None,
++                compute_api.MIN_COMPUTE_SOUND_MODEL_TRAITS)
+         self.assertNotEqual(orig_key_name, instance.key_name)
+         self.assertNotEqual(orig_key_data, instance.key_data)
+ 
++    @mock.patch.object(objects.service, 'get_minimum_version_all_cells',
++                       return_value=compute_api.MIN_COMPUTE_SOUND_MODEL_TRAITS)
+     @mock.patch.object(objects.RequestSpec, 'get_by_instance_uuid')
+     @mock.patch.object(objects.Instance, 'save')
+     @mock.patch.object(objects.Instance, 'get_flavor')
+@@ -4417,7 +4439,7 @@ class _ComputeAPIUnitTestMixIn(object):
+     def test_rebuild_change_trusted_certs(self, _record_action_start,
+             _checks_for_create_and_rebuild, _check_auto_disk_config,
+             _get_image, bdm_get_by_instance_uuid, get_flavor, instance_save,
+-            req_spec_get_by_inst_uuid):
++            req_spec_get_by_inst_uuid, mock_get_minimum_version_all_cells):
+         orig_system_metadata = {}
+         orig_trusted_certs = ['orig-trusted-cert-1', 'orig-trusted-cert-2']
+         new_trusted_certs = ['new-trusted-cert-1', 'new-trusted-cert-2']
+@@ -4462,9 +4484,12 @@ class _ComputeAPIUnitTestMixIn(object):
+         _check_auto_disk_config.assert_called_once_with(
+             image=image, auto_disk_config=None)
+         _checks_for_create_and_rebuild.assert_called_once_with(
+-            self.context, None, image, flavor, {}, [], None)
++            self.context, None, image, flavor, {}, [], None,
++            compute_api.MIN_COMPUTE_SOUND_MODEL_TRAITS)
+         self.assertEqual(new_trusted_certs, instance.trusted_certs.ids)
+ 
++    @mock.patch.object(objects.service, 'get_minimum_version_all_cells',
++                       return_value=compute_api.MIN_COMPUTE_SOUND_MODEL_TRAITS)
+     @mock.patch.object(objects.RequestSpec, 'get_by_instance_uuid')
+     @mock.patch.object(objects.Instance, 'save')
+     @mock.patch.object(objects.Instance, 'get_flavor')
+@@ -4478,7 +4503,8 @@ class _ComputeAPIUnitTestMixIn(object):
+                                           _check_auto_disk_config,
+                                           _get_image, bdm_get_by_instance_uuid,
+                                           get_flavor, instance_save,
+-                                          req_spec_get_by_inst_uuid):
++                                          req_spec_get_by_inst_uuid,
++                                          mock_get_minimum_version_all_cells):
+         """Tests the scenario that the server was created with some trusted
+         certs and then rebuilt without trusted_image_certificates=None
+         explicitly to unset the trusted certs on the server.
+@@ -4527,7 +4553,7 @@ class _ComputeAPIUnitTestMixIn(object):
+         _check_auto_disk_config.assert_called_once_with(
+             image=image, auto_disk_config=None)
+         _checks_for_create_and_rebuild.assert_called_once_with(
+-            self.context, None, image, flavor, {}, [], None)
++            self.context, None, image, flavor, {}, [], None, 69)
+         self.assertIsNone(instance.trusted_certs)
+ 
+     @mock.patch.object(compute_utils, 'is_volume_backed_instance',
+@@ -7644,9 +7670,7 @@ class ComputeAPIUnitTestCase(_ComputeAPIUnitTestMixIn, test.NoDBTestCase):
+             self.context, image, flavor, root_bdm=None, validate_pci=True)
+         mock_request.assert_called_once_with(flavor)
+ 
+-    @mock.patch('nova.objects.service.get_minimum_version_all_cells',
+-                return_value=56)
+-    def test_check_support_vnic_accelerator_version_before_57(self, mock_get):
++    def test_check_support_vnic_accelerator_version_before_57(self):
+         requested_networks = objects.NetworkRequestList(
+             objects=[objects.NetworkRequest(device_profile='smartnic1')])
+         self.assertRaisesRegex(exception.ForbiddenPortsWithAccelerator,
+@@ -7654,17 +7678,14 @@ class ComputeAPIUnitTestCase(_ComputeAPIUnitTestMixIn, test.NoDBTestCase):
+             ' finished.',
+             self.compute_api._check_support_vnic_accelerator,
+             self.context,
+-            requested_networks)
+-        mock_get.assert_called_once_with(self.context, ['nova-compute'])
++            requested_networks,
++            56)
+ 
+-    @mock.patch('nova.objects.service.get_minimum_version_all_cells',
+-                return_value=57)
+-    def test_check_support_vnic_accelerator_version_after_57(self, mock_get):
++    def test_check_support_vnic_accelerator_version_after_57(self):
+         requested_networks = objects.NetworkRequestList(
+             objects=[objects.NetworkRequest(device_profile='smartnic1')])
+         self.compute_api._check_support_vnic_accelerator(self.context,
+-            requested_networks)
+-        mock_get.assert_called_once_with(self.context, ['nova-compute'])
++            requested_networks, 57)
+ 
+     @mock.patch(
+         'nova.network.neutron.API.is_remote_managed_port',
+@@ -7728,6 +7749,7 @@ class ComputeAPIUnitTestCase(_ComputeAPIUnitTestMixIn, test.NoDBTestCase):
+                     user_data, metadata, access_ip_v4, access_ip_v6,
+                     requested_networks, config_drive, auto_disk_config,
+                     reservation_id, max_count, supports_port_resource_request,
++                    compute_api.MIN_COMPUTE_SOUND_MODEL_TRAITS
+                 )
+             )
+         # Assert the neutron security group API get method was called once
+@@ -8308,7 +8330,8 @@ class ComputeAPIUnitTestCase(_ComputeAPIUnitTestMixIn, test.NoDBTestCase):
+         mock_conductor_confirm.assert_called_once_with(
+             self.context, instance, migration)
+ 
+-    @mock.patch('nova.objects.service.get_minimum_version_all_cells')
++    @mock.patch('nova.objects.service.get_minimum_version_all_cells',
++                return_value=compute_api.MIN_COMPUTE_SOUND_MODEL_TRAITS)
+     def test_allow_cross_cell_resize_default_false(self, mock_get_min_ver):
+         """Based on the default policy this asserts nobody is allowed to
+         perform cross-cell resize.
+@@ -8316,35 +8339,32 @@ class ComputeAPIUnitTestCase(_ComputeAPIUnitTestMixIn, test.NoDBTestCase):
+         instance = objects.Instance(
+             project_id='fake-project', user_id='fake-user')
+         self.assertFalse(self.compute_api._allow_cross_cell_resize(
+-            self.context, instance))
++            self.context, instance,
++            compute_api.MIN_COMPUTE_SOUND_MODEL_TRAITS))
+         # We did not need to check the minimum nova-compute version since the
+         # policy check failed.
+         mock_get_min_ver.assert_not_called()
+ 
+-    @mock.patch('nova.objects.service.get_minimum_version_all_cells',
+-                return_value=compute_api.MIN_COMPUTE_CROSS_CELL_RESIZE - 1)
+-    def test_allow_cross_cell_resize_false_old_version(self, mock_get_min_ver):
++    def test_allow_cross_cell_resize_false_old_version(self):
+         """Policy allows cross-cell resize but minimum nova-compute service
+         version is not new enough.
+         """
+         instance = objects.Instance(
+             project_id='fake-project', user_id='fake-user',
+             uuid=uuids.instance)
++        before_cross_cell_resize = (
++            compute_api.MIN_COMPUTE_CROSS_CELL_RESIZE - 1)
+         with mock.patch.object(self.context, 'can', return_value=True) as can:
+             self.assertFalse(self.compute_api._allow_cross_cell_resize(
+-                self.context, instance))
++                self.context, instance, before_cross_cell_resize))
+         can.assert_called_once()
+-        mock_get_min_ver.assert_called_once_with(
+-            self.context, ['nova-compute'])
+ 
+     @mock.patch(
+         'nova.network.neutron.API.get_requested_resource_for_instance',
+         return_value=([objects.RequestGroup()], objects.RequestLevelParams())
+     )
+-    @mock.patch('nova.objects.service.get_minimum_version_all_cells',
+-                return_value=compute_api.MIN_COMPUTE_CROSS_CELL_RESIZE)
+     def test_allow_cross_cell_resize_false_port_with_resource_req(
+-            self, mock_get_min_ver, mock_get_res_req):
++            self, mock_get_res_req):
+         """Policy allows cross-cell resize but minimum nova-compute service
+         version is not new enough.
+         """
+@@ -8353,20 +8373,16 @@ class ComputeAPIUnitTestCase(_ComputeAPIUnitTestMixIn, test.NoDBTestCase):
+             uuid=uuids.instance)
+         with mock.patch.object(self.context, 'can', return_value=True) as can:
+             self.assertFalse(self.compute_api._allow_cross_cell_resize(
+-                self.context, instance))
++                self.context, instance,
++                compute_api.MIN_COMPUTE_CROSS_CELL_RESIZE))
+         can.assert_called_once()
+-        mock_get_min_ver.assert_called_once_with(
+-            self.context, ['nova-compute'])
+         mock_get_res_req.assert_called_once_with(self.context, uuids.instance)
+ 
+     @mock.patch(
+         'nova.network.neutron.API.get_requested_resource_for_instance',
+         return_value=([], objects.RequestLevelParams())
+     )
+-    @mock.patch('nova.objects.service.get_minimum_version_all_cells',
+-                return_value=compute_api.MIN_COMPUTE_CROSS_CELL_RESIZE)
+-    def test_allow_cross_cell_resize_true(
+-            self, mock_get_min_ver, mock_get_res_req):
++    def test_allow_cross_cell_resize_true(self, mock_get_res_req):
+         """Policy allows cross-cell resize and minimum nova-compute service
+         version is new enough.
+         """
+@@ -8375,10 +8391,9 @@ class ComputeAPIUnitTestCase(_ComputeAPIUnitTestMixIn, test.NoDBTestCase):
+             uuid=uuids.instance)
+         with mock.patch.object(self.context, 'can', return_value=True) as can:
+             self.assertTrue(self.compute_api._allow_cross_cell_resize(
+-                self.context, instance))
++                self.context, instance,
++                compute_api.MIN_COMPUTE_CROSS_CELL_RESIZE))
+         can.assert_called_once()
+-        mock_get_min_ver.assert_called_once_with(
+-            self.context, ['nova-compute'])
+         mock_get_res_req.assert_called_once_with(self.context, uuids.instance)
+ 
+     def _test_block_accelerators(self, instance, args_info,
+@@ -8639,27 +8654,35 @@ class ComputeAPIUnitTestCase(_ComputeAPIUnitTestMixIn, test.NoDBTestCase):
+             accel_uuids=accel_uuids)
+ 
+     # TODO(huaqiang): Remove in Wallaby
+-    @mock.patch('nova.objects.service.get_minimum_version_all_cells')
+-    def test__check_compute_service_for_mixed_instance(self, mock_ver):
++    def test__check_compute_service_for_mixed_instance_fails(self):
+         """Ensure a 'MixedInstanceNotSupportByComputeService' exception raises
+         if any compute node has not been upgraded to Victoria or later.
+         """
+-        mock_ver.side_effect = [52, 51]
+         fake_numa_topo = objects.InstanceNUMATopology(cells=[
+             objects.InstanceNUMACell(
+                 id=0, cpuset=set([0]), pcpuset=set([1]), memory=512,
+                 cpu_policy='mixed')
+         ])
+ 
+-        self.compute_api._check_compute_service_for_mixed_instance(
+-            fake_numa_topo)
+-        # 'get_minimum_version_all_cells' has been called
+-        mock_ver.assert_called()
+-
+         self.assertRaises(
+             exception.MixedInstanceNotSupportByComputeService,
+             self.compute_api._check_compute_service_for_mixed_instance,
+-            fake_numa_topo)
++            fake_numa_topo, 51)
++
++    # TODO(huaqiang): Remove in Wallaby
++    def test__check_compute_service_for_mixed_instance_passes(self):
++        """Ensure a 'MixedInstanceNotSupportByComputeService' exception raises
++        if any compute node has not been upgraded to Victoria or later.
++        """
++        fake_numa_topo = objects.InstanceNUMATopology(cells=[
++            objects.InstanceNUMACell(
++                id=0, cpuset=set([0]), pcpuset=set([1]), memory=512,
++                cpu_policy='mixed')
++        ])
++
++        # No exception means its ok
++        self.compute_api._check_compute_service_for_mixed_instance(
++            fake_numa_topo, 52)
+ 
+     @mock.patch('nova.servicegroup.api.API.service_is_up',
+                 new=mock.Mock(return_value=False))

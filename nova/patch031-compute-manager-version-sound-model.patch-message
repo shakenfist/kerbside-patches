@@ -1,0 +1,11 @@
+Protect older compute managers from sound model requests.
+
+This is broken out into a separate patch for now to make it easier
+to review if this is itself a complete change. I am open to merging
+it back into the sound model change if that is considered
+desirable.
+
+I have chosen to do a bit of a cleanup of the lookup of
+minimum compute manager versions, I didn't like how we looked up
+the minimum version several times for a single parent call for
+both create and resize.
