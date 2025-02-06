@@ -1,0 +1,8 @@
+Don't calculate the minimum compute version repeatedly.
+
+I have chosen to do a bit of a cleanup of the lookup of
+minimum compute manager versions, I didn't like how we looked up
+the minimum version several times for a single parent call for
+both create and resize.
+
+Change-Id: Ifc52d73b1328d3785e72be2c5cf741962c2b95da

@@ -194,10 +194,8 @@ for project in ${positional_args}; do
                 exit 1
             fi
 
-            if [ ! -e ${topdir}/${project}/${patch}-message ]; then
-                echo -e "${H3}Extracting commit message from ${topdir}/${project}/${patch}${Color_Off}"
-                python3 ${topdir}/tools/extract-commit-message ${topdir}/${project}/${patch}
-            fi
+            echo -e "${H3}Extracting commit message from ${topdir}/${project}/${patch}${Color_Off}"
+            python3 ${topdir}/tools/extract-commit-message ${topdir}/${project}/${patch}
 
             git commit -a --file ${topdir}/${project}/${patch}-message
             echo

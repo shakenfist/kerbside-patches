@@ -1,3 +1,4 @@
+patch032-reuse-minimum-compute-version.patch
 patch025-sound-model-extra-spec.patch
 patch031-compute-manager-version-sound-model.patch
 patch029-usb-redirection-extra-spec.patch
