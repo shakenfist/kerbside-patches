@@ -81,7 +81,7 @@ jobs:
           cd ${GITHUB_WORKSPACE}/kerbside-patches
           ansible-playbook -i /home/debian/ansible-hosts \
               --extra-vars "identifier=${SHAKENFIST_NAMESPACE} base=${{ matrix.test.base }}" \
-              cloud-deployment.yml
+              --tags all cloud-deployment.yml
 
       - name: Copy git repo
         run: |

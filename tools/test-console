@@ -30,15 +30,43 @@ echo -e "${H1}==================================================${Color_Off}"
 echo -e "${H1}Start test instance${Color_Off}"
 echo -e "${H1}==================================================${Color_Off}"
 
+instancename="test-$$"
 openstack server create --flavor vdi --image ${imageid} \
-    --network public1 test)
+    --network public1 ${instancename}
+
+start=$(date +"%s")
+now=$(date +"%s")
+while [ $(( ${now} - ${start} )) -lt 300 ]; do
+    status=$(openstack server show ${instancename} -f json | jq -e -r ".status")
+    if [ ${status} == 'ACTIVE' ]; then
+        break
+    fi
+    if [ ${status} == 'ERROR' ]; then
+        echo "... instance is in error status"
+        echo
+        openstack server show ${instancename}
+        exit 1
+    fi
+    echo "... instance status is ${status}"
+
+    sleep 10
+    now=$(date +"%s")
+done
+
+echo
+echo "... instance status is ${status}"
+
+if [ ${status} != 'ACTIVE' ]; then
+    echo "... instance never became active"
+    exit 1
+fi
 
 echo
 echo -e "${H1}==================================================${Color_Off}"
 echo -e "${H1}Create console{Color_Off}"
 echo -e "${H1}==================================================${Color_Off}"
 
-consoleurl=$(openstack console url show test --spice-direct -f json | \
+consoleurl=$(openstack console url show ${instancename} --spice-direct -f json | \
     jq -e -r ".url")
 consoletoken=$(echo ${consoleurl} | sed 's/.*token=//')
 
@@ -56,7 +84,15 @@ connhost=$(echo ${connjson} | jq -e -r ".host")
 connport=$(echo ${connjson} | jq -e -r ".port")
 
 echo
-echo "... connection is ${connhost}:${connport}"
+echo "... connection is ${connhost}:${connport}, attempting..."
+timeout 5 nc ${connhost} ${connport} | tee /tmp/$$.out
+echo
+if [ $(grep -c REDQ /tmp/$$.out || true) -lt 1 ]; then
+    echo "Did not see REDQ SPICE magic."
+    exit 1
+else
+    echo "Saw REDQ SPICE magic."
+fi
 
 trap - EXIT
 
