@@ -27,6 +27,7 @@ Author: Michael Still <mikal@stillhq.com>
     +----------------------+--------------------------------------+
 
     Depends-On: https://review.opendev.org/c/openstack/nova/+/924844
+    Change-Id: I97e3415ec3110374cf95d244cd75bcdf6c5e7871
 
 diff --git a/openstack/compute/v2/_proxy.py b/openstack/compute/v2/_proxy.py
 index 37af81395..f1dc19867 100644

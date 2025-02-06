@@ -1,6 +1,6 @@
 repo: https://github.com/openstack/python-openstackclient
 source_branch: master
-destination_branch: master-patches
+destination_branch: libvirt-spice-direct
 shallow_clone: false
 directory: python-openstackclient
 release: master
