@@ -4,13 +4,12 @@
 echo "Claimed OS name: ${NAME}"
 if [ "${NAME}" == "Rocky Linux" ]; then
     TOPDIR="/home/cloud-user/kerbside-patches"
-    PIP_EXTRA=""
 else
     TOPDIR="/home/debian/kerbside-patches"
-    PIP_EXTRA="--break-system-packages"
 fi
 
 . "${TOPDIR}/buildconfig.sh"
+. /srv/kolla-ansible/venv/bin/activate
 
 echo
 echo -e "${H1}==================================================${Color_Off}"
@@ -23,7 +22,13 @@ for client in openstacksdk python-novaclient python-openstackclient; do
   cd ${client}
 
   echo -e "${H2}Installing ${client}${Color_Off}"
-  pip3 install ${PIP_EXTRA} -e .
+  pip3 install -e .
+  echo
+
+  for executable in $(pip3 show -f ${client} | grep "/bin/" | sed 's/.*\///'); do
+    ln -s /srv/kolla-ansible/venv/bin/${executable} /usr/local/bin/
+    echo "Linked /srv/kolla-ansible/venv/bin/${executable} ${Arrow} /usr/local/bin/"
+  done
   echo
 
   cd ..
