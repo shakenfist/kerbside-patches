@@ -384,7 +384,7 @@ index ac8048b93e..eb5e791376 100644
              image=image, auto_disk_config=None)
          _checks_for_create_and_rebuild.assert_called_once_with(
 -            self.context, None, image, flavor, {}, [], None)
-+            self.context, None, image, flavor, {}, [], None, 69)
++            self.context, None, image, flavor, {}, [], None, 67)
          self.assertIsNone(instance.trusted_certs)
 
      @mock.patch.object(compute_utils, 'is_volume_backed_instance',
