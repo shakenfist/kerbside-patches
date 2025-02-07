@@ -1,0 +1,9 @@
+Add a spice-direct tempest test.
+
+This test works through the full spice-direct console flow:
+
+ - create an instance
+ - request a console token
+ - turn that console token into connection details
+ - connect with those details and ensure you get a SPICE protocol
+   handshake back

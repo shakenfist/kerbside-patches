@@ -1,0 +1,7 @@
+repo: https://github.com/openstack/tempest
+source_branch: master
+destination_branch: libvirt-spice-direct
+shallow_clone: true
+directory: tempest
+release: master
+depends_on: ''
