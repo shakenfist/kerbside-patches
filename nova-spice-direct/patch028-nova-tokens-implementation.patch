@@ -52,6 +52,8 @@ Date:   Wed Feb 5 19:53:46 2025 +1100
     APIImpact
     
     Change-Id: I1e701cbabc0e2c435685e31465159eec09e3b1a0
+    Depends-On: https://review.opendev.org/c/openstack/nova/+/940873
+    Depends-On: ...tempest change...
 
 diff --git a/api-ref/source/parameters.yaml b/api-ref/source/parameters.yaml
 index 1f444bc2b6..5dcba2fb78 100644

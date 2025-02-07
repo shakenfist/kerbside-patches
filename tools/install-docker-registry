@@ -5,7 +5,7 @@ echo "Claimed OS name: ${NAME}"
 if [ "${NAME}" == "Rocky Linux" ]; then
     . /home/cloud-user/kerbside-patches/buildconfig.sh
 else
-    . /home/debian/kerbside-patches/buildconfig.sh
+    . /home/${ID}/kerbside-patches/buildconfig.sh
 fi
 
 echo

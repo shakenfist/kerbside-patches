@@ -5,7 +5,7 @@ echo "Claimed OS name: ${NAME}"
 if [ "${NAME}" == "Rocky Linux" ]; then
     TOPDIR="/home/cloud-user/kerbside-patches"
 else
-    TOPDIR="/home/debian/kerbside-patches"
+    TOPDIR="/home/${ID}/kerbside-patches"
 fi
 
 . "${TOPDIR}/buildconfig.sh"
