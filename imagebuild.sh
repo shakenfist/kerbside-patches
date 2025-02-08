@@ -155,6 +155,37 @@ for target in ${build_targets}; do
     echo
     echo -e "${H3}Exit code: ${?}"
 
+    # Did we see any messages indicating failure?
+    failed=0
+    if [ $(grep -c "Failed with status" ${topdir}/archive/build.log || true) -gt 0]; then\
+        echo "Image build failed..."
+        grep "Failed with status" ${topdir}/archive/build.log
+        echo
+        failed = 1
+    fi
+
+    for img in $(tail -1 ${topdir}/archive/build.log | jq -r ".failed | .[] | .name"); do
+        echo "${img} failed"
+        failed = 1
+    done
+    if [ ${failed} == 1 ]; then
+        echo
+    fi
+
+    for img in $(tail -1 ${topdir}/archive/build.log | jq -r ".unbuildable | .[] | .name"); do
+        echo "${img} unbuildable"
+        failed = 1
+    done
+    if [ ${failed} == 1 ]; then
+        echo
+    fi
+
+
+    if [ ${failed} == 1 ]; then
+        echo "kolla-build failed!"
+        exit 1
+    fi
+
     # Extract the list of build images and save it for later
     tail -1 ${topdir}/archive/build.log | jq -r ".built | .[] | .name" > ${topdir}/archive/images
 

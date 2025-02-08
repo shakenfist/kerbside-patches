@@ -7,7 +7,6 @@ target_release="${1}"
 echo "Claimed OS name: ${NAME}"
 if [ "${NAME}" == "Rocky Linux" ]; then
     TOPDIR="/home/cloud-user/kerbside-patches"
-
 else
     TOPDIR="/home/${ID}/kerbside-patches"
 fi
@@ -23,6 +22,11 @@ echo -e "${H2}Make venv${Color_Off}"
 python3 -mvenv /srv/kolla-ansible/venv
 . /srv/kolla-ansible/venv/bin/activate
 
+echo -e "${H2}Log python binary locations${Color_Off}"
+echo "pip3 ${Arrow} "$(which pip3)
+echo "python3 ${Arrow} "$(which python3)
+echo
+
 echo -e "${H2}Install Ansible${Color_Off}"
 ansible_core=""
 if [ "${target_release}" == "2024.1" ]; then
@@ -34,6 +38,12 @@ else
 fi
 pip3 install -U ${ansible_core} ansible "selinux<0.3.0" dbus-python
 echo
+
+# if [ "${NAME}" == "Rocky Linux" ]; then
+#     echo -e "${H2}Install selinux in system python for Rocky linux${Color_Off}"
+#     /usr/bin/pip3 install "selinux<0.3.0"
+#     echo
+# fi
 
 echo -e "${H2}Install docker python libraries${Color_Off}"
 pip3 install docker
