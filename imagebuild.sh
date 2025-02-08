@@ -157,7 +157,7 @@ for target in ${build_targets}; do
 
     # Did we see any messages indicating failure?
     failed=0
-    if [ $(grep -c "Failed with status" ${topdir}/archive/build.log || true) -gt 0]; then\
+    if [ $(grep -c "Failed with status" ${topdir}/archive/build.log || true) -gt 0 ]; then\
         echo "Image build failed..."
         grep "Failed with status" ${topdir}/archive/build.log
         echo
