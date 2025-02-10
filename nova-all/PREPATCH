@@ -2,6 +2,7 @@
 ../nova-spice-direct/patch026-nova-tokens-objects.patch
 ../nova-spice-direct/patch027-nova-tokens-migration.patch
 ../nova-spice-direct/patch028-nova-tokens-implementation.patch
+../nova-vdi/patch032-reuse-minimum-compute-version.patch
 ../nova-vdi/patch025-sound-model-extra-spec.patch
 ../nova-vdi/patch031-compute-manager-version-sound-model.patch
 ../nova-vdi/patch029-usb-redirection-extra-spec.patch

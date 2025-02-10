@@ -48,3 +48,5 @@ Which returns something like this:
 APIImpact
 
 Change-Id: I1e701cbabc0e2c435685e31465159eec09e3b1a0
+Depends-On: https://review.opendev.org/c/openstack/nova/+/940873
+Depends-On: https://review.opendev.org/c/openstack/tempest/+/940943
