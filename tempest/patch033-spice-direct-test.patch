@@ -1,16 +1,18 @@
 commit 574162a366e53d63520abbde791dc33ef06c1cc3
 Author: Michael Still <mikal@stillhq.com>
-Date:   Fri Feb 7 00:05:11 2025 +0000
+Date: Fri Feb 7 00:05:11 2025 +0000
 
     Add a spice-direct tempest test.
-    
+
     This test works through the full spice-direct console flow:
-    
+
      - create an instance
      - request a console token
      - turn that console token into connection details
      - connect with those details and ensure you get a SPICE protocol
        handshake back
+
+    Change-Id: I9c4d1f05622d9a26db9edd2119eb03fdde726630
 
 diff --git a/releasenotes/notes/deprecate-spice-rdp-console-config-f2af173552axfb72.yaml b/releasenotes/notes/deprecate-spice-rdp-console-config-f2af173552axfb72.yaml
 index 58b161f..313b276 100644
@@ -290,7 +292,7 @@ index e91c87a..de29f11 100644
 @@ -680,6 +680,19 @@ class ServersClient(base_compute_client.BaseComputeClient):
          self.validate_response(schema.get_remote_consoles, resp, body)
          return rest_client.ResponseBody(resp, body)
- 
+
 +    def get_console_auth_token_details(self, token):
 +        """Turn a console auth token into hypervisor connection details.
 +
@@ -306,4 +308,4 @@ index e91c87a..de29f11 100644
 +
      def rescue_server(self, server_id, **kwargs):
          """Rescue the provided server.
- 
+
