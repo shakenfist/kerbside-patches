@@ -13,7 +13,7 @@ Date:   Fri Feb 7 00:05:11 2025 +0000
        handshake back
 
 diff --git a/releasenotes/notes/deprecate-spice-rdp-console-config-f2af173552axfb72.yaml b/releasenotes/notes/deprecate-spice-rdp-console-config-f2af173552axfb72.yaml
-index 58b161fd9..313b2764c 100644
+index 58b161f..313b276 100644
 --- a/releasenotes/notes/deprecate-spice-rdp-console-config-f2af173552axfb72.yaml
 +++ b/releasenotes/notes/deprecate-spice-rdp-console-config-f2af173552axfb72.yaml
 @@ -1,6 +1,10 @@
@@ -32,7 +32,7 @@ index 58b161fd9..313b2764c 100644
 +    in Nova.
 diff --git a/tempest/api/compute/servers/test_spice.py b/tempest/api/compute/servers/test_spice.py
 new file mode 100644
-index 000000000..53bd9b0ef
+index 0000000..7a451c9
 --- /dev/null
 +++ b/tempest/api/compute/servers/test_spice.py
 @@ -0,0 +1,144 @@
@@ -66,6 +66,9 @@ index 000000000..53bd9b0ef
 +
 +    create_default_network = True
 +
++    min_microversion = '2.98'
++    max_microversion = 'latest'
++
 +    # SPICE client protocol constants
 +    magic = b'REDQ'
 +    major = 2
@@ -79,9 +82,6 @@ index 000000000..53bd9b0ef
 +        super().skip_checks()
 +        if not CONF.compute_feature_enabled.spice_console:
 +            raise cls.skipException('SPICE console feature is disabled.')
-+        if not cls.is_requested_microversion_compatible('2.98'):
-+            raise cls.skipException(
-+                'Nova API too old to support spice-direct.')
 +
 +    def tearDown(self):
 +        super().tearDown()
@@ -181,7 +181,7 @@ index 000000000..53bd9b0ef
 +        self.assertEqual(2, minor)
 +        self.assertEqual(0, error)
 diff --git a/tempest/config.py b/tempest/config.py
-index 771972022..f9a08eaac 100644
+index 7719720..f9a08ea 100644
 --- a/tempest/config.py
 +++ b/tempest/config.py
 @@ -540,12 +540,8 @@ ComputeFeaturesGroup = [
@@ -200,7 +200,7 @@ index 771972022..f9a08eaac 100644
                  default=False,
                  help='Enable serial console. This configuration value '
 diff --git a/tempest/lib/api_schema/response/compute/v2_6/servers.py b/tempest/lib/api_schema/response/compute/v2_6/servers.py
-index e6b2c32b4..65a7b6f39 100644
+index e6b2c32..05ab616 100644
 --- a/tempest/lib/api_schema/response/compute/v2_6/servers.py
 +++ b/tempest/lib/api_schema/response/compute/v2_6/servers.py
 @@ -46,7 +46,8 @@ get_remote_consoles = {
@@ -208,13 +208,83 @@ index e6b2c32b4..65a7b6f39 100644
                      'protocol': {'enum': ['vnc', 'rdp', 'serial', 'spice']},
                      'type': {'enum': ['novnc', 'xvpvnc', 'rdp-html5',
 -                                      'spice-html5', 'serial']},
-+                                      'spice-html5', 'spice-direct',
++                                      'spice-html5',
 +                                      'serial']},
                      'url': {
                          'type': 'string',
                          'format': 'uri'
+diff --git a/tempest/lib/api_schema/response/compute/v2_98/__init__.py b/tempest/lib/api_schema/response/compute/v2_98/__init__.py
+new file mode 100644
+index 0000000..e69de29
+diff --git a/tempest/lib/api_schema/response/compute/v2_98/servers.py b/tempest/lib/api_schema/response/compute/v2_98/servers.py
+new file mode 100644
+index 0000000..fbe22c4
+--- /dev/null
++++ b/tempest/lib/api_schema/response/compute/v2_98/servers.py
+@@ -0,0 +1,61 @@
++#    Licensed under the Apache License, Version 2.0 (the "License"); you may
++#    not use this file except in compliance with the License. You may obtain
++#    a copy of the License at
++#
++#         http://www.apache.org/licenses/LICENSE-2.0
++#
++#    Unless required by applicable law or agreed to in writing, software
++#    distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
++#    WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
++#    License for the specific language governing permissions and limitations
++#    under the License.
++
++import copy
++
++from tempest.lib.api_schema.response.compute.v2_96 import servers
++
++# NOTE: Below are the unchanged schema in this microversion. We need
++# to keep this schema in this file to have the generic way to select the
++# right schema based on self.schema_versions_info mapping in service client.
++# ****** Schemas unchanged since microversion 2.96 ******
++list_servers = copy.deepcopy(servers.list_servers)
++get_server = copy.deepcopy(servers.get_server)
++list_servers_detail = copy.deepcopy(servers.list_servers_detail)
++update_server = copy.deepcopy(servers.update_server)
++rebuild_server = copy.deepcopy(servers.rebuild_server)
++rebuild_server_with_admin_pass = copy.deepcopy(
++    servers.rebuild_server_with_admin_pass)
++show_server_diagnostics = copy.deepcopy(servers.show_server_diagnostics)
++attach_volume = copy.deepcopy(servers.attach_volume)
++show_volume_attachment = copy.deepcopy(servers.show_volume_attachment)
++list_volume_attachments = copy.deepcopy(servers.list_volume_attachments)
++show_instance_action = copy.deepcopy(servers.show_instance_action)
++create_backup = copy.deepcopy(servers.create_backup)
++
++# NOTE: The consolidated remote console API got introduced with v2.98
++# with bp/consolidate-console-api. See Nova commit 578bafeda
++get_remote_consoles = {
++    'status_code': [200],
++    'response_body': {
++        'type': 'object',
++        'properties': {
++            'remote_console': {
++                'type': 'object',
++                'properties': {
++                    'protocol': {'enum': ['vnc', 'rdp', 'serial', 'spice']},
++                    'type': {'enum': ['novnc', 'xvpvnc', 'rdp-html5',
++                                      'spice-html5', 'spice-direct',
++                                      'serial']},
++                    'url': {
++                        'type': 'string',
++                        'format': 'uri'
++                    }
++                },
++                'additionalProperties': False,
++                'required': ['protocol', 'type', 'url']
++            }
++        },
++        'additionalProperties': False,
++        'required': ['remote_console']
++    }
++}
 diff --git a/tempest/lib/services/compute/servers_client.py b/tempest/lib/services/compute/servers_client.py
-index e91c87a9a..de29f11d8 100644
+index e91c87a..de29f11 100644
 --- a/tempest/lib/services/compute/servers_client.py
 +++ b/tempest/lib/services/compute/servers_client.py
 @@ -680,6 +680,19 @@ class ServersClient(base_compute_client.BaseComputeClient):
