@@ -11,6 +11,7 @@ fi
 
 cd "${TOPDIR}"
 . buildconfig.sh
+. /srv/kolla-ansible/venv/bin/activate
 
 echo
 echo -e "${H1}==================================================${Color_Off}"
