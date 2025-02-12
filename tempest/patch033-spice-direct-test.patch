@@ -1,4 +1,4 @@
-commit d3c1de6e8b66cf1c122a0df51f733a1543101f93
+commit 120ed67b284288b9cdbc0ee6bafc7f3d91c53c80
 Author: Michael Still <mikal@stillhq.com>
 Date:   Wed Feb 12 18:05:57 2025 +1100
 
@@ -32,12 +32,12 @@ index 58b161f..313b276 100644
 +    The config option ``CONF.compute.spice_console`` was previously listed as
 +    deprecated, but is now back in active use to support the testing of SPICE consoles
 +    in Nova.
-diff --git a/tempest/api/compute/servers/test_spice.py b/tempest/api/compute/servers/test_spice.py
+diff --git a/tempest/api/compute/admin/test_spice.py b/tempest/api/compute/admin/test_spice.py
 new file mode 100644
-index 0000000..45cfa12
+index 0000000..3b95893
 --- /dev/null
-+++ b/tempest/api/compute/servers/test_spice.py
-@@ -0,0 +1,144 @@
++++ b/tempest/api/compute/admin/test_spice.py
+@@ -0,0 +1,154 @@
 +# All Rights Reserved.
 +#
 +#    Licensed under the Apache License, Version 2.0 (the "License"); you may
@@ -63,7 +63,7 @@ index 0000000..45cfa12
 +CONF = config.CONF
 +
 +
-+class SpiceDirectConsoleTestJSON(base.BaseV2ComputeTest):
++class SpiceDirectConsoleTestJSON(base.BaseV2ComputeAdminTest):
 +    """Test the spice-direct console"""
 +
 +    create_default_network = True
@@ -106,7 +106,8 @@ index 0000000..45cfa12
 +    def test_spice_direct(self):
 +        """Test accessing spice-direct console of server"""
 +
-+        # Request a spice-direct console and validate the result
++        # Request a spice-direct console and validate the result. Any user can
++        # do this.
 +        body = self.servers_client.get_remote_console(
 +            self.server['id'], console_type='spice-direct', protocol='spice')
 +
@@ -115,13 +116,22 @@ index 0000000..45cfa12
 +        qparams = urlparse.parse_qs(parts.query)
 +        self.assertIn('token', qparams)
 +        self.assertNotEmpty(qparams['token'])
++        self.assertEqual(1, len(qparams['token']))
 +
 +        self.assertEqual('spice', body['remote_console']['protocol'])
 +        self.assertEqual('spice-direct', body['remote_console']['type'])
 +
-+        # Turn that console token into hypervisor connection details
-+        body = self.servers_client.get_console_auth_token_details(
-+            qparams['token'])
++        # For reasons best know to the python developers, the qparams values
++        # are lists as documented at
++        # https://docs.python.org/3/library/urllib.parse.html
++        token = qparams['token'][0]
++
++        # Turn that console token into hypervisor connection details. Only
++        # admins can do this because its expected that the request is coming
++        # from a proxy and we don't want to expose intimate hypervisor details
++        # to all users.
++        body = self.admin_servers_client.get_console_auth_token_details(
++            token)
 +
 +        console = body['console']
 +        self.assertEqual(self.server['id'], console['instance_uuid'])
