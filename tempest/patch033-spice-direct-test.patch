@@ -1,4 +1,4 @@
-commit a6ea127ca056a2f933744276db912c24c13168af
+commit d3c1de6e8b66cf1c122a0df51f733a1543101f93
 Author: Michael Still <mikal@stillhq.com>
 Date:   Wed Feb 12 18:05:57 2025 +1100
 
@@ -34,7 +34,7 @@ index 58b161f..313b276 100644
 +    in Nova.
 diff --git a/tempest/api/compute/servers/test_spice.py b/tempest/api/compute/servers/test_spice.py
 new file mode 100644
-index 0000000..52323ce
+index 0000000..45cfa12
 --- /dev/null
 +++ b/tempest/api/compute/servers/test_spice.py
 @@ -0,0 +1,144 @@
@@ -116,8 +116,8 @@ index 0000000..52323ce
 +        self.assertIn('token', qparams)
 +        self.assertNotEmpty(qparams['token'])
 +
-+        self.assertEqual('spice', body['protocol'])
-+        self.assertEqual('spice-direct', body['type'])
++        self.assertEqual('spice', body['remote_console']['protocol'])
++        self.assertEqual('spice-direct', body['remote_console']['type'])
 +
 +        # Turn that console token into hypervisor connection details
 +        body = self.servers_client.get_console_auth_token_details(
