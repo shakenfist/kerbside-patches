@@ -1,4 +1,4 @@
-commit 120ed67b284288b9cdbc0ee6bafc7f3d91c53c80
+commit 1b36797de8ecd1ba520a8680ccfc8c2c351e8879
 Author: Michael Still <mikal@stillhq.com>
 Date:   Wed Feb 12 18:05:57 2025 +1100
 
@@ -34,10 +34,10 @@ index 58b161f..313b276 100644
 +    in Nova.
 diff --git a/tempest/api/compute/admin/test_spice.py b/tempest/api/compute/admin/test_spice.py
 new file mode 100644
-index 0000000..3b95893
+index 0000000..50d2f9f
 --- /dev/null
 +++ b/tempest/api/compute/admin/test_spice.py
-@@ -0,0 +1,154 @@
+@@ -0,0 +1,153 @@
 +# All Rights Reserved.
 +#
 +#    Licensed under the Apache License, Version 2.0 (the "License"); you may
@@ -135,7 +135,6 @@ index 0000000..3b95893
 +
 +        console = body['console']
 +        self.assertEqual(self.server['id'], console['instance_uuid'])
-+        self.assertEqual('localhost', console['host'])
 +        self.assertIn('port', console)
 +        self.assertIn('tlsPort', console)
 +        self.assertIsNone(console['internal_access_path'])
@@ -230,10 +229,10 @@ new file mode 100644
 index 0000000..e69de29
 diff --git a/tempest/lib/api_schema/response/compute/v2_98/servers.py b/tempest/lib/api_schema/response/compute/v2_98/servers.py
 new file mode 100644
-index 0000000..fbe22c4
+index 0000000..828dda1
 --- /dev/null
 +++ b/tempest/lib/api_schema/response/compute/v2_98/servers.py
-@@ -0,0 +1,61 @@
+@@ -0,0 +1,78 @@
 +#    Licensed under the Apache License, Version 2.0 (the "License"); you may
 +#    not use this file except in compliance with the License. You may obtain
 +#    a copy of the License at
@@ -268,8 +267,25 @@ index 0000000..fbe22c4
 +show_instance_action = copy.deepcopy(servers.show_instance_action)
 +create_backup = copy.deepcopy(servers.create_backup)
 +
-+# NOTE: The consolidated remote console API got introduced with v2.98
-+# with bp/consolidate-console-api. See Nova commit 578bafeda
++console_auth_tokens = {
++    'status_code': [200],
++    'response_body': {
++        'type': 'object',
++        'properties': {
++            'console': {
++                'type': 'object',
++                'properties': {
++                    'instance_uuid': {'type': 'string'},
++                    'host': {'type': 'string'},
++                    'port': {'type': 'integer'},
++                    'tls_port': {'type': ['integer', 'null']},
++                    'internal_access_path': {'type': ['string', 'null']}
++                }
++            }
++        }
++    }
++}
++
 +get_remote_consoles = {
 +    'status_code': [200],
 +    'response_body': {
@@ -296,7 +312,7 @@ index 0000000..fbe22c4
 +    }
 +}
 diff --git a/tempest/lib/services/compute/servers_client.py b/tempest/lib/services/compute/servers_client.py
-index e91c87a..195725b 100644
+index e91c87a..03562aa 100644
 --- a/tempest/lib/services/compute/servers_client.py
 +++ b/tempest/lib/services/compute/servers_client.py
 @@ -46,6 +46,7 @@ from tempest.lib.api_schema.response.compute.v2_8 import servers as schemav28
@@ -332,7 +348,7 @@ index e91c87a..195725b 100644
 +        resp, body = self.get('/os-console-auth-tokens/%s' % token)
 +        body = json.loads(body)
 +        schema = self.get_schema(self.schema_versions_info)
-+        self.validate_response(schema.show_server_diagnostics, resp, body)
++        self.validate_response(schema.console_auth_tokens, resp, body)
 +        return rest_client.ResponseBody(resp, body)
 +
      def rescue_server(self, server_id, **kwargs):
