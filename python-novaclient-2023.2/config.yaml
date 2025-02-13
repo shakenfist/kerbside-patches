@@ -1,4 +1,6 @@
 repo: https://github.com/openstack/python-novaclient
-branch: stable/2023.2
+source_branch: stable/2023.2
 shallow_clone: false
 directory: python-novaclient
+release: 2023.2
+depends_on: ''

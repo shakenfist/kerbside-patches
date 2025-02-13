@@ -7,12 +7,38 @@ on:
       - develop
 
 jobs:
-  rocky-9:
-    name: "Build a test cloud"
+  functional_matrix:
+    name: "Build a test cloud for ${{ matrix.test.description }}"
+    strategy:
+      fail-fast: false
+      matrix:
+        test: [
+          {
+            'name': '2024.1-rocky9',
+            'description': 'OpenStack release 2024.1 on Rocky 9',
+            'release': '2024.1',
+            'base': 'rocky:9',
+            'baseuser': 'cloud-user'
+          },
+          {
+            'name': 'master-debian12',
+            'description': 'OpenStack master on Debian 12',
+            'release': 'master',
+            'base': 'debian:12',
+            'baseuser': 'debian'
+          },
+          {
+            'name': 'master-rocky9',
+            'description': 'OpenStack master on Rocky 9',
+            'release': 'master',
+            'base': 'rocky:9',
+            'baseuser': 'cloud-user'
+          },
+        ]
     runs-on: [self-hosted, vm]
     timeout-minutes: 300
     concurrency:
-      group: ${{ github.workflow }}-${{ github.ref }}
+      group: ${{ github.workflow }}-${{ github.ref }}-${{ matrix.test.name }}
       cancel-in-progress: true
 
     # NOTE(mikal): git repos are checked out to /srv/github/_work/{org}/{repo}
@@ -39,38 +65,23 @@ jobs:
           short_sha=$(git rev-parse --short HEAD)
           echo "SF_SHORT_HEAD_SHA=${short_sha}" >> $GITHUB_ENV
 
-      # - name: Install the github command line
-      #   run: |
-      #     sudo apt update
-      #     sudo apt install -y curl
-
-      #     curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg | sudo dd of=/usr/share/keyrings/githubcli-archive-keyring.gpg
-      #     sudo chmod go+r /usr/share/keyrings/githubcli-archive-keyring.gpg
-      #     echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" | sudo tee /etc/apt/sources.list.d/github-cli.list > /dev/null
-
-      #     sudo apt update
-      #     sudo apt install -y gh
-
       - name: Install required packages
         run: |
           sudo pip3 install yq
 
-      - name: Attempt to apply patches (2024.1)
+      - name: Attempt to apply patches
         run: |
-          cd ${GITHUB_WORKSPACE}/kerbside-patches
-
-          for item in *-2024.1; do
-              echo -e "${H2}Patching ${item}${Color_Off}"
-              ./testapply.sh --skip-tests ${item}
-          done
+          . $GITHUB_ENV
+          cd ${GITHUB_WORKSPACE}/kerbside-patches/tools
+          ./assemble-source ${{ matrix.test.release }}
 
       - name: Build infrastructure
         run: |
           . $GITHUB_ENV
           cd ${GITHUB_WORKSPACE}/kerbside-patches
           ansible-playbook -i /home/debian/ansible-hosts \
-              --extra-vars "identifier=${SHAKENFIST_NAMESPACE}" \
-              cloud-deployment.yml
+              --extra-vars "identifier=${SHAKENFIST_NAMESPACE} base=${{ matrix.test.base }}" \
+              --tags all cloud-deployment.yml
 
       - name: Copy git repo
         run: |
@@ -78,23 +89,29 @@ jobs:
           rm -rf kerbside-patches/src
           scp -rp -i /srv/github/id_ci -o StrictHostKeyChecking=no \
               -o UserKnownHostsFile=/dev/null \
-              ${GITHUB_WORKSPACE}/kerbside-patches cloud-user@10.0.2.2:.
+              ${GITHUB_WORKSPACE}/kerbside-patches ${{ matrix.test.baseuser }}@10.0.2.2:.
 
-      # - name: Upgrade python
-      #   run: |
-      #     . ${GITHUB_WORKSPACE}/ci-environment.sh
-      #     cd ${GITHUB_WORKSPACE}
+      - name: Upgrade python for releases newer than 2024.2
+        run: |
+          . ${GITHUB_WORKSPACE}/ci-environment.sh
+          cd ${GITHUB_WORKSPACE}
 
-      #     ssh -i /srv/github/id_ci -o StrictHostKeyChecking=no \
-      #           -o UserKnownHostsFile=/dev/null cloud-user@10.0.2.2 \
-      #           "cd kerbside-patches/tools; sudo ./upgrade-python"
+          release_year=$(echo "${{ matrix.test.release }}" | cut -f 1 -d ".")
+
+          if [ "${release_year}" != "2024" ]; then
+            ssh -i /srv/github/id_ci -o StrictHostKeyChecking=no \
+                  -o UserKnownHostsFile=/dev/null ${{ matrix.test.baseuser }}@10.0.2.2 \
+                  "cd kerbside-patches/tools; sudo ./upgrade-python"
+          else
+            echo "2024 releases do not require a newer python, skipping"
+          fi
 
       - name: Install dependencies
         run: |
           . $GITHUB_ENV
           ssh -i /srv/github/id_ci -o StrictHostKeyChecking=no \
               -o UserKnownHostsFile=/dev/null \
-              cloud-user@10.0.2.2 \
+              ${{ matrix.test.baseuser }}@10.0.2.2 \
               'cd kerbside-patches/tools; ./install-build-dependencies'
 
       - name: Setup docker registry
@@ -102,7 +119,7 @@ jobs:
           . $GITHUB_ENV
           ssh -i /srv/github/id_ci -o StrictHostKeyChecking=no \
               -o UserKnownHostsFile=/dev/null \
-              cloud-user@10.0.2.2 \
+              ${{ matrix.test.baseuser }}@10.0.2.2 \
               'cd kerbside-patches/tools; sudo ./install-docker-registry'
 
       - name: Build patched repositories
@@ -110,23 +127,23 @@ jobs:
           . $GITHUB_ENV
           ssh -i /srv/github/id_ci -o StrictHostKeyChecking=no \
               -o UserKnownHostsFile=/dev/null \
-              cloud-user@10.0.2.2 \
-              'cd kerbside-patches/tools; ./assemble-source'
+              ${{ matrix.test.baseuser }}@10.0.2.2 \
+              'cd kerbside-patches/tools; ./assemble-source ${{ matrix.test.release }}'
 
       - name: Build container images
         run: |
           . $GITHUB_ENV
           ssh -i /srv/github/id_ci -o StrictHostKeyChecking=no \
               -o UserKnownHostsFile=/dev/null \
-              cloud-user@10.0.2.2 \
-              'cd kerbside-patches/tools; ./build-containers'
+              ${{ matrix.test.baseuser }}@10.0.2.2 \
+              'cd kerbside-patches/tools; ./build-containers  ${{ matrix.test.release }}'
 
       - name: Disable /etc/hosts for name resolution
         run: |
           . $GITHUB_ENV
           ssh -i /srv/github/id_ci -o StrictHostKeyChecking=no \
               -o UserKnownHostsFile=/dev/null \
-              cloud-user@10.0.2.2 \
+              ${{ matrix.test.baseuser }}@10.0.2.2 \
               'sudo sed -i s"|hosts:      files dns myhostname|hosts:      dns myhostname|" /etc/nsswitch.conf'
 
       - name: Bootstrap Kolla-Ansible
@@ -134,15 +151,15 @@ jobs:
           . $GITHUB_ENV
           ssh -i /srv/github/id_ci -o StrictHostKeyChecking=no \
               -o UserKnownHostsFile=/dev/null \
-              cloud-user@10.0.2.2 \
-              'cd kerbside-patches/tools; sudo ./bootstrap-kolla-ansible'
+              ${{ matrix.test.baseuser }}@10.0.2.2 \
+              'cd kerbside-patches/tools; sudo ./bootstrap-kolla-ansible ${{ matrix.test.release }}'
 
       - name: Install Kolla-Ansible
         run: |
           . $GITHUB_ENV
           ssh -i /srv/github/id_ci -o StrictHostKeyChecking=no \
               -o UserKnownHostsFile=/dev/null \
-              cloud-user@10.0.2.2 \
+              ${{ matrix.test.baseuser }}@10.0.2.2 \
               'cd kerbside-patches/tools; sudo ./install-kolla-ansible'
 
       - name: Install patched OpenStack clients
@@ -150,7 +167,7 @@ jobs:
           . $GITHUB_ENV
           ssh -i /srv/github/id_ci -o StrictHostKeyChecking=no \
               -o UserKnownHostsFile=/dev/null \
-              cloud-user@10.0.2.2 \
+              ${{ matrix.test.baseuser }}@10.0.2.2 \
               'cd kerbside-patches/tools; sudo ./install-openstack-clients'
 
       - name: Post install Kolla-Ansible setup
@@ -158,5 +175,13 @@ jobs:
           . $GITHUB_ENV
           ssh -i /srv/github/id_ci -o StrictHostKeyChecking=no \
               -o UserKnownHostsFile=/dev/null \
-              cloud-user@10.0.2.2 \
+              ${{ matrix.test.baseuser }}@10.0.2.2 \
               'cd kerbside-patches/tools; sudo ./postinstall-kolla-ansible'
+
+      - name: Attempt to start an instance with a console and connect to it
+        run: |
+          . $GITHUB_ENV
+          ssh -i /srv/github/id_ci -o StrictHostKeyChecking=no \
+              -o UserKnownHostsFile=/dev/null \
+              ${{ matrix.test.baseuser }}@10.0.2.2 \
+              'cd kerbside-patches/tools; sudo ./test-console'

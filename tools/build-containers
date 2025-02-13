@@ -1,5 +1,8 @@
 #!/bin/bash -e
 
+# $1: is an OpenStack release version -- for example 2024.1
+target_release="${1}"
+
 cd ~/kerbside-patches
 . buildconfig.sh
 
@@ -9,10 +12,10 @@ echo -e "${H1}Building container images${Color_Off}"
 echo -e "${H1}==================================================${Color_Off}"
 
 echo -e "${H2}Building images${Color_Off}"
-./buildall.sh --build-targets "2024.1" --build-images "all"
+./buildall.sh --build-targets "${target_release}" --build-images "all"
 
 sha="${CI_COMMIT_SHORT_SHA}"
-release="2024.1"
+release="${1}"
 debian_codename="bookworm"
 
 echo
@@ -22,14 +25,16 @@ echo -e "${H1}==================================================${Color_Off}"
 echo
 
 for item in archive/imgs/*.tar; do
-   name=$( echo $item | sed -e "s/archive\/imgs\///" -e "s/-${release}-${sha}.tar//" )
+   name=$( echo $item | sed -e "s/archive\/imgs\///" -e "s/-${target_release}-${sha}.tar//" )
    echo "Loading..."
    echo "    name: ${name}"
-   echo "    release: ${release}"
+   echo "    release: ${target_release}"
    echo "    sha: ${sha}"
    sudo docker load -i $item
-   sudo docker image tag kolla/${name}:${release}-${sha} 127.0.0.1:4000/openstack.kolla/${name}:${release}-debian-${debian_codename}
-   sudo docker image push 127.0.0.1:4000/openstack.kolla/${name}:${release}-debian-${debian_codename}
+   sudo docker image tag kolla/${name}:${target_release}-${sha} \
+       127.0.0.1:4000/openstack.kolla/${name}:${target_release}-debian-${debian_codename}
+   sudo docker image push \
+       127.0.0.1:4000/openstack.kolla/${name}:${target_release}-debian-${debian_codename}
 done
 
 echo

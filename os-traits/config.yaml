@@ -1,0 +1,7 @@
+repo: https://github.com/openstack/os-traits
+source_branch: master
+destination_branch: master-patches
+shallow_clone: true
+directory: os-traits
+release: master
+depends_on: ''

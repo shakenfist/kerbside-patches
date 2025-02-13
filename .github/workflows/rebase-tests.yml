@@ -52,19 +52,51 @@ jobs:
               'infrastructure': 'vm'
           },
           {
-              'description': "nova master on rocky 9",
-              'name': 'rocky-9-nova-master',
+              'description': "nova master spice-direct on rocky 9",
+              'name': 'rocky-9-nova-master-spice-direct',
               'baseimage': 'sf://label/ci-images/rocky-9',
               'baseuser': 'cloud-user',
-              'targets': 'nova:master',
+              'targets': 'nova:spice-direct',
               'infrastructure': 'rocky-9-metal'
           },
           {
-              'description': "nova master on debian 12",
-              'name': 'debian-12-nova-master',
+              'description': "nova master spice-direct on debian 12",
+              'name': 'debian-12-nova-master-spice-direct',
               'baseimage': 'sf://label/ci-images/debian-12',
               'baseuser': 'debian',
-              'targets': 'nova:master',
+              'targets': 'nova:spice-direct',
+              'infrastructure': 'debian-12-metal'
+          },
+          {
+              'description': "nova master vdi on rocky 9",
+              'name': 'rocky-9-nova-master-vdi',
+              'baseimage': 'sf://label/ci-images/rocky-9',
+              'baseuser': 'cloud-user',
+              'targets': 'nova:vdi',
+              'infrastructure': 'rocky-9-metal'
+          },
+          {
+              'description': "nova master vdi on debian 12",
+              'name': 'debian-12-nova-master-vdi',
+              'baseimage': 'sf://label/ci-images/debian-12',
+              'baseuser': 'debian',
+              'targets': 'nova:vdi',
+              'infrastructure': 'debian-12-metal'
+          },
+          {
+              'description': "nova master all on rocky 9",
+              'name': 'rocky-9-nova-master-all',
+              'baseimage': 'sf://label/ci-images/rocky-9',
+              'baseuser': 'cloud-user',
+              'targets': 'nova:all',
+              'infrastructure': 'rocky-9-metal'
+          },
+          {
+              'description': "nova master all on debian 12",
+              'name': 'debian-12-nova-master-all',
+              'baseimage': 'sf://label/ci-images/debian-12',
+              'baseuser': 'debian',
+              'targets': 'nova:all',
               'infrastructure': 'debian-12-metal'
           },
           {
@@ -163,6 +195,38 @@ jobs:
               'baseimage': 'sf://label/ci-images/debian-12',
               'baseuser': 'debian',
               'targets': 'python-openstackclient:2024.1 python-openstackclient:2024.2 python-openstackclient:master',
+              'infrastructure': 'vm'
+          },
+          {
+              'description': "os-traits on rocky 9",
+              'name': 'rocky-9-os-traits',
+              'baseimage': 'sf://label/ci-images/rocky-9',
+              'baseuser': 'cloud-user',
+              'targets': 'os-traits:master',
+              'infrastructure': 'vm'
+          },
+          {
+              'description': "os-traits on debian 12",
+              'name': 'debian-12-os-traits',
+              'baseimage': 'sf://label/ci-images/debian-12',
+              'baseuser': 'debian',
+              'targets': 'os-traits:master',
+              'infrastructure': 'vm'
+          },
+          {
+              'description': "tempest on rocky 9",
+              'name': 'rocky-9-tempest',
+              'baseimage': 'sf://label/ci-images/rocky-9',
+              'baseuser': 'cloud-user',
+              'targets': 'tempest:master',
+              'infrastructure': 'vm'
+          },
+          {
+              'description': "tempest on debian 12",
+              'name': 'debian-12-tempest',
+              'baseimage': 'sf://label/ci-images/debian-12',
+              'baseuser': 'debian',
+              'targets': 'tempest:master',
               'infrastructure': 'vm'
           },
         ]

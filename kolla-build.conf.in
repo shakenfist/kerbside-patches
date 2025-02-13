@@ -14,3 +14,7 @@ location = TOPSRCDIR/kerbside
 [nova-base]
 type = local
 location = TOPSRCDIR/nova
+
+[nova-plugin-os-traits]
+type = local
+location = TOPSRCDIR/os-traits

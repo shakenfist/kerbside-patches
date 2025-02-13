@@ -1,4 +1,6 @@
 repo: https://github.com/openstack/kolla-ansible
-branch: stable/2023.1
+source_branch: stable/2023.1
 shallow_clone: true
 directory: kolla-ansible
+release: 2023.1
+depends_on: ''

@@ -1,0 +1,14 @@
+libvirt: Add config option to require secure SPICE.
+
+This patch adds the following SPICE-related configuration option
+to the 'spice' configuration group:
+
+- require_secure
+
+When set to true, libvirt will be provided with domain XML which
+configures SPICE VDI consoles to require secure connections (that
+is, connections protected by TLS). Attempts to connect without
+TLS will receive an error indicating they should retry the connection
+on the TLS port.
+
+Change-Id: Ica7083b0836f8d66cad8a4b4097613103fc91560

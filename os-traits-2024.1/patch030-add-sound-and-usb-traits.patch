@@ -1,0 +1,69 @@
+commit 8ccd036f1cea78b15fa17611e2769e5846390118
+Author: Michael Still <mikal@stillhq.com>
+Date:   Thu Jan 30 10:20:28 2025 +1100
+
+    Add traits for sound and USB devices on instances.
+    
+    This will be used by I2faeda0fd0fb9c8894d69558a1ccaab8da9f6a1b to
+    support sound and USB contoller devices for the SPICE VDI protocol.
+    
+    Change-Id: Ifda3475cfa08cab392c5afb4fd6f43a0556503f8
+
+diff --git a/os_traits/compute/sound.py b/os_traits/compute/sound.py
+new file mode 100644
+index 0000000..3a80adf
+--- /dev/null
++++ b/os_traits/compute/sound.py
+@@ -0,0 +1,26 @@
++# -*- coding: utf-8 -*-
++
++# Licensed under the Apache License, Version 2.0 (the "License"); you may
++# not use this file except in compliance with the License. You may obtain
++# a copy of the License at
++#
++#      http://www.apache.org/licenses/LICENSE-2.0
++#
++# Unless required by applicable law or agreed to in writing, software
++# distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
++# WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
++# License for the specific language governing permissions and limitations
++# under the License.
++
++TRAITS = [
++    # traits corresponding to the allowed values of "hw_sound_model"
++    # image metadata property
++    'MODEL_SB16',
++    'MODEL_ES1370',
++    'MODEL_PCSPK',
++    'MODEL_AC97',
++    'MODEL_ICH6',
++    'MODEL_ICH9',
++    'MODEL_USB',
++    'MODEL_VIRTIO'
++]
+diff --git a/os_traits/compute/usb.py b/os_traits/compute/usb.py
+new file mode 100644
+index 0000000..6139707
+--- /dev/null
++++ b/os_traits/compute/usb.py
+@@ -0,0 +1,20 @@
++# -*- coding: utf-8 -*-
++
++# Licensed under the Apache License, Version 2.0 (the "License"); you may
++# not use this file except in compliance with the License. You may obtain
++# a copy of the License at
++#
++#      http://www.apache.org/licenses/LICENSE-2.0
++#
++# Unless required by applicable law or agreed to in writing, software
++# distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
++# WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
++# License for the specific language governing permissions and limitations
++# under the License.
++
++TRAITS = [
++    # traits corresponding to the allowed values of "hw_usb_model"
++    # image metadata property
++    'MODEL_QEMU_XHCI',
++    'MODEL_NEC_XHCI'
++]

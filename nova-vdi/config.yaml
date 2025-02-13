@@ -1,0 +1,7 @@
+repo: https://github.com/openstack/nova
+source_branch: master
+destination_branch: libvirt-vdi
+shallow_clone: true
+directory: nova
+release: master-partial
+depends_on: 'os-traits'

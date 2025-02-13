@@ -1,6 +1,6 @@
-commit 028f31ba46588784b318bce4090e8429dd5a9744
+commit 9c84516150c000101fd3d3f604751b30126425e1
 Author: Michael Still <mikal@stillhq.com>
-Date:   Mon Aug 26 10:05:16 2024 +1000
+Date:   Tue Feb 4 07:50:30 2025 +0000
 
     libvirt: Add extra spec for sound device.
 
@@ -129,6 +129,46 @@ index 2029b27..1488f3f 100644
          # if true download using bittorrent
          'img_bittorrent': fields.FlexibleBooleanField(),
 
+diff --git a/nova/scheduler/request_filter.py b/nova/scheduler/request_filter.py
+index 6f61e86..935f240 100644
+--- a/nova/scheduler/request_filter.py
++++ b/nova/scheduler/request_filter.py
+@@ -444,6 +444,27 @@ def ephemeral_encryption_filter(
+     return True
+
+
++@trace_request_filter
++def virtio_sound_filter(
++    ctxt: nova_context.RequestContext,
++    request_spec: 'objects.RequestSpec'
++) -> bool:
++    """Filter out hosts which do not support virtio sound devices
++
++    This filter will only retain compute node resource providers that support
++    virtio sound devices.
++    """
++    # Skip if the instance does not request a virtio sound device
++    model = hardware.get_sound_model(request_spec.flavor, request_spec.image)
++    if model != objects.fields.SoundModelType.VIRTIO:
++        LOG.debug('virtio_sound_filter skipped')
++        return False
++
++    request_spec.root_required.add(os_traits.COMPUTE_SOUND_MODEL_VIRTIO)
++    LOG.debug('virtio_sound_filter added trait COMPUTE_SOUND_MODEL_VIRTIO')
++    return True
++
++
+ ALL_REQUEST_FILTERS = [
+     require_tenant_aggregate,
+     map_az_to_placement_aggregate,
+@@ -456,6 +477,7 @@ ALL_REQUEST_FILTERS = [
+     routed_networks_filter,
+     remote_managed_ports_filter,
+     ephemeral_encryption_filter,
++    virtio_sound_filter
+ ]
+
+
 diff --git a/nova/tests/functional/notification_sample_tests/test_instance.py b/nova/tests/functional/notification_sample_tests/test_instance.py
 index fcb2812..471fb92 100644
 --- a/nova/tests/functional/notification_sample_tests/test_instance.py
@@ -199,11 +239,194 @@ index e11156b..fd4dd9e 100644
      'Instance': '2.8-2727dba5e4a078e6cc848c1f94f7eb24',
      'InstanceAction': '1.2-9a5abc87fdd3af46f45731960651efb5',
      'InstanceActionEvent': '1.4-5b1f361bd81989f8bb2c20bb7e8a4cb4',
+diff --git a/nova/tests/unit/scheduler/test_request_filter.py b/nova/tests/unit/scheduler/test_request_filter.py
+index 4a15f6b..86bb8d3 100644
+--- a/nova/tests/unit/scheduler/test_request_filter.py
++++ b/nova/tests/unit/scheduler/test_request_filter.py
+@@ -724,3 +724,25 @@ class TestRequestFilter(test.NoDBTestCase):
+              ot.COMPUTE_EPHEMERAL_ENCRYPTION_LUKS},
+             reqspec.root_required)
+         self.assertEqual(set(), reqspec.root_forbidden)
++
++    def test_virtio_sound_filter(self):
++        # First ensure that virtio_sound_filter is included
++        self.assertIn(request_filter.virtio_sound_filter,
++                      request_filter.ALL_REQUEST_FILTERS)
++
++        # Request filter puts the trait into the request spec
++        reqspec = objects.RequestSpec(
++            flavor=objects.Flavor(
++                extra_specs={
++                    'hw:sound_model': 'virtio'
++                }),
++            image=objects.ImageMeta(
++                properties=objects.ImageMetaProps()))
++        self.assertEqual(set(), reqspec.root_required)
++        self.assertEqual(set(), reqspec.root_forbidden)
++        self.assertTrue(
++            request_filter.virtio_sound_filter(self.context, reqspec))
++        self.assertEqual(
++            {ot.COMPUTE_SOUND_MODEL_VIRTIO},
++            reqspec.root_required)
++        self.assertEqual(set(), reqspec.root_forbidden)
 diff --git a/nova/tests/unit/virt/libvirt/test_driver.py b/nova/tests/unit/virt/libvirt/test_driver.py
-index 83ca165..8c7330d 100644
+index 5473856..496cfbf 100644
 --- a/nova/tests/unit/virt/libvirt/test_driver.py
 +++ b/nova/tests/unit/virt/libvirt/test_driver.py
-@@ -7100,6 +7100,43 @@ class LibvirtConnTestCase(test.NoDBTestCase,
+@@ -997,6 +997,7 @@ class LibvirtConnTestCase(test.NoDBTestCase,
+         inst = libvirt_driver.LibvirtDriver(fake.FakeVirtAPI(), True)
+         self.assertPublicAPISignatures(baseinst, inst)
+
++    @mock.patch.object(libvirt_driver.LibvirtDriver, '_get_sound_model_traits')
+     @mock.patch.object(libvirt_driver.LibvirtDriver, '_get_cpu_traits')
+     @mock.patch.object(libvirt_driver.LibvirtDriver, '_get_storage_bus_traits')
+     @mock.patch.object(libvirt_driver.LibvirtDriver, '_get_video_model_traits')
+@@ -1004,12 +1005,22 @@ class LibvirtConnTestCase(test.NoDBTestCase,
+     @mock.patch.object(host.Host, "has_min_version")
+     def test_static_traits(
+         self, mock_version, mock_vif_traits, mock_video_traits,
+-        mock_storage_traits, mock_cpu_traits,
++        mock_storage_traits, mock_cpu_traits, mock_sound_traits
+     ):
+         """Ensure driver capabilities are correctly retrieved and cached."""
+
+         # we don't mock out calls to os_traits intentionally, so we need to
+         # return valid traits here
++        mock_sound_traits.return_value = {
++            'COMPUTE_SOUND_MODEL_AC97': True,
++            'COMPUTE_SOUND_MODEL_ES1370': True,
++            'COMPUTE_SOUND_MODEL_ICH6': True,
++            'COMPUTE_SOUND_MODEL_ICH9': True,
++            'COMPUTE_SOUND_MODEL_PCSPK': True,
++            'COMPUTE_SOUND_MODEL_SB16': True,
++            'COMPUTE_SOUND_MODEL_USB': True,
++            'COMPUTE_SOUND_MODEL_VIRTIO': True,
++        }
+         mock_cpu_traits.return_value = {'HW_CPU_HYPERTHREADING': True}
+         mock_storage_traits.return_value = {'COMPUTE_STORAGE_BUS_VIRTIO': True}
+         mock_video_traits.return_value = {'COMPUTE_GRAPHICS_MODEL_VGA': True}
+@@ -1028,6 +1039,14 @@ class LibvirtConnTestCase(test.NoDBTestCase,
+             'COMPUTE_SECURITY_TPM_TIS': False,
+             'COMPUTE_SECURITY_TPM_CRB': False,
+             'COMPUTE_STORAGE_BUS_VIRTIO': True,
++            'COMPUTE_SOUND_MODEL_AC97': True,
++            'COMPUTE_SOUND_MODEL_ES1370': True,
++            'COMPUTE_SOUND_MODEL_ICH6': True,
++            'COMPUTE_SOUND_MODEL_ICH9': True,
++            'COMPUTE_SOUND_MODEL_PCSPK': True,
++            'COMPUTE_SOUND_MODEL_SB16': True,
++            'COMPUTE_SOUND_MODEL_USB': True,
++            'COMPUTE_SOUND_MODEL_VIRTIO': True,
+             'COMPUTE_VIOMMU_MODEL_AUTO': True,
+             'COMPUTE_VIOMMU_MODEL_INTEL': True,
+             'COMPUTE_VIOMMU_MODEL_SMMUV3': True,
+@@ -1042,7 +1061,7 @@ class LibvirtConnTestCase(test.NoDBTestCase,
+         self.assertEqual(expected, static_traits)
+         for mock_traits in (
+             mock_vif_traits, mock_video_traits, mock_storage_traits,
+-            mock_cpu_traits,
++            mock_cpu_traits, mock_sound_traits
+         ):
+             mock_traits.assert_called_once_with()
+             mock_traits.reset_mock()
+@@ -1054,20 +1073,31 @@ class LibvirtConnTestCase(test.NoDBTestCase,
+         self.assertEqual(expected, static_traits)
+         for mock_traits in (
+             mock_vif_traits, mock_video_traits, mock_storage_traits,
+-            mock_cpu_traits,
++            mock_cpu_traits, mock_sound_traits
+         ):
+             mock_traits.assert_not_called()
+
+     @mock.patch.object(libvirt_driver.LOG, 'debug')
++    @mock.patch.object(libvirt_driver.LibvirtDriver, '_get_sound_model_traits')
+     @mock.patch.object(libvirt_driver.LibvirtDriver, '_get_cpu_traits')
+     @mock.patch.object(libvirt_driver.LibvirtDriver, '_get_storage_bus_traits')
+     @mock.patch.object(libvirt_driver.LibvirtDriver, '_get_video_model_traits')
+     @mock.patch.object(libvirt_driver.LibvirtDriver, '_get_vif_model_traits')
+     def test_static_traits_invalid_trait(
+         self, mock_vif_traits, mock_video_traits, mock_storage_traits,
+-        mock_cpu_traits, mock_log,
++        mock_cpu_traits, mock_sound_traits, mock_log,
+     ):
+         """Ensure driver capabilities are correctly retrieved and cached."""
++        mock_sound_traits.return_value = {
++            'COMPUTE_SOUND_MODEL_AC97': True,
++            'COMPUTE_SOUND_MODEL_ES1370': True,
++            'COMPUTE_SOUND_MODEL_ICH6': True,
++            'COMPUTE_SOUND_MODEL_ICH9': True,
++            'COMPUTE_SOUND_MODEL_PCSPK': True,
++            'COMPUTE_SOUND_MODEL_SB16': True,
++            'COMPUTE_SOUND_MODEL_USB': True,
++            'COMPUTE_SOUND_MODEL_VIRTIO': True,
++        }
+         mock_cpu_traits.return_value = {'foo': True}
+         mock_storage_traits.return_value = {'bar': True}
+         mock_video_traits.return_value = {'baz': True}
+@@ -1081,6 +1111,14 @@ class LibvirtConnTestCase(test.NoDBTestCase,
+             'COMPUTE_SECURITY_TPM_2_0': False,
+             'COMPUTE_SECURITY_TPM_TIS': False,
+             'COMPUTE_SECURITY_TPM_CRB': False,
++            'COMPUTE_SOUND_MODEL_AC97': True,
++            'COMPUTE_SOUND_MODEL_ES1370': True,
++            'COMPUTE_SOUND_MODEL_ICH6': True,
++            'COMPUTE_SOUND_MODEL_ICH9': True,
++            'COMPUTE_SOUND_MODEL_PCSPK': True,
++            'COMPUTE_SOUND_MODEL_SB16': True,
++            'COMPUTE_SOUND_MODEL_USB': True,
++            'COMPUTE_SOUND_MODEL_VIRTIO': True,
+             'COMPUTE_VIOMMU_MODEL_AUTO': True,
+             'COMPUTE_VIOMMU_MODEL_INTEL': True,
+             'COMPUTE_VIOMMU_MODEL_SMMUV3': True,
+@@ -1238,6 +1276,47 @@ class LibvirtConnTestCase(test.NoDBTestCase,
+                 break
+         self.assertFalse(version_arg_found)
+
++    @mock.patch.object(host.Host, 'has_min_version')
++    def test_libvirt_has_virtio_sound_but_not_qemu(self, mock_version):
++        def _fake_has_min_version(lv_ver=None, hv_ver=None, hv_type=None):
++            if lv_ver:
++                return True
++            return False
++
++        mock_version.side_effect = _fake_has_min_version
++
++        drvr = libvirt_driver.LibvirtDriver(fake.FakeVirtAPI(), True)
++        static_traits = drvr.static_traits
++        self.assertFalse(
++            static_traits.get('COMPUTE_SOUND_MODEL_VIRTIO'))
++
++    @mock.patch.object(host.Host, 'has_min_version')
++    def test_libvirt_no_virtio_sound(self, mock_version):
++        def _fake_has_min_version(lv_ver=None, hv_ver=None, hv_type=None):
++            if lv_ver:
++                return False
++            return False
++
++        mock_version.side_effect = _fake_has_min_version
++
++        drvr = libvirt_driver.LibvirtDriver(fake.FakeVirtAPI(), True)
++        static_traits = drvr.static_traits
++        self.assertFalse(
++            static_traits.get('COMPUTE_SOUND_MODEL_VIRTIO'))
++
++    @mock.patch.object(host.Host, 'has_min_version')
++    def test_libvirt_has_virtio_sound(self, mock_version):
++        def _fake_has_min_version(lv_ver=None, hv_ver=None, hv_type=None):
++            if lv_ver:
++                return True
++            return True
++
++        mock_version.side_effect = _fake_has_min_version
++
++        drvr = libvirt_driver.LibvirtDriver(fake.FakeVirtAPI(), True)
++        static_traits = drvr.static_traits
++        self.assertTrue(static_traits.get('COMPUTE_SOUND_MODEL_VIRTIO'))
++
+     @mock.patch.object(libvirt_driver.LibvirtDriver,
+                        '_register_all_undefined_instance_details',
+                        new=mock.Mock())
+@@ -7100,6 +7179,43 @@ class LibvirtConnTestCase(test.NoDBTestCase,
          self.assertEqual(cfg.devices[7].model, 'tpm-crb')
          self.assertEqual(cfg.devices[7].secret_uuid, uuids.vtpm)
 
@@ -354,10 +577,21 @@ index 0e8f159..2c185c4 100644
 +        meta.set('model', str(self.model))
 +        return meta
 diff --git a/nova/virt/libvirt/driver.py b/nova/virt/libvirt/driver.py
-index 3bb3b7d..cdc96be 100644
+index 3bb3b7d..e4f279f 100644
 --- a/nova/virt/libvirt/driver.py
 +++ b/nova/virt/libvirt/driver.py
-@@ -6828,6 +6828,22 @@ class LibvirtDriver(driver.ComputeDriver):
+@@ -266,6 +266,10 @@ MIN_LIBVIRT_STATELESS_FIRMWARE = (8, 6, 0)
+ MIN_IGB_LIBVIRT_VERSION = (9, 3, 0)
+ MIN_IGB_QEMU_VERSION = (8, 0, 0)
+
++# Minimum versions supporting the virtio sound model
++MIN_VIRTIO_SOUND_LIBVIRT_VERSION = (10, 4, 0)
++MIN_VIRTIO_SOUND_QEMU_VERSION = (8, 2, 0)
++
+ REGISTER_IMAGE_PROPERTY_DEFAULTS = [
+     'hw_machine_type',
+     'hw_cdrom_bus',
+@@ -6828,6 +6832,22 @@ class LibvirtDriver(driver.ComputeDriver):
          vtpm = vconfig.LibvirtConfigGuestVTPM(vtpm_config, vtpm_secret_uuid)
          guest.add_device(vtpm)
 
@@ -380,7 +614,7 @@ index 3bb3b7d..cdc96be 100644
      def _set_qemu_guest_agent(self, guest, flavor, instance, image_meta):
          # Enable qga only if the 'hw_qemu_guest_agent' is equal to yes
          if image_meta.properties.get('hw_qemu_guest_agent', False):
-@@ -7512,6 +7528,7 @@ class LibvirtDriver(driver.ComputeDriver):
+@@ -7512,6 +7532,7 @@ class LibvirtDriver(driver.ComputeDriver):
          self._create_consoles(guest, instance, flavor, image_meta)
 
          self._guest_add_spice_channel(guest)
@@ -388,3 +622,45 @@ index 3bb3b7d..cdc96be 100644
 
          if self._guest_add_video_device(guest):
              self._add_video_driver(guest, image_meta, flavor)
+@@ -9564,6 +9585,7 @@ class LibvirtDriver(driver.ComputeDriver):
+         traits.update(self._get_vif_model_traits())
+         traits.update(self._get_iommu_model_traits())
+         traits.update(self._get_tpm_traits())
++        traits.update(self._get_sound_model_traits())
+
+         _, invalid_traits = ot.check_traits(traits)
+         for invalid_trait in invalid_traits:
+@@ -13313,3 +13335,33 @@ class LibvirtDriver(driver.ComputeDriver):
+                 fs.source_dir = self._get_share_mount_path(instance, share)
+                 fs.target_dir = share.tag
+                 guest.add_device(fs)
++
++    def _get_sound_model_traits(self) -> ty.Dict[str, bool]:
++        """Determine what sound models are supported.
++
++        Not all traits generated by this function may be valid and the result
++        should be validated.
++
++        :return: A dict of trait names mapped to boolean values.
++        """
++        # NOTE(mikal): sadly libvirt's `getDomainCapabilities()` call does not
++        # include details of the supported sound models, so we need to instead
++        # infer it from libvirt versions.
++
++        has_virtio = True
++        if not self._host.has_min_version(MIN_VIRTIO_SOUND_LIBVIRT_VERSION):
++            has_virtio = False
++        if not self._host.has_min_version(
++                hv_ver=MIN_VIRTIO_SOUND_QEMU_VERSION):
++            has_virtio = False
++
++        return {
++            'COMPUTE_SOUND_MODEL_SB16': True,
++            'COMPUTE_SOUND_MODEL_ES1370': True,
++            'COMPUTE_SOUND_MODEL_PCSPK': True,
++            'COMPUTE_SOUND_MODEL_AC97': True,
++            'COMPUTE_SOUND_MODEL_ICH6': True,
++            'COMPUTE_SOUND_MODEL_ICH9': True,
++            'COMPUTE_SOUND_MODEL_USB': True,
++            'COMPUTE_SOUND_MODEL_VIRTIO': has_virtio
++        }

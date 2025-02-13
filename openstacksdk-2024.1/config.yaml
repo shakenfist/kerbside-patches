@@ -1,4 +1,7 @@
 repo: https://github.com/openstack/openstacksdk
-branch: stable/2024.1
+source_branch: stable/2024.1
+destination_branch: stable/2024.1-patches
 shallow_clone: false
 directory: openstacksdk
+release: 2024.1
+depends_on: ''

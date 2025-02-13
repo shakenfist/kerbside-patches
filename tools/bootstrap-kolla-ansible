@@ -1,19 +1,56 @@
 #!/bin/bash -e
 
-cd /home/cloud-user/kerbside-patches
-. buildconfig.sh
+# $1: is an OpenStack release version -- for example 2024.1
+target_release="${1}"
+
+. /etc/os-release
+echo "Claimed OS name: ${NAME}"
+if [ "${NAME}" == "Rocky Linux" ]; then
+    TOPDIR="/home/cloud-user/kerbside-patches"
+else
+    TOPDIR="/home/${ID}/kerbside-patches"
+fi
+
+. "${TOPDIR}/buildconfig.sh"
 
 echo
 echo -e "${H1}==================================================${Color_Off}"
-echo -e "${H1}Bootstrap Kolla-Ansible${Color_Off}"
+echo -e "${H1}Bootstrap Kolla-Ansible into a venv${Color_Off}"
 echo -e "${H1}==================================================${Color_Off}"
 
+echo -e "${H2}Make venv${Color_Off}"
+python3 -mvenv /srv/kolla-ansible/venv
+. /srv/kolla-ansible/venv/bin/activate
+
+echo -e "${H2}Log python binary locations${Color_Off}"
+echo "pip3 ${Arrow} "$(which pip3)
+echo "python3 ${Arrow} "$(which python3)
+echo
+
 echo -e "${H2}Install Ansible${Color_Off}"
-pip3 install -U "ansible-core<2.17" ansible
+ansible_core=""
+if [ "${target_release}" == "2024.1" ]; then
+    ansible_core="ansible-core<2.17"
+elif [ "${target_release}" == "2024.2" ]; then
+    ansible_core="ansible-core>=2.16,<2.18"
+else
+    ansible_core="ansible-core>=2.16,<2.18"
+fi
+pip3 install -U ${ansible_core} ansible "selinux<0.3.0" dbus-python
+echo
+
+# if [ "${NAME}" == "Rocky Linux" ]; then
+#     echo -e "${H2}Install selinux in system python for Rocky linux${Color_Off}"
+#     /usr/bin/pip3 install "selinux<0.3.0"
+#     echo
+# fi
+
+echo -e "${H2}Install docker python libraries${Color_Off}"
+pip3 install docker
 echo
 
 echo -e "${H2}Install patched Kolla-Ansible${Color_Off}"
-cd src/kolla-ansible
+cd "${TOPDIR}/src/kolla-ansible"
 pip3 install -e .
 echo
 
@@ -30,7 +67,7 @@ echo
 
 echo -e "${H2}Copy globals.yml${Color_Off}"
 cd ../..
-cp etc/globals-2024.1.yml /etc/kolla/globals.yml
+cp etc/globals-${target_release}.yml /etc/kolla/globals.yml
 echo
 
 echo -e "${H2}Tweak /etc/hosts${Color_Off}"
@@ -48,11 +85,11 @@ kolla-genpwd
 echo
 
 echo -e "${H2}Make certificates${Color_Off}"
-kolla-ansible -i /etc/kolla/all-in-one certificates
+kolla-ansible certificates -i /etc/kolla/all-in-one
 echo
 
 echo -e "${H2}Bootstrap servers${Color_Off}"
-kolla-ansible -i /etc/kolla/all-in-one bootstrap-servers
+kolla-ansible bootstrap-servers -i /etc/kolla/all-in-one
 echo
 
 trap - EXIT
