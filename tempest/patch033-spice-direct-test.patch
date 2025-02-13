@@ -1,4 +1,4 @@
-commit 1b36797de8ecd1ba520a8680ccfc8c2c351e8879
+commit fbbf01b2c7989a0ed1877acb5b370ee1ee6af0ff
 Author: Michael Still <mikal@stillhq.com>
 Date:   Wed Feb 12 18:05:57 2025 +1100
 
@@ -34,7 +34,7 @@ index 58b161f..313b276 100644
 +    in Nova.
 diff --git a/tempest/api/compute/admin/test_spice.py b/tempest/api/compute/admin/test_spice.py
 new file mode 100644
-index 0000000..50d2f9f
+index 0000000..d56bb2f
 --- /dev/null
 +++ b/tempest/api/compute/admin/test_spice.py
 @@ -0,0 +1,153 @@
@@ -136,7 +136,7 @@ index 0000000..50d2f9f
 +        console = body['console']
 +        self.assertEqual(self.server['id'], console['instance_uuid'])
 +        self.assertIn('port', console)
-+        self.assertIn('tlsPort', console)
++        self.assertIn('tls_port', console)
 +        self.assertIsNone(console['internal_access_path'])
 +
 +        # Connect to the specified non-TLS port and verify we get back
@@ -182,7 +182,7 @@ index 0000000..50d2f9f
 +        #               of this message.
 +        # I      UINT32 error code
 +        # ...
-+        buffered = self.sock.recv(20)
++        buffered = sock.recv(20)
 +        self.assertIsNotNone(buffered)
 +        self.assertEqual(20, len(buffered))
 +
