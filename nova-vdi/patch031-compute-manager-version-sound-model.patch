@@ -1,47 +1,39 @@
-commit a6685b7fb92ddc6815b6428b91f7c1dbe234e9c8
+commit 2d38aa1725e0976306132dd3bd3e06121ed089ea
 Author: Michael Still <mikal@stillhq.com>
-Date:   Wed Feb 5 19:53:47 2025 +1100
+Date:   Sat Feb 15 07:48:43 2025 +1100
 
     Protect older compute managers from sound model requests.
-
+    
     This is broken out into a separate patch for now to make it easier
     to review if this is itself a complete change. I am open to merging
     it back into the sound model change if that is considered
     desirable.
-
+    
     Change-Id: I33b8fc0136b4c1783b5c493e8ca9a15110767f6c
 
 diff --git a/nova/compute/api.py b/nova/compute/api.py
-index 5223b29..d555021 100644
+index 5223b29..5fc9eb3 100644
 --- a/nova/compute/api.py
 +++ b/nova/compute/api.py
 @@ -122,9 +122,10 @@ SUPPORT_VNIC_TYPE_REMOTE_MANAGED = 61
  MIN_COMPUTE_VDPA_ATTACH_DETACH = 62
  MIN_COMPUTE_VDPA_HOTPLUG_LIVE_MIGRATION = 63
-
+ 
 -
  SUPPORT_SHARES = 67
-
+ 
 +MIN_COMPUTE_SOUND_MODEL_TRAITS = 68
 +
  # FIXME(danms): Keep a global cache of the cells we find the
  # first time we look. This needs to be refreshed on a timer or
  # trigger.
-@@ -1049,6 +1050,19 @@ class API:
+@@ -1049,6 +1050,11 @@ class API:
                                      flavor, root_bdm,
                                      validate_numa=validate_numa)
-
-+        # Fetch flavor and image properties.
-+        flavor_properties = flavor.get('extra_specs', {})
-+        image_properties = image.get('properties', {})
-+
+ 
 +        # Do we support adding a sound device?
-+        image_sound_model = image_properties.get('hw_sound_model')
-+        flavor_sound_model = flavor_properties.get('hw:sound_model')
-+        if (
-+            (image_sound_model or flavor_sound_model) and
-+            (min_comp_ver < MIN_COMPUTE_SOUND_MODEL_TRAITS)
-+        ):
++        sound_model = hardware.get_sound_model(flavor, image)
++        if sound_model and (min_comp_ver < MIN_COMPUTE_SOUND_MODEL_TRAITS):
 +            raise exception.SoundModelRequestOldCompute()
 +
      def _check_support_vnic_accelerator(
@@ -52,13 +44,13 @@ index 12cd52b..edae7f7 100644
 --- a/nova/objects/service.py
 +++ b/nova/objects/service.py
 @@ -31,7 +31,7 @@ LOG = logging.getLogger(__name__)
-
-
+ 
+ 
  # NOTE(danms): This is the global service version counter
 -SERVICE_VERSION = 68
 +SERVICE_VERSION = 69
-
-
+ 
+ 
  # NOTE(danms): This is our SERVICE_VERSION history. The idea is that any
 @@ -237,6 +237,9 @@ SERVICE_VERSION_HISTORY = (
      # Version 68: Compute RPC v6.4:
@@ -68,7 +60,7 @@ index 12cd52b..edae7f7 100644
 +    # Compute manager supports sound model traits
 +    {'compute_rpc': '6.4'},
  )
-
+ 
  # This is the version after which we can rely on having a persistent
 @@ -270,6 +273,7 @@ SERVICE_VERSION_ALIASES = {
      'Bobcat': 66,
@@ -76,5 +68,5 @@ index 12cd52b..edae7f7 100644
      'Dalmatian': 67,
 +    'Epoxy': 69
  }
-
-
+ 
+ 
