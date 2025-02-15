@@ -213,22 +213,6 @@ jobs:
               'targets': 'os-traits:master',
               'infrastructure': 'vm'
           },
-          {
-              'description': "tempest on rocky 9",
-              'name': 'rocky-9-tempest',
-              'baseimage': 'sf://label/ci-images/rocky-9',
-              'baseuser': 'cloud-user',
-              'targets': 'tempest:master',
-              'infrastructure': 'vm'
-          },
-          {
-              'description': "tempest on debian 12",
-              'name': 'debian-12-tempest',
-              'baseimage': 'sf://label/ci-images/debian-12',
-              'baseuser': 'debian',
-              'targets': 'tempest:master',
-              'infrastructure': 'vm'
-          },
         ]
     runs-on: [self-hosted, "${{ matrix.test.infrastructure }}"]
     concurrency:
