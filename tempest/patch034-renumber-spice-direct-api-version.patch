@@ -1,0 +1,58 @@
+commit 0c5f1135f10207715307983505bba9ee3908a6ec
+Author: Michael Still <mikal@stillhq.com>
+Date:   Tue Feb 18 10:38:36 2025 +1100
+
+    Renumber the spice-direct nova API microversion.
+
+    Because the spice-direct change requires a number of changes to
+    land, the nova API microversion was consumed by an unrelated change
+    before all the nova changes could merge. This change therefore
+    renumbers the spice-direct API change in the tempest nova API
+    client.
+
+    Change-Id: I9954906b4f8ce4cf9ed891f1b10b56ce24d5ebdd
+    Depends-On: https://review.opendev.org/c/openstack/nova/+/924844
+
+diff --git a/tempest/api/compute/admin/test_spice.py b/tempest/api/compute/admin/test_spice.py
+index d56bb2f62..f09012d70 100644
+--- a/tempest/api/compute/admin/test_spice.py
++++ b/tempest/api/compute/admin/test_spice.py
+@@ -28,7 +28,7 @@ class SpiceDirectConsoleTestJSON(base.BaseV2ComputeAdminTest):
+
+     create_default_network = True
+
+-    min_microversion = '2.98'
++    min_microversion = '2.99'
+     max_microversion = 'latest'
+
+     # SPICE client protocol constants
+diff --git a/tempest/lib/api_schema/response/compute/v2_98/__init__.py b/tempest/lib/api_schema/response/compute/v2_99/__init__.py
+similarity index 100%
+rename from tempest/lib/api_schema/response/compute/v2_98/__init__.py
+rename to tempest/lib/api_schema/response/compute/v2_99/__init__.py
+diff --git a/tempest/lib/api_schema/response/compute/v2_98/servers.py b/tempest/lib/api_schema/response/compute/v2_99/servers.py
+similarity index 100%
+rename from tempest/lib/api_schema/response/compute/v2_98/servers.py
+rename to tempest/lib/api_schema/response/compute/v2_99/servers.py
+diff --git a/tempest/lib/services/compute/servers_client.py b/tempest/lib/services/compute/servers_client.py
+index 03562aa92..faab41399 100644
+--- a/tempest/lib/services/compute/servers_client.py
++++ b/tempest/lib/services/compute/servers_client.py
+@@ -46,7 +46,7 @@ from tempest.lib.api_schema.response.compute.v2_8 import servers as schemav28
+ from tempest.lib.api_schema.response.compute.v2_89 import servers as schemav289
+ from tempest.lib.api_schema.response.compute.v2_9 import servers as schemav29
+ from tempest.lib.api_schema.response.compute.v2_96 import servers as schemav296
+-from tempest.lib.api_schema.response.compute.v2_98 import servers as schemav298
++from tempest.lib.api_schema.response.compute.v2_99 import servers as schemav299
+ from tempest.lib.common import rest_client
+ from tempest.lib.services.compute import base_compute_client
+
+@@ -79,7 +79,7 @@ class ServersClient(base_compute_client.BaseComputeClient):
+         {'min': '2.79', 'max': '2.88', 'schema': schemav279},
+         {'min': '2.89', 'max': '2.95', 'schema': schemav289},
+         {'min': '2.96', 'max': '2.97', 'schema': schemav296},
+-        {'min': '2.98', 'max': None, 'schema': schemav298},
++        {'min': '2.99', 'max': None, 'schema': schemav299},
+     ]
+
+     def __init__(self, auth_provider, service, region,
