@@ -1,19 +1,19 @@
-commit 5c6f751d9a14e55184d7f713504e947aaa85336a
+commit fd6210fef923aaade11af282834d31be32cc3e57
 Author: Michael Still <mikal@stillhq.com>
-Date:   Wed Feb 12 07:04:46 2025 +1100
+Date:   Tue Feb 18 22:02:19 2025 +1100
 
     libvirt: allow direct SPICE connections to qemu
-
+    
     This patch adds a new console type, "spice-direct", which provides
     the connection information required to talk the native SPICE protocol
     directly to qemu on the hypervisor. This is intended to be fronted
     by a proxy which will handle authentication separately.
-
+    
     A new microversion is introduced which adds the type "spice-direct"
     to the existing "spice" protocol.
-
+    
     An example request:
-
+    
     POST /servers/<uuid>/remote-consoles
     {
       "remote_console": {
@@ -21,9 +21,9 @@ Date:   Wed Feb 12 07:04:46 2025 +1100
         "type": "spice-direct"
       }
     }
-
+    
     An example response:
-
+    
     {
       "remote_console": {
         "protocol": "spice",
@@ -31,14 +31,14 @@ Date:   Wed Feb 12 07:04:46 2025 +1100
         "url": "http://localhost:13200/nova?token=XXX";
       }
     }
-
+    
     This token can then be used to lookup connection details for the
     console using a request like this:
-
+    
     GET /os-console-auth-tokens/<consoletoken>
-
+    
     Which returns something like this:
-
+    
     {
       "console": {
         "instance_uuid": <uuid>,
@@ -48,15 +48,15 @@ Date:   Wed Feb 12 07:04:46 2025 +1100
         "internal_access_path": null
       }
     }
-
+    
     APIImpact
-
+    
     Change-Id: I1e701cbabc0e2c435685e31465159eec09e3b1a0
     Depends-On: https://review.opendev.org/c/openstack/nova/+/940873
     Depends-On: https://review.opendev.org/c/openstack/tempest/+/940943
 
 diff --git a/.zuul.yaml b/.zuul.yaml
-index b23c90f..16507ea 100644
+index 2a5f182626..15a30033f1 100644
 --- a/.zuul.yaml
 +++ b/.zuul.yaml
 @@ -169,7 +169,7 @@
@@ -69,19 +69,10 @@ index b23c90f..16507ea 100644
          Q_AGENT: openvswitch
          Q_ML2_TENANT_NETWORK_TYPE: vxlan
 diff --git a/api-ref/source/parameters.yaml b/api-ref/source/parameters.yaml
-index 1f444bc..094b5c5 100644
+index efc046fe76..05066afd00 100644
 --- a/api-ref/source/parameters.yaml
 +++ b/api-ref/source/parameters.yaml
-@@ -5406,7 +5406,7 @@ os-getSPICEConsole:
-   type: object
- os-getSPICEConsole-type:
-   description: |
--    The type of SPICE console. The only valid value is ``spice-html5``.
-+    The type of SPICE console. The valid values are ``spice-html5``.
-   in: body
-   required: true
-   type: string
-@@ -5986,8 +5986,9 @@ remote_console_protocol:
+@@ -5993,8 +5993,9 @@ remote_console_protocol:
  remote_console_type:
    description: |
      The type of remote console. The valid values are ``novnc``,
@@ -89,11 +80,11 @@ index 1f444bc..094b5c5 100644
 -    ``webmks`` is added since Microversion ``2.8``.
 +    ``spice-html5``, ``spice-direct``, ``serial``, and ``webmks``. The type
 +    ``webmks`` was added in Microversion ``2.8``, and the type
-+    ``spice-direct`` was added in Microversion ``2.98``.
++    ``spice-direct`` was added in Microversion ``2.99``.
    in: body
    required: true
    type: string
-@@ -7095,6 +7096,12 @@ tenant_usages:
+@@ -7102,6 +7103,12 @@ tenant_usages:
    in: body
    required: true
    type: array
@@ -107,34 +98,34 @@ index 1f444bc..094b5c5 100644
    description: |
      The port at end of range.
 diff --git a/api-ref/source/servers-remote-consoles.inc b/api-ref/source/servers-remote-consoles.inc
-index 9393b31..845e2e1 100644
+index 9393b31eb3..a773ea60c4 100644
 --- a/api-ref/source/servers-remote-consoles.inc
 +++ b/api-ref/source/servers-remote-consoles.inc
 @@ -40,6 +40,13 @@ Request
  .. literalinclude:: ../../doc/api_samples/os-remote-consoles/v2.6/create-vnc-console-req.json
     :language: javascript
-
+ 
 +**Example Get Remote spice-direct Console**
 +
-+*``spice-direct`` consoles were added in microversion 2.98.*
++*``spice-direct`` consoles were added in microversion 2.99.*
 +
-+.. literalinclude:: ../../doc/api_samples/os-remote-consoles/v2.98/create-spice-direct-console-req.json
++.. literalinclude:: ../../doc/api_samples/os-remote-consoles/v2.99/create-spice-direct-console-req.json
 +   :language: javascript
 +
  Response
  --------
-
+ 
 @@ -55,6 +62,12 @@ Response
  .. literalinclude:: ../../doc/api_samples/os-remote-consoles/v2.6/create-vnc-console-resp.json
     :language: javascript
-
+ 
 +**Example Get Remote spice-direct Console**
 +
-+*``spice-direct`` consoles were added in microversion 2.98.*
++*``spice-direct`` consoles were added in microversion 2.99.*
 +
-+.. literalinclude:: ../../doc/api_samples/os-remote-consoles/v2.98/create-spice-direct-console-resp.json
++.. literalinclude:: ../../doc/api_samples/os-remote-consoles/v2.99/create-spice-direct-console-resp.json
 +   :language: javascript
-
+ 
  Show Console Connection Information
  ===================================
 @@ -90,9 +103,17 @@ Response
@@ -143,23 +134,23 @@ index 9393b31..845e2e1 100644
    - port: port_number
 +  - tls_port: tls_port_number
    - internal_access_path: internal_access_path
-
+ 
  **Example Show Console Authentication Token**
-
+ 
  .. literalinclude:: ../../doc/api_samples/os-console-auth-tokens/v2.31/get-console-connect-info-get-resp.json
     :language: javascript
 +
 +**Example Console Connection Information for a spice-direct Console**
 +
-+*``spice-direct`` consoles were added in microversion 2.98.*
++*``spice-direct`` consoles were added in microversion 2.99.*
 +
-+.. literalinclude:: ../../doc/api_samples/os-console-auth-tokens/v2.98/get-console-connect-info-get-resp.json
++.. literalinclude:: ../../doc/api_samples/os-console-auth-tokens/v2.99/get-console-connect-info-get-resp.json
 +   :language: javascript
-diff --git a/doc/api_samples/os-console-auth-tokens/v2.98/create-spice-direct-console-req.json b/doc/api_samples/os-console-auth-tokens/v2.98/create-spice-direct-console-req.json
+diff --git a/doc/api_samples/os-console-auth-tokens/v2.99/create-spice-direct-console-req.json b/doc/api_samples/os-console-auth-tokens/v2.99/create-spice-direct-console-req.json
 new file mode 100644
-index 0000000..6a04d75
+index 0000000000..6a04d759fc
 --- /dev/null
-+++ b/doc/api_samples/os-console-auth-tokens/v2.98/create-spice-direct-console-req.json
++++ b/doc/api_samples/os-console-auth-tokens/v2.99/create-spice-direct-console-req.json
 @@ -0,0 +1,6 @@
 +{
 +    "remote_console": {
@@ -168,11 +159,11 @@ index 0000000..6a04d75
 +    }
 +}
 \ No newline at end of file
-diff --git a/doc/api_samples/os-console-auth-tokens/v2.98/get-console-connect-info-get-resp.json b/doc/api_samples/os-console-auth-tokens/v2.98/get-console-connect-info-get-resp.json
+diff --git a/doc/api_samples/os-console-auth-tokens/v2.99/get-console-connect-info-get-resp.json b/doc/api_samples/os-console-auth-tokens/v2.99/get-console-connect-info-get-resp.json
 new file mode 100644
-index 0000000..396c23c
+index 0000000000..396c23cd9f
 --- /dev/null
-+++ b/doc/api_samples/os-console-auth-tokens/v2.98/get-console-connect-info-get-resp.json
++++ b/doc/api_samples/os-console-auth-tokens/v2.99/get-console-connect-info-get-resp.json
 @@ -0,0 +1,9 @@
 +{
 +    "console": {
@@ -184,11 +175,11 @@ index 0000000..396c23c
 +    }
 +}
 \ No newline at end of file
-diff --git a/doc/api_samples/os-remote-consoles/v2.98/create-spice-direct-console-req.json b/doc/api_samples/os-remote-consoles/v2.98/create-spice-direct-console-req.json
+diff --git a/doc/api_samples/os-remote-consoles/v2.99/create-spice-direct-console-req.json b/doc/api_samples/os-remote-consoles/v2.99/create-spice-direct-console-req.json
 new file mode 100644
-index 0000000..552ab30
+index 0000000000..552ab30e15
 --- /dev/null
-+++ b/doc/api_samples/os-remote-consoles/v2.98/create-spice-direct-console-req.json
++++ b/doc/api_samples/os-remote-consoles/v2.99/create-spice-direct-console-req.json
 @@ -0,0 +1,6 @@
 +{
 +    "remote_console": {
@@ -196,11 +187,11 @@ index 0000000..552ab30
 +        "type": "spice-direct"
 +    }
 +}
-diff --git a/doc/api_samples/os-remote-consoles/v2.98/create-spice-direct-console-resp.json b/doc/api_samples/os-remote-consoles/v2.98/create-spice-direct-console-resp.json
+diff --git a/doc/api_samples/os-remote-consoles/v2.99/create-spice-direct-console-resp.json b/doc/api_samples/os-remote-consoles/v2.99/create-spice-direct-console-resp.json
 new file mode 100644
-index 0000000..2a9e1ff
+index 0000000000..2a9e1ffb93
 --- /dev/null
-+++ b/doc/api_samples/os-remote-consoles/v2.98/create-spice-direct-console-resp.json
++++ b/doc/api_samples/os-remote-consoles/v2.99/create-spice-direct-console-resp.json
 @@ -0,0 +1,8 @@
 +{
 +    "remote_console": {
@@ -211,60 +202,67 @@ index 0000000..2a9e1ff
 +}
 +
 diff --git a/doc/api_samples/versions/v21-version-get-resp.json b/doc/api_samples/versions/v21-version-get-resp.json
-index 197144b..0f7713f 100644
+index 0f7713fe29..0ad3022d82 100644
 --- a/doc/api_samples/versions/v21-version-get-resp.json
 +++ b/doc/api_samples/versions/v21-version-get-resp.json
-@@ -19,7 +19,7 @@
+@@ -19,8 +19,8 @@
              }
          ],
          "status": "CURRENT",
--        "version": "2.97",
-+        "version": "2.98",
+-        "version": "2.98",
++        "version": "2.99",
          "min_version": "2.1",
          "updated": "2013-07-23T11:33:21Z"
      }
+-}
++}
+\ No newline at end of file
 diff --git a/doc/api_samples/versions/versions-get-resp.json b/doc/api_samples/versions/versions-get-resp.json
-index cdb5504..50f7be5 100644
+index 50f7be5071..3de8614ce6 100644
 --- a/doc/api_samples/versions/versions-get-resp.json
 +++ b/doc/api_samples/versions/versions-get-resp.json
-@@ -22,7 +22,7 @@
+@@ -22,9 +22,9 @@
                  }
              ],
              "status": "CURRENT",
--            "version": "2.97",
-+            "version": "2.98",
+-            "version": "2.98",
++            "version": "2.99",
              "min_version": "2.1",
              "updated": "2013-07-23T11:33:21Z"
          }
+     ]
+-}
++}
+\ No newline at end of file
 diff --git a/nova/api/openstack/api_version_request.py b/nova/api/openstack/api_version_request.py
-index a90b1af..17f86c4 100644
+index 765dfeb2bd..7ceed28deb 100644
 --- a/nova/api/openstack/api_version_request.py
 +++ b/nova/api/openstack/api_version_request.py
-@@ -265,6 +265,7 @@ REST_API_VERSION_HISTORY = """REST API Version History:
-              attachment.
-              ``DELETE /servers/{server_id}/shares/{share_id} which delete an
-              attachment.
-+    * 2.98 - Add the spice-direct console type to the spice console protocol.
+@@ -268,6 +268,7 @@ REST_API_VERSION_HISTORY = """REST API Version History:
+     * 2.98 - Add support for returning embedded image properties in
+              ``server show`` and ``server list --long`` and in the ``server
+              rebuild`` responses.
++    * 2.99 - Add the spice-direct console type to the spice console protocol.
  """
-
+ 
  # The minimum and maximum versions of the API supported
-@@ -273,7 +274,7 @@ REST_API_VERSION_HISTORY = """REST API Version History:
+@@ -276,7 +277,7 @@ REST_API_VERSION_HISTORY = """REST API Version History:
  # Note(cyeoh): This only applies for the v2.1 API once microversions
  # support is fully merged. It does not affect the V2 API.
  _MIN_API_VERSION = '2.1'
--_MAX_API_VERSION = '2.97'
-+_MAX_API_VERSION = '2.98'
+-_MAX_API_VERSION = '2.98'
++_MAX_API_VERSION = '2.99'
  DEFAULT_API_VERSION = _MIN_API_VERSION
-
+ 
  # Almost all proxy APIs which are related to network, images and baremetal
 diff --git a/nova/api/openstack/compute/console_auth_tokens.py b/nova/api/openstack/compute/console_auth_tokens.py
-index f891849..090d97f 100644
+index f891849af3..894bf279e0 100644
 --- a/nova/api/openstack/compute/console_auth_tokens.py
 +++ b/nova/api/openstack/compute/console_auth_tokens.py
 @@ -29,7 +29,7 @@ CONF = nova.conf.CONF
-
+ 
  class ConsoleAuthTokensController(wsgi.Controller):
-
+ 
 -    def _show(self, req, id):
 +    def _show(self, req, id, include_tls_port=False):
          """Checks a console auth token and returns the related connect info."""
@@ -273,7 +271,7 @@ index f891849..090d97f 100644
 @@ -57,12 +57,19 @@ class ConsoleAuthTokensController(wsgi.Controller):
          if not connect_info:
              raise webob.exc.HTTPNotFound(explanation=_("Token not found"))
-
+ 
 -        return {'console': {
 -            'instance_uuid': connect_info.instance_uuid,
 -            'host': connect_info.host,
@@ -293,20 +291,20 @@ index f891849..090d97f 100644
 +            retval['console']['tls_port'] = connect_info.tls_port
 +
 +        return retval
-
+ 
      @wsgi.Controller.api_version("2.1", "2.30")
      @wsgi.expected_errors((400, 401, 404))
 @@ -83,8 +90,14 @@ class ConsoleAuthTokensController(wsgi.Controller):
          raise webob.exc.HTTPBadRequest()
-
+ 
      @wsgi.Controller.api_version("2.31")  # noqa
-+    @wsgi.Controller.api_version("2.31", "2.97")  # noqa
++    @wsgi.Controller.api_version("2.31", "2.98")  # noqa
 +    @wsgi.expected_errors((400, 404))
 +    @validation.query_schema(schema.show_query)
 +    def show(self, req, id):  # noqa
 +        return self._show(req, id, include_tls_port=False)
 +
-+    @wsgi.Controller.api_version("2.98")  # noqa
++    @wsgi.Controller.api_version("2.99")  # noqa
      @wsgi.expected_errors((400, 404))
      @validation.query_schema(schema.show_query)
 -    @validation.response_body_schema(schema.show_response)
@@ -314,7 +312,7 @@ index f891849..090d97f 100644
 -        return self._show(req, id)
 +        return self._show(req, id, include_tls_port=True)
 diff --git a/nova/api/openstack/compute/remote_consoles.py b/nova/api/openstack/compute/remote_consoles.py
-index 408b118..4955412 100644
+index 408b11836a..acbe4d83fd 100644
 --- a/nova/api/openstack/compute/remote_consoles.py
 +++ b/nova/api/openstack/compute/remote_consoles.py
 @@ -143,7 +143,8 @@ class RemoteConsolesController(wsgi.Controller):
@@ -322,23 +320,23 @@ index 408b118..4955412 100644
      @wsgi.expected_errors((400, 404, 409, 501))
      @validation.schema(schema.create_v26, "2.6", "2.7")
 -    @validation.schema(schema.create_v28, "2.8")
-+    @validation.schema(schema.create_v28, "2.8", "2.97")
-+    @validation.schema(schema.create_v298, "2.98")
++    @validation.schema(schema.create_v28, "2.8", "2.98")
++    @validation.schema(schema.create_v299, "2.99")
      def create(self, req, server_id, body):
          context = req.environ['nova.context']
          instance = common.get_instance(self.compute_api, context, server_id)
 diff --git a/nova/api/openstack/compute/rest_api_version_history.rst b/nova/api/openstack/compute/rest_api_version_history.rst
-index 374e218..8ccc07e 100644
+index c9f4a41f87..c445075e15 100644
 --- a/nova/api/openstack/compute/rest_api_version_history.rst
 +++ b/nova/api/openstack/compute/rest_api_version_history.rst
-@@ -1268,3 +1268,12 @@ display shares. For detailed insights and usage instructions, please refer
- to the `manage-shares documentation`_.
-
- .. _manage-shares documentation: https://docs.openstack.org/nova/latest/admin/manage-shares.html
+@@ -1279,3 +1279,12 @@ under the struct at the existing ``image`` key in the response for
+ ``GET /servers/{server_id}`` (server show), ``GET /servers/detail``
+ (list server --long) and in the rebuild case of
+ ``POST /server/{server_id}/action`` (server rebuild) API response.
 +
-+.. _microversion 2.98:
++.. _microversion 2.99:
 +
-+2.98
++2.99
 +----
 +
 +Add the ``spice-direct`` console type to the spice console protocol. Also
@@ -346,14 +344,14 @@ index 374e218..8ccc07e 100644
 +``GET /os-console-auth-tokens/{console_token}``.
 \ No newline at end of file
 diff --git a/nova/api/openstack/compute/schemas/remote_consoles.py b/nova/api/openstack/compute/schemas/remote_consoles.py
-index 1f57e95..4b819dc 100644
+index 1f57e95775..1e5b3a58a0 100644
 --- a/nova/api/openstack/compute/schemas/remote_consoles.py
 +++ b/nova/api/openstack/compute/schemas/remote_consoles.py
 @@ -120,6 +120,30 @@ create_v28 = {
      'additionalProperties': False,
  }
-
-+create_v298 = {
+ 
++create_v299 = {
 +    'type': 'object',
 +    'properties': {
 +        'remote_console': {
@@ -381,17 +379,17 @@ index 1f57e95..4b819dc 100644
      'type': 'object',
      'properties': {
 diff --git a/nova/compute/manager.py b/nova/compute/manager.py
-index 2af2ce5..6556b2d 100644
+index 2af2ce563c..6556b2d286 100644
 --- a/nova/compute/manager.py
 +++ b/nova/compute/manager.py
 @@ -7837,22 +7837,30 @@ class ComputeManager(manager.Manager):
          if not CONF.spice.enabled:
              raise exception.ConsoleTypeUnavailable(console_type=console_type)
-
+ 
 -        if console_type != 'spice-html5':
 +        if console_type not in ['spice-html5', 'spice-direct']:
              raise exception.ConsoleTypeInvalid(console_type=console_type)
-
+ 
          try:
              # Retrieve connect info from driver, and then decorate with our
              # access info token
@@ -435,13 +433,13 @@ index 2af2ce5..6556b2d 100644
          elif console_type == "serial":
              console_info = self.driver.get_serial_console(ctxt, instance)
 diff --git a/nova/conf/spice.py b/nova/conf/spice.py
-index d01a83c..4c457c8 100644
+index d01a83c3b9..4c457c8707 100644
 --- a/nova/conf/spice.py
 +++ b/nova/conf/spice.py
 @@ -151,7 +151,7 @@ running. This service is typically launched on the controller node.
-
+ 
  Possible values:
-
+ 
 -* Must be a valid URL of the form:  ``http://host:port/spice_auto.html``
 +* Must be a valid URL of the form: ``http://host:port/spice_auto.html``
    where host is the node running ``nova-spicehtml5proxy`` and the port is
@@ -470,11 +468,11 @@ index d01a83c..4c457c8 100644
  """),
      cfg.StrOpt('server_listen',
          default='127.0.0.1',
-diff --git a/nova/tests/functional/api_sample_tests/api_samples/os-console-auth-tokens/v2.98/create-spice-direct-console-req.json.tpl b/nova/tests/functional/api_sample_tests/api_samples/os-console-auth-tokens/v2.98/create-spice-direct-console-req.json.tpl
+diff --git a/nova/tests/functional/api_sample_tests/api_samples/os-console-auth-tokens/v2.99/create-spice-direct-console-req.json.tpl b/nova/tests/functional/api_sample_tests/api_samples/os-console-auth-tokens/v2.99/create-spice-direct-console-req.json.tpl
 new file mode 100644
-index 0000000..552ab30
+index 0000000000..552ab30e15
 --- /dev/null
-+++ b/nova/tests/functional/api_sample_tests/api_samples/os-console-auth-tokens/v2.98/create-spice-direct-console-req.json.tpl
++++ b/nova/tests/functional/api_sample_tests/api_samples/os-console-auth-tokens/v2.99/create-spice-direct-console-req.json.tpl
 @@ -0,0 +1,6 @@
 +{
 +    "remote_console": {
@@ -482,11 +480,11 @@ index 0000000..552ab30
 +        "type": "spice-direct"
 +    }
 +}
-diff --git a/nova/tests/functional/api_sample_tests/api_samples/os-console-auth-tokens/v2.98/get-console-connect-info-get-resp.json.tpl b/nova/tests/functional/api_sample_tests/api_samples/os-console-auth-tokens/v2.98/get-console-connect-info-get-resp.json.tpl
+diff --git a/nova/tests/functional/api_sample_tests/api_samples/os-console-auth-tokens/v2.99/get-console-connect-info-get-resp.json.tpl b/nova/tests/functional/api_sample_tests/api_samples/os-console-auth-tokens/v2.99/get-console-connect-info-get-resp.json.tpl
 new file mode 100644
-index 0000000..ebf9220
+index 0000000000..ebf9220b91
 --- /dev/null
-+++ b/nova/tests/functional/api_sample_tests/api_samples/os-console-auth-tokens/v2.98/get-console-connect-info-get-resp.json.tpl
++++ b/nova/tests/functional/api_sample_tests/api_samples/os-console-auth-tokens/v2.99/get-console-connect-info-get-resp.json.tpl
 @@ -0,0 +1,9 @@
 +{
 +    "console": {
@@ -498,11 +496,11 @@ index 0000000..ebf9220
 +    }
 +}
 \ No newline at end of file
-diff --git a/nova/tests/functional/api_sample_tests/api_samples/os-remote-consoles/v2.98/create-spice-direct-console-req.json.tpl b/nova/tests/functional/api_sample_tests/api_samples/os-remote-consoles/v2.98/create-spice-direct-console-req.json.tpl
+diff --git a/nova/tests/functional/api_sample_tests/api_samples/os-remote-consoles/v2.99/create-spice-direct-console-req.json.tpl b/nova/tests/functional/api_sample_tests/api_samples/os-remote-consoles/v2.99/create-spice-direct-console-req.json.tpl
 new file mode 100644
-index 0000000..b424d7d
+index 0000000000..b424d7d594
 --- /dev/null
-+++ b/nova/tests/functional/api_sample_tests/api_samples/os-remote-consoles/v2.98/create-spice-direct-console-req.json.tpl
++++ b/nova/tests/functional/api_sample_tests/api_samples/os-remote-consoles/v2.99/create-spice-direct-console-req.json.tpl
 @@ -0,0 +1,7 @@
 +{
 +    "remote_console": {
@@ -511,11 +509,11 @@ index 0000000..b424d7d
 +    }
 +}
 +
-diff --git a/nova/tests/functional/api_sample_tests/api_samples/os-remote-consoles/v2.98/create-spice-direct-console-resp.json.tpl b/nova/tests/functional/api_sample_tests/api_samples/os-remote-consoles/v2.98/create-spice-direct-console-resp.json.tpl
+diff --git a/nova/tests/functional/api_sample_tests/api_samples/os-remote-consoles/v2.99/create-spice-direct-console-resp.json.tpl b/nova/tests/functional/api_sample_tests/api_samples/os-remote-consoles/v2.99/create-spice-direct-console-resp.json.tpl
 new file mode 100644
-index 0000000..27e6c0a
+index 0000000000..27e6c0ad3f
 --- /dev/null
-+++ b/nova/tests/functional/api_sample_tests/api_samples/os-remote-consoles/v2.98/create-spice-direct-console-resp.json.tpl
++++ b/nova/tests/functional/api_sample_tests/api_samples/os-remote-consoles/v2.99/create-spice-direct-console-resp.json.tpl
 @@ -0,0 +1,8 @@
 +{
 +    "remote_console": {
@@ -526,7 +524,7 @@ index 0000000..27e6c0a
 +}
 +
 diff --git a/nova/tests/functional/api_sample_tests/test_console_auth_tokens.py b/nova/tests/functional/api_sample_tests/test_console_auth_tokens.py
-index 7c482fe..0a1a33f 100644
+index 7c482fecc9..8a785095fb 100644
 --- a/nova/tests/functional/api_sample_tests/test_console_auth_tokens.py
 +++ b/nova/tests/functional/api_sample_tests/test_console_auth_tokens.py
 @@ -52,3 +52,38 @@ class ConsoleAuthTokensSampleJsonTests(test_servers.ServersSampleBase):
@@ -535,11 +533,11 @@ index 7c482fe..0a1a33f 100644
                                response, 200)
 +
 +
-+class ConsoleV298AuthTokensSampleJsonTests(test_servers.ServersSampleBase):
++class ConsoleV299AuthTokensSampleJsonTests(test_servers.ServersSampleBase):
 +    ADMIN_API = True
 +    sample_dir = "os-console-auth-tokens"
-+    microversion = '2.98'
-+    scenarios = [('v2_98', {'api_major_version': 'v2.1'})]
++    microversion = '2.99'
++    scenarios = [('v2_99', {'api_major_version': 'v2.1'})]
 +
 +    def _get_console_url(self, data):
 +        return jsonutils.loads(data)["remote_console"]["url"]
@@ -569,7 +567,7 @@ index 7c482fe..0a1a33f 100644
 +        self._verify_response('get-console-connect-info-get-resp', subs,
 +                              response, 200)
 diff --git a/nova/tests/functional/api_sample_tests/test_remote_consoles.py b/nova/tests/functional/api_sample_tests/test_remote_consoles.py
-index ae02ad3..0295439 100644
+index ae02ad3281..75d19547d7 100644
 --- a/nova/tests/functional/api_sample_tests/test_remote_consoles.py
 +++ b/nova/tests/functional/api_sample_tests/test_remote_consoles.py
 @@ -125,3 +125,23 @@ class ConsolesV28SampleJsonTests(test_servers.ServersSampleBase):
@@ -578,13 +576,13 @@ index ae02ad3..0295439 100644
                                response, 200)
 +
 +
-+class ConsolesV298SampleJsonTests(test_servers.ServersSampleBase):
++class ConsolesV299SampleJsonTests(test_servers.ServersSampleBase):
 +    sample_dir = "os-remote-consoles"
-+    microversion = '2.98'
-+    scenarios = [('v2_98', {'api_major_version': 'v2.1'})]
++    microversion = '2.99'
++    scenarios = [('v2_99', {'api_major_version': 'v2.1'})]
 +
 +    def setUp(self):
-+        super(ConsolesV298SampleJsonTests, self).setUp()
++        super(ConsolesV299SampleJsonTests, self).setUp()
 +        self.flags(enabled=True, group='spice')
 +
 +    def test_create_spice_direct_console(self):
@@ -597,11 +595,11 @@ index ae02ad3..0295439 100644
 +            'create-spice-direct-console-resp', {'url': HTTP_RE},
 +            response, 200)
 diff --git a/nova/tests/unit/api/openstack/compute/test_console_auth_tokens.py b/nova/tests/unit/api/openstack/compute/test_console_auth_tokens.py
-index 2c08c99..41544a2 100644
+index 2c08c99a3a..09050b25ba 100644
 --- a/nova/tests/unit/api/openstack/compute/test_console_auth_tokens.py
 +++ b/nova/tests/unit/api/openstack/compute/test_console_auth_tokens.py
 @@ -20,7 +20,7 @@ import webob
-
+ 
  from nova.api.openstack import api_version_request
  from nova.api.openstack.compute import console_auth_tokens \
 -        as console_auth_tokens_v21
@@ -612,7 +610,7 @@ index 2c08c99..41544a2 100644
 @@ -30,17 +30,34 @@ from nova.tests.unit.api.openstack import fakes
  class ConsoleAuthTokensExtensionTestV21(test.NoDBTestCase):
      controller_class = console_auth_tokens_v21
-
+ 
 -    _EXPECTED_OUTPUT = {'console': {'instance_uuid': fakes.FAKE_UUID,
 -                                    'host': 'fake_host',
 -                                    'port': '1234',
@@ -634,7 +632,7 @@ index 2c08c99..41544a2 100644
 +            'internal_access_path': None
 +        }
 +    }
-
+ 
      # The database backend returns a ConsoleAuthToken.to_dict() and o.vo
      # StringField are unicode. And the port is an IntegerField.
      _EXPECTED_OUTPUT_DB = copy.deepcopy(_EXPECTED_OUTPUT)
@@ -646,12 +644,12 @@ index 2c08c99..41544a2 100644
 +    _EXPECTED_OUTPUT_DB_SPICE = copy.deepcopy(_EXPECTED_OUTPUT_SPICE)
 +    _EXPECTED_OUTPUT_DB_SPICE['console'].update(
 +        {'host': u'fake_host', 'port': 5900, 'tls_port': 5901})
-
+ 
      def setUp(self):
          super(ConsoleAuthTokensExtensionTestV21, self).setUp()
 @@ -63,9 +80,9 @@ class ConsoleAuthTokensExtensionTestV231(ConsoleAuthTokensExtensionTestV21):
              '2.31')
-
+ 
      @mock.patch('nova.objects.ConsoleAuthToken.validate',
 -                return_value = objects.ConsoleAuthToken(
 +                return_value=objects.ConsoleAuthToken(
@@ -667,12 +665,12 @@ index 2c08c99..41544a2 100644
          mock_validate.assert_called_once_with(self.context, fakes.FAKE_UUID)
 +
 +
-+class ConsoleAuthTokensExtensionTestV298(ConsoleAuthTokensExtensionTestV21):
++class ConsoleAuthTokensExtensionTestV299(ConsoleAuthTokensExtensionTestV21):
 +
 +    def setUp(self):
-+        super(ConsoleAuthTokensExtensionTestV298, self).setUp()
++        super(ConsoleAuthTokensExtensionTestV299, self).setUp()
 +        self.req.api_version_request = api_version_request.APIVersionRequest(
-+            '2.98')
++            '2.99')
 +
 +    @mock.patch('nova.objects.ConsoleAuthToken.validate',
 +                return_value=objects.ConsoleAuthToken(
@@ -701,7 +699,7 @@ index 2c08c99..41544a2 100644
 +                          self.controller.show, self.req, fakes.FAKE_UUID)
 +        mock_validate.assert_called_once_with(self.context, fakes.FAKE_UUID)
 diff --git a/nova/tests/unit/api/openstack/compute/test_remote_consoles.py b/nova/tests/unit/api/openstack/compute/test_remote_consoles.py
-index 150bd76..42a6025 100644
+index 150bd76001..4b53d76b3a 100644
 --- a/nova/tests/unit/api/openstack/compute/test_remote_consoles.py
 +++ b/nova/tests/unit/api/openstack/compute/test_remote_consoles.py
 @@ -474,3 +474,35 @@ class ConsolesExtensionTestV28(ConsolesExtensionTestV26):
@@ -710,13 +708,13 @@ index 150bd76..42a6025 100644
                                               'webmks')
 +
 +
-+class ConsolesExtensionTestV298(ConsolesExtensionTestV26):
++class ConsolesExtensionTestV299(ConsolesExtensionTestV26):
 +    def setUp(self):
-+        super(ConsolesExtensionTestV298, self).setUp()
++        super(ConsolesExtensionTestV299, self).setUp()
 +        self.req = fakes.HTTPRequest.blank('')
 +        self.context = self.req.environ['nova.context']
 +        self.req.api_version_request = api_version_request.APIVersionRequest(
-+            '2.98')
++            '2.99')
 +        self.controller = console_v21.RemoteConsolesController()
 +
 +    def test_create_spice_direct_console(self):
@@ -741,7 +739,7 @@ index 150bd76..42a6025 100644
 +        mock_handler.assert_called_once_with(self.context, self.instance,
 +                                             'spice-direct')
 diff --git a/releasenotes/notes/spice-direct-consoles-4bee40633633c971.yaml b/releasenotes/notes/spice-direct-consoles-4bee40633633c971.yaml
-index 0149fa0..1dd04d5 100644
+index 0149fa051d..03b67a4378 100644
 --- a/releasenotes/notes/spice-direct-consoles-4bee40633633c971.yaml
 +++ b/releasenotes/notes/spice-direct-consoles-4bee40633633c971.yaml
 @@ -6,3 +6,15 @@ features:
@@ -753,7 +751,7 @@ index 0149fa0..1dd04d5 100644
 +    the connection information required to talk the native SPICE
 +    protocol directly to qemu on the hypervisor. This is intended to
 +    be fronted by a proxy which will handle authentication separately.
-+    This new console type is exposed in the Compute API v2.98
++    This new console type is exposed in the Compute API v2.99
 +    microversion. To facilitate this proxying, a new config option
 +    ``spice_direct_proxy_base_url`` is added to the spice configuration group.
 +    This option is used to construct a URL containing an access token for
