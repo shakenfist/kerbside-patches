@@ -3,14 +3,7 @@
 # $1: is an OpenStack release version -- for example 2024.1
 target_release="${1}"
 
-. /etc/os-release
-echo "Claimed OS name: ${NAME}"
-if [ "${NAME}" == "Rocky Linux" ]; then
-    TOPDIR="/home/cloud-user/kerbside-patches"
-else
-    TOPDIR="/home/${ID}/kerbside-patches"
-fi
-
+TOPDIR="/srv/kerbside/kerbside-patches"
 . "${TOPDIR}/buildconfig.sh"
 
 echo

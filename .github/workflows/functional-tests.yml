@@ -87,9 +87,17 @@ jobs:
         run: |
           . $GITHUB_ENV
           rm -rf kerbside-patches/src
+
+          script="sudo mkdir /srv/kerbside"
+          script="$script; sudo chown -R ${{ matrix.test.baseuser }}:${{ matrix.test.baseuser }} /srv/kerbside"
+          ssh -i /srv/github/id_ci -o StrictHostKeyChecking=no \
+                  -o UserKnownHostsFile=/dev/null ${{ matrix.test.baseuser }}@10.0.2.2 \
+                  "${script}"
+
           scp -rp -i /srv/github/id_ci -o StrictHostKeyChecking=no \
               -o UserKnownHostsFile=/dev/null \
-              ${GITHUB_WORKSPACE}/kerbside-patches ${{ matrix.test.baseuser }}@10.0.2.2:.
+              ${GITHUB_WORKSPACE}/kerbside-patches \
+              ${{ matrix.test.baseuser }}@10.0.2.2:/srv/kerbside
 
       - name: Upgrade python for releases newer than 2024.2
         run: |
@@ -101,7 +109,7 @@ jobs:
           if [ "${release_year}" != "2024" ]; then
             ssh -i /srv/github/id_ci -o StrictHostKeyChecking=no \
                   -o UserKnownHostsFile=/dev/null ${{ matrix.test.baseuser }}@10.0.2.2 \
-                  "cd kerbside-patches/tools; sudo ./upgrade-python"
+                  "cd /srv/kerbside/kerbside-patches/tools; sudo ./upgrade-python"
           else
             echo "2024 releases do not require a newer python, skipping"
           fi
@@ -112,7 +120,7 @@ jobs:
           ssh -i /srv/github/id_ci -o StrictHostKeyChecking=no \
               -o UserKnownHostsFile=/dev/null \
               ${{ matrix.test.baseuser }}@10.0.2.2 \
-              'cd kerbside-patches/tools; ./install-build-dependencies'
+              'cd /srv/kerbside/kerbside-patches/tools; ./install-build-dependencies'
 
       - name: Setup docker registry
         run: |
@@ -120,7 +128,7 @@ jobs:
           ssh -i /srv/github/id_ci -o StrictHostKeyChecking=no \
               -o UserKnownHostsFile=/dev/null \
               ${{ matrix.test.baseuser }}@10.0.2.2 \
-              'cd kerbside-patches/tools; sudo ./install-docker-registry'
+              'cd /srv/kerbside/kerbside-patches/tools; sudo ./install-docker-registry'
 
       - name: Build patched repositories
         run: |
@@ -128,7 +136,7 @@ jobs:
           ssh -i /srv/github/id_ci -o StrictHostKeyChecking=no \
               -o UserKnownHostsFile=/dev/null \
               ${{ matrix.test.baseuser }}@10.0.2.2 \
-              'cd kerbside-patches/tools; ./assemble-source ${{ matrix.test.release }}'
+              'cd /srv/kerbside/kerbside-patches/tools; ./assemble-source ${{ matrix.test.release }}'
 
       - name: Build container images
         run: |
@@ -136,7 +144,7 @@ jobs:
           ssh -i /srv/github/id_ci -o StrictHostKeyChecking=no \
               -o UserKnownHostsFile=/dev/null \
               ${{ matrix.test.baseuser }}@10.0.2.2 \
-              'cd kerbside-patches/tools; ./build-containers  ${{ matrix.test.release }}'
+              'cd /srv/kerbside/kerbside-patches/tools; ./build-containers  ${{ matrix.test.release }}'
 
       - name: Disable /etc/hosts for name resolution
         run: |
@@ -152,7 +160,7 @@ jobs:
           ssh -i /srv/github/id_ci -o StrictHostKeyChecking=no \
               -o UserKnownHostsFile=/dev/null \
               ${{ matrix.test.baseuser }}@10.0.2.2 \
-              'cd kerbside-patches/tools; sudo ./bootstrap-kolla-ansible ${{ matrix.test.release }}'
+              'cd /srv/kerbside/kerbside-patches/tools; sudo ./bootstrap-kolla-ansible ${{ matrix.test.release }}'
 
       - name: Install Kolla-Ansible
         run: |
@@ -160,7 +168,7 @@ jobs:
           ssh -i /srv/github/id_ci -o StrictHostKeyChecking=no \
               -o UserKnownHostsFile=/dev/null \
               ${{ matrix.test.baseuser }}@10.0.2.2 \
-              'cd kerbside-patches/tools; sudo ./install-kolla-ansible'
+              'cd /srv/kerbside/kerbside-patches/tools; sudo ./install-kolla-ansible'
 
       - name: Install patched OpenStack clients
         run: |
@@ -168,7 +176,7 @@ jobs:
           ssh -i /srv/github/id_ci -o StrictHostKeyChecking=no \
               -o UserKnownHostsFile=/dev/null \
               ${{ matrix.test.baseuser }}@10.0.2.2 \
-              'cd kerbside-patches/tools; sudo ./install-openstack-clients'
+              'cd /srv/kerbside/kerbside-patches/tools; sudo ./install-openstack-clients'
 
       - name: Post install Kolla-Ansible setup
         run: |
@@ -176,7 +184,7 @@ jobs:
           ssh -i /srv/github/id_ci -o StrictHostKeyChecking=no \
               -o UserKnownHostsFile=/dev/null \
               ${{ matrix.test.baseuser }}@10.0.2.2 \
-              'cd kerbside-patches/tools; sudo ./postinstall-kolla-ansible'
+              'cd /srv/kerbside/kerbside-patches/tools; sudo ./postinstall-kolla-ansible'
 
       - name: Attempt to start an instance with a console and connect to it
         run: |
@@ -184,4 +192,4 @@ jobs:
           ssh -i /srv/github/id_ci -o StrictHostKeyChecking=no \
               -o UserKnownHostsFile=/dev/null \
               ${{ matrix.test.baseuser }}@10.0.2.2 \
-              'cd kerbside-patches/tools; sudo ./test-console'
+              'cd /srv/kerbside/kerbside-patches/tools; sudo ./test-console'

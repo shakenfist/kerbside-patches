@@ -3,7 +3,7 @@
 # $1: is an OpenStack release version -- for example 2024.1
 target_release="${1}"
 
-cd ~/kerbside-patches
+cd /srv/kerbside/kerbside-patches
 . buildconfig.sh
 
 echo
