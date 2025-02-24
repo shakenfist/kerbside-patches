@@ -1,6 +1,6 @@
 #!/bin/bash -e
 
-TOPDIR="/srv/kerbside/kerbside-patches"
+TOPDIR="/srv/shakenfist/kerbside-patches"
 
 . "${TOPDIR}/buildconfig.sh"
 . /srv/kolla-ansible/venv/bin/activate

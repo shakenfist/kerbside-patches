@@ -1,6 +1,6 @@
 #!/bin/bash -e
 
-cd /srv/kerbside/kerbside-patches
+cd /srv/shakenfist/kerbside-patches
 . buildconfig.sh
 
 echo

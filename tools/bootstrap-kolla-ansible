@@ -1,9 +1,11 @@
 #!/bin/bash -e
 
 # $1: is an OpenStack release version -- for example 2024.1
+# $2: is the IP address of the node the cloud is being built on
 target_release="${1}"
+node_address="${2}"
 
-TOPDIR="/srv/kerbside/kerbside-patches"
+TOPDIR="/srv/shakenfist/kerbside-patches"
 . "${TOPDIR}/buildconfig.sh"
 
 echo
@@ -53,7 +55,7 @@ kolla-ansible install-deps
 echo
 
 echo -e "${H2}Bootstrap inventory${Color_Off}"
-mkdir /etc/kolla
+mkdir -p /etc/kolla
 cp -r etc/kolla /etc/
 cp ansible/inventory/all-in-one /etc/kolla
 echo
@@ -64,12 +66,12 @@ cp etc/globals-${target_release}.yml /etc/kolla/globals.yml
 echo
 
 echo -e "${H2}Tweak /etc/hosts${Color_Off}"
-sed -i '1s/^/10.0.2.2 kolla\n\n/' /etc/hosts
+sed -i "1s/^/${node_address} kolla\n\n/" /etc/hosts
 echo
 
 if [ -e /etc/cloud/templates/hosts.redhat.tmpl ]; then
     echo -e "${H2}Tweak /etc/hosts template for cloud-init${Color_Off}"
-    sed -i '1s/^/10.0.2.2 kolla\n\n/' /etc/cloud/templates/hosts.redhat.tmpl
+    sed -i "1s/^/${node_address} kolla\n\n/" /etc/cloud/templates/hosts.redhat.tmpl
 echo
 fi
 

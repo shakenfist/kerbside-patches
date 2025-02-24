@@ -1,6 +1,6 @@
-commit 2d38aa1725e0976306132dd3bd3e06121ed089ea
-Author: Michael Still <mikal@stillhq.com>
-Date:   Sat Feb 15 07:48:43 2025 +1100
+commit 33f3cfeee6299ccbce673cb05c9d6b43c13dc4d9
+Author: Michael Still <michael.still1@defence.gov.au>
+Date:   Mon Feb 24 16:33:56 2025 +1100
 
     Protect older compute managers from sound model requests.
     
@@ -12,7 +12,7 @@ Date:   Sat Feb 15 07:48:43 2025 +1100
     Change-Id: I33b8fc0136b4c1783b5c493e8ca9a15110767f6c
 
 diff --git a/nova/compute/api.py b/nova/compute/api.py
-index 5223b29..5fc9eb3 100644
+index 5223b29..921d84d 100644
 --- a/nova/compute/api.py
 +++ b/nova/compute/api.py
 @@ -122,9 +122,10 @@ SUPPORT_VNIC_TYPE_REMOTE_MANAGED = 61
@@ -27,12 +27,13 @@ index 5223b29..5fc9eb3 100644
  # FIXME(danms): Keep a global cache of the cells we find the
  # first time we look. This needs to be refreshed on a timer or
  # trigger.
-@@ -1049,6 +1050,11 @@ class API:
+@@ -1049,6 +1050,12 @@ class API:
                                      flavor, root_bdm,
                                      validate_numa=validate_numa)
  
 +        # Do we support adding a sound device?
-+        sound_model = hardware.get_sound_model(flavor, image)
++        image_meta = objects.ImageMeta.from_dict(image)
++        sound_model = hardware.get_sound_model(flavor, image_meta)
 +        if sound_model and (min_comp_ver < MIN_COMPUTE_SOUND_MODEL_TRAITS):
 +            raise exception.SoundModelRequestOldCompute()
 +

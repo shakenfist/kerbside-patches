@@ -1,6 +1,6 @@
 #!/bin/bash -e
 
-TOPDIR="/srv/kerbside/kerbside-patches"
+TOPDIR="/srv/shakenfist/kerbside-patches"
 
 cd "${TOPDIR}"
 . buildconfig.sh
