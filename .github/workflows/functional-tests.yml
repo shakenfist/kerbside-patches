@@ -88,8 +88,8 @@ jobs:
           . $GITHUB_ENV
           rm -rf kerbside-patches/src
 
-          script="sudo mkdir /srv/kerbside"
-          script="$script; sudo chown -R ${{ matrix.test.baseuser }}:${{ matrix.test.baseuser }} /srv/kerbside"
+          script="sudo mkdir /srv/shakenfist"
+          script="$script; sudo chown -R ${{ matrix.test.baseuser }}:${{ matrix.test.baseuser }} /srv/shakenfist"
           ssh -i /srv/github/id_ci -o StrictHostKeyChecking=no \
                   -o UserKnownHostsFile=/dev/null ${{ matrix.test.baseuser }}@10.0.2.2 \
                   "${script}"
@@ -97,7 +97,7 @@ jobs:
           scp -rp -i /srv/github/id_ci -o StrictHostKeyChecking=no \
               -o UserKnownHostsFile=/dev/null \
               ${GITHUB_WORKSPACE}/kerbside-patches \
-              ${{ matrix.test.baseuser }}@10.0.2.2:/srv/kerbside
+              ${{ matrix.test.baseuser }}@10.0.2.2:/srv/shakenfist
 
       - name: Upgrade python for releases newer than 2024.2
         run: |
