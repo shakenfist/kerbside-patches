@@ -1,6 +1,0 @@
-repo: https://github.com/openstack/kolla
-source_branch: stable/2023.1
-shallow_clone: true
-directory: kolla
-release: 2023.1
-depends_on: ''

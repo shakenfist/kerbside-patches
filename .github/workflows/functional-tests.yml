@@ -14,13 +14,6 @@ jobs:
       matrix:
         test: [
           {
-            'name': '2024.1-rocky9',
-            'description': 'OpenStack release 2024.1 on Rocky 9',
-            'release': '2024.1',
-            'base': 'rocky:9',
-            'baseuser': 'cloud-user'
-          },
-          {
             'name': 'master-debian12',
             'description': 'OpenStack master on Debian 12',
             'release': 'master',
