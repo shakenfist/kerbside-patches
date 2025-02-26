@@ -1,7 +1,0 @@
-repo: https://github.com/openstack/os-traits
-source_branch: stable/2024.2
-destination_branch: stable/2024.2-patches
-shallow_clone: true
-directory: os-traits
-release: 2024.2
-depends_on: ''

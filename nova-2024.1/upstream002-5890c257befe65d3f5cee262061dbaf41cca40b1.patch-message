@@ -1,8 +1,0 @@
-Add hw_firmware_stateless image property
-
-Add the new image property to request stateless firmware. The property
-will be used by the libvirt driver once the actual logic to enable
-the feature is implemented.
-
-Partially-Implements: blueprint libvirt-stateless-firmware
-Change-Id: I05d4ff89d2b713b217b6c690e40fd4a16a397b63

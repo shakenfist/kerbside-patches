@@ -1,13 +1,7 @@
 #!/bin/bash -e
 
 . /etc/os-release
-echo "Claimed OS name: ${NAME}"
-if [ "${NAME}" == "Rocky Linux" ]; then
-    TOPDIR="/home/cloud-user/kerbside-patches"
-
-else
-    TOPDIR="/home/${ID}/kerbside-patches"
-fi
+TOPDIR="/srv/shakenfist/kerbside-patches"
 
 cd "${TOPDIR}"
 . buildconfig.sh

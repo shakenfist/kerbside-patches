@@ -1,12 +1,7 @@
 #!/bin/bash -e
 
-. /etc/os-release
-echo "Claimed OS name: ${NAME}"
-if [ "${NAME}" == "Rocky Linux" ]; then
-    . /home/cloud-user/kerbside-patches/buildconfig.sh
-else
-    . /home/${ID}/kerbside-patches/buildconfig.sh
-fi
+TOPDIR="/srv/shakenfist/kerbside-patches"
+. ${TOPDIR}/buildconfig.sh
 
 echo
 echo -e "${H1}==================================================${Color_Off}"

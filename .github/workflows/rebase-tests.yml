@@ -24,7 +24,7 @@ jobs:
               'name': 'rocky-9-kolla',
               'baseimage': 'sf://label/ci-images/rocky-9',
               'baseuser': 'cloud-user',
-              'targets': 'kolla:2024.1 kolla:2024.2 kolla:master',
+              'targets': 'kolla:master',
               'infrastructure': 'vm'
           },
           {
@@ -32,7 +32,7 @@ jobs:
               'name': 'debian-12-kolla',
               'baseimage': 'sf://label/ci-images/debian-12',
               'baseuser': 'debian',
-              'targets': 'kolla:2024.1 kolla:2024.2 kolla:master',
+              'targets': 'kolla:master',
               'infrastructure': 'vm'
           },
           {
@@ -40,7 +40,7 @@ jobs:
               'name': 'rocky-9-kolla-ansible',
               'baseimage': 'sf://label/ci-images/rocky-9',
               'baseuser': 'cloud-user',
-              'targets': 'kolla-ansible:2024.1 kolla-ansible:2024.2 kolla-ansible:master',
+              'targets': 'kolla-ansible:master',
               'infrastructure': 'vm'
           },
           {
@@ -48,89 +48,23 @@ jobs:
               'name': 'debian-12-kolla-ansible',
               'baseimage': 'sf://label/ci-images/debian-12',
               'baseuser': 'debian',
-              'targets': 'kolla-ansible:2024.1 kolla-ansible:2024.2 kolla-ansible:master',
+              'targets': 'kolla-ansible:master',
               'infrastructure': 'vm'
           },
           {
-              'description': "nova master spice-direct on rocky 9",
-              'name': 'rocky-9-nova-master-spice-direct',
+              'description': "nova master on rocky 9",
+              'name': 'rocky-9-nova-master',
               'baseimage': 'sf://label/ci-images/rocky-9',
               'baseuser': 'cloud-user',
-              'targets': 'nova:spice-direct',
+              'targets': 'nova:master',
               'infrastructure': 'rocky-9-metal'
           },
           {
-              'description': "nova master spice-direct on debian 12",
-              'name': 'debian-12-nova-master-spice-direct',
+              'description': "nova master on debian 12",
+              'name': 'debian-12-nova-master',
               'baseimage': 'sf://label/ci-images/debian-12',
               'baseuser': 'debian',
-              'targets': 'nova:spice-direct',
-              'infrastructure': 'debian-12-metal'
-          },
-          {
-              'description': "nova master vdi on rocky 9",
-              'name': 'rocky-9-nova-master-vdi',
-              'baseimage': 'sf://label/ci-images/rocky-9',
-              'baseuser': 'cloud-user',
-              'targets': 'nova:vdi',
-              'infrastructure': 'rocky-9-metal'
-          },
-          {
-              'description': "nova master vdi on debian 12",
-              'name': 'debian-12-nova-master-vdi',
-              'baseimage': 'sf://label/ci-images/debian-12',
-              'baseuser': 'debian',
-              'targets': 'nova:vdi',
-              'infrastructure': 'debian-12-metal'
-          },
-          {
-              'description': "nova master all on rocky 9",
-              'name': 'rocky-9-nova-master-all',
-              'baseimage': 'sf://label/ci-images/rocky-9',
-              'baseuser': 'cloud-user',
-              'targets': 'nova:all',
-              'infrastructure': 'rocky-9-metal'
-          },
-          {
-              'description': "nova master all on debian 12",
-              'name': 'debian-12-nova-master-all',
-              'baseimage': 'sf://label/ci-images/debian-12',
-              'baseuser': 'debian',
-              'targets': 'nova:all',
-              'infrastructure': 'debian-12-metal'
-          },
-          {
-              # I am not sure why this test fails on metal, but for now let's
-              # just keep running it on a VM until that's sorted out.
-              'description': "nova 2024.1 on rocky 9",
-              'name': 'rocky-9-nova-2024.1',
-              'baseimage': 'sf://label/ci-images/rocky-9',
-              'baseuser': 'cloud-user',
-              'targets': 'nova:2024.1',
-              'infrastructure': 'vm'
-          },
-          {
-              'description': "nova 2024.1 on debian 12",
-              'name': 'debian-12-nova-2024.1',
-              'baseimage': 'sf://label/ci-images/debian-12',
-              'baseuser': 'debian',
-              'targets': 'nova:2024.1',
-              'infrastructure': 'debian-12-metal'
-          },
-          {
-              'description': "nova 2024.2 on rocky 9",
-              'name': 'rocky-9-nova-2024.2',
-              'baseimage': 'sf://label/ci-images/rocky-9',
-              'baseuser': 'cloud-user',
-              'targets': 'nova:2024.2',
-              'infrastructure': 'rocky-9-metal'
-          },
-          {
-              'description': "nova 2024.2 on debian 12",
-              'name': 'debian-12-nova-2024.2',
-              'baseimage': 'sf://label/ci-images/debian-12',
-              'baseuser': 'debian',
-              'targets': 'nova:2024.2',
+              'targets': 'nova:master',
               'infrastructure': 'debian-12-metal'
           },
           {
@@ -138,7 +72,7 @@ jobs:
               'name': 'rocky-9-openstacksdk',
               'baseimage': 'sf://label/ci-images/rocky-9',
               'baseuser': 'cloud-user',
-              'targets': 'openstacksdk:2024.1 openstacksdk:2024.2 openstacksdk:master',
+              'targets': 'openstacksdk:master',
               'infrastructure': 'vm'
           },
           {
@@ -146,23 +80,7 @@ jobs:
               'name': 'debian-12-openstacksdk',
               'baseimage': 'sf://label/ci-images/debian-12',
               'baseuser': 'debian',
-              'targets': 'openstacksdk:2024.1 openstacksdk:2024.2 openstacksdk:master',
-              'infrastructure': 'vm'
-          },
-          {
-              'description': "osloconfig on rocky 9",
-              'name': 'rocky-9-osloconfig',
-              'baseimage': 'sf://label/ci-images/rocky-9',
-              'baseuser': 'cloud-user',
-              'targets': 'oslo.config:2024.1',
-              'infrastructure': 'vm'
-          },
-          {
-              'description': "osloconfig on debian 12",
-              'name': 'debian-12-osloconfig',
-              'baseimage': 'sf://label/ci-images/debian-12',
-              'baseuser': 'debian',
-              'targets': 'oslo.config:2024.1',
+              'targets': 'openstacksdk:master',
               'infrastructure': 'vm'
           },
           {
@@ -170,7 +88,7 @@ jobs:
               'name': 'rocky-9-python-novaclient',
               'baseimage': 'sf://label/ci-images/rocky-9',
               'baseuser': 'cloud-user',
-              'targets': 'python-novaclient:2024.1 python-novaclient:2024.2 python-novaclient:master',
+              'targets': 'python-novaclient:master',
               'infrastructure': 'vm'
           },
           {
@@ -178,7 +96,7 @@ jobs:
               'name': 'debian-12-python-novaclient',
               'baseimage': 'sf://label/ci-images/debian-12',
               'baseuser': 'debian',
-              'targets': 'python-novaclient:2024.1 python-novaclient:2024.2 python-novaclient:master',
+              'targets': 'python-novaclient:master',
               'infrastructure': 'vm'
           },
           {
@@ -186,7 +104,7 @@ jobs:
               'name': 'rocky-9-python-openstackclient',
               'baseimage': 'sf://label/ci-images/rocky-9',
               'baseuser': 'cloud-user',
-              'targets': 'python-openstackclient:2024.1 python-openstackclient:2024.2 python-openstackclient:master',
+              'targets': 'python-openstackclient:master',
               'infrastructure': 'vm'
           },
           {
@@ -194,7 +112,7 @@ jobs:
               'name': 'debian-12-python-openstackclient',
               'baseimage': 'sf://label/ci-images/debian-12',
               'baseuser': 'debian',
-              'targets': 'python-openstackclient:2024.1 python-openstackclient:2024.2 python-openstackclient:master',
+              'targets': 'python-openstackclient:master',
               'infrastructure': 'vm'
           },
           {

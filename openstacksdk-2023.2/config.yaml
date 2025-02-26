@@ -1,6 +1,0 @@
-repo: https://github.com/openstack/openstacksdk
-source_branch: stable/2023.2
-shallow_clone: false
-directory: openstacksdk
-release: 2023.2
-depends_on: ''

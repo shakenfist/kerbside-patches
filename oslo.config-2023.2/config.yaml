@@ -1,6 +1,0 @@
-repo: https://github.com/openstack/oslo.config
-source_branch: stable/2023.2
-shallow_clone: false
-directory: oslo.config
-release: 2023.2
-depends_on: ''

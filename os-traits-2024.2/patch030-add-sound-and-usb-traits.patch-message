@@ -1,6 +1,0 @@
-Add traits for sound and USB devices on instances.
-
-This will be used by I2faeda0fd0fb9c8894d69558a1ccaab8da9f6a1b to
-support sound and USB contoller devices for the SPICE VDI protocol.
-
-Change-Id: Ifda3475cfa08cab392c5afb4fd6f43a0556503f8
