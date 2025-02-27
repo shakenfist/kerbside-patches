@@ -84,22 +84,6 @@ jobs:
               'infrastructure': 'vm'
           },
           {
-              'description': "python-novaclient on rocky 9",
-              'name': 'rocky-9-python-novaclient',
-              'baseimage': 'sf://label/ci-images/rocky-9',
-              'baseuser': 'cloud-user',
-              'targets': 'python-novaclient:master',
-              'infrastructure': 'vm'
-          },
-          {
-              'description': "python-novaclient on debian 12",
-              'name': 'debian-12-python-novaclient',
-              'baseimage': 'sf://label/ci-images/debian-12',
-              'baseuser': 'debian',
-              'targets': 'python-novaclient:master',
-              'infrastructure': 'vm'
-          },
-          {
               'description': "python-openstackclient on rocky 9",
               'name': 'rocky-9-python-openstackclient',
               'baseimage': 'sf://label/ci-images/rocky-9',
