@@ -13,33 +13,14 @@ The remainder of the patches are ancillary changes -- support for new Nova API
 microversions in clients, things which helped me debug along the way, and that
 sort of thing.
 
-These patches last successfully applied via CI on 24 February 2025.
+These patches last successfully applied via CI on 27 February 2025.
 
 # Not for production use
 
-These patches were developed while building the Kerbside proof of concept.
-
-Because these patches add a Nova API microversion which is not seen upstream
-they are not suitable for production use. Specifically, as upstream Nova adds
-API microversions themselves, they consume the version number used by these
-patches. This results in an unsafe upgrade path. Until these patches (or
-equivalent) are landed upstream, Kerbside should be considered unsafe for a
-production deployment.
-
-The following microversions are used for Nova releases:
-
-* 2023.1: v2.96
-* 2023.2: v2.96
-* 2024.1: v2.97
-* master: v2.97 (subject to change)
-
-# Versions
-
-The original proof of concept was developed against OpenStack 2023.1, and that
-is therefore the best tested version of these patches. Forward porting of
-patches to 2023.2 and 2024.1 has been done, but because Kolla / Kolla-Ansible
-only just started supporting 2024.1 they are not as well tested. Bug reports are
-welcomed.
+These patches were developed while building the Kerbside proof of concept. While
+the core API patches have now landed in Nova, there is no client or deployer
+support yet, and Kerbside itself needs to be updated to match what landed in
+Nova. Reach out if you want more details.
 
 # Kolla container operating system
 
