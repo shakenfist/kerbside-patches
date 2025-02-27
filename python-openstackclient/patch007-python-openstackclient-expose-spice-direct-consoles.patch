@@ -49,10 +49,10 @@ index 3059cb10..fe6fcf0b 100644
              dest='url_type',
 diff --git a/openstackclient/compute/v2/console_auth_token.py b/openstackclient/compute/v2/console_auth_token.py
 new file mode 100644
-index 00000000..abdf2804
+index 00000000..b4aed650
 --- /dev/null
 +++ b/openstackclient/compute/v2/console_auth_token.py
-@@ -0,0 +1,50 @@
+@@ -0,0 +1,48 @@
 +#   Licensed under the Apache License, Version 2.0 (the "License"); you may
 +#   not use this file except in compliance with the License. You may obtain
 +#   a copy of the License at
@@ -68,7 +68,6 @@ index 00000000..abdf2804
 +
 +"""Compute v2 Console auth token implementations."""
 +
-+from osc_lib.cli import parseractions
 +from osc_lib.command import command
 +from osc_lib import utils
 +
@@ -97,8 +96,7 @@ index 00000000..abdf2804
 +
 +    def take_action(self, parsed_args):
 +        compute_client = self.app.client_manager.sdk_connection.compute
-+        data = compute_client.validate_console_auth_token(
-+            parsed_args.token)
++        data = compute_client.validate_console_auth_token(parsed_args.token)
 +        display_columns, columns = _get_console_connection_columns(data)
 +        data = utils.get_dict_properties(data, columns)
 +
