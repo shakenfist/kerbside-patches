@@ -1,7 +1,0 @@
-repo: https://github.com/openstack/python-novaclient
-source_branch: master
-destination_branch: master-patches
-shallow_clone: false
-directory: python-novaclient
-release: master
-depends_on: ''

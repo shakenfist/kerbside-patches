@@ -1,5 +1,0 @@
-Add support for microversion 2.98.
-
-This microversion adds support for the new SPICE direct console
-type. Note that this patch does not add support for the
-os-console-auth-tokens as python-novaclient is deprecated.

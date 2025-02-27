@@ -3,7 +3,7 @@ Author: Michael Still <mikal@stillhq.com>
 
     Add support for spice-direct console types.
 
-    This patch adds support for Nova microversion 2.98 which exposes the new
+    This patch adds support for Nova microversion 2.99 which exposes the new
     spice-direct console type and the pre-existing /os-console-auth-token/ API.
 
     # openstack console url show --spice-direct f2477018-aa93-...
@@ -26,14 +26,13 @@ Author: Michael Still <mikal@stillhq.com>
     | tls_port             | 5901                                 |
     +----------------------+--------------------------------------+
 
-    Depends-On: https://review.opendev.org/c/openstack/nova/+/924844
     Change-Id: I97e3415ec3110374cf95d244cd75bcdf6c5e7871
 
 diff --git a/openstack/compute/v2/_proxy.py b/openstack/compute/v2/_proxy.py
-index 37af81395..f1dc19867 100644
+index f48e1f684..87110699b 100644
 --- a/openstack/compute/v2/_proxy.py
 +++ b/openstack/compute/v2/_proxy.py
-@@ -26,6 +26,9 @@ from openstack.compute.v2 import quota_class_set as _quota_class_set
+@@ -27,6 +27,9 @@ from openstack.compute.v2 import quota_class_set as _quota_class_set
  from openstack.compute.v2 import quota_set as _quota_set
  from openstack.compute.v2 import server as _server
  from openstack.compute.v2 import server_action as _server_action
@@ -43,7 +42,7 @@ index 37af81395..f1dc19867 100644
  from openstack.compute.v2 import server_diagnostics as _server_diagnostics
  from openstack.compute.v2 import server_group as _server_group
  from openstack.compute.v2 import server_interface as _server_interface
-@@ -56,6 +59,7 @@ class Proxy(proxy.Proxy):
+@@ -57,6 +60,7 @@ class Proxy(proxy.Proxy):
          "keypair": _keypair.Keypair,
          "limits": limits.Limits,
          "migration": _migration.Migration,
@@ -51,7 +50,7 @@ index 37af81395..f1dc19867 100644
          "quota_class_set": _quota_class_set.QuotaClassSet,
          "quota_set": _quota_set.QuotaSet,
          "server": _server.Server,
-@@ -2360,6 +2364,18 @@ class Proxy(proxy.Proxy):
+@@ -2384,6 +2388,18 @@ class Proxy(proxy.Proxy):
          server = self._get_resource(_server.Server, server)
          return server.get_console_url(self, console_type)
 
@@ -70,11 +69,11 @@ index 37af81395..f1dc19867 100644
      def get_server_console_output(self, server, length=None):
          """Return the console output for a server.
 
-@@ -2387,10 +2403,13 @@ class Proxy(proxy.Proxy):
+@@ -2411,10 +2427,13 @@ class Proxy(proxy.Proxy):
              * rdp-html5
              * serial
              * webmks (supported after 2.8)
-+            * spice-direct (supported after 2.98)
++            * spice-direct (supported after 2.99)
          :param console_protocol: Optional console protocol (is respected only
              after microversion 2.6).
 
@@ -85,9 +84,31 @@ index 37af81395..f1dc19867 100644
          """
          server = self._get_resource(_server.Server, server)
          # NOTE: novaclient supports undocumented type xcpvnc also supported
+diff --git a/openstack/compute/v2/server.py b/openstack/compute/v2/server.py
+index 5ecf09898..f75057b9d 100644
+--- a/openstack/compute/v2/server.py
++++ b/openstack/compute/v2/server.py
+@@ -35,6 +35,7 @@ CONSOLE_TYPE_ACTION_MAPPING = {
+     'novnc': 'os-getVNCConsole',
+     'xvpvnc': 'os-getVNCConsole',
+     'spice-html5': 'os-getSPICEConsole',
++    'spice-direct': 'os-getSPICEConsole',
+     'rdp-html5': 'os-getRDPConsole',
+     'serial': 'os-getSerialConsole',
+ }
+@@ -889,7 +890,8 @@ class Server(resource.Resource, metadata.MetadataMixin, tag.TagMixin):
+         :param session: The session to use for making this request.
+         :param console_type: The type of console to return. This is
+             cloud-specific. One of: ``novnc``, ``xvpvnc``, ``spice-html5``,
+-            ``rdp-html5``, ``serial``.
++            ``spice-direct`` (after Nova microversion 2.99), ``rdp-html5``,
++            or ``serial``.
+         :returns: None
+         """
+         action = CONSOLE_TYPE_ACTION_MAPPING.get(console_type)
 diff --git a/openstack/compute/v2/server_console_auth_token.py b/openstack/compute/v2/server_console_auth_token.py
 new file mode 100644
-index 000000000..bc912aa0f
+index 000000000..ed37fca54
 --- /dev/null
 +++ b/openstack/compute/v2/server_console_auth_token.py
 @@ -0,0 +1,65 @@
@@ -157,7 +178,7 @@ index 000000000..bc912aa0f
 +            **params,
 +        )
 diff --git a/openstack/compute/v2/server_remote_console.py b/openstack/compute/v2/server_remote_console.py
-index 7a845b6ab..d51f250ae 100644
+index 7a845b6ab..ce1796e6c 100644
 --- a/openstack/compute/v2/server_remote_console.py
 +++ b/openstack/compute/v2/server_remote_console.py
 @@ -17,6 +17,7 @@ CONSOLE_TYPE_PROTOCOL_MAPPING = {
@@ -191,3 +212,22 @@ index 7a845b6ab..d51f250ae 100644
          return super().create(
              session, prepend_key=prepend_key, base_path=base_path, **params
          )
+diff --git a/openstack/tests/unit/compute/v2/test_server.py b/openstack/tests/unit/compute/v2/test_server.py
+index 2c9e59c5c..f2cdc7e3d 100644
+--- a/openstack/tests/unit/compute/v2/test_server.py
++++ b/openstack/tests/unit/compute/v2/test_server.py
+@@ -1256,6 +1256,14 @@ class TestServer(base.TestCase):
+             microversion=self.sess.default_microversion,
+         )
+
++        sot.get_console_url(self.sess, 'spice-direct')
++        self.sess.post.assert_called_with(
++            'servers/IDENTIFIER/action',
++            json={'os-getSPICEConsole': {'type': 'spice-direct'}},
++            headers={'Accept': ''},
++            microversion=self.sess.default_microversion,
++        )
++
+         sot.get_console_url(self.sess, 'rdp-html5')
+         self.sess.post.assert_called_with(
+             'servers/IDENTIFIER/action',
