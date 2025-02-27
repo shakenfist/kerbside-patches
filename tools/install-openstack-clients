@@ -12,7 +12,7 @@ echo -e "${H1}==================================================${Color_Off}"
 
 cd "${TOPDIR}/src"
 
-for client in openstacksdk python-novaclient python-openstackclient; do
+for client in openstacksdk python-openstackclient; do
   cd ${client}
 
   echo -e "${H2}Installing ${client}${Color_Off}"
