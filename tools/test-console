@@ -8,9 +8,16 @@ echo -e "${H1}==================================================${Color_Off}"
 echo -e "${H1}Download test image and setup glance${Color_Off}"
 echo -e "${H1}==================================================${Color_Off}"
 
-wget -q http://192.168.1.3/debian-11-desktop.qcow2
-openstack image create --public --disk-format qcow2 --container-format bare \
-    --file debian-11-desktop.qcow2 debian-11-desktop
+if [ ! -e /srv/shakenfist/debian-11-desktop.qcow2 ]; then\
+    echo
+    echo "Downloading test image..."
+    wget -q http://molokai.stillhq.com/debian-11-desktop.qcow2 \
+        -O /srv/shakenfist/debian-11-desktop.qcow2
+
+    echo "Pushing test image to glance..."
+    openstack image create --public --disk-format qcow2 --container-format bare \
+        --file /srv/shakenfist/debian-11-desktop.qcow2 debian-11-desktop
+fi
 
 echo
 imageid=$(openstack image list -f json | \

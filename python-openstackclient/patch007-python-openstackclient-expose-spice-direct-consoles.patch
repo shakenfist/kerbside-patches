@@ -1,12 +1,13 @@
-commit 78453f8a4f34060054f2019523a238e02d0c1ae2
+commit d2e8031a3bec6ef91cc07f56c80ef62230d26718
 Author: Michael Still <mikal@stillhq.com>
-Date:   Thu Feb 6 06:45:10 2025 +1100
+Date:   Thu Feb 27 11:29:58 2025 +1100
 
     Add support for spice-direct console types.
 
-    This patch adds support for Nova microversion 2.98 which exposes the new
+    This patch adds support for Nova microversion 2.99 which exposes the new
     spice-direct console type and the pre-existing /os-console-auth-token/ API.
 
+    # openstack console url show --spice-direct f2477018-aa93-...
     +----------+----------------------------------------------------------+
     | Field    | Value                                                    |
     +----------+----------------------------------------------------------+
@@ -15,6 +16,7 @@ Date:   Thu Feb 6 06:45:10 2025 +1100
     | url      | http://127.0.0.1:13002/nova?token=f78009fb-41ad-...      |
     +----------+----------------------------------------------------------+
 
+    # openstack console connection show f78009fb-41ad-...
     +----------------------+--------------------------------------+
     | Field                | Value                                |
     +----------------------+--------------------------------------+
@@ -25,7 +27,6 @@ Date:   Thu Feb 6 06:45:10 2025 +1100
     | tls_port             | 5901                                 |
     +----------------------+--------------------------------------+
 
-    Depends-On: https://review.opendev.org/c/openstack/nova/+/924844
     Change-Id: I2d33646d6ac9b25076d69be76dcef8f5c465cd1b
 
 diff --git a/openstackclient/compute/v2/console.py b/openstackclient/compute/v2/console.py
@@ -46,6 +47,62 @@ index 3059cb10..fe6fcf0b 100644
          type_group.add_argument(
              '--rdp',
              dest='url_type',
+diff --git a/openstackclient/compute/v2/console_auth_token.py b/openstackclient/compute/v2/console_auth_token.py
+new file mode 100644
+index 00000000..abdf2804
+--- /dev/null
++++ b/openstackclient/compute/v2/console_auth_token.py
+@@ -0,0 +1,50 @@
++#   Licensed under the Apache License, Version 2.0 (the "License"); you may
++#   not use this file except in compliance with the License. You may obtain
++#   a copy of the License at
++#
++#        http://www.apache.org/licenses/LICENSE-2.0
++#
++#   Unless required by applicable law or agreed to in writing, software
++#   distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
++#   WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
++#   License for the specific language governing permissions and limitations
++#   under the License.
++#
++
++"""Compute v2 Console auth token implementations."""
++
++from osc_lib.cli import parseractions
++from osc_lib.command import command
++from osc_lib import utils
++
++from openstackclient.i18n import _
++
++
++def _get_console_connection_columns(item):
++    column_map = {}
++    hidden_columns = ['id', 'location', 'name']
++    return utils.get_osc_show_columns_for_sdk_resource(
++        item, column_map, hidden_columns
++    )
++
++
++class ShowConsoleConnectionInformation(command.ShowOne):
++    _description = _("Show server's remote console connection information")
++
++    def get_parser(self, prog_name):
++        parser = super().get_parser(prog_name)
++        parser.add_argument(
++            'token',
++            metavar='<token>',
++            help=_("Nova console token to lookup"),
++        )
++        return parser
++
++    def take_action(self, parsed_args):
++        compute_client = self.app.client_manager.sdk_connection.compute
++        data = compute_client.validate_console_auth_token(
++            parsed_args.token)
++        display_columns, columns = _get_console_connection_columns(data)
++        data = utils.get_dict_properties(data, columns)
++
++        return (display_columns, data)
 diff --git a/setup.cfg b/setup.cfg
 index 0ce65134..71d6a817 100644
 --- a/setup.cfg
