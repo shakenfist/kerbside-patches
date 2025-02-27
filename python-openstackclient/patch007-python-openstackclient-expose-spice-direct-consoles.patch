@@ -101,6 +101,43 @@ index 00000000..b4aed650
 +        data = utils.get_dict_properties(data, columns)
 +
 +        return (display_columns, data)
+diff --git a/openstackclient/tests/unit/compute/v2/test_console.py b/openstackclient/tests/unit/compute/v2/test_console.py
+index d4c6940b..28503f5e 100644
+--- a/openstackclient/tests/unit/compute/v2/test_console.py
++++ b/openstackclient/tests/unit/compute/v2/test_console.py
+@@ -157,7 +157,7 @@ class TestConsoleUrlShow(compute_fakes.TestComputev2):
+         self.assertEqual(self.columns, columns)
+         self.assertEqual(self.data, data)
+
+-    def test_console_url_show_with_spice(self):
++    def test_console_url_show_with_spice_html5(self):
+         arglist = [
+             '--spice',
+             'foo_vm',
+@@ -174,6 +174,23 @@ class TestConsoleUrlShow(compute_fakes.TestComputev2):
+         self.assertEqual(self.columns, columns)
+         self.assertEqual(self.data, data)
+
++    def test_console_url_show_with_spice_direct(self):
++        arglist = [
++            '--spice-direct',
++            'foo_vm',
++        ]
++        verifylist = [
++            ('url_type', 'spice-direct'),
++            ('server', 'foo_vm'),
++        ]
++        parsed_args = self.check_parser(self.cmd, arglist, verifylist)
++        columns, data = self.cmd.take_action(parsed_args)
++        self.compute_sdk_client.create_console.assert_called_once_with(
++            self._server.id, console_type='spice-direct'
++        )
++        self.assertEqual(self.columns, columns)
++        self.assertEqual(self.data, data)
++
+     def test_console_url_show_with_rdp(self):
+         arglist = [
+             '--rdp',
 diff --git a/setup.cfg b/setup.cfg
 index 0ce65134..71d6a817 100644
 --- a/setup.cfg
