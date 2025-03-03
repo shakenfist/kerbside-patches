@@ -1,44 +1,52 @@
 #!/bin/bash -e
 
-# $1: is an OpenStack release version -- for example 2024.1
-target_release="${1}"
-
 cd /srv/shakenfist/kerbside-patches
 . buildconfig.sh
+topdir=$(pwd)
 
 echo
 echo -e "${H1}==================================================${Color_Off}"
 echo -e "${H1}Building container images${Color_Off}"
 echo -e "${H1}==================================================${Color_Off}"
 
+echo
+echo -e "${H1}==================================================${Color_Off}"
+echo -e "${H1}Build configuration${Color_Off}"
+echo -e "${H1}    Targets: ${build_targets}${Color_Off}"
+echo -e "${H1}    Images: ${build_images}${Color_Off}"
+echo -e "${H1}    CI SHA: ${CI_COMMIT_SHORT_SHA}${Color_Off}"
+echo -e "${H1}==================================================${Color_Off}"
+
 echo -e "${H2}Building images${Color_Off}"
-./buildall.sh --build-targets "${target_release}" --build-images "all"
+mkdir -p ${topdir}/archive/
+./imagebuild.sh --build-targets "${build_targets}" --build-images "${build_images}"
 
-sha="${CI_COMMIT_SHORT_SHA}"
-release="${1}"
+echo
+echo -e "${H2}Built images${Color_Off}"
+docker image list
+
+echo
+echo -e "${H2}Pushing to the CI registry${Color_Off}"
+
 debian_codename="bookworm"
+for target in ${build_targets}; do
+    for image in $(docker image list --format json | \
+        jq --slurp -r ".[] | select(.Tag == \"${target}-${CI_COMMIT_SHORT_SHA}\") | .Repository"); do
+        echo -e "    ${image}:${target}-${CI_COMMIT_SHORT_SHA} ${Arrow} 192.168.1.5:4000/openstack.${image}:${target}-debian-${debian_codename}"
+        docker image tag ${image}:${target}-${CI_COMMIT_SHORT_SHA} \
+            192.168.1.5:4000/openstack${image}:${target}-debian-${debian_codename}
+        docker image push \
+            192.168.1.5:4000/openstack${image}:${target}-debian-${debian_codename}
 
-echo
-echo -e "${H1}==================================================${Color_Off}"
-echo -e "${H1}Loading / pushing images for SHA ${sha}${Color_Off}"
-echo -e "${H1}==================================================${Color_Off}"
-echo
-
-for item in archive/imgs/*.tar; do
-   name=$( echo $item | sed -e "s/archive\/imgs\///" -e "s/-${target_release}-${sha}.tar//" )
-   echo "Loading..."
-   echo "    name: ${name}"
-   echo "    release: ${target_release}"
-   echo "    sha: ${sha}"
-   sudo docker load -i $item
-   sudo docker image tag kolla/${name}:${target_release}-${sha} \
-       127.0.0.1:4000/openstack.kolla/${name}:${target_release}-debian-${debian_codename}
-   sudo docker image push \
-       127.0.0.1:4000/openstack.kolla/${name}:${target_release}-debian-${debian_codename}
+        echo -e "    ${image}:${target}-${CI_COMMIT_SHORT_SHA} ${Arrow} 192.168.1.5:4000/openstack.${image}:${target}-debian-${debian_codename}"
+        docker image tag ${image}:${target}-${CI_COMMIT_SHORT_SHA} \
+            192.168.1.5:4000/openstack${image}:${target}-${CI_COMMIT_SHORT_SHA}-debian-${debian_codename}
+        docker image push \
+            192.168.1.5:4000/openstack${image}:${target}-${CI_COMMIT_SHORT_SHA}-debian-${debian_codename}
+    done
 done
 
 echo
-
 trap - EXIT
 
 echo -e "${H1}==================================================${Color_Off}"

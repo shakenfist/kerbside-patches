@@ -7,6 +7,43 @@ on:
       - develop
 
 jobs:
+  build_images:
+    name: "Build docker images"
+    runs-on: [self-hosted, vm]
+    timeout-minutes: 180
+    concurrency:
+      group: ${{ github.workflow }}-${{ github.ref }}
+      cancel-in-progress: true
+
+    # NOTE(mikal): git repos are checked out to /srv/github/_work/{org}/{repo}
+    # which is available as GITHUB_WORKSPACE. You can find other environment
+    # variables at https://docs.github.com/en/actions/learn-github-actions/environment-variables
+
+    steps:
+      - name: Setup test environment
+        uses: shakenfist/actions/setup-kerbside-single-node-environment@main
+        with:
+          base: debian:12
+          base_user: debian
+          openstack_release: master
+
+      - name: Build patched repositories
+        run: |
+          . $GITHUB_ENV
+          ssh -i /srv/github/id_ci -o StrictHostKeyChecking=no \
+              -o UserKnownHostsFile=/dev/null \
+              debian@10.0.2.2 \
+              'cd /srv/shakenfist/kerbside-patches/tools; ./assemble-source master'
+
+      - name: Build container images
+        run: |
+          . $GITHUB_ENV
+          ssh -i /srv/github/id_ci -o StrictHostKeyChecking=no \
+              -o UserKnownHostsFile=/dev/null \
+              debian@10.0.2.2 \
+              'cd /srv/shakenfist/kerbside-patches/tools; ./build-containers --build-targets master --build-images all'
+
+
   functional_matrix:
     name: "Build a test cloud for ${{ matrix.test.description }}"
     strategy:
@@ -29,7 +66,8 @@ jobs:
           },
         ]
     runs-on: [self-hosted, vm]
-    timeout-minutes: 300
+    needs: build_images
+    timeout-minutes: 120
     concurrency:
       group: ${{ github.workflow }}-${{ github.ref }}-${{ matrix.test.name }}
       cancel-in-progress: true
@@ -39,81 +77,8 @@ jobs:
     # variables at https://docs.github.com/en/actions/learn-github-actions/environment-variables
 
     steps:
-      - name: Set environment variables
-        run: |
-          echo "SF_HEAD_SHA=${{ github.event.pull_request.head.sha }}" >> $GITHUB_ENV
-          echo "SHAKENFIST_NAMESPACE=$(hostname)" >> $GITHUB_ENV
-
-      - name: Checkout kerbside-patches
-        uses: actions/checkout@v4
-        with:
-          path: kerbside-patches
-          fetch-depth: 0
-
-      - name: Set some more environment variables post git checkout
-        run: |
-          . $GITHUB_ENV
-          cd ${GITHUB_WORKSPACE}/kerbside-patches
-
-          short_sha=$(git rev-parse --short HEAD)
-          echo "SF_SHORT_HEAD_SHA=${short_sha}" >> $GITHUB_ENV
-
-      - name: Install required packages
-        run: |
-          sudo pip3 install yq
-
-      - name: Attempt to apply patches
-        run: |
-          . $GITHUB_ENV
-          cd ${GITHUB_WORKSPACE}/kerbside-patches/tools
-          ./assemble-source ${{ matrix.test.release }}
-
-      - name: Build infrastructure
-        run: |
-          . $GITHUB_ENV
-          cd ${GITHUB_WORKSPACE}/kerbside-patches
-          ansible-playbook -i /home/debian/ansible-hosts \
-              --extra-vars "identifier=${SHAKENFIST_NAMESPACE} base=${{ matrix.test.base }}" \
-              --tags all cloud-deployment.yml
-
-      - name: Copy git repo
-        run: |
-          . $GITHUB_ENV
-          rm -rf kerbside-patches/src
-
-          script="sudo mkdir /srv/shakenfist"
-          script="$script; sudo chown -R ${{ matrix.test.baseuser }}:${{ matrix.test.baseuser }} /srv/shakenfist"
-          ssh -i /srv/github/id_ci -o StrictHostKeyChecking=no \
-                  -o UserKnownHostsFile=/dev/null ${{ matrix.test.baseuser }}@10.0.2.2 \
-                  "${script}"
-
-          scp -rp -i /srv/github/id_ci -o StrictHostKeyChecking=no \
-              -o UserKnownHostsFile=/dev/null \
-              ${GITHUB_WORKSPACE}/kerbside-patches \
-              ${{ matrix.test.baseuser }}@10.0.2.2:/srv/shakenfist
-
-      - name: Upgrade python for releases newer than 2024.2
-        run: |
-          . ${GITHUB_WORKSPACE}/ci-environment.sh
-          cd ${GITHUB_WORKSPACE}
-
-          release_year=$(echo "${{ matrix.test.release }}" | cut -f 1 -d ".")
-
-          if [ "${release_year}" != "2024" ]; then
-            ssh -i /srv/github/id_ci -o StrictHostKeyChecking=no \
-                  -o UserKnownHostsFile=/dev/null ${{ matrix.test.baseuser }}@10.0.2.2 \
-                  "cd /srv/shakenfist/kerbside-patches/tools; sudo ./upgrade-python"
-          else
-            echo "2024 releases do not require a newer python, skipping"
-          fi
-
-      - name: Install dependencies
-        run: |
-          . $GITHUB_ENV
-          ssh -i /srv/github/id_ci -o StrictHostKeyChecking=no \
-              -o UserKnownHostsFile=/dev/null \
-              ${{ matrix.test.baseuser }}@10.0.2.2 \
-              'cd /srv/shakenfist/kerbside-patches/tools; ./install-build-dependencies'
+      - name: Setup test environment
+        uses: shakenfist/actions/setup-kerbside-single-node-environment@main
 
       - name: Setup docker registry
         run: |
