@@ -26,7 +26,7 @@ for target in ${build_targets}; do
     images=$(/srv/kerbside/venv-tools/bin/python3 ${topdir}/tools/find_images \
         --registry http://192.168.1.5:4000 find ${image_tag} || true)
 
-    if [ $(echo ${images} | grep -c ${image_tag} || true) -gt 0 ]; then
+    if [ $(echo ${images} | grep -c kolla || true) -gt 0 ]; then
         echo "Found existing images. Pulling them."
 
         for image in $(echo ${images}); do
