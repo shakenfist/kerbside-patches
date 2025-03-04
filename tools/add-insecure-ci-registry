@@ -19,5 +19,5 @@ sudo systemctl restart docker
 trap - EXIT
 
 echo -e "${H1}==================================================${Color_Off}"
-echo -e "${H1}Build dependencies installed.${Color_Off}"
+echo -e "${H1}HTTP CI registry setup${Color_Off}"
 echo -e "${H1}==================================================${Color_Off}"
