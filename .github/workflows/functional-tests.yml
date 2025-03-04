@@ -102,7 +102,7 @@ jobs:
           ssh -i /srv/github/id_ci -o StrictHostKeyChecking=no \
               -o UserKnownHostsFile=/dev/null \
               ${{ matrix.test.baseuser }}@10.0.2.2 \
-              'cd /srv/shakenfist/kerbside-patches/tools; ./build-containers  ${{ matrix.test.release }}'
+              'cd /srv/shakenfist/kerbside-patches/tools; ./build-containers --build-targets ${{ matrix.test.release }} --build-images all'
 
       - name: Disable /etc/hosts for name resolution
         run: |
