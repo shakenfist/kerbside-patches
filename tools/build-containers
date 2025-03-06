@@ -34,7 +34,7 @@ for target in ${build_targets}; do
             docker pull 192.168.1.5:4000/${image}:${image_tag}
 
             echo -e "    ${image}:${image_tag} ${Arrow} ${image}:${target}-debian-${debian_codename}"
-            docker image tag ${image}:${image_tag} \
+            docker image tag 192.168.1.5:4000/${image}:${image_tag} \
                 ${image}:${target}-debian-${debian_codename}
         done
     else
@@ -57,11 +57,10 @@ for target in ${build_targets}; do
             docker image push \
                 192.168.1.5:4000/openstack${image}:${target}-debian-${debian_codename}
 
-            echo -e "    ${image}:${target}-${CI_COMMIT_SHORT_SHA} ${Arrow} 192.168.1.5:4000/openstack.${image}:${target}-debian-${debian_codename}"
+            echo -e "    ${image}:${target}-${CI_COMMIT_SHORT_SHA} ${Arrow} 192.168.1.5:4000/openstack.${image}:${image_tag}"
             docker image tag ${image}:${target}-${CI_COMMIT_SHORT_SHA} \
                 192.168.1.5:4000/openstack${image}:${image_tag}
-            docker image push \
-                192.168.1.5:4000/openstack${image}:${image_tag}
+            docker image push 192.168.1.5:4000/openstack${image}:${image_tag}
         done
     fi
 done
