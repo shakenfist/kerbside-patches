@@ -96,7 +96,7 @@ index d64234f..0cb7922 100644
      AUTO_TYPE = NotificationPriority()
 
 diff --git a/nova/objects/image_meta.py b/nova/objects/image_meta.py
-index 2029b27..1488f3f 100644
+index c8764e9..b6f0ba5 100644
 --- a/nova/objects/image_meta.py
 +++ b/nova/objects/image_meta.py
 @@ -198,14 +198,18 @@ class ImageMetaProps(base.NovaObject):
@@ -205,10 +205,10 @@ index bde7fd3..319892a 100644
      'InstanceActionPayload': '1.9-525dcf81b6e4592d935712a2675309dc',
      'InstanceActionRebuildNotification':
 diff --git a/nova/tests/unit/objects/test_image_meta.py b/nova/tests/unit/objects/test_image_meta.py
-index 81b54a1..5b05fcc 100644
+index 47226c9..508ed4d 100644
 --- a/nova/tests/unit/objects/test_image_meta.py
 +++ b/nova/tests/unit/objects/test_image_meta.py
-@@ -552,6 +552,17 @@ class TestImageMetaProps(test.NoDBTestCase):
+@@ -558,6 +558,17 @@ class TestImageMetaProps(test.NoDBTestCase):
          self.assertNotIn('hw_tpm_model', primitive['nova_object.data'])
          self.assertNotIn('hw_tpm_version', primitive['nova_object.data'])
 
@@ -227,11 +227,11 @@ index 81b54a1..5b05fcc 100644
          obj = objects.ImageMetaProps(
              hw_pci_numa_affinity_policy=fields.PCINUMAAffinityPolicy.SOCKET)
 diff --git a/nova/tests/unit/objects/test_objects.py b/nova/tests/unit/objects/test_objects.py
-index e11156b..fd4dd9e 100644
+index 27bcf43..b7550a0 100644
 --- a/nova/tests/unit/objects/test_objects.py
 +++ b/nova/tests/unit/objects/test_objects.py
 @@ -1105,7 +1105,7 @@ object_data = {
-     'HyperVLiveMigrateData': '1.4-e265780e6acfa631476c8170e8d6fce0',
+     'HyperVLiveMigrateData': '1.5-b424b27305f259fb3c15d720856585c7',
      'IDEDeviceBus': '1.0-29d4c9f27ac44197f01b6ac1b7e16502',
      'ImageMeta': '1.8-642d1b2eb3e880a367f37d72dd76162d',
 -    'ImageMetaProps': '1.39-b0fb2690fa477480e42a1469769cb9fc',
@@ -270,7 +270,7 @@ index 4a15f6b..86bb8d3 100644
 +            reqspec.root_required)
 +        self.assertEqual(set(), reqspec.root_forbidden)
 diff --git a/nova/tests/unit/virt/libvirt/test_driver.py b/nova/tests/unit/virt/libvirt/test_driver.py
-index 5473856..496cfbf 100644
+index c51d292..9d2e51c 100644
 --- a/nova/tests/unit/virt/libvirt/test_driver.py
 +++ b/nova/tests/unit/virt/libvirt/test_driver.py
 @@ -997,6 +997,7 @@ class LibvirtConnTestCase(test.NoDBTestCase,
@@ -426,7 +426,7 @@ index 5473856..496cfbf 100644
      @mock.patch.object(libvirt_driver.LibvirtDriver,
                         '_register_all_undefined_instance_details',
                         new=mock.Mock())
-@@ -7100,6 +7179,43 @@ class LibvirtConnTestCase(test.NoDBTestCase,
+@@ -7153,6 +7232,43 @@ class LibvirtConnTestCase(test.NoDBTestCase,
          self.assertEqual(cfg.devices[7].model, 'tpm-crb')
          self.assertEqual(cfg.devices[7].secret_uuid, uuids.vtpm)
 
@@ -577,7 +577,7 @@ index 0e8f159..2c185c4 100644
 +        meta.set('model', str(self.model))
 +        return meta
 diff --git a/nova/virt/libvirt/driver.py b/nova/virt/libvirt/driver.py
-index 3bb3b7d..e4f279f 100644
+index cfb22b5..fc67f87 100644
 --- a/nova/virt/libvirt/driver.py
 +++ b/nova/virt/libvirt/driver.py
 @@ -266,6 +266,10 @@ MIN_LIBVIRT_STATELESS_FIRMWARE = (8, 6, 0)
@@ -591,7 +591,7 @@ index 3bb3b7d..e4f279f 100644
  REGISTER_IMAGE_PROPERTY_DEFAULTS = [
      'hw_machine_type',
      'hw_cdrom_bus',
-@@ -6828,6 +6832,22 @@ class LibvirtDriver(driver.ComputeDriver):
+@@ -6845,6 +6849,22 @@ class LibvirtDriver(driver.ComputeDriver):
          vtpm = vconfig.LibvirtConfigGuestVTPM(vtpm_config, vtpm_secret_uuid)
          guest.add_device(vtpm)
 
@@ -614,7 +614,7 @@ index 3bb3b7d..e4f279f 100644
      def _set_qemu_guest_agent(self, guest, flavor, instance, image_meta):
          # Enable qga only if the 'hw_qemu_guest_agent' is equal to yes
          if image_meta.properties.get('hw_qemu_guest_agent', False):
-@@ -7512,6 +7532,7 @@ class LibvirtDriver(driver.ComputeDriver):
+@@ -7529,6 +7549,7 @@ class LibvirtDriver(driver.ComputeDriver):
          self._create_consoles(guest, instance, flavor, image_meta)
 
          self._guest_add_spice_channel(guest)
@@ -622,7 +622,7 @@ index 3bb3b7d..e4f279f 100644
 
          if self._guest_add_video_device(guest):
              self._add_video_driver(guest, image_meta, flavor)
-@@ -9564,6 +9585,7 @@ class LibvirtDriver(driver.ComputeDriver):
+@@ -9581,6 +9602,7 @@ class LibvirtDriver(driver.ComputeDriver):
          traits.update(self._get_vif_model_traits())
          traits.update(self._get_iommu_model_traits())
          traits.update(self._get_tpm_traits())
@@ -630,7 +630,7 @@ index 3bb3b7d..e4f279f 100644
 
          _, invalid_traits = ot.check_traits(traits)
          for invalid_trait in invalid_traits:
-@@ -13313,3 +13335,33 @@ class LibvirtDriver(driver.ComputeDriver):
+@@ -13330,3 +13352,33 @@ class LibvirtDriver(driver.ComputeDriver):
                  fs.source_dir = self._get_share_mount_path(instance, share)
                  fs.target_dir = share.tag
                  guest.add_device(fs)

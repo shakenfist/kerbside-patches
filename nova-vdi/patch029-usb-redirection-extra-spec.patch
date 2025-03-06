@@ -76,7 +76,7 @@ index 42e6153..68247b0 100644
      # NOTE(efried): This logic currently relies on all of the fields of
      # ImageMetaProps being initialized with no arguments. See the docstring.
 diff --git a/nova/objects/fields.py b/nova/objects/fields.py
-index 0cb7922..8ddd81e 100644
+index 0cb7922..147ef70 100644
 --- a/nova/objects/fields.py
 +++ b/nova/objects/fields.py
 @@ -869,6 +869,21 @@ class SoundModelType(BaseNovaEnum):
@@ -113,7 +113,7 @@ index 0cb7922..8ddd81e 100644
      AUTO_TYPE = NotificationPriority()
 
 diff --git a/nova/objects/image_meta.py b/nova/objects/image_meta.py
-index 1488f3f..ada33dd 100644
+index b6f0ba5..3ccb267 100644
 --- a/nova/objects/image_meta.py
 +++ b/nova/objects/image_meta.py
 @@ -199,15 +199,19 @@ class ImageMetaProps(base.NovaObject):
@@ -186,10 +186,10 @@ index 319892a..46f68b5 100644
      'InstanceActionPayload': '1.9-525dcf81b6e4592d935712a2675309dc',
      'InstanceActionRebuildNotification':
 diff --git a/nova/tests/unit/objects/test_image_meta.py b/nova/tests/unit/objects/test_image_meta.py
-index 5b05fcc..d5e38e6 100644
+index 508ed4d..fab3ae8 100644
 --- a/nova/tests/unit/objects/test_image_meta.py
 +++ b/nova/tests/unit/objects/test_image_meta.py
-@@ -563,6 +563,21 @@ class TestImageMetaProps(test.NoDBTestCase):
+@@ -569,6 +569,21 @@ class TestImageMetaProps(test.NoDBTestCase):
          primitive = obj.obj_to_primitive('1.27')
          self.assertNotIn('hw_sound_model', primitive['nova_object.data'])
 
@@ -212,11 +212,11 @@ index 5b05fcc..d5e38e6 100644
          obj = objects.ImageMetaProps(
              hw_pci_numa_affinity_policy=fields.PCINUMAAffinityPolicy.SOCKET)
 diff --git a/nova/tests/unit/objects/test_objects.py b/nova/tests/unit/objects/test_objects.py
-index fd4dd9e..010159e 100644
+index b7550a0..7601ffa 100644
 --- a/nova/tests/unit/objects/test_objects.py
 +++ b/nova/tests/unit/objects/test_objects.py
 @@ -1105,7 +1105,7 @@ object_data = {
-     'HyperVLiveMigrateData': '1.4-e265780e6acfa631476c8170e8d6fce0',
+     'HyperVLiveMigrateData': '1.5-b424b27305f259fb3c15d720856585c7',
      'IDEDeviceBus': '1.0-29d4c9f27ac44197f01b6ac1b7e16502',
      'ImageMeta': '1.8-642d1b2eb3e880a367f37d72dd76162d',
 -    'ImageMetaProps': '1.40-6cd46dc34799f30e98a3a79d72c3b6eb',
@@ -311,10 +311,10 @@ index 2c185c4..d2bcf5f 100644
 +        meta.set('bus', str(self.bus))
 +        return meta
 diff --git a/nova/virt/libvirt/driver.py b/nova/virt/libvirt/driver.py
-index cdc96be..dafc9c9 100644
+index fc67f87..9056277 100644
 --- a/nova/virt/libvirt/driver.py
 +++ b/nova/virt/libvirt/driver.py
-@@ -6844,6 +6844,18 @@ class LibvirtDriver(driver.ComputeDriver):
+@@ -6865,6 +6865,18 @@ class LibvirtDriver(driver.ComputeDriver):
          sound_device = vconfig.LibvirtConfigGuestSound(sound_model)
          guest.add_device(sound_device)
 
@@ -333,7 +333,7 @@ index cdc96be..dafc9c9 100644
      def _set_qemu_guest_agent(self, guest, flavor, instance, image_meta):
          # Enable qga only if the 'hw_qemu_guest_agent' is equal to yes
          if image_meta.properties.get('hw_qemu_guest_agent', False):
-@@ -7357,7 +7369,7 @@ class LibvirtDriver(driver.ComputeDriver):
+@@ -7378,7 +7390,7 @@ class LibvirtDriver(driver.ComputeDriver):
 
          return False
 
@@ -342,7 +342,7 @@ index cdc96be..dafc9c9 100644
          """Add USB root controller, if necessary.
 
          Note that these are added by default on x86-64. We add the controller
-@@ -7366,9 +7378,11 @@ class LibvirtDriver(driver.ComputeDriver):
+@@ -7387,9 +7399,11 @@ class LibvirtDriver(driver.ComputeDriver):
          """
          usbhost = vconfig.LibvirtConfigGuestUSBHostController()
          usbhost.index = 0
@@ -354,7 +354,7 @@ index cdc96be..dafc9c9 100644
          if not self._guest_needs_usb(guest, image_meta):
              archs = (
                  fields.Architecture.PPC,
-@@ -7381,6 +7395,8 @@ class LibvirtDriver(driver.ComputeDriver):
+@@ -7402,6 +7416,8 @@ class LibvirtDriver(driver.ComputeDriver):
                  # xml, where 'none' adds it but then disables it causing
                  # libvirt errors and the instances not being able to build
                  usbhost.model = None
@@ -363,7 +363,7 @@ index cdc96be..dafc9c9 100644
              else:
                  usbhost.model = 'none'
          guest.add_device(usbhost)
-@@ -7545,7 +7561,8 @@ class LibvirtDriver(driver.ComputeDriver):
+@@ -7566,7 +7582,8 @@ class LibvirtDriver(driver.ComputeDriver):
          if self._guest_needs_pcie(guest):
              self._guest_add_pcie_root_ports(guest)
 
