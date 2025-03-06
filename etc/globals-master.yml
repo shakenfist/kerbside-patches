@@ -91,11 +91,11 @@ kolla_internal_vip_address: "10.0.2.2"
 ################
 
 # Custom docker registry settings:
-docker_registry: 127.0.0.1:4000
+docker_registry: 192.168.1.5:4000
 docker_registry_insecure: yes
 
 # Namespace of images:
-#docker_namespace: "kolla"
+docker_namespace: "openstackkolla"
 
 # Docker client timeout in seconds.
 #docker_client_timeout: 120

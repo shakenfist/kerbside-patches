@@ -1,0 +1,75 @@
+#!/usr/bin/python3
+
+# Find all images in a docker registry with a label matching $1
+
+import requests
+import sys
+
+import click
+
+
+@click.group()
+@click.option('--registry', default='http://192.168.1.5:4000')
+@click.pass_context
+def cli(ctx, registry):
+    if not ctx.obj:
+        ctx.obj = {}
+    ctx.obj['registry'] = registry
+
+
+def _get_images(registry):
+    images = []
+
+    next_link = '/v2/_catalog'
+    while next_link:
+        r = requests.get(f'{registry}{next_link}')
+        if 'next' in r.links:
+            next_link = r.links['next']['url']
+        else:
+            next_link = None
+
+        for image in r.json().get('repositories'):
+            images.append(image)
+
+    return images
+
+
+def _get_image_tags(registry, image):
+    tags = []
+
+    next_link = f'/v2/{image}/tags/list'
+    while next_link:
+        r = requests.get(f'{registry}{next_link}')
+        if 'next' in r.links:
+            next_link = r.links['next']['url']
+        else:
+            next_link = None
+
+        for tag in r.json().get('tags'):
+            tags.append(tag)
+
+    return tags
+
+
+@cli.command(name='find', help='Find images')
+@click.argument('search')
+@click.pass_context
+def find(ctx, search):
+    found = False
+
+    for image in _get_images(ctx.obj['registry']):
+        for tag in _get_image_tags(ctx.obj['registry'], image):
+            if tag == search:
+                print(image)
+                found = True
+                continue
+
+    if found:
+        sys.exit(0)
+    sys.exit(1)
+
+cli.add_command(find)
+
+
+if __name__ == '__main__':
+    cli()

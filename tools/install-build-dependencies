@@ -66,8 +66,16 @@ else
 fi
 
 # Allow the current user to access docker
+echo -e "${H2}Grant access to docker${Color_Off}"
 sudo usermod -a -G docker $(whoami)
 echo
+
+# Setup a tools venv
+echo -e "${H2}Setup a tools venv${Color_Off}"
+sudo mkdir -p /srv/kerbside
+sudo chown -R $(whoami):$(whoami) /srv/kerbside
+python3 -mvenv /srv/kerbside/venv-tools
+/srv/kerbside/venv-tools/bin/pip3 install click requests
 
 trap - EXIT
 
