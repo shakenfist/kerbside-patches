@@ -21,7 +21,7 @@ if [ "${NAME}" == "Rocky Linux" ]; then
     sudo dnf install -y moreutils pkg-config python3-lxml libxml2-devel \
         libxslt jq gcc python3-devel dbus-devel glib2-devel dbus-python-devel
     sudo dnf remove python3-virtualenv
-    sudo pip3 install tox yq occystrap virtualenv MarkupSafe==2.1.5
+    sudo pip3 install tox yq occystrap virtualenv MarkupSafe==2.1.5 clingwrap
     echo
 
     echo -e "${H2}Install a recent Docker${Color_Off}"
@@ -42,7 +42,7 @@ else
         python3-dbus git python3-venv
     sudo apt-get remove -y python3-virtualenv
     sudo pip3 install --break-system-packages tox yq occystrap virtualenv \
-        MarkupSafe==2.1.5
+        MarkupSafe==2.1.5 clingwrap
     echo
 
     echo -e "${H2}Install a recent Docker${Color_Off}"

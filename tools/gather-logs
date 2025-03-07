@@ -1,0 +1,5 @@
+#!/bin/bash
+
+clingwrap gather \
+    --target /usr/local/share/clingwrap/openstack-kolla-ansible.cwd \
+    --output /tmp/bundle.zip
