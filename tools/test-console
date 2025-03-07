@@ -15,12 +15,13 @@ if [ ! -e /srv/shakenfist/debian-11-desktop.qcow2 ]; then\
         -O /srv/shakenfist/debian-11-desktop.qcow2
 
     echo "Pushing test image to glance..."
-    openstack image create --public --disk-format qcow2 --container-format bare \
+    /usr/local/bin/openstack image create --public --disk-format qcow2 \
+        --container-format bare \
         --file /srv/shakenfist/debian-11-desktop.qcow2 debian-11-desktop
 fi
 
 echo
-imageid=$(openstack image list -f json | \
+imageid=$(/usr/local/bin/openstack image list -f json | \
     jq -e -r ".[] | select(.Name == \"debian-11-desktop\") | .ID")
 echo "... image id is ${imageid}"
 
@@ -29,8 +30,8 @@ echo -e "${H1}==================================================${Color_Off}"
 echo -e "${H1}Setup flavor and image extra specs${Color_Off}"
 echo -e "${H1}==================================================${Color_Off}"
 
-openstack image set --property hw_video_ram=64 ${imageid}
-openstack flavor create vdi --ram 4096 --disk 200 --vcpus 4 \
+/usr/local/bin/openstack image set --property hw_video_ram=64 ${imageid}
+/usr/local/bin/openstack flavor create vdi --ram 4096 --disk 200 --vcpus 4 \
     --property hw_video:ram_max_mb=64
 
 echo
@@ -39,20 +40,20 @@ echo -e "${H1}Start test instance${Color_Off}"
 echo -e "${H1}==================================================${Color_Off}"
 
 instancename="test-$$"
-openstack server create --flavor vdi --image ${imageid} \
+/usr/local/bin/openstack server create --flavor vdi --image ${imageid} \
     --network public1 ${instancename}
 
 start=$(date +"%s")
 now=$(date +"%s")
 while [ $(( ${now} - ${start} )) -lt 300 ]; do
-    status=$(openstack server show ${instancename} -f json | jq -e -r ".status")
+    status=$(/usr/local/bin/openstack server show ${instancename} -f json | jq -e -r ".status")
     if [ ${status} == 'ACTIVE' ]; then
         break
     fi
     if [ ${status} == 'ERROR' ]; then
         echo "... instance is in error status"
         echo
-        openstack server show ${instancename}
+        /usr/local/bin/openstack server show ${instancename}
         exit 1
     fi
     echo "... instance status is ${status}"
@@ -74,7 +75,7 @@ echo -e "${H1}==================================================${Color_Off}"
 echo -e "${H1}Create console${Color_Off}"
 echo -e "${H1}==================================================${Color_Off}"
 
-consoleurl=$(openstack console url show ${instancename} --spice-direct -f json | \
+consoleurl=$(/usr/local/bin/openstack console url show ${instancename} --spice-direct -f json | \
     jq -e -r ".url")
 consoletoken=$(echo ${consoleurl} | sed 's/.*token=//')
 
@@ -87,7 +88,7 @@ echo -e "${H1}==================================================${Color_Off}"
 echo -e "${H1}Lookup console connection details${Color_Off}"
 echo -e "${H1}==================================================${Color_Off}"
 
-connjson=$(openstack console connection show ${consoletoken} -f json)
+connjson=$(/usr/local/bin/openstack console connection show ${consoletoken} -f json)
 connhost=$(echo ${connjson} | jq -e -r ".host")
 connport=$(echo ${connjson} | jq -e -r ".port")
 
