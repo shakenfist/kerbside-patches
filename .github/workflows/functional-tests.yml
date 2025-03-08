@@ -80,14 +80,6 @@ jobs:
       - name: Setup test environment
         uses: shakenfist/actions/setup-kerbside-single-node-environment@main
 
-      - name: Setup docker registry
-        run: |
-          . $GITHUB_ENV
-          ssh -i /srv/github/id_ci -o StrictHostKeyChecking=no \
-              -o UserKnownHostsFile=/dev/null \
-              ${{ matrix.test.baseuser }}@10.0.2.2 \
-              'cd /srv/shakenfist/kerbside-patches/tools; sudo ./install-docker-registry'
-
       - name: Build patched repositories
         run: |
           . $GITHUB_ENV
