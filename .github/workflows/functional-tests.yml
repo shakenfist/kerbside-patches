@@ -79,6 +79,10 @@ jobs:
     steps:
       - name: Setup test environment
         uses: shakenfist/actions/setup-kerbside-single-node-environment@main
+        with:
+          base: ${{ matrix.test.base }}
+          base_user: ${{ matrix.test.baseuser }}
+          openstack_release: ${{ matrix.test.release }}
 
       - name: Build patched repositories
         run: |
