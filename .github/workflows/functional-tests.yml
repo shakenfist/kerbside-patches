@@ -159,7 +159,7 @@ jobs:
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: bundle
+          name: bundle-${{ matrix.test.name }}
           retention-days: 90
           if-no-files-found: error
           path: /tmp/bundle.zip
