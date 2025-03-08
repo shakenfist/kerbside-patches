@@ -19,7 +19,8 @@ if [ "${NAME}" == "Rocky Linux" ]; then
 
     echo -e "${H2}Additional packages${Color_Off}"
     sudo dnf install -y moreutils pkg-config python3-lxml libxml2-devel \
-        libxslt jq gcc python3-devel dbus-devel glib2-devel dbus-python-devel
+        libxslt jq gcc python3-devel dbus-devel glib2-devel dbus-python-devel \
+        netcat
     sudo dnf remove python3-virtualenv
     sudo pip3 install tox yq occystrap virtualenv MarkupSafe==2.1.5 clingwrap
     echo
@@ -39,7 +40,7 @@ else
     echo -e "${H2}Additional packages${Color_Off}"
     sudo apt-get install -y moreutils pkg-config python3-lxml libxml2-dev \
         libxslt1-dev jq gcc python3-dev libdbus-1-dev libglib2.0-dev \
-        python3-dbus git python3-venv
+        python3-dbus git python3-venv netcat-openbsd
     sudo apt-get remove -y python3-virtualenv
     sudo pip3 install --break-system-packages tox yq occystrap virtualenv \
         MarkupSafe==2.1.5 clingwrap
