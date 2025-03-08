@@ -145,6 +145,7 @@ jobs:
               'cd /srv/shakenfist/kerbside-patches/tools; sudo ./test-console'
 
       - name: Collect logs
+        if: always()
         run: |
           . $GITHUB_ENV
           ssh -i /srv/github/id_ci -o StrictHostKeyChecking=no \
