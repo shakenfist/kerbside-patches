@@ -135,7 +135,7 @@ index 000000000..ed37fca54
 +    allow_fetch = True
 +    requires_id = False
 +
-+    _max_microversion = '2.98'
++    _max_microversion = '2.99'
 +
 +    # Request
 +    #: The console token to lookup connection information for.
@@ -194,7 +194,7 @@ index 7a845b6ab..ce1796e6c 100644
      allow_list = False
 
 -    _max_microversion = '2.8'
-+    _max_microversion = '2.98'
++    _max_microversion = '2.99'
 
      #: Protocol of the remote console.
      protocol = resource.Body('protocol')
@@ -203,7 +203,7 @@ index 7a845b6ab..ce1796e6c 100644
                  'Console type webmks is not supported on server side'
              )
 +        if (
-+            not utils.supports_microversion(session, '2.98')
++            not utils.supports_microversion(session, '2.99')
 +            and self.type == 'spice-direct'
 +        ):
 +            raise ValueError(

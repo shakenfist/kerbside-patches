@@ -79,14 +79,10 @@ jobs:
     steps:
       - name: Setup test environment
         uses: shakenfist/actions/setup-kerbside-single-node-environment@main
-
-      - name: Setup docker registry
-        run: |
-          . $GITHUB_ENV
-          ssh -i /srv/github/id_ci -o StrictHostKeyChecking=no \
-              -o UserKnownHostsFile=/dev/null \
-              ${{ matrix.test.baseuser }}@10.0.2.2 \
-              'cd /srv/shakenfist/kerbside-patches/tools; sudo ./install-docker-registry'
+        with:
+          base: ${{ matrix.test.base }}
+          base_user: ${{ matrix.test.baseuser }}
+          openstack_release: ${{ matrix.test.release }}
 
       - name: Build patched repositories
         run: |
@@ -151,3 +147,23 @@ jobs:
               -o UserKnownHostsFile=/dev/null \
               ${{ matrix.test.baseuser }}@10.0.2.2 \
               'cd /srv/shakenfist/kerbside-patches/tools; sudo ./test-console'
+
+      - name: Collect logs
+        if: always()
+        run: |
+          . $GITHUB_ENV
+          ssh -i /srv/github/id_ci -o StrictHostKeyChecking=no \
+              -o UserKnownHostsFile=/dev/null \
+              ${{ matrix.test.baseuser }}@10.0.2.2 \
+              'cd /srv/shakenfist/kerbside-patches/tools; sudo ./gather-logs'
+          scp -i /srv/github/id_ci -o StrictHostKeyChecking=no \
+              -o UserKnownHostsFile=/dev/null \
+              ${{ matrix.test.baseuser }}@10.0.2.2:/tmp/bundle.zip /tmp/bundle.zip
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: bundle-${{ matrix.test.name }}
+          retention-days: 90
+          if-no-files-found: error
+          path: /tmp/bundle.zip
