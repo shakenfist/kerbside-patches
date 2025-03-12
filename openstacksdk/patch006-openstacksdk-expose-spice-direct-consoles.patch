@@ -1,12 +1,12 @@
-commit 8cee401389ccba52a6a645cd0676cc678220bede
+commit d23bb3963b19d9aac2dba3eaefe83b8b4d8fc5d5
 Author: Michael Still <mikal@stillhq.com>
+Date:   Tue Mar 11 15:59:46 2025 +1100
 
     Add support for spice-direct console types.
-
+    
     This patch adds support for Nova microversion 2.99 which exposes the new
     spice-direct console type and the pre-existing /os-console-auth-token/ API.
-
-    # openstack console url show --spice-direct f2477018-aa93-...
+    
     +----------+----------------------------------------------------------+
     | Field    | Value                                                    |
     +----------+----------------------------------------------------------+
@@ -14,8 +14,7 @@ Author: Michael Still <mikal@stillhq.com>
     | type     | spice-direct                                             |
     | url      | http://127.0.0.1:13002/nova?token=f78009fb-41ad-...      |
     +----------+----------------------------------------------------------+
-
-    # openstack console connection show f78009fb-41ad-...
+    
     +----------------------+--------------------------------------+
     | Field                | Value                                |
     +----------------------+--------------------------------------+
@@ -25,7 +24,7 @@ Author: Michael Still <mikal@stillhq.com>
     | port                 | 5900                                 |
     | tls_port             | 5901                                 |
     +----------------------+--------------------------------------+
-
+    
     Change-Id: I97e3415ec3110374cf95d244cd75bcdf6c5e7871
 
 diff --git a/openstack/compute/v2/_proxy.py b/openstack/compute/v2/_proxy.py
@@ -53,7 +52,7 @@ index f48e1f684..87110699b 100644
 @@ -2384,6 +2388,18 @@ class Proxy(proxy.Proxy):
          server = self._get_resource(_server.Server, server)
          return server.get_console_url(self, console_type)
-
+ 
 +    def validate_console_auth_token(self, console_token):
 +        """Lookup console connection information for a console auth token.
 +
@@ -68,7 +67,7 @@ index f48e1f684..87110699b 100644
 +
      def get_server_console_output(self, server, length=None):
          """Return the console output for a server.
-
+ 
 @@ -2411,10 +2427,13 @@ class Proxy(proxy.Proxy):
              * rdp-html5
              * serial
@@ -76,7 +75,7 @@ index f48e1f684..87110699b 100644
 +            * spice-direct (supported after 2.99)
          :param console_protocol: Optional console protocol (is respected only
              after microversion 2.6).
-
+ 
 -        :returns: Dictionary with console type, url and optionally protocol.
 +        :returns: Dictionary with console type, connection details (url for
 +        most consoles, host and port details for direct consoles) and
@@ -108,10 +107,10 @@ index 5ecf09898..f75057b9d 100644
          action = CONSOLE_TYPE_ACTION_MAPPING.get(console_type)
 diff --git a/openstack/compute/v2/server_console_auth_token.py b/openstack/compute/v2/server_console_auth_token.py
 new file mode 100644
-index 000000000..ed37fca54
+index 000000000..80c6d6a7f
 --- /dev/null
 +++ b/openstack/compute/v2/server_console_auth_token.py
-@@ -0,0 +1,65 @@
+@@ -0,0 +1,63 @@
 +# Licensed under the Apache License, Version 2.0 (the "License"); you may
 +# not use this file except in compliance with the License. You may obtain
 +# a copy of the License at
@@ -165,8 +164,6 @@ index 000000000..ed37fca54
 +        microversion=None,
 +        **params,
 +    ):
-+        # NOTE(mikal): I am really not sure this is the right way to not
-+        # require an id.
 +        return super().fetch(
 +            session,
 +            requires_id=False,
@@ -178,7 +175,7 @@ index 000000000..ed37fca54
 +            **params,
 +        )
 diff --git a/openstack/compute/v2/server_remote_console.py b/openstack/compute/v2/server_remote_console.py
-index 7a845b6ab..ce1796e6c 100644
+index 7a845b6ab..7d62ea6dd 100644
 --- a/openstack/compute/v2/server_remote_console.py
 +++ b/openstack/compute/v2/server_remote_console.py
 @@ -17,6 +17,7 @@ CONSOLE_TYPE_PROTOCOL_MAPPING = {
@@ -192,10 +189,10 @@ index 7a845b6ab..ce1796e6c 100644
 @@ -34,7 +35,7 @@ class ServerRemoteConsole(resource.Resource):
      allow_delete = False
      allow_list = False
-
+ 
 -    _max_microversion = '2.8'
 +    _max_microversion = '2.99'
-
+ 
      #: Protocol of the remote console.
      protocol = resource.Body('protocol')
 @@ -55,6 +56,13 @@ class ServerRemoteConsole(resource.Resource):
@@ -212,6 +209,34 @@ index 7a845b6ab..ce1796e6c 100644
          return super().create(
              session, prepend_key=prepend_key, base_path=base_path, **params
          )
+diff --git a/openstack/tests/unit/compute/v2/test_proxy.py b/openstack/tests/unit/compute/v2/test_proxy.py
+index 0e9cd9843..21c95a203 100644
+--- a/openstack/tests/unit/compute/v2/test_proxy.py
++++ b/openstack/tests/unit/compute/v2/test_proxy.py
+@@ -31,6 +31,7 @@ from openstack.compute.v2 import quota_class_set
+ from openstack.compute.v2 import quota_set
+ from openstack.compute.v2 import server
+ from openstack.compute.v2 import server_action
++from openstack.compute.v2 import server_console_auth_token
+ from openstack.compute.v2 import server_group
+ from openstack.compute.v2 import server_interface
+ from openstack.compute.v2 import server_ip
+@@ -1885,3 +1886,14 @@ class TestServerAction(TestComputeProxy):
+             method_kwargs={'server': 'server_a'},
+             expected_kwargs={'server_id': 'server_a'},
+         )
++
++
++class TestValidateConsoleAuthToken(TestComputeProxy):
++    def test_validate_console_auth_token(self):
++        self.verify_get(
++            self.proxy.validate_console_auth_token,
++            server_console_auth_token.ServerConsoleAuthToken,
++            method_args=['console_token'],
++            expected_args=[],
++            expected_kwargs={'console_token': 'console_token'}
++        )
+\ No newline at end of file
 diff --git a/openstack/tests/unit/compute/v2/test_server.py b/openstack/tests/unit/compute/v2/test_server.py
 index 2c9e59c5c..f2cdc7e3d 100644
 --- a/openstack/tests/unit/compute/v2/test_server.py
@@ -219,7 +244,7 @@ index 2c9e59c5c..f2cdc7e3d 100644
 @@ -1256,6 +1256,14 @@ class TestServer(base.TestCase):
              microversion=self.sess.default_microversion,
          )
-
+ 
 +        sot.get_console_url(self.sess, 'spice-direct')
 +        self.sess.post.assert_called_with(
 +            'servers/IDENTIFIER/action',
