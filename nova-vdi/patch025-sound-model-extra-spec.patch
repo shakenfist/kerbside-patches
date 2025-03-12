@@ -557,10 +557,10 @@ index d65b175..01ebaf8 100644
 +
 +    return model
 diff --git a/nova/virt/libvirt/config.py b/nova/virt/libvirt/config.py
-index 0e8f159..2c185c4 100644
+index 2c6e859..c465334 100644
 --- a/nova/virt/libvirt/config.py
 +++ b/nova/virt/libvirt/config.py
-@@ -4033,3 +4033,15 @@ class LibvirtConfigGuestMetaNovaIp(LibvirtConfigObject):
+@@ -4034,3 +4034,15 @@ class LibvirtConfigGuestMetaNovaIp(LibvirtConfigObject):
          meta.set("address", str(self.address))
          meta.set("ipVersion", str(self.ip_version))
          return meta
@@ -577,12 +577,12 @@ index 0e8f159..2c185c4 100644
 +        meta.set('model', str(self.model))
 +        return meta
 diff --git a/nova/virt/libvirt/driver.py b/nova/virt/libvirt/driver.py
-index cfb22b5..fc67f87 100644
+index f820fa9..2bed5df 100644
 --- a/nova/virt/libvirt/driver.py
 +++ b/nova/virt/libvirt/driver.py
-@@ -266,6 +266,10 @@ MIN_LIBVIRT_STATELESS_FIRMWARE = (8, 6, 0)
- MIN_IGB_LIBVIRT_VERSION = (9, 3, 0)
- MIN_IGB_QEMU_VERSION = (8, 0, 0)
+@@ -271,6 +271,10 @@ MIN_IGB_QEMU_VERSION = (8, 0, 0)
+ MIN_VFIO_PCI_VARIANT_LIBVIRT_VERSION = (10, 0, 0)
+ MIN_VFIO_PCI_VARIANT_QEMU_VERSION = (8, 2, 2)
 
 +# Minimum versions supporting the virtio sound model
 +MIN_VIRTIO_SOUND_LIBVIRT_VERSION = (10, 4, 0)
@@ -591,7 +591,7 @@ index cfb22b5..fc67f87 100644
  REGISTER_IMAGE_PROPERTY_DEFAULTS = [
      'hw_machine_type',
      'hw_cdrom_bus',
-@@ -6845,6 +6849,22 @@ class LibvirtDriver(driver.ComputeDriver):
+@@ -6875,6 +6879,22 @@ class LibvirtDriver(driver.ComputeDriver):
          vtpm = vconfig.LibvirtConfigGuestVTPM(vtpm_config, vtpm_secret_uuid)
          guest.add_device(vtpm)
 
@@ -614,7 +614,7 @@ index cfb22b5..fc67f87 100644
      def _set_qemu_guest_agent(self, guest, flavor, instance, image_meta):
          # Enable qga only if the 'hw_qemu_guest_agent' is equal to yes
          if image_meta.properties.get('hw_qemu_guest_agent', False):
-@@ -7529,6 +7549,7 @@ class LibvirtDriver(driver.ComputeDriver):
+@@ -7559,6 +7579,7 @@ class LibvirtDriver(driver.ComputeDriver):
          self._create_consoles(guest, instance, flavor, image_meta)
 
          self._guest_add_spice_channel(guest)
@@ -622,7 +622,7 @@ index cfb22b5..fc67f87 100644
 
          if self._guest_add_video_device(guest):
              self._add_video_driver(guest, image_meta, flavor)
-@@ -9581,6 +9602,7 @@ class LibvirtDriver(driver.ComputeDriver):
+@@ -9611,6 +9632,7 @@ class LibvirtDriver(driver.ComputeDriver):
          traits.update(self._get_vif_model_traits())
          traits.update(self._get_iommu_model_traits())
          traits.update(self._get_tpm_traits())
@@ -630,7 +630,7 @@ index cfb22b5..fc67f87 100644
 
          _, invalid_traits = ot.check_traits(traits)
          for invalid_trait in invalid_traits:
-@@ -13330,3 +13352,33 @@ class LibvirtDriver(driver.ComputeDriver):
+@@ -13360,3 +13382,33 @@ class LibvirtDriver(driver.ComputeDriver):
                  fs.source_dir = self._get_share_mount_path(instance, share)
                  fs.target_dir = share.tag
                  guest.add_device(fs)
