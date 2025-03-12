@@ -1,6 +1,6 @@
-commit d23bb3963b19d9aac2dba3eaefe83b8b4d8fc5d5
+commit cc443f0dd7fb6822dc5c8efb4446da408418c897
 Author: Michael Still <mikal@stillhq.com>
-Date:   Tue Mar 11 15:59:46 2025 +1100
+Date:   Wed Mar 12 14:50:36 2025 +1100
 
     Add support for spice-direct console types.
     
@@ -210,7 +210,7 @@ index 7a845b6ab..7d62ea6dd 100644
              session, prepend_key=prepend_key, base_path=base_path, **params
          )
 diff --git a/openstack/tests/unit/compute/v2/test_proxy.py b/openstack/tests/unit/compute/v2/test_proxy.py
-index 0e9cd9843..21c95a203 100644
+index 0e9cd9843..a30a305c5 100644
 --- a/openstack/tests/unit/compute/v2/test_proxy.py
 +++ b/openstack/tests/unit/compute/v2/test_proxy.py
 @@ -31,6 +31,7 @@ from openstack.compute.v2 import quota_class_set
@@ -234,9 +234,8 @@ index 0e9cd9843..21c95a203 100644
 +            server_console_auth_token.ServerConsoleAuthToken,
 +            method_args=['console_token'],
 +            expected_args=[],
-+            expected_kwargs={'console_token': 'console_token'}
++            expected_kwargs={'console_token': 'console_token'},
 +        )
-\ No newline at end of file
 diff --git a/openstack/tests/unit/compute/v2/test_server.py b/openstack/tests/unit/compute/v2/test_server.py
 index 2c9e59c5c..f2cdc7e3d 100644
 --- a/openstack/tests/unit/compute/v2/test_server.py
