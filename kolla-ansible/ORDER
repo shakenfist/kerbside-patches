@@ -5,3 +5,4 @@ patch011-allow-concurrent-spice-connections.patch
 patch014-deploy-kerbside-container.patch
 patch018-expose-spice-debug-logging.patch
 patch021-support-sound-enabled.patch
+patch033-docs-rendering-errors.patch

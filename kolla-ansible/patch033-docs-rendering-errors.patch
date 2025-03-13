@@ -1,0 +1,571 @@
+commit e2a900a8b8a3353718c9f3d2d1851243f9889712
+Author: Michael Still <mikal@stillhq.com>
+Date:   Thu Mar 13 12:36:05 2025 +1100
+
+    Fix docs rendering errors.
+    
+    I was reading https://docs.openstack.org's version of the kolla-ansible
+    advanced configuration guide and noticed some RST rendering errors.
+    This patch corrects those errors so that the page renders correctly.
+    
+    Change-Id: I330678d8971d286e67f115eace1cb606d30433b6
+
+diff --git a/doc/source/admin/advanced-configuration.rst b/doc/source/admin/advanced-configuration.rst
+index a803467dd..944863d0b 100644
+--- a/doc/source/admin/advanced-configuration.rst
++++ b/doc/source/admin/advanced-configuration.rst
+@@ -12,15 +12,17 @@ as a series of endpoints. These endpoints are the admin URL, the internal
+ URL, and the external URL.
+ 
+ Kolla offers two options for assigning these endpoints to network addresses:
+-- Combined - Where all three endpoints share the same IP address
+-- Separate - Where the external URL is assigned to an IP address that is
+-different than the IP address shared by the internal and admin URLs
++
++* Combined - Where all three endpoints share the same IP address
++* Separate - Where the external URL is assigned to an IP address that is
++  different than the IP address shared by the internal and admin URLs
+ 
+ The configuration parameters related to these options are:
+-- kolla_internal_vip_address
+-- network_interface
+-- kolla_external_vip_address
+-- kolla_external_vip_interface
++
++* kolla_internal_vip_address
++* network_interface
++* kolla_external_vip_address
++* kolla_external_vip_interface
+ 
+ For the combined option, set the two variables below, while allowing the
+ other two to accept their default values. In this configuration all REST
+@@ -50,8 +52,8 @@ a name, like ``www.example.net``, instead of an address like
+ ``10.10.10.254``. If you prefer to use names to address the endpoints
+ in your kolla deployment use the variables:
+ 
+-- kolla_internal_fqdn
+-- kolla_external_fqdn
++* kolla_internal_fqdn
++* kolla_external_fqdn
+ 
+ .. code-block:: yaml
+ 
+diff --git a/doc/source/admin/tls.rst b/doc/source/admin/tls.rst
+index 64e12311a..3c2fdccd2 100644
+--- a/doc/source/admin/tls.rst
++++ b/doc/source/admin/tls.rst
+@@ -80,10 +80,10 @@ TLS Configuration for internal/external VIP
+ The configuration variables that control TLS for the internal and/or external
+ VIP are:
+ 
+-- ``kolla_enable_tls_external``
+-- ``kolla_enable_tls_internal``
+-- ``kolla_internal_fqdn_cert``
+-- ``kolla_external_fqdn_cert``
++* ``kolla_enable_tls_external``
++* ``kolla_enable_tls_internal``
++* ``kolla_internal_fqdn_cert``
++* ``kolla_external_fqdn_cert``
+ 
+ .. note::
+ 
+@@ -224,11 +224,11 @@ Glance, Heat, Placement, Horizon, Barbican, and Cinder.
+ The configuration variables that control back-end TLS for service endpoints
+ are:
+ 
+-- ``kolla_enable_tls_backend``
+-- ``kolla_tls_backend_cert``
+-- ``kolla_tls_backend_key``
+-- ``haproxy_backend_cacert``
+-- ``haproxy_backend_cacert_dir``
++* ``kolla_enable_tls_backend``
++* ``kolla_tls_backend_cert``
++* ``kolla_tls_backend_key``
++* ``haproxy_backend_cacert``
++* ``haproxy_backend_cacert_dir``
+ 
+ The default state for back-end TLS is disabled. To enable TLS for the back-end
+ communication:
+diff --git a/doc/source/contributor/adding-a-new-service.rst b/doc/source/contributor/adding-a-new-service.rst
+index 6f6a64a0e..665439112 100644
+--- a/doc/source/contributor/adding-a-new-service.rst
++++ b/doc/source/contributor/adding-a-new-service.rst
+@@ -76,16 +76,16 @@ which Kolla uses throughout and which should be followed.
+ 
+ Other than the above, most service roles abide by the following pattern:
+ 
+-- ``Register``: Involves registering the service with Keystone, creating
++* ``Register``: Involves registering the service with Keystone, creating
+   endpoints, roles, users, etc.
+ 
+-- ``Config``: Distributes the config files to the nodes to be pulled into
++* ``Config``: Distributes the config files to the nodes to be pulled into
+   the container on startup.
+ 
+-- ``Bootstrap``: Creating the database (but not tables), database user for
++* ``Bootstrap``: Creating the database (but not tables), database user for
+   the service, permissions, etc.
+ 
+-- ``Bootstrap Service``: Starts a one shot container on the host to create
++* ``Bootstrap Service``: Starts a one shot container on the host to create
+   the database tables, and other initial run time config.
+ 
+ Ansible handlers are used to create or restart containers when necessary.
+diff --git a/doc/source/contributor/release-notes.rst b/doc/source/contributor/release-notes.rst
+index fb48c06e8..5c783b9b8 100644
+--- a/doc/source/contributor/release-notes.rst
++++ b/doc/source/contributor/release-notes.rst
+@@ -9,17 +9,17 @@ Introduction
+ 
+ Kolla Ansible (just like Kolla) uses the following release notes sections:
+ 
+-- ``features`` --- for new features or functionality; these should ideally
++* ``features`` --- for new features or functionality; these should ideally
+   refer to the blueprint being implemented;
+-- ``fixes`` --- for fixes closing bugs; these must refer to the bug being
++* ``fixes`` --- for fixes closing bugs; these must refer to the bug being
+   closed;
+-- ``upgrade`` --- for notes relevant when upgrading from previous version;
++* ``upgrade`` --- for notes relevant when upgrading from previous version;
+   these should ideally be added only between major versions; required when
+   the proposed change affects behaviour in a non-backwards compatible way or
+   generally changes something impactful;
+-- ``deprecations`` --- to track deprecated features; relevant changes may
++* ``deprecations`` --- to track deprecated features; relevant changes may
+   consist of only the commit message and the release note;
+-- ``prelude`` --- filled in by the PTL before each release or RC.
++* ``prelude`` --- filled in by the PTL before each release or RC.
+ 
+ Other release note types may be applied per common sense.
+ Each change should include a release note unless being a ``TrivialFix``
+diff --git a/doc/source/contributor/setup-identity-provider.rst b/doc/source/contributor/setup-identity-provider.rst
+index 99e5ae780..6e2b8a0ed 100644
+--- a/doc/source/contributor/setup-identity-provider.rst
++++ b/doc/source/contributor/setup-identity-provider.rst
+@@ -45,14 +45,14 @@ if you want to use any other realm name, you must to change 'new_realm' in the
+ URIs used in the guide and replace the 'new_realm' with the realm name that you
+ are using.
+ 
+-- Access the admin console on http://localhost:8080/auth/ in the Administration Console option.
+-- Authenticate using the credentials defined in the creation step.
+-- Create a new realm in the http://localhost:8080/auth/admin/master/console/#/create/realm page.
+-- After creating a realm, you will need to create a client to be used by Keystone; to do it, just access http://localhost:8080/auth/admin/master/console/#/create/client/new_realm.
+-- To create a client, you will need to set the client_id (just choose anyone),
++* Access the admin console on http://localhost:8080/auth/ in the Administration Console option.
++* Authenticate using the credentials defined in the creation step.
++* Create a new realm in the http://localhost:8080/auth/admin/master/console/#/create/realm page.
++* After creating a realm, you will need to create a client to be used by Keystone; to do it, just access http://localhost:8080/auth/admin/master/console/#/create/client/new_realm.
++* To create a client, you will need to set the client_id (just choose anyone),
+   the protocol (must be openid-connect) and the Root Url (you can leave it
+   blank)
+-- After creating the client, you will need to update some client's attributes
++* After creating the client, you will need to update some client's attributes
+   like:
+ 
+   - Enable the Implicit flow (this one allows you to use the OpenStack CLI with
+@@ -72,12 +72,12 @@ are using.
+       openstack-default-project            user attribute
+       ==================================== ==============
+ 
+-- After creating the client, you will need to create a user in that realm to
++* After creating the client, you will need to create a user in that realm to
+   log in OpenStack via identity federation
+-- To create a user, access http://localhost:8080/auth/admin/master/console/#/create/user/new_realm and fill the form with the user's data
+-- After creating the user, you can access the tab "Credentials" to set the
++* To create a user, access http://localhost:8080/auth/admin/master/console/#/create/user/new_realm and fill the form with the user's data
++* After creating the user, you can access the tab "Credentials" to set the
+   user's password
+-- Then, in the tab "Attributes", you must set the authorization attributes to
++* Then, in the tab "Attributes", you must set the authorization attributes to
+   be used by Keystone, these attributes are defined in the :ref:`attribute
+   mapping <attribute_mapping>` in Keystone
+ 
+@@ -90,10 +90,10 @@ Configuring Kolla Ansible to use the Identity Provider
+ This section is about how one can get the data needed in
+ :ref:`Setup OIDC via Kolla Ansible <setup-oidc-kolla-ansible>`.
+ 
+-- name: The realm name, in this case it will be "new_realm"
+-- identifier: http://localhost:8080/auth/realms/new_realm/ (again, the "new_realm" is the name of the realm)
+-- certificate_file: This one can be downloaded from http://localhost:8080/auth/admin/master/console/#/realms/new_realm/keys
+-- metadata_folder:
++* name: The realm name, in this case it will be "new_realm"
++* identifier: http://localhost:8080/auth/realms/new_realm/ (again, the "new_realm" is the name of the realm)
++* certificate_file: This one can be downloaded from http://localhost:8080/auth/admin/master/console/#/realms/new_realm/keys
++* metadata_folder:
+ 
+   - localhost%3A8080%2Fauth%2Frealms%2Fnew_realm.client:
+ 
+diff --git a/doc/source/reference/compute/libvirt-guide.rst b/doc/source/reference/compute/libvirt-guide.rst
+index e226d2fe3..24a55e1fb 100644
+--- a/doc/source/reference/compute/libvirt-guide.rst
++++ b/doc/source/reference/compute/libvirt-guide.rst
+@@ -157,8 +157,8 @@ information:
+ Kolla Ansible will search for these files for each compute node in the
+ following locations and order on the host where Kolla Ansible is executed:
+ 
+-- ``/etc/kolla/config/nova/nova-libvirt/<hostname>/``
+-- ``/etc/kolla/config/nova/nova-libvirt/``
++* ``/etc/kolla/config/nova/nova-libvirt/<hostname>/``
++* ``/etc/kolla/config/nova/nova-libvirt/``
+ 
+ In most cases you will want to have a unique set of server and client
+ certificates and keys per hypervisor and with a common CA certificate. In this
+diff --git a/doc/source/reference/compute/vmware-guide.rst b/doc/source/reference/compute/vmware-guide.rst
+index a2b6540eb..a0c162b2c 100644
+--- a/doc/source/reference/compute/vmware-guide.rst
++++ b/doc/source/reference/compute/vmware-guide.rst
+@@ -82,8 +82,8 @@ your NSX-T environment.
+ It also hosts the API server that processes API calls.
+ The NSX Manager interface provides two modes for configuring resources:
+ 
+-- Policy mode
+-- Manager mode
++* Policy mode
++* Manager mode
+ 
+ In Kolla you will have the choice between both with neutron plugin
+ vmware_nsxv3 for Manager mode and vmware_nsxp for Policy Mode.
+diff --git a/doc/source/reference/logging-and-monitoring/central-logging-guide.rst b/doc/source/reference/logging-and-monitoring/central-logging-guide.rst
+index edfdc845d..f9b96697d 100644
+--- a/doc/source/reference/logging-and-monitoring/central-logging-guide.rst
++++ b/doc/source/reference/logging-and-monitoring/central-logging-guide.rst
+@@ -44,9 +44,9 @@ retention policy is applied to all indices which match the
+ and then eventually deletes them. It can be customised via the following
+ variables:
+ 
+-- ``opensearch_apply_log_retention_policy``
+-- ``opensearch_soft_retention_period_days``
+-- ``opensearch_hard_retention_period_days``
++* ``opensearch_apply_log_retention_policy``
++* ``opensearch_soft_retention_period_days``
++* ``opensearch_hard_retention_period_days``
+ 
+ By default the soft and hard retention periods are 30 and 60 days
+ respectively. If you are upgrading from ElasticSearch, and have previously
+diff --git a/doc/source/reference/logging-and-monitoring/prometheus-guide.rst b/doc/source/reference/logging-and-monitoring/prometheus-guide.rst
+index c8fc066ec..4fb9855c8 100644
+--- a/doc/source/reference/logging-and-monitoring/prometheus-guide.rst
++++ b/doc/source/reference/logging-and-monitoring/prometheus-guide.rst
+@@ -132,7 +132,7 @@ configure `ipmi_exporter <https://github.com/soundcloud/ipmi_exporter>`_, using
+ the default value for ``node_custom_config``, you could create the following
+ files:
+ 
+-- ``/etc/kolla/config/prometheus/prometheus.yml.d/ipmi-exporter.yml``:
++* ``/etc/kolla/config/prometheus/prometheus.yml.d/ipmi-exporter.yml``:
+ 
+   .. code-block:: jinja
+ 
+@@ -171,7 +171,7 @@ files:
+   where ``ipmi_exporter_listen_address`` is a variable containing the IP address of
+   the node where the exporter is running.
+ 
+--  ``/etc/kolla/config/prometheus/extras/file_sd/ipmi-exporter-targets.yml``:
++*  ``/etc/kolla/config/prometheus/extras/file_sd/ipmi-exporter-targets.yml``:
+ 
+    .. code-block:: yaml
+ 
+diff --git a/doc/source/reference/networking/designate-guide.rst b/doc/source/reference/networking/designate-guide.rst
+index 058af33b5..9a629ebb4 100644
+--- a/doc/source/reference/networking/designate-guide.rst
++++ b/doc/source/reference/networking/designate-guide.rst
+@@ -9,12 +9,12 @@ Overview
+ 
+ Designate provides DNSaaS services for OpenStack:
+ 
+--  REST API for domain/record management
+--  Multi-tenant
+--  Integrated with Keystone for authentication
+--  Framework in place to integrate with Nova and Neutron
++*  REST API for domain/record management
++*  Multi-tenant
++*  Integrated with Keystone for authentication
++*  Framework in place to integrate with Nova and Neutron
+    notifications (for auto-generated records)
+--  Support for Bind9 and Infoblox out of the box
++*  Support for Bind9 and Infoblox out of the box
+ 
+ Configuration on Kolla deployment
+ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+diff --git a/doc/source/reference/networking/neutron.rst b/doc/source/reference/networking/neutron.rst
+index d7cac217b..edba009af 100644
+--- a/doc/source/reference/networking/neutron.rst
++++ b/doc/source/reference/networking/neutron.rst
+@@ -305,6 +305,6 @@ To add custom kernel modules for Neutron, modify the configuration in
+ 
+ In this example:
+ 
+-- `neutron_modules_extra`: Allows users to specify additional modules and
++* `neutron_modules_extra`: Allows users to specify additional modules and
+   their associated parameters. The given configuration adjusts the
+   `hashsize` parameter for the `nf_conntrack_tftp` module.
+diff --git a/doc/source/reference/networking/octavia.rst b/doc/source/reference/networking/octavia.rst
+index 4795207af..af08cf9e0 100644
+--- a/doc/source/reference/networking/octavia.rst
++++ b/doc/source/reference/networking/octavia.rst
+@@ -147,15 +147,15 @@ disk. you can customize this flavor by changing ``octavia_amp_flavor`` in
+ See the ``os_nova_flavor`` Ansible module for details. Supported parameters
+ are:
+ 
+-- ``disk``
+-- ``ephemeral`` (optional)
+-- ``extra_specs`` (optional)
+-- ``flavorid`` (optional)
+-- ``is_public`` (optional)
+-- ``name``
+-- ``ram``
+-- ``swap`` (optional)
+-- ``vcpus``
++* ``disk``
++* ``ephemeral`` (optional)
++* ``extra_specs`` (optional)
++* ``flavorid`` (optional)
++* ``is_public`` (optional)
++* ``name``
++* ``ram``
++* ``swap`` (optional)
++* ``vcpus``
+ 
+ The following defaults are used:
+ 
+@@ -180,27 +180,27 @@ parameters:
+ 
+ The network parameter has the following supported parameters:
+ 
+-- ``external`` (optional)
+-- ``mtu`` (optional)
+-- ``name``
+-- ``provider_network_type`` (optional)
+-- ``provider_physical_network`` (optional)
+-- ``provider_segmentation_id`` (optional)
+-- ``shared`` (optional)
+-- ``subnet``
++* ``external`` (optional)
++* ``mtu`` (optional)
++* ``name``
++* ``provider_network_type`` (optional)
++* ``provider_physical_network`` (optional)
++* ``provider_segmentation_id`` (optional)
++* ``shared`` (optional)
++* ``subnet``
+ 
+ The subnet parameter has the following supported parameters:
+ 
+-- ``allocation_pool_start`` (optional)
+-- ``allocation_pool_end`` (optional)
+-- ``cidr``
+-- ``enable_dhcp`` (optional)
+-- ``gateway_ip`` (optional)
+-- ``name``
+-- ``no_gateway_ip`` (optional)
+-- ``ip_version`` (optional)
+-- ``ipv6_address_mode`` (optional)
+-- ``ipv6_ra_mode`` (optional)
++* ``allocation_pool_start`` (optional)
++* ``allocation_pool_end`` (optional)
++* ``cidr``
++* ``enable_dhcp`` (optional)
++* ``gateway_ip`` (optional)
++* ``name``
++* ``no_gateway_ip`` (optional)
++* ``ip_version`` (optional)
++* ``ipv6_address_mode`` (optional)
++* ``ipv6_ra_mode`` (optional)
+ 
+ For example:
+ 
+diff --git a/doc/source/reference/storage/cinder-guide-pure.rst b/doc/source/reference/storage/cinder-guide-pure.rst
+index 2e900458d..0970d98ea 100644
+--- a/doc/source/reference/storage/cinder-guide-pure.rst
++++ b/doc/source/reference/storage/cinder-guide-pure.rst
+@@ -58,8 +58,8 @@ FlashArray drivers in the same OpenStack cluster.
+ 
+ Also set the values for the following parameters in ``/etc/kolla/globals.yml``:
+ 
+-- ``pure_api_token``
+-- ``pure_san_ip``
++* ``pure_api_token``
++* ``pure_san_ip``
+ 
+ For details on how to use these parameters, refer to the
+ `Pure Storage Cinder Reference Guide <https://docs.openstack.org/cinder/latest/configuration/block-storage/drivers/pure-storage-driver.html>`_.
+diff --git a/doc/source/reference/storage/cinder-guide.rst b/doc/source/reference/storage/cinder-guide.rst
+index 7c45a8d28..be8117af7 100644
+--- a/doc/source/reference/storage/cinder-guide.rst
++++ b/doc/source/reference/storage/cinder-guide.rst
+@@ -21,11 +21,11 @@ HA
+ When using cinder-volume in an HA configuration (more than one host in
+ cinder-volume/storage group):
+ 
+-- Make sure that the driver you are using supports `Active/Active High
++* Make sure that the driver you are using supports `Active/Active High
+   Availability
+   <https://docs.openstack.org/cinder/|OPENSTACK_RELEASE|/reference/support-matrix.html#operation_active_active_ha>`__
+   configuration
+-- Add ``cinder_cluster_name: example_cluster_name`` to your ``globals.yml`` (or
++* Add ``cinder_cluster_name: example_cluster_name`` to your ``globals.yml`` (or
+   host_vars for advanced multi-cluster configuration)
+ 
+ .. note::
+@@ -173,15 +173,15 @@ not the case on debian/ubuntu. Since ``iscsid`` container runs on every nova
+ compute node, the following steps must be completed on every Ubuntu server
+ targeted for nova compute role.
+ 
+-- Add configfs module to ``/etc/modules``
+-- Rebuild initramfs using: ``update-initramfs -u`` command
+-- Stop ``open-iscsi`` system service due to its conflicts
++* Add configfs module to ``/etc/modules``
++* Rebuild initramfs using: ``update-initramfs -u`` command
++* Stop ``open-iscsi`` system service due to its conflicts
+   with iscsid container.
+ 
+   Ubuntu 16.04 (systemd):
+   ``systemctl stop open-iscsi; systemctl stop iscsid``
+ 
+-- Make sure configfs gets mounted during a server boot up process. There are
++* Make sure configfs gets mounted during a server boot up process. There are
+   multiple ways to accomplish it, one example:
+ 
+   .. code-block:: console
+diff --git a/doc/source/reference/storage/manila-guide.rst b/doc/source/reference/storage/manila-guide.rst
+index 72ab4b2a7..fa0f2f11f 100644
+--- a/doc/source/reference/storage/manila-guide.rst
++++ b/doc/source/reference/storage/manila-guide.rst
+@@ -323,13 +323,13 @@ Use the manila migration command, as shown in the following example:
+      --new_share_type share_type --new_share_network share_network \
+      shareID destinationHost
+ 
+-- ``--force-host-copy``: Forces the generic host-based migration mechanism and
++* ``--force-host-copy``: Forces the generic host-based migration mechanism and
+   bypasses any driver optimizations.
+-- ``destinationHost``: Is in this format ``host#pool`` which includes
++* ``destinationHost``: Is in this format ``host#pool`` which includes
+   destination host and pool.
+-- ``--writable`` and ``--preserve-metadata``: Are only for driver assisted.
+-- ``--new_share_network``: Only if driver supports shared network.
+-- ``--new_share_type``: Choose share type compatible with destinationHost.
++* ``--writable`` and ``--preserve-metadata``: Are only for driver assisted.
++* ``--new_share_network``: Only if driver supports shared network.
++* ``--new_share_type``: Choose share type compatible with destinationHost.
+ 
+ Checking share migration progress
+ ---------------------------------
+@@ -417,10 +417,10 @@ volumes in the system by adding the following in ``/etc/kolla/globals.yml``:
+     manila_glusterfs_ssh_password: "<glusterfs ssh password>"
+     manila_glusterfs_mount_point_base: "$state_path/mnt"
+ 
+-- ``manila_glusterfs_target``: If it’s of the format
++* ``manila_glusterfs_target``: If it’s of the format
+   <username>@<glustervolserver>:/<glustervolid>, then we ssh to
+   <username>@<glustervolserver> to execute gluster (<username> is supposed to
+   have administrative privileges on <glustervolserver>).
+-- ``manila_glusterfs_ssh_password``: configuration options are only required
++* ``manila_glusterfs_ssh_password``: configuration options are only required
+   when the GlusterFS server runs remotely rather than on the system running
+   the Manila share service.
+diff --git a/doc/source/reference/storage/manila-hnas-guide.rst b/doc/source/reference/storage/manila-hnas-guide.rst
+index 33124a174..7de399828 100644
+--- a/doc/source/reference/storage/manila-hnas-guide.rst
++++ b/doc/source/reference/storage/manila-hnas-guide.rst
+@@ -12,11 +12,11 @@ provides NFS Shared File Systems to OpenStack.
+ 
+ Requirements
+ ------------
+-- Hitachi NAS Platform Models 3080, 3090, 4040, 4060, 4080, and 4100.
++* Hitachi NAS Platform Models 3080, 3090, 4040, 4060, 4080, and 4100.
+ 
+-- HNAS/SMU software version is 12.2 or higher.
++* HNAS/SMU software version is 12.2 or higher.
+ 
+-- HNAS configuration and management utilities to create a storage pool (span)
++* HNAS configuration and management utilities to create a storage pool (span)
+   and an EVS.
+ 
+   -  GUI (SMU).
+@@ -30,27 +30,27 @@ The driver supports CIFS and NFS shares.
+ 
+ The following operations are supported:
+ 
+-- Create a share.
++* Create a share.
+ 
+-- Delete a share.
++* Delete a share.
+ 
+-- Allow share access.
++* Allow share access.
+ 
+-- Deny share access.
++* Deny share access.
+ 
+-- Create a snapshot.
++* Create a snapshot.
+ 
+-- Delete a snapshot.
++* Delete a snapshot.
+ 
+-- Create a share from a snapshot.
++* Create a share from a snapshot.
+ 
+-- Extend a share.
++* Extend a share.
+ 
+-- Shrink a share.
++* Shrink a share.
+ 
+-- Manage a share.
++* Manage a share.
+ 
+-- Unmanage a share.
++* Unmanage a share.
+ 
+ 
+ Preparation and Deployment
+diff --git a/doc/source/user/operating-kolla.rst b/doc/source/user/operating-kolla.rst
+index 4d7a7dc14..2f43ca450 100644
+--- a/doc/source/user/operating-kolla.rst
++++ b/doc/source/user/operating-kolla.rst
+@@ -128,8 +128,8 @@ most likely in
+ 
+ Other files which may need manual updating are:
+ 
+-- ``/etc/kolla/globals.yml``
+-- ``/etc/kolla/passwords.yml``
++* ``/etc/kolla/globals.yml``
++* ``/etc/kolla/passwords.yml``
+ 
+ For ``globals.yml``, it is best to follow the release notes (mentioned above).
+ For ``passwords.yml``, one needs to use ``kolla-mergepwd`` and ``kolla-genpwd``
+diff --git a/doc/source/user/quickstart-development.rst b/doc/source/user/quickstart-development.rst
+index 48d3d1f48..579c3b7c4 100644
+--- a/doc/source/user/quickstart-development.rst
++++ b/doc/source/user/quickstart-development.rst
+@@ -19,9 +19,9 @@ Host machine requirements
+ 
+ The host machine must satisfy the following minimum requirements:
+ 
+-- 2 network interfaces
+-- 8GB main memory
+-- 40GB disk space
++* 2 network interfaces
++* 8GB main memory
++* 40GB disk space
+ 
+ See the :kolla-ansible-doc:`support matrix <user/support-matrix>` for details
+ of supported host Operating Systems. Kolla Ansible supports the default Python
+diff --git a/doc/source/user/quickstart.rst b/doc/source/user/quickstart.rst
+index 9ec5d9ab0..09f65f122 100644
+--- a/doc/source/user/quickstart.rst
++++ b/doc/source/user/quickstart.rst
+@@ -19,9 +19,9 @@ Host machine requirements
+ 
+ The host machine must satisfy the following minimum requirements:
+ 
+-- 2 network interfaces
+-- 8GB main memory
+-- 40GB disk space
++* 2 network interfaces
++* 8GB main memory
++* 40GB disk space
+ 
+ See the :kolla-ansible-doc:`support matrix <user/support-matrix>` for details
+ of supported host Operating Systems. Kolla Ansible supports the default Python
