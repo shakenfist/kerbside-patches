@@ -253,7 +253,8 @@ jobs:
             script="${script} sudo apt-get update;"
             script="${script} sudo apt-get dist-upgrade -y;"
             script="${script} sudo pip3 install --break-system-packages yq tox;"
-            script="${script} sudo apt-get install -y moreutils libpq-dev"
+            script="${script} sudo apt-get install -y moreutils libpq-dev;"
+            script="${script} sudo apt-get install -y python3-dev build-essential libpcre3-dev"
 
             ssh -i /srv/github/id_ci -o StrictHostKeyChecking=no \
               -o UserKnownHostsFile=/dev/null \
