@@ -1,6 +1,6 @@
-commit e2f954675ee327c2af7122738758842a0a0f3303
+commit dc9e8c569784446e5e770ed8865ff4be490a3937
 Author: Michael Still <mikal@stillhq.com>
-Date:   Tue Mar 18 15:41:53 2025 +1100
+Date:   Tue Mar 25 16:26:12 2025 +1100
 
     Add support for spice-direct console types.
     
@@ -58,12 +58,12 @@ index eec5c8f2a..c82a990e2 100644
  
 diff --git a/doc/source/user/resources/compute/v2/console_auth_token.rst b/doc/source/user/resources/compute/v2/console_auth_token.rst
 new file mode 100644
-index 000000000..247419363
+index 000000000..86b0718fd
 --- /dev/null
 +++ b/doc/source/user/resources/compute/v2/console_auth_token.rst
 @@ -0,0 +1,13 @@
 +openstack.compute.v2.console_auth_token
-+==========================================
++=======================================
 +
 +.. automodule:: openstack.compute.v2.console_auth_token
 +
@@ -76,7 +76,7 @@ index 000000000..247419363
 +.. autoclass:: openstack.compute.v2.console_auth_token.ConsoleAuthToken
 +   :members:
 diff --git a/openstack/compute/v2/_proxy.py b/openstack/compute/v2/_proxy.py
-index f48e1f684..1b1d8dfbe 100644
+index f48e1f684..63e67277a 100644
 --- a/openstack/compute/v2/_proxy.py
 +++ b/openstack/compute/v2/_proxy.py
 @@ -16,6 +16,7 @@ import warnings
@@ -95,7 +95,7 @@ index f48e1f684..1b1d8dfbe 100644
          "quota_class_set": _quota_class_set.QuotaClassSet,
          "quota_set": _quota_set.QuotaSet,
          "server": _server.Server,
-@@ -2384,6 +2386,18 @@ class Proxy(proxy.Proxy):
+@@ -2384,6 +2386,15 @@ class Proxy(proxy.Proxy):
          server = self._get_resource(_server.Server, server)
          return server.get_console_url(self, console_type)
  
@@ -106,15 +106,12 @@ index f48e1f684..1b1d8dfbe 100644
 +            from get_server_console_url.
 +        :returns: Dictionary with connection details, varying by console type.
 +        """
-+        return self._get(
-+            _console_auth_token.ConsoleAuthToken,
-+            console_token=console_token,
-+        )
++        return self._get(_console_auth_token.ConsoleAuthToken, console_token)
 +
      def get_server_console_output(self, server, length=None):
          """Return the console output for a server.
  
-@@ -2411,10 +2425,12 @@ class Proxy(proxy.Proxy):
+@@ -2411,10 +2422,12 @@ class Proxy(proxy.Proxy):
              * rdp-html5
              * serial
              * webmks (supported after 2.8)
@@ -130,7 +127,7 @@ index f48e1f684..1b1d8dfbe 100644
          # NOTE: novaclient supports undocumented type xcpvnc also supported
 diff --git a/openstack/compute/v2/console_auth_token.py b/openstack/compute/v2/console_auth_token.py
 new file mode 100644
-index 000000000..f63b799f5
+index 000000000..f0076858a
 --- /dev/null
 +++ b/openstack/compute/v2/console_auth_token.py
 @@ -0,0 +1,63 @@
@@ -151,7 +148,7 @@ index 000000000..f63b799f5
 +
 +class ConsoleAuthToken(resource.Resource):
 +    resource_key = 'console'
-+    base_path = '/os-console-auth-tokens/%(console_token)s'
++    base_path = '/os-console-auth-tokens'
 +
 +    # capabilities
 +    allow_fetch = True
@@ -161,7 +158,7 @@ index 000000000..f63b799f5
 +
 +    # Request
 +    #: The console token to lookup connection information for.
-+    console_token = resource.URI('console_token', alternate_id=True)
++    console_token = resource.URI('console_token')
 +
 +    # Properties
 +    #: Instance UUID
@@ -178,7 +175,7 @@ index 000000000..f63b799f5
 +    def fetch(
 +        self,
 +        session,
-+        requires_id=False,
++        requires_id=True,
 +        base_path=None,
 +        error_message=None,
 +        skip_cache=False,
@@ -255,7 +252,7 @@ index 7a845b6ab..7d62ea6dd 100644
              session, prepend_key=prepend_key, base_path=base_path, **params
          )
 diff --git a/openstack/tests/unit/compute/v2/test_proxy.py b/openstack/tests/unit/compute/v2/test_proxy.py
-index 0e9cd9843..7f0562e78 100644
+index 0e9cd9843..c579f1c10 100644
 --- a/openstack/tests/unit/compute/v2/test_proxy.py
 +++ b/openstack/tests/unit/compute/v2/test_proxy.py
 @@ -21,6 +21,7 @@ from openstack.block_storage.v3 import volume
@@ -266,7 +263,7 @@ index 0e9cd9843..7f0562e78 100644
  from openstack.compute.v2 import extension
  from openstack.compute.v2 import flavor
  from openstack.compute.v2 import hypervisor
-@@ -1885,3 +1886,14 @@ class TestServerAction(TestComputeProxy):
+@@ -1885,3 +1886,11 @@ class TestServerAction(TestComputeProxy):
              method_kwargs={'server': 'server_a'},
              expected_kwargs={'server_id': 'server_a'},
          )
@@ -277,9 +274,6 @@ index 0e9cd9843..7f0562e78 100644
 +        self.verify_get(
 +            self.proxy.validate_console_auth_token,
 +            console_auth_token.ConsoleAuthToken,
-+            method_args=['console_token'],
-+            expected_args=[],
-+            expected_kwargs={'console_token': 'console_token'},
 +        )
 diff --git a/openstack/tests/unit/compute/v2/test_server.py b/openstack/tests/unit/compute/v2/test_server.py
 index 2c9e59c5c..f2cdc7e3d 100644
@@ -302,7 +296,7 @@ index 2c9e59c5c..f2cdc7e3d 100644
              'servers/IDENTIFIER/action',
 diff --git a/releasenotes/notes/compute-add-validate-console-auth-token-999b790aec83de85.yaml b/releasenotes/notes/compute-add-validate-console-auth-token-999b790aec83de85.yaml
 new file mode 100644
-index 000000000..149d66c84
+index 000000000..6c875dd48
 --- /dev/null
 +++ b/releasenotes/notes/compute-add-validate-console-auth-token-999b790aec83de85.yaml
 @@ -0,0 +1,13 @@
@@ -319,4 +313,3 @@ index 000000000..149d66c84
 +    Callers of this method must have ``admin`` access to the OpenStack Compute
 +    API due to the privileged nature of the hypervisor connection information
 +    returned.
-\ No newline at end of file
