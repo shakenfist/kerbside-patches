@@ -1,8 +1,5 @@
-#!/bin/bash -e
-
-cd /srv/shakenfist/kerbside-patches
-. buildconfig.sh
-topdir=$(pwd)
+# Run from the top directory.
+. _build/common.sh
 
 echo
 echo -e "${H1}==================================================${Color_Off}"
@@ -22,22 +19,28 @@ for target in ${build_targets}; do
     echo -e "${H1}    Image tag: ${image_tag}${Color_Off}"
     echo -e "${H1}==================================================${Color_Off}"
 
-    echo -e "${H2}Check if we already have built images${Color_Off}"
-    images=$(/srv/kerbside/venv-tools/bin/python3 ${topdir}/tools/find_images \
-        --registry http://192.168.1.5:4000 find ${image_tag} || true)
+    have_images="false"
+    if [ ${use_ci_registry} == "true" ]; then
+        echo -e "${H2}Check if we already have built images${Color_Off}"
+        images=$(/srv/kerbside/venv-tools/bin/python3 ${topdir}/tools/find_images \
+            --registry http://192.168.1.5:4000 find ${image_tag} || true)
 
-    if [ $(echo ${images} | grep -c kolla || true) -gt 0 ]; then
-        echo "Found existing images. Pulling them."
+        if [ $(echo ${images} | grep -c kolla || true) -gt 0 ]; then
+            echo "Found existing images. Pulling them."
 
-        for image in $(echo ${images}); do
-            echo -e "    ${image}..."
-            docker pull 192.168.1.5:4000/${image}:${image_tag}
+            for image in $(echo ${images}); do
+                echo -e "    ${image}..."
+                docker pull 192.168.1.5:4000/${image}:${image_tag}
 
-            echo -e "    ${image}:${image_tag} ${Arrow} ${image}:${target}-debian-${debian_codename}"
-            docker image tag 192.168.1.5:4000/${image}:${image_tag} \
-                ${image}:${target}-debian-${debian_codename}
-        done
-    else
+                echo -e "    ${image}:${image_tag} ${Arrow} ${image}:${target}-debian-${debian_codename}"
+                docker image tag 192.168.1.5:4000/${image}:${image_tag} \
+                    ${image}:${target}-debian-${debian_codename}
+            done
+            have_images="true"
+        fi
+    fi
+
+    if [ ${have_images} == "false" ]; then
         echo "No existing images found. Building them."
 
         mkdir -p ${topdir}/archive/

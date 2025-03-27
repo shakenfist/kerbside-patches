@@ -1,10 +1,12 @@
-#!/bin/bash -e
-
-# $1: is an OpenStack release version -- for example 2024.1
+# Run from the top directory.
 target_release="${1}"
 
-cd ..
-. buildconfig.sh
+if [ -z ${target_release} ]; then
+    echo "Please specify a target release."
+    exit 1
+fi
+
+. _build/common.sh
 
 echo
 echo -e "${H1}==================================================${Color_Off}"
@@ -16,7 +18,7 @@ echo -e "${H2}Cloning kerbside${Color_Off}"
 mkdir src
 cd src
 git clone https://github.com/shakenfist/kerbside
-tar cvf kerbside.tgz kerbside
+tar cf kerbside.tgz kerbside
 cd ..
 echo
 echo
@@ -49,9 +51,9 @@ echo
 echo -e "${H3}The following directories contain patches: ${directories[@]}${Color_Off}"
 echo
 
-for directory in "${directories[@]}"; do
-    echo -e "${H2}Applying patches from ${directory}${Color_Off}"
-    ./testapply.sh --skip-tests ${directory}
+export skip_tests="true"
+for project in "${directories[@]}"; do
+    apply_patches_and_test_one ${project}
 done
 
 trap - EXIT

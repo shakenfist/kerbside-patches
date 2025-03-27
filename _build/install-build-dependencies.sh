@@ -1,7 +1,5 @@
-#!/bin/bash -e
-
-cd /srv/shakenfist/kerbside-patches
-. buildconfig.sh
+# Run from the top directory.
+. _build/common.sh
 
 echo
 echo -e "${H1}==================================================${Color_Off}"

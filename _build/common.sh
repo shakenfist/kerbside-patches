@@ -1,16 +1,146 @@
-#!/bin/bash -e
+# Intended to be sourced by all build scripts. This is command line parsing,
+# helper functions, etc etc.
 
-# Note that our CI environment requires these packages to be installed.
-#     From the OS: git moreutils jq
-#     From pypi: tox yq
+topdir=$(pwd)
+topsrcdir="${topdir}/src"
 
-# All positional args are consumed as project names to test. If none are
-# specified, all projects are tested. We also optionally take --defer-tests
-# to not test in between patch applications and --skip-tests to skip tests
-# completely.
+if [ -e /srv/shakenfist/kerbside-patches-tools/bin/activate ]; then
+    . /srv/shakenfist/kerbside-patches-tools/bin/activate
+fi
 
-. buildconfig.sh
+##############################################################################
+# Command line parsing                                                       #
+##############################################################################
 
+default_build_targets="2023.1 2023.2 2024.1 master"
+
+# Which images to build. Kerbside only requires customized nova-compute,
+# nova-libvirt, nova-api, and kerbside container images but it can make sense
+# to build all the container images at the same time to keep them consistent.
+default_build_images="nova-compute nova-libvirt nova-api kerbside"
+
+# Should we only test once at the end?
+defer_tests="false"
+
+# Should we only run pep8 tests?
+skip_unit_tests="false"
+
+# Should we skip tests entirely?
+skip_tests="false"
+
+# Should we use the CI environment's OCI registry to avoid rebuilding images?
+use_ci_registry="false"
+
+# Should we build a compact archive using occystrap?
+compact_archive="false"
+
+# Ensure we have a git commit sha
+if [ -z ${CI_COMMIT_SHORT_SHA} ]; then
+    export CI_COMMIT_SHORT_SHA=$(git rev-parse --short HEAD)
+fi
+
+# Parse command line
+export build_targets=${default_build_targets}
+export build_images=${default_build_images}
+export positional_args=()
+
+while [[ $# -gt 0 ]]; do
+    case $1 in
+        --compact-archive)
+            export skip_tests="true"
+            echo "Will create a compact archive."
+            shift
+            ;;
+        --defer-tests)
+            export defer_tests="true"
+            echo "Will defer testing."
+            shift
+            ;;
+        --build-images)
+            export build_images="$2"
+            echo "Setting build images to ${build_images}."
+            shift; shift
+            ;;
+        --build-targets)
+            export build_targets="$2"
+            echo "Setting build targets to ${build_targets}."
+            shift; shift
+            ;;
+        --skip-tests)
+            export skip_tests="true"
+            echo "Will skip testing."
+            shift
+            ;;
+        --use-ci-registry)
+            export use_ci_registry="true"
+            echo "Will use the CI environment's OCI registry."
+            shift
+            ;;
+        -*|--*)
+            echo "Unknown option $1"
+            exit 1
+            ;;
+        *)
+            positional_args+=("$1")
+            shift
+            ;;
+    esac
+done
+
+# You can't export bash arrays, so we dance instead
+export positional_args=$(printf "%s\n" "${positional_args[@]}")
+if [ -z ${positional_args} ]; then
+    export positional_args=$(find . -type f -name "config.yaml" | cut -f 2 -d "/")
+fi
+
+# Ensure we fail even when piping output to ts
+set -o pipefail
+
+##############################################################################
+# Ensure our required dependencies are installed                             #
+##############################################################################
+
+# for command in git ts jq tox yq; do
+#     which ${command} > /dev/null
+#     if [ ${?} -gt 0 ]; then
+#         echo "${command} appears to be missing, please install it!"
+#         exit 1
+#     fi
+# done
+
+##############################################################################
+# Pretty output helpers                                                      #
+##############################################################################
+
+# Color helpers, from https://stackoverflow.com/questions/5947742/
+export Color_Off='\033[0m'       # Text Reset
+export Red='\033[0;31m'          # Red
+export Green='\033[0;32m'        # Green
+export Yellow='\033[0;33m'       # Yellow
+export Blue='\033[0;34m'         # Blue
+export Purple='\033[0;35m'       # Purple
+export Cyan='\033[0;36m'         # Cyan
+export White='\033[0;37m'        # White
+
+# And an arrow!
+export Arrow='\u2192 '
+
+export H1="${Green}"
+export H2="${Blue}"
+export H3="${Arrow}${Purple}"
+
+# Make failures more obvious
+function on_exit {
+    echo
+    echo -e "${Red}*** Failed ***${No_Color}"
+    echo
+    exit 1
+    }
+trap 'on_exit $?' EXIT
+
+##############################################################################
+# Helpers                                                                    #
+##############################################################################
 
 function run_tests {
     # $1 is the repo
@@ -93,15 +223,10 @@ function run_tests {
     echo -e "${H2}${ARROW}Tests complete${Color_Off}"
 }
 
+function apply_patches_and_test_one {
+    # $1 is the project
+    project="${1}"
 
-topdir=$(pwd)
-topsrcdir="${topdir}/src"
-
-if [ "${positional_args}" == "" ]; then
-    positional_args=$(find . -type f -name "config.yaml" | cut -f 2 -d "/")
-fi
-
-for project in ${positional_args}; do
     echo
     echo -e "${H1}==================================================${Color_Off}"
     echo -e "${H1}${project}${Color_Off}"
@@ -287,10 +412,4 @@ for project in ${positional_args}; do
     echo -e "${H2}Success for branch ${source_branch}!${Color_Off}"
     echo ""
     popd
-done
-
-trap - EXIT
-
-echo -e "${H1}==================================================${Color_Off}"
-echo -e "${H1}All patches applied correctly.${Color_Off}"
-echo -e "${H1}==================================================${Color_Off}"
+}

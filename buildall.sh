@@ -7,7 +7,7 @@
 topdir=$(pwd)
 topsrcdir="${topdir}/src"
 
-. buildconfig.sh
+. common.sh
 
 echo
 echo -e "${H1}==================================================${Color_Off}"

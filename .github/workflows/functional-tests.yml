@@ -20,6 +20,12 @@ jobs:
     # variables at https://docs.github.com/en/actions/learn-github-actions/environment-variables
 
     steps:
+      - name: Install dependencies on local runner
+        run: |
+          sudo apt-get update
+          sudo apt-get dist-upgrade -y
+          sudo apt-get install -y moreutils git
+
       - name: Setup test environment
         uses: shakenfist/actions/setup-kerbside-single-node-environment@main
         with:
@@ -33,7 +39,7 @@ jobs:
           ssh -i /srv/github/id_ci -o StrictHostKeyChecking=no \
               -o UserKnownHostsFile=/dev/null \
               debian@10.0.2.2 \
-              'cd /srv/shakenfist/kerbside-patches/tools; ./assemble-source master'
+              'cd /srv/shakenfist/kerbside-patches; ./_build/assemble-source.sh master'
 
       - name: Build container images
         run: |
@@ -41,7 +47,7 @@ jobs:
           ssh -i /srv/github/id_ci -o StrictHostKeyChecking=no \
               -o UserKnownHostsFile=/dev/null \
               debian@10.0.2.2 \
-              'cd /srv/shakenfist/kerbside-patches/tools; ./build-containers --build-targets master --build-images all'
+              'cd /srv/shakenfist/kerbside-patches; ./_build/build-containers.sh --use-ci-registry --build-targets master --build-images all'
 
 
   functional_matrix:
@@ -90,7 +96,7 @@ jobs:
           ssh -i /srv/github/id_ci -o StrictHostKeyChecking=no \
               -o UserKnownHostsFile=/dev/null \
               ${{ matrix.test.baseuser }}@10.0.2.2 \
-              'cd /srv/shakenfist/kerbside-patches/tools; ./assemble-source ${{ matrix.test.release }}'
+              'cd /srv/shakenfist/kerbside-patches; ./_build/assemble-source.sh ${{ matrix.test.release }}'
 
       - name: Build container images
         run: |
@@ -98,7 +104,7 @@ jobs:
           ssh -i /srv/github/id_ci -o StrictHostKeyChecking=no \
               -o UserKnownHostsFile=/dev/null \
               ${{ matrix.test.baseuser }}@10.0.2.2 \
-              'cd /srv/shakenfist/kerbside-patches/tools; ./build-containers --build-targets ${{ matrix.test.release }} --build-images all'
+              'cd /srv/shakenfist/kerbside-patches; ./_build/build-containers.sh --use-ci-registry --build-targets ${{ matrix.test.release }} --build-images all'
 
       - name: Disable /etc/hosts for name resolution
         run: |
@@ -114,7 +120,7 @@ jobs:
           ssh -i /srv/github/id_ci -o StrictHostKeyChecking=no \
               -o UserKnownHostsFile=/dev/null \
               ${{ matrix.test.baseuser }}@10.0.2.2 \
-              'cd /srv/shakenfist/kerbside-patches/tools; sudo ./bootstrap-kolla-ansible ${{ matrix.test.release }}'
+              'cd /srv/shakenfist/kerbside-patches; sudo ./tools/bootstrap-kolla-ansible ${{ matrix.test.release }}'
 
       - name: Install Kolla-Ansible
         run: |
@@ -122,7 +128,7 @@ jobs:
           ssh -i /srv/github/id_ci -o StrictHostKeyChecking=no \
               -o UserKnownHostsFile=/dev/null \
               ${{ matrix.test.baseuser }}@10.0.2.2 \
-              'cd /srv/shakenfist/kerbside-patches/tools; sudo ./install-kolla-ansible'
+              'cd /srv/shakenfist/kerbside-patches; sudo ./tools/install-kolla-ansible'
 
       - name: Install patched OpenStack clients
         run: |
@@ -130,7 +136,7 @@ jobs:
           ssh -i /srv/github/id_ci -o StrictHostKeyChecking=no \
               -o UserKnownHostsFile=/dev/null \
               ${{ matrix.test.baseuser }}@10.0.2.2 \
-              'cd /srv/shakenfist/kerbside-patches/tools; sudo ./install-openstack-clients'
+              'cd /srv/shakenfist/kerbside-patches; sudo ./tools/install-openstack-clients'
 
       - name: Post install Kolla-Ansible setup
         run: |
@@ -138,7 +144,7 @@ jobs:
           ssh -i /srv/github/id_ci -o StrictHostKeyChecking=no \
               -o UserKnownHostsFile=/dev/null \
               ${{ matrix.test.baseuser }}@10.0.2.2 \
-              'cd /srv/shakenfist/kerbside-patches/tools; sudo ./postinstall-kolla-ansible'
+              'cd /srv/shakenfist/kerbside-patches; sudo ./tools/postinstall-kolla-ansible'
 
       - name: Attempt to start an instance with a console and connect to it
         run: |
@@ -146,7 +152,7 @@ jobs:
           ssh -i /srv/github/id_ci -o StrictHostKeyChecking=no \
               -o UserKnownHostsFile=/dev/null \
               ${{ matrix.test.baseuser }}@10.0.2.2 \
-              'cd /srv/shakenfist/kerbside-patches/tools; sudo ./test-console'
+              'cd /srv/shakenfist/kerbside-patches; sudo ./tools/test-console'
 
       - name: Collect logs
         if: always()

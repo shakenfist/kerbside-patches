@@ -1,7 +1,6 @@
 #!/bin/bash -e
 
-TOPDIR="/srv/shakenfist/kerbside-patches"
-. ${TOPDIR}/buildconfig.sh
+. /_build/common.sh
 
 echo
 echo -e "${H1}==================================================${Color_Off}"
