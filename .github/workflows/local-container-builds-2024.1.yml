@@ -84,3 +84,9 @@ jobs:
           ssh -i /srv/github/id_ci -o StrictHostKeyChecking=no \
               -o UserKnownHostsFile=/dev/null debian@10.0.2.2 \
               "cd kerbside-patches; ./_build/build-containers.sh --build-targets 2024.1 --build-images all"
+      
+      - name: Archive the containers in one big tarball
+        run: |
+          ssh -i /srv/github/id_ci -o StrictHostKeyChecking=no \
+              -o UserKnownHostsFile=/dev/null debian@10.0.2.2 \
+              "cd kerbside-patches; ./_build/imagearchive.sh --build-targets 2024.1"
