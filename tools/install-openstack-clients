@@ -1,6 +1,6 @@
 #!/bin/bash -e
 
-. /_build/common.sh
+. ./_build/common.sh
 . /srv/kolla-ansible/venv/bin/activate
 
 echo

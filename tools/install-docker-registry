@@ -1,6 +1,6 @@
 #!/bin/bash -e
 
-. /_build/common.sh
+. ./_build/common.sh
 
 echo
 echo -e "${H1}==================================================${Color_Off}"
