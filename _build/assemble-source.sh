@@ -56,6 +56,27 @@ for project in "${directories[@]}"; do
     apply_patches_and_test_one ${project}
 done
 
+# Some projects require a local checkout even if we don't have any patches
+# for them.
+for required in kolla kolla-ansible nova; do
+    if [ ! -e src/${required} ]; then
+        if [ "${target_release}" == "master" ]; then
+            required_branch="master"
+        else
+            required_branch="stable/${target_release}"
+        fi
+
+        echo
+        echo
+        echo -e "${H3}We also require the ${required_branch} of ${required}${Color_Off}"
+        echo
+        git clone --branch ${required_branch} https://github.com/openstack/${required} \
+            src/${required}
+    fi
+done
+
+echo
+
 trap - EXIT
 
 echo -e "${H1}==================================================${Color_Off}"

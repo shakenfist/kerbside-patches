@@ -44,27 +44,29 @@ for target in ${build_targets}; do
         echo "No existing images found. Building them."
 
         mkdir -p ${topdir}/archive/
-        ./imagebuild.sh --build-targets "${target}" --build-images "${build_images}"
+        ./_build/imagebuild.sh --build-targets "${target}" --build-images "${build_images}"
 
         echo
         echo -e "${H2}Built images${Color_Off}"
         docker image list
 
-        echo
-        echo -e "${H2}Pushing to the CI registry${Color_Off}"
-        for image in $(docker image list --format json | \
-            jq --slurp -r ".[] | select(.Tag == \"${target}-${CI_COMMIT_SHORT_SHA}\") | .Repository"); do
-            echo -e "    ${image}:${target}-${CI_COMMIT_SHORT_SHA} ${Arrow} 192.168.1.5:4000/openstack.${image}:${target}-debian-${debian_codename}"
-            docker image tag ${image}:${target}-${CI_COMMIT_SHORT_SHA} \
-                192.168.1.5:4000/openstack${image}:${target}-debian-${debian_codename}
-            docker image push \
-                192.168.1.5:4000/openstack${image}:${target}-debian-${debian_codename}
+        if [ ${use_ci_registry} == "true" ]; then
+            echo
+            echo -e "${H2}Pushing to the CI registry${Color_Off}"
+            for image in $(docker image list --format json | \
+                jq --slurp -r ".[] | select(.Tag == \"${target}-${CI_COMMIT_SHORT_SHA}\") | .Repository"); do
+                echo -e "    ${image}:${target}-${CI_COMMIT_SHORT_SHA} ${Arrow} 192.168.1.5:4000/openstack.${image}:${target}-debian-${debian_codename}"
+                docker image tag ${image}:${target}-${CI_COMMIT_SHORT_SHA} \
+                    192.168.1.5:4000/openstack${image}:${target}-debian-${debian_codename}
+                docker image push \
+                    192.168.1.5:4000/openstack${image}:${target}-debian-${debian_codename}
 
-            echo -e "    ${image}:${target}-${CI_COMMIT_SHORT_SHA} ${Arrow} 192.168.1.5:4000/openstack.${image}:${image_tag}"
-            docker image tag ${image}:${target}-${CI_COMMIT_SHORT_SHA} \
-                192.168.1.5:4000/openstack${image}:${image_tag}
-            docker image push 192.168.1.5:4000/openstack${image}:${image_tag}
-        done
+                echo -e "    ${image}:${target}-${CI_COMMIT_SHORT_SHA} ${Arrow} 192.168.1.5:4000/openstack.${image}:${image_tag}"
+                docker image tag ${image}:${target}-${CI_COMMIT_SHORT_SHA} \
+                    192.168.1.5:4000/openstack${image}:${image_tag}
+                docker image push 192.168.1.5:4000/openstack${image}:${image_tag}
+            done
+        fi
     fi
 done
 
