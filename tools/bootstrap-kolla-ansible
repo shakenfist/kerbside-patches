@@ -44,7 +44,7 @@ pip3 install docker
 echo
 
 echo -e "${H2}Install patched Kolla-Ansible${Color_Off}"
-cd "${TOPDIR}/src/kolla-ansible"
+cd "${topsrcdir}/kolla-ansible"
 pip3 install -e .
 echo
 
