@@ -1,0 +1,7 @@
+Fix docs rendering errors.
+
+I was reading https://docs.openstack.org's version of the kolla-ansible
+advanced configuration guide and noticed some RST rendering errors.
+This patch corrects those errors so that the page renders correctly.
+
+Change-Id: I330678d8971d286e67f115eace1cb606d30433b6

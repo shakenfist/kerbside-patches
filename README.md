@@ -120,7 +120,7 @@ Now continue to the shared steps below.
 Now run these commands, regardless of host OS:
 
 ```
-# Clone the Kerbside patches respository
+# Clone the Kerbside patches repository
 git clone https://github.com/shakenfist/kerbside-patches
 cd kerbside-patches
 

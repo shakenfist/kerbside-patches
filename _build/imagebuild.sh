@@ -1,11 +1,5 @@
-#!/bin/bash -e
-
-# Note that our CI environment requires these packages to be installed.
-#     From the OS: git moreutils python3-venv
-#     From pypi: tox
-
-topdir=$(pwd)
-topsrcdir="${topdir}/src"
+# Run from the top directory.
+. _build/common.sh
 
 echo
 echo -e "${H1}==================================================${Color_Off}"

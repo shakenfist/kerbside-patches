@@ -1,6 +1,6 @@
-commit e2a900a8b8a3353718c9f3d2d1851243f9889712
+commit 150d8f3c6b530305b6902f6b256e9bef987af4a5
 Author: Michael Still <mikal@stillhq.com>
-Date:   Thu Mar 13 12:36:05 2025 +1100
+Date:   Tue Mar 18 10:13:11 2025 +1100
 
     Fix docs rendering errors.
     
@@ -11,20 +11,26 @@ Date:   Thu Mar 13 12:36:05 2025 +1100
     Change-Id: I330678d8971d286e67f115eace1cb606d30433b6
 
 diff --git a/doc/source/admin/advanced-configuration.rst b/doc/source/admin/advanced-configuration.rst
-index a803467dd..944863d0b 100644
+index a803467dd..1fc24ef86 100644
 --- a/doc/source/admin/advanced-configuration.rst
 +++ b/doc/source/admin/advanced-configuration.rst
-@@ -12,15 +12,17 @@ as a series of endpoints. These endpoints are the admin URL, the internal
- URL, and the external URL.
+@@ -8,19 +8,21 @@ Endpoint Network Configuration
+ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+ 
+ When an OpenStack cloud is deployed, the REST API of each service is presented
+-as a series of endpoints. These endpoints are the admin URL, the internal
+-URL, and the external URL.
++as a series of endpoints. These endpoints are the internal URL, and the
++external URL.
  
  Kolla offers two options for assigning these endpoints to network addresses:
 -- Combined - Where all three endpoints share the same IP address
 -- Separate - Where the external URL is assigned to an IP address that is
 -different than the IP address shared by the internal and admin URLs
 +
-+* Combined - Where all three endpoints share the same IP address
++* Combined - Where both endpoints share the same IP address
 +* Separate - Where the external URL is assigned to an IP address that is
-+  different than the IP address shared by the internal and admin URLs
++  different than the IP address used by the internal URL
  
  The configuration parameters related to these options are:
 -- kolla_internal_vip_address
@@ -521,7 +527,7 @@ index 33124a174..7de399828 100644
  
  Preparation and Deployment
 diff --git a/doc/source/user/operating-kolla.rst b/doc/source/user/operating-kolla.rst
-index 4d7a7dc14..2f43ca450 100644
+index b0e97b383..e30e3307e 100644
 --- a/doc/source/user/operating-kolla.rst
 +++ b/doc/source/user/operating-kolla.rst
 @@ -128,8 +128,8 @@ most likely in

@@ -1,0 +1,92 @@
+name: Ensure local container builds work
+
+# The purpose of this workflow is that container builds still work for the
+# releases I care about, with a minimum amount of my overall CI environment
+# involved -- that is, it models a random user building containers on their
+# local workstation.
+#
+# This workflow should closely follow the instructions from README.md,
+# although there are some minor githubisms in here (git clones mostly).
+
+on:
+  workflow_dispatch:
+  pull_request:
+    branches:
+      - develop
+
+jobs:
+  build_images_2024_1:
+    name: "2024.1"
+    runs-on: [self-hosted, vm]
+    timeout-minutes: 180
+    concurrency:
+      group: ${{ github.workflow }}-${{ github.ref }}
+      cancel-in-progress: true
+
+    # NOTE(mikal): git repos are checked out to /srv/github/_work/{org}/{repo}
+    # which is available as GITHUB_WORKSPACE. You can find other environment
+    # variables at https://docs.github.com/en/actions/learn-github-actions/environment-variables
+
+    steps:
+      - name: Set environment variables
+        shell: bash
+        run: |
+          echo "SF_HEAD_SHA=${{ github.event.pull_request.head.sha }}" >> $GITHUB_ENV
+          echo "SHAKENFIST_NAMESPACE=$(hostname)" >> $GITHUB_ENV
+
+      - name: Checkout kerbside-patches
+        uses: actions/checkout@v4
+        with:
+          path: kerbside-patches
+          fetch-depth: 0
+
+      # We need the actions repository to build a test instance, you wouldn't
+      # need this for a normal local build, but it is imposed by this being
+      # a CI job pretending to be a local build.
+      - name: Checkout the actions repository
+        uses: actions/checkout@v4
+        with:
+          repository: shakenfist/actions
+          path: actions
+          fetch-depth: 0
+
+      - name: Build infrastructure
+        shell: bash
+        run: |
+          . $GITHUB_ENV
+          ansible-playbook -i /home/debian/ansible-hosts \
+              --extra-vars "identifier=${SHAKENFIST_NAMESPACE} base=debian:12" \
+              --tags all ${GITHUB_WORKSPACE}/actions/ansible/kerbside-single-node.yml
+
+      - name: Copy kerbside-patches git repo
+        shell: bash
+        run: |
+          . $GITHUB_ENV
+          scp -rp -i /srv/github/id_ci -o StrictHostKeyChecking=no \
+              -o UserKnownHostsFile=/dev/null \
+              ${GITHUB_WORKSPACE}/kerbside-patches \
+              debian@10.0.2.2:.
+
+      - name: Install dependencies
+        run: |
+          ssh -i /srv/github/id_ci -o StrictHostKeyChecking=no \
+              -o UserKnownHostsFile=/dev/null debian@10.0.2.2 \
+              "cd kerbside-patches; ./_build/setup-local-build-environment.sh"
+
+      - name: Assemble source code
+        run: |
+          ssh -i /srv/github/id_ci -o StrictHostKeyChecking=no \
+              -o UserKnownHostsFile=/dev/null debian@10.0.2.2 \
+              "cd kerbside-patches; ./_build/assemble-source.sh 2024.1"
+
+      - name: Build containers with no local OCI registry
+        run: |
+          ssh -i /srv/github/id_ci -o StrictHostKeyChecking=no \
+              -o UserKnownHostsFile=/dev/null debian@10.0.2.2 \
+              "cd kerbside-patches; ./_build/build-containers.sh --build-targets 2024.1 --build-images all"
+      
+      - name: Archive the containers in one big tarball
+        run: |
+          ssh -i /srv/github/id_ci -o StrictHostKeyChecking=no \
+              -o UserKnownHostsFile=/dev/null debian@10.0.2.2 \
+              "cd kerbside-patches; ./_build/imagearchive.sh --build-targets 2024.1"

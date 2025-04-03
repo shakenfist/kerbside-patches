@@ -1,8 +1,6 @@
 #!/bin/bash -e
 
-TOPDIR="/srv/shakenfist/kerbside-patches"
-
-. "${TOPDIR}/buildconfig.sh"
+. ./_build/common.sh
 . /srv/kolla-ansible/venv/bin/activate
 
 echo
@@ -10,7 +8,7 @@ echo -e "${H1}==================================================${Color_Off}"
 echo -e "${H1}Install OpenStack clients${Color_Off}"
 echo -e "${H1}==================================================${Color_Off}"
 
-cd "${TOPDIR}/src"
+cd "${topsrcdir}"
 
 for client in openstacksdk python-openstackclient; do
   cd ${client}

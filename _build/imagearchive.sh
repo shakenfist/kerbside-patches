@@ -1,7 +1,5 @@
-#!/bin/bash -e
-
-topdir=$(pwd)
-topsrcdir="${topdir}/src"
+# Run from the top directory.
+. _build/common.sh
 
 echo
 echo -e "${H1}==================================================${Color_Off}"
@@ -18,6 +16,8 @@ cd "archive/imgs"
 for target in ${build_targets}; do
     # images=$(docker image list --format json | \
     #     jq --slurp -r ".[] | select(.Tag == \"${target}-${CI_COMMIT_SHORT_SHA}\") | .Repository")
+
+    images=()
     for image in $( cat ${topdir}/archive/images ); do
         image=$(echo $image | sed 's/kolla\///')
 
@@ -25,10 +25,12 @@ for target in ${build_targets}; do
         rm -f "${image}-${target}-${CI_COMMIT_SHA}.tar"
         rm -f "${image}-${target}-${CI_COMMIT_SHA}.tar"
 
-        docker save kolla/${image}:${target}-${CI_COMMIT_SHORT_SHA} > "${image}-${target}-${CI_COMMIT_SHORT_SHA}.tar"
-        ls -lrth "${image}-${target}-${CI_COMMIT_SHORT_SHA}.tar"
-        echo
+        images+=("kolla/${image}:${target}-${CI_COMMIT_SHORT_SHA}")
     done
+
+    echo
+    echo "${images[@]}"
+    docker save ${images[@]} > "${target}-${CI_COMMIT_SHORT_SHA}.tar"
 done
 
 trap - EXIT

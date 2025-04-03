@@ -1,13 +1,12 @@
-commit d2e8031a3bec6ef91cc07f56c80ef62230d26718
+commit 9afdca487677910effe9d9ceaf8dab058883f44e
 Author: Michael Still <mikal@stillhq.com>
-Date:   Thu Feb 27 11:29:58 2025 +1100
+Date:   Tue Mar 18 19:04:45 2025 +1100
 
     Add support for spice-direct console types.
-
+    
     This patch adds support for Nova microversion 2.99 which exposes the new
     spice-direct console type and the pre-existing /os-console-auth-token/ API.
-
-    # openstack console url show --spice-direct f2477018-aa93-...
+    
     +----------+----------------------------------------------------------+
     | Field    | Value                                                    |
     +----------+----------------------------------------------------------+
@@ -15,8 +14,7 @@ Date:   Thu Feb 27 11:29:58 2025 +1100
     | type     | spice-direct                                             |
     | url      | http://127.0.0.1:13002/nova?token=f78009fb-41ad-...      |
     +----------+----------------------------------------------------------+
-
-    # openstack console connection show f78009fb-41ad-...
+    
     +----------------------+--------------------------------------+
     | Field                | Value                                |
     +----------------------+--------------------------------------+
@@ -26,7 +24,7 @@ Date:   Thu Feb 27 11:29:58 2025 +1100
     | port                 | 5900                                 |
     | tls_port             | 5901                                 |
     +----------------------+--------------------------------------+
-
+    
     Change-Id: I2d33646d6ac9b25076d69be76dcef8f5c465cd1b
     Depends-On: https://review.opendev.org/c/openstack/openstacksdk/+/940479
 
@@ -102,23 +100,58 @@ index 00000000..b4aed650
 +        data = utils.get_dict_properties(data, columns)
 +
 +        return (display_columns, data)
+diff --git a/openstackclient/tests/unit/compute/v2/fakes.py b/openstackclient/tests/unit/compute/v2/fakes.py
+index 62758c81..9438703b 100644
+--- a/openstackclient/tests/unit/compute/v2/fakes.py
++++ b/openstackclient/tests/unit/compute/v2/fakes.py
+@@ -89,6 +89,9 @@ class FakeComputev2Client:
+         self.migrations = mock.Mock()
+         self.migrations.resource_class = fakes.FakeResource(None, {})
+ 
++        self.console_auth_token = mock.Mock()
++        self.console_auth_token.resource_class = fakes.FakeResource(None, {})
++
+         self.auth_token = kwargs['token']
+ 
+         self.management_url = kwargs['endpoint']
+@@ -1043,4 +1046,4 @@ def create_one_server_interface(attrs=None):
+     # Overwrite default attributes.
+     server_interface_info.update(attrs)
+ 
+-    return _server_interface.ServerInterface(**server_interface_info)
++    return _server_interface.ServerInterface(**server_interface_info)
+\ No newline at end of file
 diff --git a/openstackclient/tests/unit/compute/v2/test_console.py b/openstackclient/tests/unit/compute/v2/test_console.py
-index d4c6940b..28503f5e 100644
+index d4c6940b..4a52d0b0 100644
 --- a/openstackclient/tests/unit/compute/v2/test_console.py
 +++ b/openstackclient/tests/unit/compute/v2/test_console.py
-@@ -157,7 +157,7 @@ class TestConsoleUrlShow(compute_fakes.TestComputev2):
+@@ -14,10 +14,13 @@
+ #
+ 
+ from unittest import mock
++import uuid
+ 
++from openstack.compute.v2 import console_auth_token as _console_auth_token
+ from openstack.compute.v2 import server as _server
+ from openstack.test import fakes as sdk_fakes
+ 
++from openstackclient.compute.v2 import console_auth_token
+ from openstackclient.compute.v2 import console
+ from openstackclient.tests.unit.compute.v2 import fakes as compute_fakes
+ from openstackclient.tests.unit import utils
+@@ -157,7 +160,7 @@ class TestConsoleUrlShow(compute_fakes.TestComputev2):
          self.assertEqual(self.columns, columns)
          self.assertEqual(self.data, data)
-
+ 
 -    def test_console_url_show_with_spice(self):
 +    def test_console_url_show_with_spice_html5(self):
          arglist = [
              '--spice',
              'foo_vm',
-@@ -174,6 +174,23 @@ class TestConsoleUrlShow(compute_fakes.TestComputev2):
+@@ -174,6 +177,23 @@ class TestConsoleUrlShow(compute_fakes.TestComputev2):
          self.assertEqual(self.columns, columns)
          self.assertEqual(self.data, data)
-
+ 
 +    def test_console_url_show_with_spice_direct(self):
 +        arglist = [
 +            '--spice-direct',
@@ -139,15 +172,66 @@ index d4c6940b..28503f5e 100644
      def test_console_url_show_with_rdp(self):
          arglist = [
              '--rdp',
+@@ -224,3 +244,36 @@ class TestConsoleUrlShow(compute_fakes.TestComputev2):
+         )
+         self.assertEqual(self.columns, columns)
+         self.assertEqual(self.data, data)
++
++class TestConsoleTokens(compute_fakes.TestComputev2):
++    def setUp(self):
++        super().setUp()
++
++        self._console_auth_token = sdk_fakes.generate_fake_resource(
++            _console_auth_token.ConsoleAuthToken,
++            host='127.0.0.1',
++            instance_uuid=uuid.uuid4().hex,
++            internal_access_path=None,
++            port=5900,
++            tls_port=5901
++        )
++        self.set_compute_api_version('2.99')
++        self.cmd = console_auth_token.ShowConsoleConnectionInformation(
++            self.app, None)
++
++    def test_console_connection_show(self):
++        arglist = [
++            'token',
++        ]
++        verifylist = [
++            ('host', '127.0.0.1'),
++            ('internal_access_path', None),
++            ('port', 5900),
++            ('tls_port', 5901)
++        ]
++        parsed_args = self.check_parser(self.cmd, arglist, verifylist)
++        columns, data = self.cmd.take_action(parsed_args)
++        vcat = self.compute_sdk_client.validate_console_auth_token
++        vcat.assert_called_once_with('token')
++        self.assertEqual(self.columns, columns)
++        self.assertEqual(self.data, data)
+\ No newline at end of file
+diff --git a/releasenotes/notes/compute-add-validate-console-auth-token-1eda2bd62060ccfa.yaml b/releasenotes/notes/compute-add-validate-console-auth-token-1eda2bd62060ccfa.yaml
+new file mode 100644
+index 00000000..67fe431b
+--- /dev/null
++++ b/releasenotes/notes/compute-add-validate-console-auth-token-1eda2bd62060ccfa.yaml
+@@ -0,0 +1,6 @@
++---
++features:
++  - |
++    Add support for the new ``spice-direct`` console type, as well as the
++    exposing the ability for admins to lookup console connection information
++    via the new ``console connection show`` sub-command.
+\ No newline at end of file
 diff --git a/setup.cfg b/setup.cfg
 index 0ce65134..71d6a817 100644
 --- a/setup.cfg
 +++ b/setup.cfg
 @@ -75,6 +75,7 @@ openstack.compute.v2 =
-
+ 
      console_log_show = openstackclient.compute.v2.console:ShowConsoleLog
      console_url_show = openstackclient.compute.v2.console:ShowConsoleURL
 +    console_connection_show = openstackclient.compute.v2.console_auth_token:ShowConsoleConnectionInformation
-
+ 
      flavor_create = openstackclient.compute.v2.flavor:CreateFlavor
      flavor_delete = openstackclient.compute.v2.flavor:DeleteFlavor

@@ -1,7 +1,5 @@
-#!/bin/bash -e
-
-cd /srv/shakenfist/kerbside-patches
-. buildconfig.sh
+# Run from the top directory.
+. _build/common.sh
 
 echo
 echo -e "${H1}==================================================${Color_Off}"
@@ -40,7 +38,8 @@ else
     echo -e "${H2}Additional packages${Color_Off}"
     sudo apt-get install -y moreutils pkg-config python3-lxml libxml2-dev \
         libxslt1-dev jq gcc python3-dev libdbus-1-dev libglib2.0-dev \
-        python3-dbus git python3-venv netcat-openbsd
+        python3-dbus git python3-venv netcat-openbsd python3-dev \
+        build-essential libpcre3-dev
     sudo apt-get remove -y python3-virtualenv
     sudo pip3 install --break-system-packages tox yq occystrap virtualenv \
         MarkupSafe==2.1.5 clingwrap

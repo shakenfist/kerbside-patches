@@ -1,6 +1,6 @@
-commit cc443f0dd7fb6822dc5c8efb4446da408418c897
+commit dc9e8c569784446e5e770ed8865ff4be490a3937
 Author: Michael Still <mikal@stillhq.com>
-Date:   Wed Mar 12 14:50:36 2025 +1100
+Date:   Tue Mar 25 16:26:12 2025 +1100
 
     Add support for spice-direct console types.
     
@@ -27,29 +27,75 @@ Date:   Wed Mar 12 14:50:36 2025 +1100
     
     Change-Id: I97e3415ec3110374cf95d244cd75bcdf6c5e7871
 
+diff --git a/doc/source/user/proxies/compute.rst b/doc/source/user/proxies/compute.rst
+index eec5c8f2a..c82a990e2 100644
+--- a/doc/source/user/proxies/compute.rst
++++ b/doc/source/user/proxies/compute.rst
+@@ -42,7 +42,7 @@ Starting, Stopping, etc.
+             reboot_server, restore_server, shelve_server, unshelve_server,
+             lock_server, unlock_server, pause_server, unpause_server,
+             rescue_server, unrescue_server, evacuate_server, migrate_server,
+-            get_server_console_output, live_migrate_server
++            live_migrate_server
+ 
+ Modifying a Server
+ ******************
+@@ -187,6 +187,15 @@ Migration Operations
+   :noindex:
+   :members: migrations
+ 
++Interactive Consoles
++^^^^^^^^^^^^^^^^^^^^
++
++.. autoclass:: openstack.compute.v2._proxy.Proxy
++  :noindex:
++  :members: create_server_remote_console, get_server_console_url,
++            validate_console_auth_token, get_server_console_output,
++            create_console
++
+ Helpers
+ ^^^^^^^
+ 
+diff --git a/doc/source/user/resources/compute/v2/console_auth_token.rst b/doc/source/user/resources/compute/v2/console_auth_token.rst
+new file mode 100644
+index 000000000..86b0718fd
+--- /dev/null
++++ b/doc/source/user/resources/compute/v2/console_auth_token.rst
+@@ -0,0 +1,13 @@
++openstack.compute.v2.console_auth_token
++=======================================
++
++.. automodule:: openstack.compute.v2.console_auth_token
++
++The ServerRemoteConsole Class
++-----------------------------
++
++The ``ConsoleAuthToken`` class inherits from
++:class:`~openstack.resource.Resource`.
++
++.. autoclass:: openstack.compute.v2.console_auth_token.ConsoleAuthToken
++   :members:
 diff --git a/openstack/compute/v2/_proxy.py b/openstack/compute/v2/_proxy.py
-index f48e1f684..87110699b 100644
+index f48e1f684..63e67277a 100644
 --- a/openstack/compute/v2/_proxy.py
 +++ b/openstack/compute/v2/_proxy.py
-@@ -27,6 +27,9 @@ from openstack.compute.v2 import quota_class_set as _quota_class_set
- from openstack.compute.v2 import quota_set as _quota_set
- from openstack.compute.v2 import server as _server
- from openstack.compute.v2 import server_action as _server_action
-+from openstack.compute.v2 import (
-+    server_console_auth_token as _server_console_auth_token,
-+)
- from openstack.compute.v2 import server_diagnostics as _server_diagnostics
- from openstack.compute.v2 import server_group as _server_group
- from openstack.compute.v2 import server_interface as _server_interface
-@@ -57,6 +60,7 @@ class Proxy(proxy.Proxy):
+@@ -16,6 +16,7 @@ import warnings
+ from openstack.block_storage.v3 import volume as _volume
+ from openstack.compute.v2 import aggregate as _aggregate
+ from openstack.compute.v2 import availability_zone
++from openstack.compute.v2 import console_auth_token as _console_auth_token
+ from openstack.compute.v2 import extension
+ from openstack.compute.v2 import flavor as _flavor
+ from openstack.compute.v2 import hypervisor as _hypervisor
+@@ -57,6 +58,7 @@ class Proxy(proxy.Proxy):
          "keypair": _keypair.Keypair,
          "limits": limits.Limits,
          "migration": _migration.Migration,
-+        "os_console_auth_token": _server_console_auth_token.ServerConsoleAuthToken,
++        "os_console_auth_token": _console_auth_token.ConsoleAuthToken,
          "quota_class_set": _quota_class_set.QuotaClassSet,
          "quota_set": _quota_set.QuotaSet,
          "server": _server.Server,
-@@ -2384,6 +2388,18 @@ class Proxy(proxy.Proxy):
+@@ -2384,6 +2386,15 @@ class Proxy(proxy.Proxy):
          server = self._get_resource(_server.Server, server)
          return server.get_console_url(self, console_type)
  
@@ -60,15 +106,12 @@ index f48e1f684..87110699b 100644
 +            from get_server_console_url.
 +        :returns: Dictionary with connection details, varying by console type.
 +        """
-+        return self._get(
-+            _server_console_auth_token.ServerConsoleAuthToken,
-+            console_token=console_token,
-+        )
++        return self._get(_console_auth_token.ConsoleAuthToken, console_token)
 +
      def get_server_console_output(self, server, length=None):
          """Return the console output for a server.
  
-@@ -2411,10 +2427,13 @@ class Proxy(proxy.Proxy):
+@@ -2411,10 +2422,12 @@ class Proxy(proxy.Proxy):
              * rdp-html5
              * serial
              * webmks (supported after 2.8)
@@ -77,12 +120,80 @@ index f48e1f684..87110699b 100644
              after microversion 2.6).
  
 -        :returns: Dictionary with console type, url and optionally protocol.
-+        :returns: Dictionary with console type, connection details (url for
-+        most consoles, host and port details for direct consoles) and
-+        optionally protocol.
++        :returns: Dictionary with console type, connection details (a url), and
++            optionally protocol.
          """
          server = self._get_resource(_server.Server, server)
          # NOTE: novaclient supports undocumented type xcpvnc also supported
+diff --git a/openstack/compute/v2/console_auth_token.py b/openstack/compute/v2/console_auth_token.py
+new file mode 100644
+index 000000000..f0076858a
+--- /dev/null
++++ b/openstack/compute/v2/console_auth_token.py
+@@ -0,0 +1,63 @@
++# Licensed under the Apache License, Version 2.0 (the "License"); you may
++# not use this file except in compliance with the License. You may obtain
++# a copy of the License at
++#
++#      http://www.apache.org/licenses/LICENSE-2.0
++#
++# Unless required by applicable law or agreed to in writing, software
++# distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
++# WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
++# License for the specific language governing permissions and limitations
++# under the License.
++
++from openstack import resource
++
++
++class ConsoleAuthToken(resource.Resource):
++    resource_key = 'console'
++    base_path = '/os-console-auth-tokens'
++
++    # capabilities
++    allow_fetch = True
++    requires_id = False
++
++    _max_microversion = '2.99'
++
++    # Request
++    #: The console token to lookup connection information for.
++    console_token = resource.URI('console_token')
++
++    # Properties
++    #: Instance UUID
++    instance_uuid = resource.Body('instance_uuid')
++    #: Hypervisor host
++    host = resource.Body('host')
++    #: Hypervisor port
++    port = resource.Body('port')
++    #: Hypervisor TLS port
++    tls_port = resource.Body('tls_port')
++    #: Internal access path
++    internal_access_path = resource.Body('internal_access_path')
++
++    def fetch(
++        self,
++        session,
++        requires_id=True,
++        base_path=None,
++        error_message=None,
++        skip_cache=False,
++        *,
++        resource_response_key=None,
++        microversion=None,
++        **params,
++    ):
++        return super().fetch(
++            session,
++            requires_id=False,
++            base_path=base_path,
++            error_message=error_message,
++            skip_cache=skip_cache,
++            resource_response_key=resource_response_key,
++            microversion=microversion,
++            **params,
++        )
 diff --git a/openstack/compute/v2/server.py b/openstack/compute/v2/server.py
 index 5ecf09898..f75057b9d 100644
 --- a/openstack/compute/v2/server.py
@@ -105,75 +216,6 @@ index 5ecf09898..f75057b9d 100644
          :returns: None
          """
          action = CONSOLE_TYPE_ACTION_MAPPING.get(console_type)
-diff --git a/openstack/compute/v2/server_console_auth_token.py b/openstack/compute/v2/server_console_auth_token.py
-new file mode 100644
-index 000000000..80c6d6a7f
---- /dev/null
-+++ b/openstack/compute/v2/server_console_auth_token.py
-@@ -0,0 +1,63 @@
-+# Licensed under the Apache License, Version 2.0 (the "License"); you may
-+# not use this file except in compliance with the License. You may obtain
-+# a copy of the License at
-+#
-+#      http://www.apache.org/licenses/LICENSE-2.0
-+#
-+# Unless required by applicable law or agreed to in writing, software
-+# distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
-+# WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
-+# License for the specific language governing permissions and limitations
-+# under the License.
-+
-+from openstack import resource
-+
-+
-+class ServerConsoleAuthToken(resource.Resource):
-+    resource_key = 'console'
-+    base_path = '/os-console-auth-tokens/%(console_token)s'
-+
-+    # capabilities
-+    allow_fetch = True
-+    requires_id = False
-+
-+    _max_microversion = '2.99'
-+
-+    # Request
-+    #: The console token to lookup connection information for.
-+    console_token = resource.URI('console_token', alternate_id=True)
-+
-+    # Properties
-+    #: Instance UUID
-+    instance_uuid = resource.Body('instance_uuid')
-+    #: Hypervisor host
-+    host = resource.Body('host')
-+    #: Hypervisor port
-+    port = resource.Body('port')
-+    #: Hypervisor TLS port
-+    tls_port = resource.Body('tls_port')
-+    #: Internal access path
-+    internal_access_path = resource.Body('internal_access_path')
-+
-+    def fetch(
-+        self,
-+        session,
-+        requires_id=False,
-+        base_path=None,
-+        error_message=None,
-+        skip_cache=False,
-+        *,
-+        resource_response_key=None,
-+        microversion=None,
-+        **params,
-+    ):
-+        return super().fetch(
-+            session,
-+            requires_id=False,
-+            base_path=base_path,
-+            error_message=error_message,
-+            skip_cache=skip_cache,
-+            resource_response_key=resource_response_key,
-+            microversion=microversion,
-+            **params,
-+        )
 diff --git a/openstack/compute/v2/server_remote_console.py b/openstack/compute/v2/server_remote_console.py
 index 7a845b6ab..7d62ea6dd 100644
 --- a/openstack/compute/v2/server_remote_console.py
@@ -210,18 +252,18 @@ index 7a845b6ab..7d62ea6dd 100644
              session, prepend_key=prepend_key, base_path=base_path, **params
          )
 diff --git a/openstack/tests/unit/compute/v2/test_proxy.py b/openstack/tests/unit/compute/v2/test_proxy.py
-index 0e9cd9843..a30a305c5 100644
+index 0e9cd9843..c579f1c10 100644
 --- a/openstack/tests/unit/compute/v2/test_proxy.py
 +++ b/openstack/tests/unit/compute/v2/test_proxy.py
-@@ -31,6 +31,7 @@ from openstack.compute.v2 import quota_class_set
- from openstack.compute.v2 import quota_set
- from openstack.compute.v2 import server
- from openstack.compute.v2 import server_action
-+from openstack.compute.v2 import server_console_auth_token
- from openstack.compute.v2 import server_group
- from openstack.compute.v2 import server_interface
- from openstack.compute.v2 import server_ip
-@@ -1885,3 +1886,14 @@ class TestServerAction(TestComputeProxy):
+@@ -21,6 +21,7 @@ from openstack.block_storage.v3 import volume
+ from openstack.compute.v2 import _proxy
+ from openstack.compute.v2 import aggregate
+ from openstack.compute.v2 import availability_zone as az
++from openstack.compute.v2 import console_auth_token
+ from openstack.compute.v2 import extension
+ from openstack.compute.v2 import flavor
+ from openstack.compute.v2 import hypervisor
+@@ -1885,3 +1886,11 @@ class TestServerAction(TestComputeProxy):
              method_kwargs={'server': 'server_a'},
              expected_kwargs={'server_id': 'server_a'},
          )
@@ -231,10 +273,7 @@ index 0e9cd9843..a30a305c5 100644
 +    def test_validate_console_auth_token(self):
 +        self.verify_get(
 +            self.proxy.validate_console_auth_token,
-+            server_console_auth_token.ServerConsoleAuthToken,
-+            method_args=['console_token'],
-+            expected_args=[],
-+            expected_kwargs={'console_token': 'console_token'},
++            console_auth_token.ConsoleAuthToken,
 +        )
 diff --git a/openstack/tests/unit/compute/v2/test_server.py b/openstack/tests/unit/compute/v2/test_server.py
 index 2c9e59c5c..f2cdc7e3d 100644
@@ -255,3 +294,22 @@ index 2c9e59c5c..f2cdc7e3d 100644
          sot.get_console_url(self.sess, 'rdp-html5')
          self.sess.post.assert_called_with(
              'servers/IDENTIFIER/action',
+diff --git a/releasenotes/notes/compute-add-validate-console-auth-token-999b790aec83de85.yaml b/releasenotes/notes/compute-add-validate-console-auth-token-999b790aec83de85.yaml
+new file mode 100644
+index 000000000..6c875dd48
+--- /dev/null
++++ b/releasenotes/notes/compute-add-validate-console-auth-token-999b790aec83de85.yaml
+@@ -0,0 +1,13 @@
++---
++features:
++  - |
++    Add the ``validate_console_auth_token`` method to the Compute proxy. This
++    method uses the pre-existing ``os-console-auth-tokens`` OpenStack Compute
++    API to validate a console access token as produced by
++    ``get_console_url``. In addition, the method returns hypervisor connection
++    information for the console (hypervisor IP and port numbers), as this call
++    is generally used by the console proxies which users connect to.
++
++    Callers of this method must have ``admin`` access to the OpenStack Compute
++    API due to the privileged nature of the hypervisor connection information
++    returned.

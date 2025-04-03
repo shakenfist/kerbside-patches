@@ -140,6 +140,7 @@ jobs:
       - name: Install required packages
         if: "!contains(matrix.test.infrastructure, 'metal')"
         run: |
+          sudo apt-get install -y moreutils
           sudo pip3 install yq
 
       - name: Attempt to apply patches (2024.1)
@@ -161,7 +162,7 @@ jobs:
               echo -e "${Green}Attempting to apply patches for ${target}${Color_Off}"
               echo -e "${Green}==================================================${Color_Off}"
 
-              ./testapply.sh --skip-tests ${project}-${branch}
+              ./_build/test-apply.sh --skip-tests ${project}-${branch}
 
               echo
               echo
@@ -187,7 +188,7 @@ jobs:
               echo -e "${Green}Attempting to apply patches for ${target}${Color_Off}"
               echo -e "${Green}==================================================${Color_Off}"
 
-              ./testapply.sh --skip-tests ${project}-${branch}
+              ./_build/test-apply.sh --skip-tests ${project}-${branch}
 
               echo
               echo
@@ -213,7 +214,7 @@ jobs:
               echo -e "${Green}Attempting to apply patches for ${target}${Color_Off}"
               echo -e "${Green}==================================================${Color_Off}"
 
-              ./testapply.sh --skip-tests ${project}
+              ./_build/test-apply.sh --skip-tests ${project}
 
               echo
               echo
@@ -253,7 +254,8 @@ jobs:
             script="${script} sudo apt-get update;"
             script="${script} sudo apt-get dist-upgrade -y;"
             script="${script} sudo pip3 install --break-system-packages yq tox;"
-            script="${script} sudo apt-get install -y moreutils libpq-dev"
+            script="${script} sudo apt-get install -y moreutils libpq-dev;"
+            script="${script} sudo apt-get install -y python3-dev build-essential libpcre3-dev"
 
             ssh -i /srv/github/id_ci -o StrictHostKeyChecking=no \
               -o UserKnownHostsFile=/dev/null \
@@ -294,7 +296,7 @@ jobs:
                 echo -e "${Green}Running test locally${Color_Off}"
                 echo
                 cd ${GITHUB_WORKSPACE}/kerbside-patches
-                ./testapply.sh ${project}-${branch}
+                ./_build/test-apply.sh ${project}-${branch}
               else
                 echo
                 echo -e "${Green}Running test on a VM${Color_Off}"
@@ -302,7 +304,7 @@ jobs:
                 . ${GITHUB_WORKSPACE}/ci-environment.sh
                 ssh -i /srv/github/id_ci -o StrictHostKeyChecking=no \
                     -o UserKnownHostsFile=/dev/null ${{ matrix.test.baseuser }}@${primary} \
-                    "cd kerbside-patches; ./testapply.sh ${project}-${branch}"
+                    "cd kerbside-patches; ./_build/test-apply.sh ${project}-${branch}"
               fi
             fi
           done
@@ -358,7 +360,7 @@ jobs:
                   . .venv/bin/activate
                 fi
                 cd kerbside-patches
-                ./testapply.sh ${project}-${branch}
+                ./_build/test-apply.sh ${project}-${branch}
               else
                 echo
                 echo -e "${Green}Running test on a VM${Color_Off}"
@@ -366,7 +368,7 @@ jobs:
                 . ${GITHUB_WORKSPACE}/ci-environment.sh
                 ssh -i /srv/github/id_ci -o StrictHostKeyChecking=no \
                     -o UserKnownHostsFile=/dev/null ${{ matrix.test.baseuser }}@${primary} \
-                    "cd kerbside-patches; ./testapply.sh ${project}-${branch}"
+                    "cd kerbside-patches; ./_build/test-apply.sh ${project}-${branch}"
               fi
             fi
           done
@@ -396,7 +398,7 @@ jobs:
                   . .venv/bin/activate
                 fi
                 cd kerbside-patches
-                ./testapply.sh ${project}
+                ./_build/test-apply.sh ${project}
               else
                 echo
                 echo -e "${Green}Running test on a VM${Color_Off}"
@@ -404,7 +406,7 @@ jobs:
                 . ${GITHUB_WORKSPACE}/ci-environment.sh
                 ssh -i /srv/github/id_ci -o StrictHostKeyChecking=no \
                     -o UserKnownHostsFile=/dev/null ${{ matrix.test.baseuser }}@${primary} \
-                    "cd kerbside-patches; ./testapply.sh ${project}"
+                    "cd kerbside-patches; ./_build/test-apply.sh ${project}"
               fi
             fi
           done
