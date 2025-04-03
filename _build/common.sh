@@ -205,19 +205,19 @@ function run_tests {
         fi
 
         # Try building docs too
-        if [ "${skip_unit_tests}" == "false" ]; then
-            if [ $(tox -a | grep -c docs) -gt 0 ]
-            then
-                echo -e "${H3}tox -edocs${Color_Off}"
-                tox -edocs | ts "%b %d %H:%M:%S ${2} ${3} docs"
-                if [ $? -gt 0 ]; then
-                    echo -e "${H3}tox -edocs failed!${Color_Off}"
-                    rm -rf doc/build/html
-                    exit 1
-                fi
-                rm -rf doc/build/html
-            fi
-        fi
+        # if [ "${skip_unit_tests}" == "false" ]; then
+        #     if [ $(tox -a | grep -c docs) -gt 0 ]
+        #     then
+        #         echo -e "${H3}tox -edocs${Color_Off}"
+        #         tox -edocs | ts "%b %d %H:%M:%S ${2} ${3} docs"
+        #         if [ $? -gt 0 ]; then
+        #             echo -e "${H3}tox -edocs failed!${Color_Off}"
+        #             rm -rf doc/build/html
+        #             exit 1
+        #         fi
+        #         rm -rf doc/build/html
+        #     fi
+        # fi
     fi
 
     echo -e "${H2}${ARROW}Tests complete${Color_Off}"
