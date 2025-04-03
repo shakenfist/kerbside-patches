@@ -1,0 +1,21 @@
+diff --git a/tox.ini b/tox.ini
+index 7b3d951d..f3877fa7 100644
+--- a/tox.ini
++++ b/tox.ini
+@@ -6,6 +6,8 @@ envlist = py3,pep8
+ description =
+     Run unit tests.
+ usedevelop = true
++allowlist_externals =
++  bash
+ setenv =
+     OS_STDOUT_CAPTURE=1
+     OS_STDERR_CAPTURE=1
+@@ -15,6 +17,7 @@ deps =
+     -r{toxinidir}/test-requirements.txt
+     -r{toxinidir}/requirements.txt
+ commands =
++    bash -c "cd ../openstacksdk; pip3 install -U -e ."
+     stestr run {posargs}
+ 
+ [testenv:pep8]
