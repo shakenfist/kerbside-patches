@@ -68,22 +68,6 @@ jobs:
               'infrastructure': 'debian-12-metal'
           },
           {
-              'description': "openstacksdk on rocky 9",
-              'name': 'rocky-9-openstacksdk',
-              'baseimage': 'sf://label/ci-images/rocky-9',
-              'baseuser': 'cloud-user',
-              'targets': 'openstacksdk:master',
-              'infrastructure': 'vm'
-          },
-          {
-              'description': "openstacksdk on debian 12",
-              'name': 'debian-12-openstacksdk',
-              'baseimage': 'sf://label/ci-images/debian-12',
-              'baseuser': 'debian',
-              'targets': 'openstacksdk:master',
-              'infrastructure': 'vm'
-          },
-          {
               'description': "python-openstackclient on rocky 9",
               'name': 'rocky-9-python-openstackclient',
               'baseimage': 'sf://label/ci-images/rocky-9',
@@ -97,22 +81,6 @@ jobs:
               'baseimage': 'sf://label/ci-images/debian-12',
               'baseuser': 'debian',
               'targets': 'python-openstackclient:master',
-              'infrastructure': 'vm'
-          },
-          {
-              'description': "os-traits on rocky 9",
-              'name': 'rocky-9-os-traits',
-              'baseimage': 'sf://label/ci-images/rocky-9',
-              'baseuser': 'cloud-user',
-              'targets': 'os-traits:master',
-              'infrastructure': 'vm'
-          },
-          {
-              'description': "os-traits on debian 12",
-              'name': 'debian-12-os-traits',
-              'baseimage': 'sf://label/ci-images/debian-12',
-              'baseuser': 'debian',
-              'targets': 'os-traits:master',
               'infrastructure': 'vm'
           },
         ]
