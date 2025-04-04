@@ -94,14 +94,7 @@ connport=$(echo ${connjson} | jq -e -r ".port")
 
 echo
 echo "... connection is ${connhost}:${connport}, attempting..."
-timeout 5 nc ${connhost} ${connport} | tee /tmp/$$.out
-echo
-if [ $(grep -c REDQ /tmp/$$.out || true) -lt 1 ]; then
-    echo "Did not see REDQ SPICE magic."
-    exit 1
-else
-    echo "Saw REDQ SPICE magic."
-fi
+timeout 5 python3 ${topdir}/tools/spice-connect.py ${connhost} ${connport}
 
 trap - EXIT
 

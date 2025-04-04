@@ -29,5 +29,5 @@ done
 trap - EXIT
 
 echo -e "${H1}==================================================${Color_Off}"
-echo -e "${H1}OpenStack clients installed.${Color_Off}"
+echo -e "${H1}Clients installed.${Color_Off}"
 echo -e "${H1}==================================================${Color_Off}"
