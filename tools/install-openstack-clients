@@ -11,19 +11,19 @@ echo -e "${H1}==================================================${Color_Off}"
 cd "${topsrcdir}"
 
 for client in openstacksdk python-openstackclient; do
-  cd ${client}
+    cd ${client}
 
-  echo -e "${H2}Installing ${client}${Color_Off}"
-  pip3 install -e .
-  echo
+    echo -e "${H2}Installing ${client}${Color_Off}"
+    pip3 install -e .
+    echo
 
-  for executable in $(pip3 show -f ${client} | grep "/bin/" | sed 's/.*\///'); do
-    ln -s /srv/kolla-ansible/venv/bin/${executable} /usr/local/bin/
-    echo "Linked /srv/kolla-ansible/venv/bin/${executable} ${Arrow} /usr/local/bin/"
-  done
-  echo
+    for executable in $(pip3 show -f ${client} | grep "/bin/" | sed 's/.*\///'); do
+        ln -s /srv/kolla-ansible/venv/bin/${executable} /usr/local/bin/
+        echo "Linked /srv/kolla-ansible/venv/bin/${executable} ${Arrow} /usr/local/bin/"
+    done
+    echo
 
-  cd ..
+    cd ..
 done
 
 trap - EXIT

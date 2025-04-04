@@ -58,7 +58,7 @@ done
 
 # Some projects require a local checkout even if we don't have any patches
 # for them.
-for required in kolla kolla-ansible nova; do
+for required in kolla kolla-ansible nova openstacksdk python-openstackclient; do
     if [ ! -e src/${required} ]; then
         if [ "${target_release}" == "master" ]; then
             required_branch="master"
