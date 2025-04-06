@@ -1,5 +1,6 @@
 #!/bin/bash -e
 
+. ./_build/common.sh
 . /etc/kolla/admin-openrc.sh
 . /srv/kolla-ansible/venv/bin/activate
 
