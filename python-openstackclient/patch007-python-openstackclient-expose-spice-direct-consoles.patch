@@ -1,12 +1,11 @@
-commit d52a9b67a50d731c5c62a84d346c722a89993c3b
-Author: Michael Still <mikal@stillhq.com>
-Date:   Tue Mar 18 19:04:45 2025 +1100
+commit a8b7c0159628100c7343e30155975dabf45f8995
+Author: Michael Still <michael.still1@defence.gov.au>
+Date:   Mon Apr 7 10:28:54 2025 +1000
 
     Add support for spice-direct console types.
     
     This patch adds support for Nova microversion 2.99 which exposes the new
-    spice-direct console type and the pre-existing /os-console-auth-token/
-    API.
+    spice-direct console type and the pre-existing /os-console-auth-token/ API.
     
     +----------+----------------------------------------------------------+
     | Field    | Value                                                    |
@@ -46,10 +45,10 @@ index 00000000..c3358050
 +.. autoprogram-cliff:: openstack.compute.v2
 +   :command: console connection show
 diff --git a/openstackclient/compute/v2/console.py b/openstackclient/compute/v2/console.py
-index 3059cb10..fe6fcf0b 100644
+index 0968dcb0..bcabcd2d 100644
 --- a/openstackclient/compute/v2/console.py
 +++ b/openstackclient/compute/v2/console.py
-@@ -107,6 +107,13 @@ class ShowConsoleURL(command.ShowOne):
+@@ -106,6 +106,13 @@ class ShowConsoleURL(command.ShowOne):
              const='spice-html5',
              help=_("Show SPICE console URL"),
          )
@@ -65,7 +64,7 @@ index 3059cb10..fe6fcf0b 100644
              dest='url_type',
 diff --git a/openstackclient/compute/v2/console_connection.py b/openstackclient/compute/v2/console_connection.py
 new file mode 100644
-index 00000000..b4aed650
+index 00000000..d90b2ceb
 --- /dev/null
 +++ b/openstackclient/compute/v2/console_connection.py
 @@ -0,0 +1,48 @@
@@ -91,7 +90,7 @@ index 00000000..b4aed650
 +
 +
 +def _get_console_connection_columns(item):
-+    column_map = {}
++    column_map: dict[str, str] = {}
 +    hidden_columns = ['id', 'location', 'name']
 +    return utils.get_osc_show_columns_for_sdk_resource(
 +        item, column_map, hidden_columns
@@ -111,14 +110,14 @@ index 00000000..b4aed650
 +        return parser
 +
 +    def take_action(self, parsed_args):
-+        compute_client = self.app.client_manager.sdk_connection.compute
++        compute_client = self.app.client_manager.compute
 +        data = compute_client.validate_console_auth_token(parsed_args.token)
 +        display_columns, columns = _get_console_connection_columns(data)
 +        data = utils.get_dict_properties(data, columns)
 +
 +        return (display_columns, data)
 diff --git a/openstackclient/tests/unit/compute/v2/test_console.py b/openstackclient/tests/unit/compute/v2/test_console.py
-index d4c6940b..28503f5e 100644
+index bcff8199..423290c1 100644
 --- a/openstackclient/tests/unit/compute/v2/test_console.py
 +++ b/openstackclient/tests/unit/compute/v2/test_console.py
 @@ -157,7 +157,7 @@ class TestConsoleUrlShow(compute_fakes.TestComputev2):
@@ -145,7 +144,7 @@ index d4c6940b..28503f5e 100644
 +        ]
 +        parsed_args = self.check_parser(self.cmd, arglist, verifylist)
 +        columns, data = self.cmd.take_action(parsed_args)
-+        self.compute_sdk_client.create_console.assert_called_once_with(
++        self.compute_client.create_console.assert_called_once_with(
 +            self._server.id, console_type='spice-direct'
 +        )
 +        self.assertEqual(self.columns, columns)
@@ -156,7 +155,7 @@ index d4c6940b..28503f5e 100644
              '--rdp',
 diff --git a/openstackclient/tests/unit/compute/v2/test_console_connection.py b/openstackclient/tests/unit/compute/v2/test_console_connection.py
 new file mode 100644
-index 00000000..f320abd2
+index 00000000..ab9cb0c0
 --- /dev/null
 +++ b/openstackclient/tests/unit/compute/v2/test_console_connection.py
 @@ -0,0 +1,72 @@
@@ -193,7 +192,7 @@ index 00000000..f320abd2
 +            port=5900,
 +            tls_port=5901,
 +        )
-+        self.compute_sdk_client.validate_console_auth_token.return_value = (
++        self.compute_client.validate_console_auth_token.return_value = (
 +            self._console_auth_token
 +        )
 +
@@ -227,7 +226,7 @@ index 00000000..f320abd2
 +
 +        columns, data = self.cmd.take_action(parsed_args)
 +
-+        self.compute_sdk_client.validate_console_auth_token.assert_called_once_with(
++        self.compute_client.validate_console_auth_token.assert_called_once_with(
 +            'token'
 +        )
 +        self.assertEqual(self.columns, columns)
@@ -245,10 +244,10 @@ index 00000000..5b03061e
 +    exposing the ability for admins to lookup console connection information
 +    via the new ``console connection show`` command.
 diff --git a/setup.cfg b/setup.cfg
-index 0ce65134..8c221394 100644
+index a770b4b6..d822a9bf 100644
 --- a/setup.cfg
 +++ b/setup.cfg
-@@ -76,6 +76,8 @@ openstack.compute.v2 =
+@@ -77,6 +77,8 @@ openstack.compute.v2 =
      console_log_show = openstackclient.compute.v2.console:ShowConsoleLog
      console_url_show = openstackclient.compute.v2.console:ShowConsoleURL
  
