@@ -73,6 +73,13 @@ fi
 
 echo
 echo -e "${H1}==================================================${Color_Off}"
+echo -e "${H1}List libvirt domains${Color_Off}"
+echo -e "${H1}==================================================${Color_Off}"
+
+docker exec -it nova_libvirt virsh list
+
+echo
+echo -e "${H1}==================================================${Color_Off}"
 echo -e "${H1}Create console${Color_Off}"
 echo -e "${H1}==================================================${Color_Off}"
 
