@@ -113,7 +113,7 @@ for target in ${build_targets}; do
     # Customize the kolla-build.conf file
     echo
     echo -e "${H2}Customize build configuration${Color_Off}"
-    cat kolla-build.conf.in | \
+    cat etc/kolla-build-${target}.conf.in | \
         sed "s|TOPSRCDIR|${topsrcdir}|g" \
         > kolla-build.conf
 

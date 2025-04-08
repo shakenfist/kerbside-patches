@@ -15,17 +15,26 @@ on:
       - develop
 
 jobs:
-  build_images_2024_1:
-    name: "2024.1"
+  local_build_matrix:
+    name: "Ensure local builds for ${{ matrix.test.release }} work"
+    strategy:
+      fail-fast: false
+      matrix:
+        test: [
+          {
+              'release': '2024.1'
+          },
+          {
+              'release': '2025.1'
+          },
+          {
+              'release': 'master'
+          },
+        ]
     runs-on: [self-hosted, vm]
-    timeout-minutes: 180
     concurrency:
-      group: ${{ github.workflow }}-${{ github.ref }}
+      group: ${{ github.workflow }}-${{ github.ref }}-local-${{ matrix.test.release }}
       cancel-in-progress: true
-
-    # NOTE(mikal): git repos are checked out to /srv/github/_work/{org}/{repo}
-    # which is available as GITHUB_WORKSPACE. You can find other environment
-    # variables at https://docs.github.com/en/actions/learn-github-actions/environment-variables
 
     steps:
       - name: Set environment variables
@@ -77,16 +86,16 @@ jobs:
         run: |
           ssh -i /srv/github/id_ci -o StrictHostKeyChecking=no \
               -o UserKnownHostsFile=/dev/null debian@10.0.2.2 \
-              "cd kerbside-patches; ./_build/assemble-source.sh 2024.1"
+              "cd kerbside-patches; ./_build/assemble-source.sh ${{ matrix.test.release }}"
 
       - name: Build containers with no local OCI registry
         run: |
           ssh -i /srv/github/id_ci -o StrictHostKeyChecking=no \
               -o UserKnownHostsFile=/dev/null debian@10.0.2.2 \
-              "cd kerbside-patches; ./_build/build-containers.sh --build-targets 2024.1 --build-images all"
+              "cd kerbside-patches; ./_build/build-containers.sh --build-targets ${{ matrix.test.release }} --build-images all"
       
       - name: Archive the containers in one big tarball
         run: |
           ssh -i /srv/github/id_ci -o StrictHostKeyChecking=no \
               -o UserKnownHostsFile=/dev/null debian@10.0.2.2 \
-              "cd kerbside-patches; ./_build/imagearchive.sh --build-targets 2024.1"
+              "cd kerbside-patches; ./_build/imagearchive.sh --build-targets ${{ matrix.test.release }}"
