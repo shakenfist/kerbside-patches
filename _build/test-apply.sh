@@ -10,7 +10,7 @@ echo -e "${H1}Will build:\n\n${positional_args}${Color_Off}"
 echo -e "${H1}==================================================${Color_Off}"
 
 for project in ${positional_args}; do
-    apply_patches_and_test_one ${project}
+    ./_build/apply-patches-and-test.sh ${project}
 done
 
 trap - EXIT
