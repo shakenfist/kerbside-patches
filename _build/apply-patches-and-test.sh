@@ -1,3 +1,5 @@
+#!/bin/bash -e
+
 # Run from the top directory.
 project="${1}"
 

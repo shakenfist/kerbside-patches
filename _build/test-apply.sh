@@ -1,3 +1,5 @@
+#!/bin/bash -e
+
 # Run from the top directory.
 #    positional arguments are the names of the projects to testapply. If
 #    none are specified, then all are tested.
