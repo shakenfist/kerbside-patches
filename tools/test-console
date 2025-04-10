@@ -76,7 +76,7 @@ echo -e "${H1}==================================================${Color_Off}"
 echo -e "${H1}List libvirt domains${Color_Off}"
 echo -e "${H1}==================================================${Color_Off}"
 
-docker exec -it nova_libvirt virsh list
+docker exec nova_libvirt virsh list
 
 echo
 echo -e "${H1}==================================================${Color_Off}"
