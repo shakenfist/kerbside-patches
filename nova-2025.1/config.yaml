@@ -3,5 +3,5 @@ source_branch: master
 destination_branch: kerbside-all-patches
 shallow_clone: true
 directory: nova
-release: master
+release: 2025.1
 depends_on: 'os-traits'
