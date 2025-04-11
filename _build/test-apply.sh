@@ -11,8 +11,13 @@ echo -e "${H1}==================================================${Color_Off}"
 echo -e "${H1}Will build:\n\n${positional_args}${Color_Off}"
 echo -e "${H1}==================================================${Color_Off}"
 
+extra=""
+if [ ${skip_tests} == "true" ]; then
+    extra="--skip-tests"
+fi
+
 for project in ${positional_args}; do
-    ./_build/apply-patches-and-test.sh ${project}
+    ./_build/apply-patches-and-test.sh ${extra} ${project}
 done
 
 trap - EXIT
