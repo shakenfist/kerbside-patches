@@ -80,6 +80,13 @@ docker exec nova_libvirt virsh list
 
 echo
 echo -e "${H1}==================================================${Color_Off}"
+echo -e "${H1}Dump libvirt domain XML for instance${Color_Off}"
+echo -e "${H1}==================================================${Color_Off}"
+
+docker exec nova_libvirt virsh dumpxml 1
+
+echo
+echo -e "${H1}==================================================${Color_Off}"
 echo -e "${H1}Create console${Color_Off}"
 echo -e "${H1}==================================================${Color_Off}"
 
