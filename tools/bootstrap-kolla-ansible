@@ -56,7 +56,7 @@ echo
 echo -e "${H2}Bootstrap inventory${Color_Off}"
 mkdir -p /etc/kolla
 cp -r etc/kolla /etc/
-cp ansible/inventory/all-in-one /etc/kolla
+cp etc/inventory-all-in-one /etc/kolla/inventory
 echo
 
 echo -e "${H2}Copy globals.yml${Color_Off}"
@@ -79,11 +79,11 @@ kolla-genpwd
 echo
 
 echo -e "${H2}Make certificates${Color_Off}"
-kolla-ansible certificates -i /etc/kolla/all-in-one
+kolla-ansible certificates -i /etc/kolla/inventory
 echo
 
 echo -e "${H2}Bootstrap servers${Color_Off}"
-kolla-ansible bootstrap-servers -i /etc/kolla/all-in-one
+kolla-ansible bootstrap-servers -i /etc/kolla/inventory
 echo
 
 trap - EXIT

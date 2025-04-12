@@ -9,7 +9,7 @@ echo -e "${H1}Post installation Kolla-Ansible steps${Color_Off}"
 echo -e "${H1}==================================================${Color_Off}"
 
 echo -e "${H2}Post deply${Color_Off}"
-kolla-ansible post-deploy -i /etc/kolla/all-in-one
+kolla-ansible post-deploy -i /etc/kolla/inventory
 echo
 
 . /etc/kolla/admin-openrc.sh
