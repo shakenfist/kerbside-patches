@@ -56,11 +56,11 @@ echo
 echo -e "${H2}Bootstrap inventory${Color_Off}"
 mkdir -p /etc/kolla
 cp -r etc/kolla /etc/
+cd "${topdir}"
 cp etc/inventory-all-in-one /etc/kolla/inventory
 echo
 
 echo -e "${H2}Copy globals.yml${Color_Off}"
-cd ../..
 cp etc/globals-${target_release}.yml /etc/kolla/globals.yml
 echo
 
