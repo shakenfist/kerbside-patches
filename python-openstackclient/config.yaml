@@ -4,4 +4,4 @@ destination_branch: libvirt-spice-direct
 shallow_clone: false
 directory: python-openstackclient
 release: master
-depends_on: openstacksdk
+depends_on: ''

@@ -30,6 +30,7 @@ skip_tests="false"
 
 # Should we use the CI environment's OCI registry to avoid rebuilding images?
 use_ci_registry="false"
+ci_registry="192.168.1.5:4000"
 
 # Should we build a compact archive using occystrap?
 compact_archive="false"
@@ -76,6 +77,11 @@ while [[ $# -gt 0 ]]; do
             echo "Will use the CI environment's OCI registry."
             shift
             ;;
+       --ci-registry)
+           export ci_registry="$2"
+           echo "Set CI registry to ${ci_registry}."
+           shift; shift
+	   ;;
         -*|--*)
             echo "Unknown option $1"
             exit 1
