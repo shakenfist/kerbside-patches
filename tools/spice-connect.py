@@ -72,3 +72,5 @@ if __name__ == '__main__':
     assert server_major == 2
     assert server_minor == 2
     assert server_error == 0
+
+    print('OK')

@@ -114,5 +114,5 @@ timeout 5 python3 ${topdir}/tools/spice-connect.py ${connhost} ${connport}
 trap - EXIT
 
 echo -e "${H1}==================================================${Color_Off}"
-echo -e "${H1}OpenStack clients installed.${Color_Off}"
+echo -e "${H1}OpenStack console test complete.${Color_Off}"
 echo -e "${H1}==================================================${Color_Off}"
