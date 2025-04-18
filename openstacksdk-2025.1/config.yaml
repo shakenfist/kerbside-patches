@@ -1,0 +1,7 @@
+repo: https://github.com/openstack/openstacksdk
+source_branch: master
+destination_branch: libvirt-spice-direct
+shallow_clone: false
+directory: openstacksdk
+release: 2025.1
+depends_on: ''

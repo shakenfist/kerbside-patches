@@ -1,0 +1,25 @@
+[DEFAULT]
+base = debian
+debug = true
+push = false
+
+#[openstack-base]
+#type = git
+#location = https://opendev.org/openstack/requirements
+#reference = stable/2024.1
+
+[kerbside-plugin-openstacksdk]
+type = local
+location = TOPSRCDIR/openstacksdk
+
+[kerbside]
+type = local
+location = TOPSRCDIR/kerbside
+
+[nova-base]
+type = local
+location = TOPSRCDIR/nova
+
+[nova-plugin-os-traits]
+type = local
+location = TOPSRCDIR/os-traits

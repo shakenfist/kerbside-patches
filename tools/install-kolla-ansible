@@ -17,11 +17,11 @@ getent ahostsv4 kolla
 echo
 
 echo -e "${H2}Run pre-checks${Color_Off}"
-kolla-ansible prechecks -i /etc/kolla/all-in-one
+kolla-ansible prechecks -i /etc/kolla/inventory
 echo
 
 echo -e "${H2}Deploy servers${Color_Off}"
-kolla-ansible deploy -i /etc/kolla/all-in-one
+kolla-ansible deploy -i /etc/kolla/inventory
 echo
 
 trap - EXIT

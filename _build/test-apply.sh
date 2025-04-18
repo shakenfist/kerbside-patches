@@ -1,3 +1,5 @@
+#!/bin/bash -e
+
 # Run from the top directory.
 #    positional arguments are the names of the projects to testapply. If
 #    none are specified, then all are tested.
@@ -9,8 +11,13 @@ echo -e "${H1}==================================================${Color_Off}"
 echo -e "${H1}Will build:\n\n${positional_args}${Color_Off}"
 echo -e "${H1}==================================================${Color_Off}"
 
+extra=""
+if [ ${skip_tests} == "true" ]; then
+    extra="--skip-tests"
+fi
+
 for project in ${positional_args}; do
-    apply_patches_and_test_one ${project}
+    ./_build/apply-patches-and-test.sh ${project} ${extra}
 done
 
 trap - EXIT

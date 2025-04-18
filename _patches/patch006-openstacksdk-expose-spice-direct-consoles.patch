@@ -1,6 +1,6 @@
-commit dc9e8c569784446e5e770ed8865ff4be490a3937
+commit 446c47ad747ede4bf8dece84391f38ab646533a1
 Author: Michael Still <mikal@stillhq.com>
-Date:   Tue Mar 25 16:26:12 2025 +1100
+Date:   Thu Apr 3 20:25:05 2025 +1100
 
     Add support for spice-direct console types.
     
@@ -127,10 +127,10 @@ index f48e1f684..63e67277a 100644
          # NOTE: novaclient supports undocumented type xcpvnc also supported
 diff --git a/openstack/compute/v2/console_auth_token.py b/openstack/compute/v2/console_auth_token.py
 new file mode 100644
-index 000000000..f0076858a
+index 000000000..c6aa5ac95
 --- /dev/null
 +++ b/openstack/compute/v2/console_auth_token.py
-@@ -0,0 +1,63 @@
+@@ -0,0 +1,35 @@
 +# Licensed under the Apache License, Version 2.0 (the "License"); you may
 +# not use this file except in compliance with the License. You may obtain
 +# a copy of the License at
@@ -152,13 +152,8 @@ index 000000000..f0076858a
 +
 +    # capabilities
 +    allow_fetch = True
-+    requires_id = False
 +
 +    _max_microversion = '2.99'
-+
-+    # Request
-+    #: The console token to lookup connection information for.
-+    console_token = resource.URI('console_token')
 +
 +    # Properties
 +    #: Instance UUID
@@ -171,31 +166,8 @@ index 000000000..f0076858a
 +    tls_port = resource.Body('tls_port')
 +    #: Internal access path
 +    internal_access_path = resource.Body('internal_access_path')
-+
-+    def fetch(
-+        self,
-+        session,
-+        requires_id=True,
-+        base_path=None,
-+        error_message=None,
-+        skip_cache=False,
-+        *,
-+        resource_response_key=None,
-+        microversion=None,
-+        **params,
-+    ):
-+        return super().fetch(
-+            session,
-+            requires_id=False,
-+            base_path=base_path,
-+            error_message=error_message,
-+            skip_cache=skip_cache,
-+            resource_response_key=resource_response_key,
-+            microversion=microversion,
-+            **params,
-+        )
 diff --git a/openstack/compute/v2/server.py b/openstack/compute/v2/server.py
-index 5ecf09898..f75057b9d 100644
+index 069caacd1..f4cdc6443 100644
 --- a/openstack/compute/v2/server.py
 +++ b/openstack/compute/v2/server.py
 @@ -35,6 +35,7 @@ CONSOLE_TYPE_ACTION_MAPPING = {
@@ -296,7 +268,7 @@ index 2c9e59c5c..f2cdc7e3d 100644
              'servers/IDENTIFIER/action',
 diff --git a/releasenotes/notes/compute-add-validate-console-auth-token-999b790aec83de85.yaml b/releasenotes/notes/compute-add-validate-console-auth-token-999b790aec83de85.yaml
 new file mode 100644
-index 000000000..6c875dd48
+index 000000000..474e42c1e
 --- /dev/null
 +++ b/releasenotes/notes/compute-add-validate-console-auth-token-999b790aec83de85.yaml
 @@ -0,0 +1,13 @@
@@ -310,6 +282,6 @@ index 000000000..6c875dd48
 +    information for the console (hypervisor IP and port numbers), as this call
 +    is generally used by the console proxies which users connect to.
 +
-+    Callers of this method must have ``admin`` access to the OpenStack Compute
-+    API due to the privileged nature of the hypervisor connection information
-+    returned.
++    By default, callers of this method must have ``admin`` access to the
++    OpenStack Compute API due to the privileged nature of the hypervisor
++    connection information returned.

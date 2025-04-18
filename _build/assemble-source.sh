@@ -1,3 +1,5 @@
+#!/bin/bash -e
+
 # Run from the top directory.
 target_release="${1}"
 
@@ -25,6 +27,7 @@ echo
 
 # Apply patches. We skip tests here because there are separate CI jobs to
 # cover that and the tests take ages to run.
+
 echo -e "${H2}Finding projects for release ${target_release}${Color_Off}"
 declare -a directories
 projects=$(find . -type f -name "config.yaml" | cut -f 2 -d "/")
@@ -51,14 +54,13 @@ echo
 echo -e "${H3}The following directories contain patches: ${directories[@]}${Color_Off}"
 echo
 
-export skip_tests="true"
 for project in "${directories[@]}"; do
-    apply_patches_and_test_one ${project}
+    ./_build/apply-patches-and-test.sh ${project} --skip-tests
 done
 
 # Some projects require a local checkout even if we don't have any patches
 # for them.
-for required in kolla kolla-ansible nova; do
+for required in kolla kolla-ansible nova openstacksdk python-openstackclient; do
     if [ ! -e src/${required} ]; then
         if [ "${target_release}" == "master" ]; then
             required_branch="master"
@@ -68,7 +70,7 @@ for required in kolla kolla-ansible nova; do
 
         echo
         echo
-        echo -e "${H3}We also require the ${required_branch} of ${required}${Color_Off}"
+        echo -e "${H3}We also require the ${required_branch} branch of ${required}${Color_Off}"
         echo
         git clone --branch ${required_branch} https://github.com/openstack/${required} \
             src/${required}

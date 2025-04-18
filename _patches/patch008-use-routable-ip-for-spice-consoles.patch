@@ -13,8 +13,8 @@ index 2dec39c9d..b23bbe23b 100644
  streaming_mode = {{ nova_spice_streaming_mode }}
 -{% if nova_spice_html5 == 'yes' %}
 -server_proxyclient_address = {{ api_interface_address }}
-++server_proxyclient_address = "{{ 'api' | kolla_address }}"
-+ {% if nova_spice_html5 == 'yes' %}
++server_proxyclient_address = "{{ 'api' | kolla_address }}"
++{% if nova_spice_html5 == 'yes' %}
  {% if inventory_hostname in groups[nova_cell_compute_group] %}
  html5proxy_base_url = {{ nova_spicehtml5proxy_fqdn | kolla_url(public_protocol, nova_spicehtml5proxy_public_port, '/spice_auto.html') }}
  {% endif %}
