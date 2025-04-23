@@ -18,7 +18,7 @@ index 772aa2f..04cbc87 100644
  - name: Apply role certificates
    hosts: localhost
 diff --git a/ansible/group_vars/all.yml b/ansible/group_vars/all.yml
-index f6898fd..a694685 100644
+index f6898fd..892f7c6 100644
 --- a/ansible/group_vars/all.yml
 +++ b/ansible/group_vars/all.yml
 @@ -880,6 +880,7 @@ enable_ironic_inspector: "no"
@@ -29,13 +29,12 @@ index f6898fd..a694685 100644
  enable_kuryr: "no"
  enable_letsencrypt: "no"
  enable_magnum: "no"
-@@ -945,6 +946,14 @@ placement_keystone_user: "placement"
+@@ -945,6 +946,13 @@ placement_keystone_user: "placement"
  cinder_keystone_user: "cinder"
  glance_keystone_user: "glance"
  
 +# Kerbside configuration options
 +kerbside_keystone_user: "kerbside"
-+kerbside_vdi_flavors: ["vdi"]
 +kerbside_port: 13002
 +kerbside_vdi_insecure_port: 5899
 +kerbside_vdi_secure_port: 5898
@@ -477,10 +476,10 @@ index 0000000..32f9dde
 +}
 diff --git a/ansible/roles/nova/templates/kerbside_sources.yaml.j2 b/ansible/roles/nova/templates/kerbside_sources.yaml.j2
 new file mode 100644
-index 0000000..8b53eae
+index 0000000..8fd684f
 --- /dev/null
 +++ b/ansible/roles/nova/templates/kerbside_sources.yaml.j2
-@@ -0,0 +1,20 @@
+@@ -0,0 +1,16 @@
 +---
 +# NOTE(mikal): we really should use kerbside_keystone_user and
 +# kerbside_keystone_password here.
@@ -492,10 +491,6 @@ index 0000000..8b53eae
 +  project_name: {{ keystone_admin_project }}
 +  user_domain_id: {{ default_user_domain_id }}
 +  project_domain_id: {{ default_project_domain_id }}
-+  flavor:
-+{% for flavor in kerbside_vdi_flavors %}
-+    - {{ flavor }}
-+{% endfor %}
 +{% if nova_spice_require_secure | bool %}
 +  ca_cert: |
 +{% for line in spice_cacert.split('\n') %}
