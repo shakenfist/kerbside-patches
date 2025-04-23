@@ -3,11 +3,6 @@ base = debian
 debug = true
 push = false
 
-#[openstack-base]
-#type = git
-#location = https://opendev.org/openstack/requirements
-#reference = stable/2024.1
-
 [kerbside-plugin-openstacksdk]
 type = local
 location = TOPSRCDIR/openstacksdk
