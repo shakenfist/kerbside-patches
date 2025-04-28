@@ -6,7 +6,7 @@ push = false
 [openstack-base]
 type = git
 location = https://opendev.org/openstack/requirements
-reference = stable/2025.1
+reference = master
 
 [kerbside-plugin-openstacksdk]
 type = local
