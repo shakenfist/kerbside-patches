@@ -1,5 +1,6 @@
-commit 59c6c3e4bc5fe8d08d55cbb5a635658657284a7d
+commit b1bc22322842b1a6fd508ce71898d145f5c658a5
 Author: Michael Still <mikal@stillhq.com>
+Date:   Wed May 7 06:12:09 2025 +1000
 
     Implement container image build for kerbside.
 
@@ -8,7 +9,7 @@ Author: Michael Still <mikal@stillhq.com>
 
 diff --git a/docker/kerbside/kerbside/Dockerfile.j2 b/docker/kerbside/kerbside/Dockerfile.j2
 new file mode 100644
-index 000000000..5a65d70d2
+index 0000000..353a286
 --- /dev/null
 +++ b/docker/kerbside/kerbside/Dockerfile.j2
 @@ -0,0 +1,42 @@
@@ -55,10 +56,10 @@ index 000000000..5a65d70d2
 +
 +USER kerbside
 diff --git a/kolla/common/config.py b/kolla/common/config.py
-index 4b7fa75..992e25e 100644
+index 678b0db..374945b 100644
 --- a/kolla/common/config.py
 +++ b/kolla/common/config.py
-@@ -90,6 +90,7 @@ _PROFILE_OPTS = [
+@@ -93,6 +93,7 @@ _PROFILE_OPTS = [
                      'influxdb',
                      'ironic',
                      'kafka',
@@ -67,10 +68,10 @@ index 4b7fa75..992e25e 100644
                      'magnum',
                      'manila',
 diff --git a/kolla/common/sources.py b/kolla/common/sources.py
-index fb28ce1..e89428d 100644
+index e051467..0715493 100644
 --- a/kolla/common/sources.py
 +++ b/kolla/common/sources.py
-@@ -181,6 +181,10 @@ SOURCES = {
+@@ -164,6 +164,10 @@ SOURCES = {
          'type': 'url',
          'location': ('$tarballs_base/openstack/keystone/'
                       'keystone-${openstack_branch}.tar.gz')},
@@ -82,16 +83,16 @@ index fb28ce1..e89428d 100644
          'type': 'url',
          'location': ('$tarballs_base/openstack/kuryr/'
 diff --git a/kolla/common/users.py b/kolla/common/users.py
-index 34840c9..a9d2349 100644
+index 9468396..5fa49e5 100644
 --- a/kolla/common/users.py
 +++ b/kolla/common/users.py
-@@ -341,5 +341,9 @@ USERS = {
-     'opensearch-dashboards-user': {
-         'uid': 42492,
-         'gid': 42492,
+@@ -345,5 +345,9 @@ USERS = {
+     'hsmusers-user': {
+         'uid': 42493,  # This is not used, but the group ID is required.
+         'gid': 42493,
 +    },
 +    'kerbside-user': {
-+        'uid': 42493,
-+        'gid': 42493,
++        'uid': 42494,
++        'gid': 42494,
      }
  }
