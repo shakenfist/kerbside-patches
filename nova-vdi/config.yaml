@@ -4,4 +4,4 @@ destination_branch: libvirt-vdi
 shallow_clone: true
 directory: nova
 release: master-partial
-depends_on: 'os-traits'
+depends_on: ''
