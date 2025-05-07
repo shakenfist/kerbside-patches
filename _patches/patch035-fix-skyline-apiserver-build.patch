@@ -2,11 +2,10 @@ commit 91474f4112fe5b686361dea8f60874bec21fee7c
 Author: Michael Still <mikal@stillhq.com>
 Date:   Wed May 7 19:53:17 2025 +1000
 
-    Remove temporary fix for skyline-apiserver which is breaking builds.
-    
-    The comment around removing a line when
-    I2dababab7c79e7c37983c1702178419c88e014a5 is breaking skyline-apiserver
-    builds using a very recent Docker (28.1.1 specifically). Given the
+    Remove temporary fix for skyline-apiserver.
+
+    skyline-apiserver's Dockerfile has a comment around removing a line when
+    I2dababab7c79e7c37983c1702178419c88e014a5 merges. Given the
     referenced change has now merged, remove the TODO and the temporary
     fix.
 
@@ -16,10 +15,10 @@ index a34178a85..00c871165 100644
 +++ b/docker/skyline/skyline-apiserver/Dockerfile.j2
 @@ -16,8 +16,6 @@ ADD skyline-apiserver-archive /skyline-apiserver-source
  COPY extend_start.sh /usr/local/bin/kolla_skyline_extend_start
- 
+
  RUN ln -s skyline-apiserver-source/* skyline-apiserver \
 -{# TODO: Remove when https://review.opendev.org/c/openstack/skyline-apiserver/+/935604 is merged #}
 -    && {{ macros.upper_constraints_remove("aiosqlite") }} \
      && {{ macros.install_pip(skyline_apiserver_pip_packages | customizable("pip_packages")) }} \
      && chmod 644 /usr/local/bin/kolla_skyline_extend_start
- 
+
