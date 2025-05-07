@@ -1,0 +1,7 @@
+Remove temporary fix for skyline-apiserver which is breaking builds.
+
+The comment around removing a line when
+I2dababab7c79e7c37983c1702178419c88e014a5 is breaking skyline-apiserver
+builds using a very recent Docker (28.1.1 specifically). Given the
+referenced change has now merged, remove the TODO and the temporary
+fix.

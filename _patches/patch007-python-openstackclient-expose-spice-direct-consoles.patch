@@ -1,6 +1,6 @@
-commit a8b7c0159628100c7343e30155975dabf45f8995
-Author: Michael Still <michael.still1@defence.gov.au>
-Date:   Mon Apr 7 10:28:54 2025 +1000
+commit 898a61a6e829d2156e06c04b56ea532b8849b42b
+Author: Michael Still <mikal@stillhq.com>
+Date:   Wed May 7 19:28:45 2025 +1000
 
     Add support for spice-direct console types.
     
@@ -243,6 +243,19 @@ index 00000000..5b03061e
 +    Add support for the new ``spice-direct`` console type, as well as the
 +    exposing the ability for admins to lookup console connection information
 +    via the new ``console connection show`` command.
+diff --git a/requirements.txt b/requirements.txt
+index bf228332..5e9b33d2 100644
+--- a/requirements.txt
++++ b/requirements.txt
+@@ -7,7 +7,7 @@ pbr!=2.1.0,>=2.0.0 # Apache-2.0
+ cryptography>=2.7 # BSD/Apache-2.0
+ cliff>=3.5.0 # Apache-2.0
+ iso8601>=0.1.11 # MIT
+-openstacksdk>=4.4.0 # Apache-2.0
++openstacksdk>=4.5.0 # Apache-2.0
+ osc-lib>=2.3.0 # Apache-2.0
+ oslo.i18n>=3.15.3 # Apache-2.0
+ python-keystoneclient>=3.22.0 # Apache-2.0
 diff --git a/setup.cfg b/setup.cfg
 index a770b4b6..d822a9bf 100644
 --- a/setup.cfg
