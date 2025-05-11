@@ -1,0 +1,271 @@
+commit 898a61a6e829d2156e06c04b56ea532b8849b42b
+Author: Michael Still <mikal@stillhq.com>
+Date:   Wed May 7 19:28:45 2025 +1000
+
+    Add support for spice-direct console types.
+    
+    This patch adds support for Nova microversion 2.99 which exposes the new
+    spice-direct console type and the pre-existing /os-console-auth-token/ API.
+    
+    +----------+----------------------------------------------------------+
+    | Field    | Value                                                    |
+    +----------+----------------------------------------------------------+
+    | protocol | spice                                                    |
+    | type     | spice-direct                                             |
+    | url      | http://127.0.0.1:13002/nova?token=f78009fb-41ad-...      |
+    +----------+----------------------------------------------------------+
+    
+    +----------------------+--------------------------------------+
+    | Field                | Value                                |
+    +----------------------+--------------------------------------+
+    | host                 | 127.0.0.1                            |
+    | instance_uuid        | f2477018-aa93-...                    |
+    | internal_access_path | None                                 |
+    | port                 | 5900                                 |
+    | tls_port             | 5901                                 |
+    +----------------------+--------------------------------------+
+    
+    Change-Id: I2d33646d6ac9b25076d69be76dcef8f5c465cd1b
+    Depends-On: https://review.opendev.org/c/openstack/openstacksdk/+/940479
+
+diff --git a/doc/source/cli/command-objects/console-connection.rst b/doc/source/cli/command-objects/console-connection.rst
+new file mode 100644
+index 00000000..c3358050
+--- /dev/null
++++ b/doc/source/cli/command-objects/console-connection.rst
+@@ -0,0 +1,10 @@
++==================
++console connection
++==================
++
++Server console connection information
++
++Compute v2
++
++.. autoprogram-cliff:: openstack.compute.v2
++   :command: console connection show
+diff --git a/openstackclient/compute/v2/console.py b/openstackclient/compute/v2/console.py
+index 0968dcb0..bcabcd2d 100644
+--- a/openstackclient/compute/v2/console.py
++++ b/openstackclient/compute/v2/console.py
+@@ -106,6 +106,13 @@ class ShowConsoleURL(command.ShowOne):
+             const='spice-html5',
+             help=_("Show SPICE console URL"),
+         )
++        type_group.add_argument(
++            '--spice-direct',
++            dest='url_type',
++            action='store_const',
++            const='spice-direct',
++            help=_("Show SPICE direct protocol native console URL"),
++        )
+         type_group.add_argument(
+             '--rdp',
+             dest='url_type',
+diff --git a/openstackclient/compute/v2/console_connection.py b/openstackclient/compute/v2/console_connection.py
+new file mode 100644
+index 00000000..d90b2ceb
+--- /dev/null
++++ b/openstackclient/compute/v2/console_connection.py
+@@ -0,0 +1,48 @@
++#   Licensed under the Apache License, Version 2.0 (the "License"); you may
++#   not use this file except in compliance with the License. You may obtain
++#   a copy of the License at
++#
++#        http://www.apache.org/licenses/LICENSE-2.0
++#
++#   Unless required by applicable law or agreed to in writing, software
++#   distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
++#   WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
++#   License for the specific language governing permissions and limitations
++#   under the License.
++#
++
++"""Compute v2 Console auth token implementations."""
++
++from osc_lib.command import command
++from osc_lib import utils
++
++from openstackclient.i18n import _
++
++
++def _get_console_connection_columns(item):
++    column_map: dict[str, str] = {}
++    hidden_columns = ['id', 'location', 'name']
++    return utils.get_osc_show_columns_for_sdk_resource(
++        item, column_map, hidden_columns
++    )
++
++
++class ShowConsoleConnectionInformation(command.ShowOne):
++    _description = _("Show server's remote console connection information")
++
++    def get_parser(self, prog_name):
++        parser = super().get_parser(prog_name)
++        parser.add_argument(
++            'token',
++            metavar='<token>',
++            help=_("Nova console token to lookup"),
++        )
++        return parser
++
++    def take_action(self, parsed_args):
++        compute_client = self.app.client_manager.compute
++        data = compute_client.validate_console_auth_token(parsed_args.token)
++        display_columns, columns = _get_console_connection_columns(data)
++        data = utils.get_dict_properties(data, columns)
++
++        return (display_columns, data)
+diff --git a/openstackclient/tests/unit/compute/v2/test_console.py b/openstackclient/tests/unit/compute/v2/test_console.py
+index bcff8199..423290c1 100644
+--- a/openstackclient/tests/unit/compute/v2/test_console.py
++++ b/openstackclient/tests/unit/compute/v2/test_console.py
+@@ -157,7 +157,7 @@ class TestConsoleUrlShow(compute_fakes.TestComputev2):
+         self.assertEqual(self.columns, columns)
+         self.assertEqual(self.data, data)
+ 
+-    def test_console_url_show_with_spice(self):
++    def test_console_url_show_with_spice_html5(self):
+         arglist = [
+             '--spice',
+             'foo_vm',
+@@ -174,6 +174,23 @@ class TestConsoleUrlShow(compute_fakes.TestComputev2):
+         self.assertEqual(self.columns, columns)
+         self.assertEqual(self.data, data)
+ 
++    def test_console_url_show_with_spice_direct(self):
++        arglist = [
++            '--spice-direct',
++            'foo_vm',
++        ]
++        verifylist = [
++            ('url_type', 'spice-direct'),
++            ('server', 'foo_vm'),
++        ]
++        parsed_args = self.check_parser(self.cmd, arglist, verifylist)
++        columns, data = self.cmd.take_action(parsed_args)
++        self.compute_client.create_console.assert_called_once_with(
++            self._server.id, console_type='spice-direct'
++        )
++        self.assertEqual(self.columns, columns)
++        self.assertEqual(self.data, data)
++
+     def test_console_url_show_with_rdp(self):
+         arglist = [
+             '--rdp',
+diff --git a/openstackclient/tests/unit/compute/v2/test_console_connection.py b/openstackclient/tests/unit/compute/v2/test_console_connection.py
+new file mode 100644
+index 00000000..ab9cb0c0
+--- /dev/null
++++ b/openstackclient/tests/unit/compute/v2/test_console_connection.py
+@@ -0,0 +1,72 @@
++# Licensed under the Apache License, Version 2.0 (the "License"); you may
++# not use this file except in compliance with the License. You may obtain
++# a copy of the License at
++#
++#     http://www.apache.org/licenses/LICENSE-2.0
++#
++# Unless required by applicable law or agreed to in writing, software
++# distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
++# WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
++# License for the specific language governing permissions and limitations
++# under the License.
++
++import uuid
++
++from openstack.compute.v2 import console_auth_token as _console_auth_token
++from openstack.test import fakes as sdk_fakes
++
++from openstackclient.compute.v2 import console_connection
++from openstackclient.tests.unit.compute.v2 import fakes as compute_fakes
++
++
++class TestConsoleTokens(compute_fakes.TestComputev2):
++    def setUp(self):
++        super().setUp()
++
++        self._console_auth_token = sdk_fakes.generate_fake_resource(
++            _console_auth_token.ConsoleAuthToken,
++            host='127.0.0.1',
++            instance_uuid=uuid.uuid4().hex,
++            internal_access_path=None,
++            port=5900,
++            tls_port=5901,
++        )
++        self.compute_client.validate_console_auth_token.return_value = (
++            self._console_auth_token
++        )
++
++        self.columns = (
++            'host',
++            'instance_uuid',
++            'internal_access_path',
++            'port',
++            'tls_port',
++        )
++        self.data = (
++            self._console_auth_token.host,
++            self._console_auth_token.instance_uuid,
++            self._console_auth_token.internal_access_path,
++            self._console_auth_token.port,
++            self._console_auth_token.tls_port,
++        )
++
++        self.cmd = console_connection.ShowConsoleConnectionInformation(
++            self.app, None
++        )
++
++    def test_console_connection_show(self):
++        arglist = [
++            'token',
++        ]
++        verifylist = [
++            ('token', 'token'),
++        ]
++        parsed_args = self.check_parser(self.cmd, arglist, verifylist)
++
++        columns, data = self.cmd.take_action(parsed_args)
++
++        self.compute_client.validate_console_auth_token.assert_called_once_with(
++            'token'
++        )
++        self.assertEqual(self.columns, columns)
++        self.assertEqual(self.data, data)
+diff --git a/releasenotes/notes/compute-add-validate-console-auth-token-1eda2bd62060ccfa.yaml b/releasenotes/notes/compute-add-validate-console-auth-token-1eda2bd62060ccfa.yaml
+new file mode 100644
+index 00000000..5b03061e
+--- /dev/null
++++ b/releasenotes/notes/compute-add-validate-console-auth-token-1eda2bd62060ccfa.yaml
+@@ -0,0 +1,6 @@
++---
++features:
++  - |
++    Add support for the new ``spice-direct`` console type, as well as the
++    exposing the ability for admins to lookup console connection information
++    via the new ``console connection show`` command.
+diff --git a/requirements.txt b/requirements.txt
+index bf228332..5e9b33d2 100644
+--- a/requirements.txt
++++ b/requirements.txt
+@@ -7,7 +7,7 @@ pbr!=2.1.0,>=2.0.0 # Apache-2.0
+ cryptography>=2.7 # BSD/Apache-2.0
+ cliff>=3.5.0 # Apache-2.0
+ iso8601>=0.1.11 # MIT
+-openstacksdk>=3.3.0 # Apache-2.0
++openstacksdk>=4.5.0 # Apache-2.0
+ osc-lib>=2.3.0 # Apache-2.0
+ oslo.i18n>=3.15.3 # Apache-2.0
+ python-keystoneclient>=3.22.0 # Apache-2.0
+diff --git a/setup.cfg b/setup.cfg
+index a770b4b6..d822a9bf 100644
+--- a/setup.cfg
++++ b/setup.cfg
+@@ -77,6 +77,8 @@ openstack.compute.v2 =
+     console_log_show = openstackclient.compute.v2.console:ShowConsoleLog
+     console_url_show = openstackclient.compute.v2.console:ShowConsoleURL
+ 
++    console_connection_show = openstackclient.compute.v2.console_connection:ShowConsoleConnectionInformation
++
+     flavor_create = openstackclient.compute.v2.flavor:CreateFlavor
+     flavor_delete = openstackclient.compute.v2.flavor:DeleteFlavor
+     flavor_list = openstackclient.compute.v2.flavor:ListFlavor
