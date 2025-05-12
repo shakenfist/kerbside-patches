@@ -27,7 +27,7 @@ for target in ${build_targets}; do
 
         echo "${project} is release ${release}"
         if [ "${release}" == "${target}" ]; then
-            num_patches=$(cat ${project}/ORDER | wc -l)
+            num_patches=$(cat ${project}/ORDER | egrep -c "^" || true)
             echo "...there are ${num_patches} queued patches"
             if [ ${num_patches} -lt 1 ]; then
                 echo "...but there are are no active patches"
