@@ -108,8 +108,20 @@ connhost=$(echo ${connjson} | jq -e -r ".host")
 connport=$(echo ${connjson} | jq -e -r ".port")
 
 echo
+echo -e "${H1}==================================================${Color_Off}"
+echo -e "${H1}Attempt a direct connection to the hypervisor${Color_Off}"
+echo -e "${H1}==================================================${Color_Off}"
+
+echo
 echo "... connection is ${connhost}:${connport}, attempting..."
 timeout 5 python3 ${topdir}/tools/spice-connect.py ${connhost} ${connport}
+
+echo
+echo -e "${H1}==================================================${Color_Off}"
+echo -e "${H1}Attempt to fetch a .vv file from Kerbside${Color_Off}"
+echo -e "${H1}==================================================${Color_Off}"
+
+curl ${consoleurl}
 
 trap - EXIT
 

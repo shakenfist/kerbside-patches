@@ -1,7 +1,7 @@
 repo: https://github.com/openstack/kolla
-source_branch: stable/2025.1
-destination_branch: stable/2025.1-patches
+source_branch: master
+destination_branch: skyline-apiserver
 shallow_clone: true
 directory: kolla
-release: 2025.1
+release: master
 depends_on: ''

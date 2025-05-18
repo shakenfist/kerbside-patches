@@ -27,7 +27,7 @@ for target in ${build_targets}; do
 
         echo "${project} is release ${release}"
         if [ "${release}" == "${target}" ]; then
-            num_patches=$(cat ${project}/ORDER | wc -l)
+            num_patches=$(cat ${project}/ORDER | egrep -c "^" || true)
             echo "...there are ${num_patches} queued patches"
             if [ ${num_patches} -lt 1 ]; then
                 echo "...but there are are no active patches"
@@ -130,7 +130,7 @@ for target in ${build_targets}; do
 
     kolla_build_args=${build_images}
     if [ "${build_images}" == "all" ]; then
-        kolla_build_args=""
+        kolla_build_args="^(?!skyline)(.*)"
     fi
 
     echo -e "${H3}${venvdir}/bin/kolla-build \\"
