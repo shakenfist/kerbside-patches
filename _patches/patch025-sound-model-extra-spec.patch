@@ -1,13 +1,13 @@
-commit 9c84516150c000101fd3d3f604751b30126425e1
+commit 3e7c6c85fd0884c53fd67be01336a0d005ae247c
 Author: Michael Still <mikal@stillhq.com>
-Date:   Tue Feb 4 07:50:30 2025 +0000
+Date:   Mon May 19 06:43:08 2025 +1000
 
     libvirt: Add extra spec for sound device.
-
+    
     This patch adds an extra spec to configure a sound device inside
     the guest. This is useful for SPICE consoles using the native
     protocol.
-
+    
     Change-Id: I2faeda0fd0fb9c8894d69558a1ccaab8da9f6a1b
 
 diff --git a/doc/notification_samples/common_payloads/ImageMetaPropsPayload.json b/doc/notification_samples/common_payloads/ImageMetaPropsPayload.json
@@ -43,7 +43,7 @@ index ab558d4..c50355b 100644
 +        },
 +    ),
  ]
-
+ 
  ephemeral_encryption_validators = [
 diff --git a/nova/notifications/objects/image.py b/nova/notifications/objects/image.py
 index 513c257..42e6153 100644
@@ -56,7 +56,7 @@ index 513c257..42e6153 100644
 -    VERSION = '1.15'
 +    # Version 1.16: Added 'hw_sound_model' field
 +    VERSION = '1.16'
-
+ 
      # NOTE(efried): This logic currently relies on all of the fields of
      # ImageMetaProps being initialized with no arguments. See the docstring.
 diff --git a/nova/objects/fields.py b/nova/objects/fields.py
@@ -65,8 +65,8 @@ index d64234f..0cb7922 100644
 +++ b/nova/objects/fields.py
 @@ -855,6 +855,20 @@ class PointerModelType(BaseNovaEnum):
      ALL = (USBTABLET,)
-
-
+ 
+ 
 +class SoundModelType(BaseNovaEnum):
 +
 +    SB16 = 'sb16'
@@ -86,15 +86,15 @@ index d64234f..0cb7922 100644
      CRITICAL = 'critical'
 @@ -1393,6 +1407,10 @@ class PointerModelField(BaseEnumField):
      AUTO_TYPE = PointerModelType()
-
-
+ 
+ 
 +class SoundModelField(BaseEnumField):
 +    AUTO_TYPE = SoundModelType()
 +
 +
  class NotificationPriorityField(BaseEnumField):
      AUTO_TYPE = NotificationPriority()
-
+ 
 diff --git a/nova/objects/image_meta.py b/nova/objects/image_meta.py
 index c8764e9..b6f0ba5 100644
 --- a/nova/objects/image_meta.py
@@ -109,7 +109,7 @@ index c8764e9..b6f0ba5 100644
      # ImageMetaPropsPayload must also be bumped. See its docstring for details.
 -    VERSION = '1.39'
 +    VERSION = '1.40'
-
+ 
      def obj_make_compatible(self, primitive, target_version):
          super(ImageMetaProps, self).obj_make_compatible(primitive,
                                                          target_version)
@@ -122,21 +122,21 @@ index c8764e9..b6f0ba5 100644
 @@ -494,6 +498,9 @@ class ImageMetaProps(base.NovaObject):
          # Control bits for the physical memory address bit of Libvirt guests.
          'hw_maxphysaddr_bits': fields.IntegerField(),
-
+ 
 +        # Name of sound device model to use.
 +        'hw_sound_model': fields.SoundModelField(),
 +
          # if true download using bittorrent
          'img_bittorrent': fields.FlexibleBooleanField(),
-
+ 
 diff --git a/nova/scheduler/request_filter.py b/nova/scheduler/request_filter.py
 index 6f61e86..935f240 100644
 --- a/nova/scheduler/request_filter.py
 +++ b/nova/scheduler/request_filter.py
 @@ -444,6 +444,27 @@ def ephemeral_encryption_filter(
      return True
-
-
+ 
+ 
 +@trace_request_filter
 +def virtio_sound_filter(
 +    ctxt: nova_context.RequestContext,
@@ -167,8 +167,8 @@ index 6f61e86..935f240 100644
      ephemeral_encryption_filter,
 +    virtio_sound_filter
  ]
-
-
+ 
+ 
 diff --git a/nova/tests/functional/notification_sample_tests/test_instance.py b/nova/tests/functional/notification_sample_tests/test_instance.py
 index fcb2812..471fb92 100644
 --- a/nova/tests/functional/notification_sample_tests/test_instance.py
@@ -211,7 +211,7 @@ index 47226c9..508ed4d 100644
 @@ -558,6 +558,17 @@ class TestImageMetaProps(test.NoDBTestCase):
          self.assertNotIn('hw_tpm_model', primitive['nova_object.data'])
          self.assertNotIn('hw_tpm_version', primitive['nova_object.data'])
-
+ 
 +    def test_obj_make_compatible_sound_model(self):
 +        """Test that checks if we pop hw_sound_model."""
 +        obj = objects.ImageMetaProps(
@@ -270,18 +270,18 @@ index 4a15f6b..86bb8d3 100644
 +            reqspec.root_required)
 +        self.assertEqual(set(), reqspec.root_forbidden)
 diff --git a/nova/tests/unit/virt/libvirt/test_driver.py b/nova/tests/unit/virt/libvirt/test_driver.py
-index c51d292..9d2e51c 100644
+index baaacbb..7e451a3 100644
 --- a/nova/tests/unit/virt/libvirt/test_driver.py
 +++ b/nova/tests/unit/virt/libvirt/test_driver.py
-@@ -997,6 +997,7 @@ class LibvirtConnTestCase(test.NoDBTestCase,
+@@ -1004,6 +1004,7 @@ class LibvirtConnTestCase(test.NoDBTestCase,
          inst = libvirt_driver.LibvirtDriver(fake.FakeVirtAPI(), True)
          self.assertPublicAPISignatures(baseinst, inst)
-
+ 
 +    @mock.patch.object(libvirt_driver.LibvirtDriver, '_get_sound_model_traits')
      @mock.patch.object(libvirt_driver.LibvirtDriver, '_get_cpu_traits')
      @mock.patch.object(libvirt_driver.LibvirtDriver, '_get_storage_bus_traits')
      @mock.patch.object(libvirt_driver.LibvirtDriver, '_get_video_model_traits')
-@@ -1004,12 +1005,22 @@ class LibvirtConnTestCase(test.NoDBTestCase,
+@@ -1011,12 +1012,22 @@ class LibvirtConnTestCase(test.NoDBTestCase,
      @mock.patch.object(host.Host, "has_min_version")
      def test_static_traits(
          self, mock_version, mock_vif_traits, mock_video_traits,
@@ -289,7 +289,7 @@ index c51d292..9d2e51c 100644
 +        mock_storage_traits, mock_cpu_traits, mock_sound_traits
      ):
          """Ensure driver capabilities are correctly retrieved and cached."""
-
+ 
          # we don't mock out calls to os_traits intentionally, so we need to
          # return valid traits here
 +        mock_sound_traits.return_value = {
@@ -305,7 +305,7 @@ index c51d292..9d2e51c 100644
          mock_cpu_traits.return_value = {'HW_CPU_HYPERTHREADING': True}
          mock_storage_traits.return_value = {'COMPUTE_STORAGE_BUS_VIRTIO': True}
          mock_video_traits.return_value = {'COMPUTE_GRAPHICS_MODEL_VGA': True}
-@@ -1028,6 +1039,14 @@ class LibvirtConnTestCase(test.NoDBTestCase,
+@@ -1035,6 +1046,14 @@ class LibvirtConnTestCase(test.NoDBTestCase,
              'COMPUTE_SECURITY_TPM_TIS': False,
              'COMPUTE_SECURITY_TPM_CRB': False,
              'COMPUTE_STORAGE_BUS_VIRTIO': True,
@@ -320,7 +320,7 @@ index c51d292..9d2e51c 100644
              'COMPUTE_VIOMMU_MODEL_AUTO': True,
              'COMPUTE_VIOMMU_MODEL_INTEL': True,
              'COMPUTE_VIOMMU_MODEL_SMMUV3': True,
-@@ -1042,7 +1061,7 @@ class LibvirtConnTestCase(test.NoDBTestCase,
+@@ -1049,7 +1068,7 @@ class LibvirtConnTestCase(test.NoDBTestCase,
          self.assertEqual(expected, static_traits)
          for mock_traits in (
              mock_vif_traits, mock_video_traits, mock_storage_traits,
@@ -329,7 +329,7 @@ index c51d292..9d2e51c 100644
          ):
              mock_traits.assert_called_once_with()
              mock_traits.reset_mock()
-@@ -1054,20 +1073,31 @@ class LibvirtConnTestCase(test.NoDBTestCase,
+@@ -1061,20 +1080,31 @@ class LibvirtConnTestCase(test.NoDBTestCase,
          self.assertEqual(expected, static_traits)
          for mock_traits in (
              mock_vif_traits, mock_video_traits, mock_storage_traits,
@@ -337,7 +337,7 @@ index c51d292..9d2e51c 100644
 +            mock_cpu_traits, mock_sound_traits
          ):
              mock_traits.assert_not_called()
-
+ 
      @mock.patch.object(libvirt_driver.LOG, 'debug')
 +    @mock.patch.object(libvirt_driver.LibvirtDriver, '_get_sound_model_traits')
      @mock.patch.object(libvirt_driver.LibvirtDriver, '_get_cpu_traits')
@@ -363,7 +363,7 @@ index c51d292..9d2e51c 100644
          mock_cpu_traits.return_value = {'foo': True}
          mock_storage_traits.return_value = {'bar': True}
          mock_video_traits.return_value = {'baz': True}
-@@ -1081,6 +1111,14 @@ class LibvirtConnTestCase(test.NoDBTestCase,
+@@ -1088,6 +1118,14 @@ class LibvirtConnTestCase(test.NoDBTestCase,
              'COMPUTE_SECURITY_TPM_2_0': False,
              'COMPUTE_SECURITY_TPM_TIS': False,
              'COMPUTE_SECURITY_TPM_CRB': False,
@@ -378,10 +378,10 @@ index c51d292..9d2e51c 100644
              'COMPUTE_VIOMMU_MODEL_AUTO': True,
              'COMPUTE_VIOMMU_MODEL_INTEL': True,
              'COMPUTE_VIOMMU_MODEL_SMMUV3': True,
-@@ -1238,6 +1276,47 @@ class LibvirtConnTestCase(test.NoDBTestCase,
+@@ -1245,6 +1283,47 @@ class LibvirtConnTestCase(test.NoDBTestCase,
                  break
          self.assertFalse(version_arg_found)
-
+ 
 +    @mock.patch.object(host.Host, 'has_min_version')
 +    def test_libvirt_has_virtio_sound_but_not_qemu(self, mock_version):
 +        def _fake_has_min_version(lv_ver=None, hv_ver=None, hv_type=None):
@@ -426,10 +426,10 @@ index c51d292..9d2e51c 100644
      @mock.patch.object(libvirt_driver.LibvirtDriver,
                         '_register_all_undefined_instance_details',
                         new=mock.Mock())
-@@ -7153,6 +7232,43 @@ class LibvirtConnTestCase(test.NoDBTestCase,
+@@ -7160,6 +7239,43 @@ class LibvirtConnTestCase(test.NoDBTestCase,
          self.assertEqual(cfg.devices[7].model, 'tpm-crb')
          self.assertEqual(cfg.devices[7].secret_uuid, uuids.vtpm)
-
+ 
 +    def test_get_guest_config_with_sound_model(self):
 +        self.flags(virt_type='kvm', group='libvirt')
 +
@@ -471,12 +471,12 @@ index c51d292..9d2e51c 100644
          self.flags(enabled=False, group='vnc')
          self.flags(virt_type='kvm', group='libvirt')
 diff --git a/nova/virt/hardware.py b/nova/virt/hardware.py
-index d65b175..01ebaf8 100644
+index d5506a6..4fcbc3f 100644
 --- a/nova/virt/hardware.py
 +++ b/nova/virt/hardware.py
 @@ -665,16 +665,16 @@ def _pack_instance_onto_cores(host_cell, instance_cell,
      threads_per_core = max(map(len, host_cell.siblings)) or 1
-
+ 
      LOG.debug('Packing an instance onto a set of siblings: '
 -             '    host_cell_free_siblings: %(siblings)s'
 -             '    instance_cell: %(cells)s'
@@ -498,7 +498,7 @@ index d65b175..01ebaf8 100644
 +               'host_cell_id': host_cell.id,
 +               'threads_per_core': threads_per_core,
 +               'num_cpu_reserved': num_cpu_reserved})
-
+ 
      # We build up a data structure that answers the question: 'Given the
      # number of threads I want to pack, give me a list of all the available
 @@ -907,7 +907,7 @@ def _pack_instance_onto_cores(host_cell, instance_cell,
@@ -507,19 +507,19 @@ index d65b175..01ebaf8 100644
      LOG.debug('Selected cores for pinning: %s, in cell %s', pinning,
 -                                                            host_cell.id)
 +              host_cell.id)
-
+ 
      instance_cell.pin_vcpus(*pinning)
      instance_cell.id = host_cell.id
 @@ -1507,7 +1507,7 @@ def _get_numa_node_count_constraint(
-
+ 
      nodes = flavor_nodes or image_nodes
      if nodes is not None and (not strutils.is_int_like(nodes) or
 -            int(nodes) < 1):
 +                              int(nodes) < 1):
          raise exception.InvalidNUMANodesNumber(nodes=nodes)
-
+ 
      return int(nodes) if nodes else nodes
-@@ -2578,7 +2578,7 @@ def numa_fit_instance_to_host(
+@@ -2582,7 +2582,7 @@ def numa_fit_instance_to_host(
              try:
                  cpuset_reserved = 0
                  if (instance_topology.emulator_threads_isolated and
@@ -528,7 +528,7 @@ index d65b175..01ebaf8 100644
                      # For the case of isolate emulator threads, to
                      # make predictable where that CPU overhead is
                      # located we always configure it to be on host
-@@ -2912,3 +2912,27 @@ def check_shares_supported(context, instance):
+@@ -2916,3 +2916,27 @@ def check_shares_supported(context, instance):
          )
      ):
          raise exception.ForbiddenSharesNotConfiguredCorrectly()
@@ -577,13 +577,13 @@ index 2c6e859..c465334 100644
 +        meta.set('model', str(self.model))
 +        return meta
 diff --git a/nova/virt/libvirt/driver.py b/nova/virt/libvirt/driver.py
-index f820fa9..2bed5df 100644
+index 68b0ce2..b9bc4b1 100644
 --- a/nova/virt/libvirt/driver.py
 +++ b/nova/virt/libvirt/driver.py
-@@ -271,6 +271,10 @@ MIN_IGB_QEMU_VERSION = (8, 0, 0)
+@@ -270,6 +270,10 @@ MIN_IGB_QEMU_VERSION = (8, 0, 0)
  MIN_VFIO_PCI_VARIANT_LIBVIRT_VERSION = (10, 0, 0)
  MIN_VFIO_PCI_VARIANT_QEMU_VERSION = (8, 2, 2)
-
+ 
 +# Minimum versions supporting the virtio sound model
 +MIN_VIRTIO_SOUND_LIBVIRT_VERSION = (10, 4, 0)
 +MIN_VIRTIO_SOUND_QEMU_VERSION = (8, 2, 0)
@@ -594,7 +594,7 @@ index f820fa9..2bed5df 100644
 @@ -6875,6 +6879,22 @@ class LibvirtDriver(driver.ComputeDriver):
          vtpm = vconfig.LibvirtConfigGuestVTPM(vtpm_config, vtpm_secret_uuid)
          guest.add_device(vtpm)
-
+ 
 +    def _add_sound_device(
 +        self,
 +        guest: vconfig.LibvirtConfigGuest,
@@ -616,21 +616,21 @@ index f820fa9..2bed5df 100644
          if image_meta.properties.get('hw_qemu_guest_agent', False):
 @@ -7559,6 +7579,7 @@ class LibvirtDriver(driver.ComputeDriver):
          self._create_consoles(guest, instance, flavor, image_meta)
-
+ 
          self._guest_add_spice_channel(guest)
 +        self._add_sound_device(guest, flavor, instance, image_meta)
-
+ 
          if self._guest_add_video_device(guest):
              self._add_video_driver(guest, image_meta, flavor)
-@@ -9611,6 +9632,7 @@ class LibvirtDriver(driver.ComputeDriver):
+@@ -9616,6 +9637,7 @@ class LibvirtDriver(driver.ComputeDriver):
          traits.update(self._get_vif_model_traits())
          traits.update(self._get_iommu_model_traits())
          traits.update(self._get_tpm_traits())
 +        traits.update(self._get_sound_model_traits())
-
+ 
          _, invalid_traits = ot.check_traits(traits)
          for invalid_trait in invalid_traits:
-@@ -13360,3 +13382,33 @@ class LibvirtDriver(driver.ComputeDriver):
+@@ -13365,3 +13387,33 @@ class LibvirtDriver(driver.ComputeDriver):
                  fs.source_dir = self._get_share_mount_path(instance, share)
                  fs.target_dir = share.tag
                  guest.add_device(fs)
@@ -664,3 +664,16 @@ index f820fa9..2bed5df 100644
 +            'COMPUTE_SOUND_MODEL_USB': True,
 +            'COMPUTE_SOUND_MODEL_VIRTIO': has_virtio
 +        }
+diff --git a/requirements.txt b/requirements.txt
+index 2a62a4b..11b73cd 100644
+--- a/requirements.txt
++++ b/requirements.txt
+@@ -51,7 +51,7 @@ psutil>=3.2.2 # BSD
+ oslo.versionedobjects>=1.35.0 # Apache-2.0
+ os-brick>=6.10.0 # Apache-2.0
+ os-resource-classes>=1.1.0 # Apache-2.0
+-os-traits>=3.4.0 # Apache-2.0
++os-traits>=3.5.0 # Apache-2.0
+ os-vif>=3.1.0 # Apache-2.0
+ castellan>=0.16.0 # Apache-2.0
+ microversion-parse>=0.2.1 # Apache-2.0
