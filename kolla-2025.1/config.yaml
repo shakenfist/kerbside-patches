@@ -1,6 +1,6 @@
 repo: https://github.com/openstack/kolla
-source_branch: master
-destination_branch: master-patches
+source_branch: stable/2025.1
+destination_branch: stable/2025.1-patches
 shallow_clone: true
 directory: kolla
 release: 2025.1
