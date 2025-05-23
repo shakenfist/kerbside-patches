@@ -1,6 +1,6 @@
-commit 41f45d8df019a6f92719b9ea5a6f7f0b553b3d99
+commit 1307297296651ada9945a8dffe03365af736d08f
 Author: Michael Still <mikal@stillhq.com>
-Date:   Tue Jan 28 05:38:23 2025 +1100
+Date:   Thu May 22 20:21:29 2025 +1000
 
     Implement USB controller extra spec for libvirt.
 
@@ -8,12 +8,10 @@ Date:   Tue Jan 28 05:38:23 2025 +1100
     desired by the new libvirt spice-direct console mode. USB device
     redirection support is a frequently requested feature for VDI users.
 
-    Note this patch has not yet had the compute protections added.
-
     Change-Id: I71edd03b5c63a8028c23a746c01c59d303994144
 
 diff --git a/nova/api/validation/extra_specs/hw.py b/nova/api/validation/extra_specs/hw.py
-index c50355b..4848d48 100644
+index c50355b794..4848d4861f 100644
 --- a/nova/api/validation/extra_specs/hw.py
 +++ b/nova/api/validation/extra_specs/hw.py
 @@ -552,6 +552,32 @@ feature_flag_validators = [
@@ -49,8 +47,45 @@ index c50355b..4848d48 100644
  ]
 
  ephemeral_encryption_validators = [
+diff --git a/nova/compute/api.py b/nova/compute/api.py
+index 921d84d898..a291610246 100644
+--- a/nova/compute/api.py
++++ b/nova/compute/api.py
+@@ -124,7 +124,8 @@ MIN_COMPUTE_VDPA_HOTPLUG_LIVE_MIGRATION = 63
+
+ SUPPORT_SHARES = 67
+
+-MIN_COMPUTE_SOUND_MODEL_TRAITS = 69
++MIN_COMPUTE_SOUND_MODEL_TRAITS = 69
++MIN_COMPUTE_USB_MODEL_TRAITS = 70
+
+ # FIXME(danms): Keep a global cache of the cells we find the
+ # first time we look. This needs to be refreshed on a timer or
+diff --git a/nova/objects/service.py b/nova/objects/service.py
+index 60863e5f3a..5903ed7ee5 100644
+--- a/nova/objects/service.py
++++ b/nova/objects/service.py
+@@ -31,7 +31,7 @@ LOG = logging.getLogger(__name__)
+
+
+ # NOTE(danms): This is the global service version counter
+-SERVICE_VERSION = 69
++SERVICE_VERSION = 70
+
+
+ # NOTE(danms): This is our SERVICE_VERSION history. The idea is that any
+@@ -240,6 +240,9 @@ SERVICE_VERSION_HISTORY = (
+     # Version 69: Compute RPC v6.4:
+     # Compute manager supports sound model traits
+     {'compute_rpc': '6.4'},
++    # Version 70: Compute RPC v6.4:
++    # Compute manager supports USB controller model traits
++    {'compute_rpc': '6.4'},
+ )
+
+ # This is the version after which we can rely on having a persistent
 diff --git a/nova/tests/unit/objects/test_image_meta.py b/nova/tests/unit/objects/test_image_meta.py
-index 508ed4d..fab3ae8 100644
+index 508ed4d025..fab3ae81d5 100644
 --- a/nova/tests/unit/objects/test_image_meta.py
 +++ b/nova/tests/unit/objects/test_image_meta.py
 @@ -569,6 +569,21 @@ class TestImageMetaProps(test.NoDBTestCase):
@@ -76,10 +111,10 @@ index 508ed4d..fab3ae8 100644
          obj = objects.ImageMetaProps(
              hw_pci_numa_affinity_policy=fields.PCINUMAAffinityPolicy.SOCKET)
 diff --git a/nova/virt/hardware.py b/nova/virt/hardware.py
-index 01ebaf8..2361bdb 100644
+index 4fcbc3fbb5..ef8957a87c 100644
 --- a/nova/virt/hardware.py
 +++ b/nova/virt/hardware.py
-@@ -2936,3 +2936,57 @@ def get_sound_model(
+@@ -2940,3 +2940,57 @@ def get_sound_model(
          )
 
      return model
@@ -138,10 +173,10 @@ index 01ebaf8..2361bdb 100644
 +
 +    return count
 diff --git a/nova/virt/libvirt/config.py b/nova/virt/libvirt/config.py
-index 2c185c4..d2bcf5f 100644
+index c465334745..082da9edff 100644
 --- a/nova/virt/libvirt/config.py
 +++ b/nova/virt/libvirt/config.py
-@@ -4045,3 +4045,19 @@ class LibvirtConfigGuestSound(LibvirtConfigObject):
+@@ -4046,3 +4046,19 @@ class LibvirtConfigGuestSound(LibvirtConfigObject):
          meta = self._new_node('sound')
          meta.set('model', str(self.model))
          return meta
@@ -162,10 +197,10 @@ index 2c185c4..d2bcf5f 100644
 +        meta.set('bus', str(self.bus))
 +        return meta
 diff --git a/nova/virt/libvirt/driver.py b/nova/virt/libvirt/driver.py
-index fc67f87..9056277 100644
+index b9bc4b1169..da20ab1de1 100644
 --- a/nova/virt/libvirt/driver.py
 +++ b/nova/virt/libvirt/driver.py
-@@ -6865,6 +6865,18 @@ class LibvirtDriver(driver.ComputeDriver):
+@@ -6895,6 +6895,18 @@ class LibvirtDriver(driver.ComputeDriver):
          sound_device = vconfig.LibvirtConfigGuestSound(sound_model)
          guest.add_device(sound_device)
 
@@ -184,7 +219,7 @@ index fc67f87..9056277 100644
      def _set_qemu_guest_agent(self, guest, flavor, instance, image_meta):
          # Enable qga only if the 'hw_qemu_guest_agent' is equal to yes
          if image_meta.properties.get('hw_qemu_guest_agent', False):
-@@ -7378,7 +7390,7 @@ class LibvirtDriver(driver.ComputeDriver):
+@@ -7408,7 +7420,7 @@ class LibvirtDriver(driver.ComputeDriver):
 
          return False
 
@@ -193,7 +228,7 @@ index fc67f87..9056277 100644
          """Add USB root controller, if necessary.
 
          Note that these are added by default on x86-64. We add the controller
-@@ -7387,9 +7399,11 @@ class LibvirtDriver(driver.ComputeDriver):
+@@ -7417,9 +7429,11 @@ class LibvirtDriver(driver.ComputeDriver):
          """
          usbhost = vconfig.LibvirtConfigGuestUSBHostController()
          usbhost.index = 0
@@ -205,7 +240,7 @@ index fc67f87..9056277 100644
          if not self._guest_needs_usb(guest, image_meta):
              archs = (
                  fields.Architecture.PPC,
-@@ -7402,6 +7416,8 @@ class LibvirtDriver(driver.ComputeDriver):
+@@ -7432,6 +7446,8 @@ class LibvirtDriver(driver.ComputeDriver):
                  # xml, where 'none' adds it but then disables it causing
                  # libvirt errors and the instances not being able to build
                  usbhost.model = None
@@ -214,7 +249,7 @@ index fc67f87..9056277 100644
              else:
                  usbhost.model = 'none'
          guest.add_device(usbhost)
-@@ -7566,7 +7582,8 @@ class LibvirtDriver(driver.ComputeDriver):
+@@ -7596,7 +7612,8 @@ class LibvirtDriver(driver.ComputeDriver):
          if self._guest_needs_pcie(guest):
              self._guest_add_pcie_root_ports(guest)
 
