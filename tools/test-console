@@ -9,21 +9,21 @@ echo -e "${H1}==================================================${Color_Off}"
 echo -e "${H1}Download test image and setup glance${Color_Off}"
 echo -e "${H1}==================================================${Color_Off}"
 
-if [ ! -e /srv/shakenfist/debian-11-desktop.qcow2 ]; then\
+if [ ! -e /srv/shakenfist/uefi-latency-guest.qcow2 ]; then\
     echo
     echo "Downloading test image..."
-    wget -q http://molokai.stillhq.com/debian-11-desktop.qcow2 \
-        -O /srv/shakenfist/debian-11-desktop.qcow2
+    wget -q https://images.shakenfist.com/testimages/uefi-latency-guest.qcow2 \
+        -O /srv/shakenfist/uefi-latency-guest.qcow2
 
     echo "Pushing test image to glance..."
     /usr/local/bin/openstack image create --public --disk-format qcow2 \
         --container-format bare \
-        --file /srv/shakenfist/debian-11-desktop.qcow2 debian-11-desktop
+        --file /srv/shakenfist/uefi-latency-guest.qcow2 uefi-latency-guest
 fi
 
 echo
 imageid=$(/usr/local/bin/openstack image list -f json | \
-    jq -e -r ".[] | select(.Name == \"debian-11-desktop\") | .ID")
+    jq -e -r ".[] | select(.Name == \"uefi-latency-guest\") | .ID")
 echo "... image id is ${imageid}"
 
 echo
@@ -32,6 +32,7 @@ echo -e "${H1}Setup flavor and image extra specs${Color_Off}"
 echo -e "${H1}==================================================${Color_Off}"
 
 /usr/local/bin/openstack image set --property hw_video_ram=64 ${imageid}
+/usr/local/bin/openstack image set --property hw_firmware_type=uefi ${imageid}
 /usr/local/bin/openstack flavor create vdi --ram 4096 --disk 200 --vcpus 4 \
     --property hw_video:ram_max_mb=64
 
