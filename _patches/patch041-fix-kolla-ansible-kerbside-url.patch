@@ -1,0 +1,18 @@
+commit f69b370375d8dc1c8e179acd9ba1ba85634b04da
+Author: Michael Still <mikal@stillhq.com>
+Date:   Thu Jun 12 09:22:21 2025 +1000
+
+    Configure the Kerbside Nova token URL.
+
+diff --git a/ansible/roles/nova-cell/templates/nova.conf.j2 b/ansible/roles/nova-cell/templates/nova.conf.j2
+index c721ff7..b96d8e4 100644
+--- a/ansible/roles/nova-cell/templates/nova.conf.j2
++++ b/ansible/roles/nova-cell/templates/nova.conf.j2
+@@ -74,6 +74,7 @@ zlib_compression = {{ nova_spice_zlib_compression }}
+ playback_compression = {{ nova_spice_playback_compression | bool | lower }}
+ streaming_mode = {{ nova_spice_streaming_mode }}
+ server_proxyclient_address = "{{ 'api' | kolla_address }}"
++spice_direct_proxy_base_url = "http://{{ 'api' | kolla_address }}:13002/nova"
+ {% if nova_spice_html5 == 'yes' %}
+ {% if inventory_hostname in groups[nova_cell_compute_group] %}
+ html5proxy_base_url = {{ nova_spicehtml5proxy_fqdn | kolla_url(public_protocol, nova_spicehtml5proxy_public_port, '/spice_auto.html') }}
