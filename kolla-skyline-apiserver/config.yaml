@@ -3,5 +3,5 @@ source_branch: master
 destination_branch: skyline-apiserver
 shallow_clone: true
 directory: kolla
-release: master
+release: master-partial
 depends_on: ''
