@@ -229,7 +229,7 @@ nova
 [nova-serialproxy:children]
 nova
 
-[kerbside:children]
+[kerbside-proxy:children]
 nova
 
 # Neutron

@@ -1,0 +1,445 @@
+commit 53e61387a3f50f06e44a39bc36bc07d93a15336c
+Author: Michael Still <michael.still1@defence.gov.au>
+Date:   Thu Jun 19 14:41:35 2025 +1000
+
+    Move kerbside proxy into its own role.
+
+diff --git a/ansible/inventory/all-in-one b/ansible/inventory/all-in-one
+index 3404adc..2d34a3b 100644
+--- a/ansible/inventory/all-in-one
++++ b/ansible/inventory/all-in-one
+@@ -229,7 +229,7 @@ nova
+ [nova-serialproxy:children]
+ nova
+ 
+-[kerbside:children]
++[kerbside-proxy:children]
+ nova
+ 
+ # Neutron
+diff --git a/ansible/inventory/multinode b/ansible/inventory/multinode
+index a617934..4ca24c3 100644
+--- a/ansible/inventory/multinode
++++ b/ansible/inventory/multinode
+@@ -247,7 +247,7 @@ nova
+ [nova-serialproxy:children]
+ nova
+ 
+-[kerbside:children]
++[-proxy:children]
+ nova
+ 
+ # Neutron
+diff --git a/ansible/roles/kerbside-proxy/defaults/main.yml b/ansible/roles/kerbside-proxy/defaults/main.yml
+new file mode 100644
+index 0000000..0ebd918
+--- /dev/null
++++ b/ansible/roles/kerbside-proxy/defaults/main.yml
+@@ -0,0 +1,50 @@
++---
++kerbside_services:
++  kerbside_proxy:
++    container_name: "kerbside"
++    group: "kerbside-proxy"
++    image: "{{ kerbside_image_full }}"
++    enabled: "{{ enable_kerbside }}"
++    volumes: "{{ kerbside_default_volumes + kerbside_extra_volumes }}"
++    dimensions: "{{ kerbside_dimensions }}"
++    healthcheck: "{{ kerbside_healthcheck }}"
++    
++####################
++# Docker
++####################
++nova_tag: "{{ openstack_tag }}"
++
++####################
++# Kerbside
++####################
++kerbside_image: "{{ docker_registry ~ '/' if docker_registry else '' }}{{ docker_namespace }}/kerbside"
++kerbside_tag: "{{ kerbside_tag }}"
++kerbside_image_full: "{{ kerbside_image }}:{{ kerbside_tag }}"
++kerbside_dimensions: "{{ default_container_dimensions }}"
++kerbside_enable_healthchecks: "{{ enable_container_healthchecks }}"
++kerbside_healthcheck_interval: "{{ default_container_healthcheck_interval }}"
++kerbside_healthcheck_retries: "{{ default_container_healthcheck_retries }}"
++kerbside_healthcheck_start_period: "{{ default_container_healthcheck_start_period }}"
++kerbside_healthcheck_test: ["CMD-SHELL", "healthcheck_listen gunicorn {{ kerbside_port }}"]
++kerbside_healthcheck_timeout: "{{ default_container_healthcheck_timeout }}"
++kerbside_healthcheck:
++  interval: "{{ kerbside_healthcheck_interval }}"
++  retries: "{{ kerbside_healthcheck_retries }}"
++  start_period: "{{ kerbside_healthcheck_start_period }}"
++  test: "{% if kerbside_enable_healthchecks | bool %}{{ kerbside_healthcheck_test }}{% else %}NONE{% endif %}"
++  timeout: "{{ kerbside_healthcheck_timeout }}"
++kerbside_extra_volumes: "{{ nova_extra_volumes }}"
++kerbside_default_volumes:
++  - "{{ node_config_directory }}/kerbside/:{{ container_config_directory }}/:ro"
++  - "/etc/localtime:/etc/localtime:ro"
++  - "{{ '/etc/timezone:/etc/timezone:ro' if ansible_facts.os_family == 'Debian' else '' }}"
++  - "kolla_logs:/var/log/kolla/"
++  - "{{ kolla_dev_repos_directory ~ '/nova/nova:/var/lib/kolla/venv/lib/python' ~ distro_python_version ~ '/site-packages/nova' if nova_dev_mode | bool else '' }}"
++kerbside_json_logging: "no"
++
++####################
++# Kerbside Database
++####################
++kerbside_database_name: "kerbside"
++kerbside_database_user: "kerbside"
++kerbside_database_address: "{{ database_address | put_address_in_context('url') }}:{{ database_port }}"
+diff --git a/ansible/roles/kerbside-proxy/handlers/main.yml b/ansible/roles/kerbside-proxy/handlers/main.yml
+new file mode 100644
+index 0000000..126a2d8
+--- /dev/null
++++ b/ansible/roles/kerbside-proxy/handlers/main.yml
+@@ -0,0 +1,18 @@
++---
++- name: Restart kerbside container
++  vars:
++    service_name: "kerbside"
++    service: "{{ nova_services[service_name] }}"
++  become: true
++  kolla_container:
++    action: "recreate_or_restart_container"
++    common_options: "{{ docker_common_options }}"
++    name: "{{ service.container_name }}"
++    image: "{{ service.image }}"
++    privileged: "{{ service.privileged | default(False) }}"
++    volumes: "{{ service.volumes | reject('equalto', '') | list }}"
++    dimensions: "{{ service.dimensions }}"
++    healthcheck: "{{ service.healthcheck | default(omit) }}"
++  when:
++    - kolla_action != "config"
++    - kolla_action != "upgrade" or not nova_safety_upgrade | bool
+diff --git a/ansible/roles/kerbside-proxy/tasks/bootstrap.yml b/ansible/roles/kerbside-proxy/tasks/bootstrap.yml
+new file mode 100644
+index 0000000..076b429
+--- /dev/null
++++ b/ansible/roles/kerbside-proxy/tasks/bootstrap.yml
+@@ -0,0 +1,55 @@
++---
++- name: Creating Kerbside databases
++  become: true
++  kolla_toolbox:
++    container_engine: "{{ kolla_container_engine }}"
++    module_name: mysql_db
++    module_args:
++      login_host: "{{ database_address }}"
++      login_port: "{{ database_port }}"
++      login_user: "{{ nova_database_shard_root_user }}"
++      login_password: "{{ database_password }}"
++      name: "{{ item }}"
++  run_once: True
++  with_items:
++    - "{{ kerbside_database_name }}"
++
++- name: Creating Kerbside databases user and setting permissions
++  become: true
++  kolla_toolbox:
++    container_engine: "{{ kolla_container_engine }}"
++    module_name: mysql_user
++    module_args:
++      login_host: "{{ database_address }}"
++      login_port: "{{ database_port }}"
++      login_user: "{{ nova_database_shard_root_user }}"
++      login_password: "{{ database_password }}"
++      name: "{{ item.database_username }}"
++      password: "{{ item.database_password }}"
++      host: "%"
++      priv: "{{ item.database_name }}.*:ALL"
++      append_privs: "yes"
++  with_items:
++    - database_name: "{{ kerbside_database_name }}"
++      database_username: "{{ kerbside_database_user }}"
++      database_password: "{{ kerbside_database_password }}"
++  loop_control:
++    label: "{{ item.database_name }}"
++  run_once: True
++  when:
++    - not use_preconfigured_databases | bool
++  no_log: true
++
++- name: Create kerbside administrative access group
++  become: true
++  kolla_toolbox:
++    container_engine: "{{ kolla_container_engine }}"
++    module_name: "openstack.cloud.identity_group"
++    module_args:
++      state: present
++      name: kerbside
++      description: "Kerbside administrative access group"
++      auth: "{{ openstack_auth }}"
++  run_once: True
++  when:
++    - enable_kerbside | bool
+\ No newline at end of file
+diff --git a/ansible/roles/kerbside-proxy/tasks/config.yml b/ansible/roles/kerbside-proxy/tasks/config.yml
+new file mode 100644
+index 0000000..aed6351
+--- /dev/null
++++ b/ansible/roles/kerbside-proxy/tasks/config.yml
+@@ -0,0 +1,48 @@
++---
++- name: Store the SPICE TLS CA cert in a fact for use in the template
++  ansible.builtin.set_fact:
++    spice_cacert: "{{ lookup('ansible.builtin.file', node_custom_config + '/nova/nova-libvirt/cacert.pem') }}"
++  when:
++    - inventory_hostname in groups["kerbside-proxy"]
++    - kerbside_services["kerbside"].enabled | bool
++    - nova_spice_require_secure | bool
++
++- name: Copying over kerbside start script
++  become: true
++  template:
++    src: "{{ role_path }}/templates/kerbside_start.j2"
++    dest: "{{ node_config_directory }}/kerbside/kerbside_start"
++    mode: "0660"
++  when:
++    - inventory_hostname in groups["kerbside-proxy"]
++    - kerbside_services["kerbside"].enabled | bool
++  notify:
++    - "Restart kerbside container"
++
++- name: Copying over kerbside TLS keys
++  become: true
++  copy:
++    src: "{{ node_custom_config }}/nova/kerbside/{{ item }}"
++    dest: "{{ node_config_directory }}/kerbside/{{ item }}"
++    mode: "0600"
++  when:
++    - inventory_hostname in groups["kerbside-proxy"]
++    - kerbside_services["kerbside"].enabled | bool
++  with_items:
++    - cacert.pem
++    - servercert.pem
++    - serverkey.pem
++  notify:
++    - Restart kerbside container
++
++- name: Copying over kerbside sources.yaml
++  become: true
++  template:
++    src: "{{ role_path }}/templates/kerbside_sources.yaml.j2"
++    dest: "{{ node_config_directory }}/kerbside/sources.yaml"
++    mode: "0660"
++  when:
++    - inventory_hostname in groups["kerbside-proxy"]
++    - kerbside_services["kerbside"].enabled | bool
++  notify:
++    - "Restart kerbside container"
+\ No newline at end of file
+diff --git a/ansible/roles/nova/templates/kerbside.json.j2 b/ansible/roles/kerbside-proxy/templates/kerbside.json.j2
+similarity index 100%
+rename from ansible/roles/nova/templates/kerbside.json.j2
+rename to ansible/roles/kerbside-proxy/templates/kerbside.json.j2
+diff --git a/ansible/roles/nova/templates/kerbside_sources.yaml.j2 b/ansible/roles/kerbside-proxy/templates/kerbside_sources.yaml.j2
+similarity index 100%
+rename from ansible/roles/nova/templates/kerbside_sources.yaml.j2
+rename to ansible/roles/kerbside-proxy/templates/kerbside_sources.yaml.j2
+diff --git a/ansible/roles/nova/templates/kerbside_start.j2 b/ansible/roles/kerbside-proxy/templates/kerbside_start.j2
+similarity index 100%
+rename from ansible/roles/nova/templates/kerbside_start.j2
+rename to ansible/roles/kerbside-proxy/templates/kerbside_start.j2
+diff --git a/ansible/roles/kerbside-proxy/vars/main.yml b/ansible/roles/kerbside-proxy/vars/main.yml
+new file mode 100644
+index 0000000..fce52d4
+--- /dev/null
++++ b/ansible/roles/kerbside-proxy/vars/main.yml
+@@ -0,0 +1,2 @@
++---
++project_name: "kerbside"
+diff --git a/ansible/roles/nova/defaults/main.yml b/ansible/roles/nova/defaults/main.yml
+index 897b0b5..d7d2b54 100644
+--- a/ansible/roles/nova/defaults/main.yml
++++ b/ansible/roles/nova/defaults/main.yml
+@@ -75,14 +75,6 @@ nova_services:
+     volumes: "{{ nova_super_conductor_default_volumes + nova_super_conductor_extra_volumes }}"
+     dimensions: "{{ nova_super_conductor_dimensions }}"
+     healthcheck: "{{ nova_super_conductor_healthcheck }}"
+-  kerbside:
+-    container_name: "kerbside"
+-    group: "kerbside"
+-    image: "{{ kerbside_image_full }}"
+-    enabled: "{{ enable_kerbside }}"
+-    volumes: "{{ kerbside_default_volumes + kerbside_extra_volumes }}"
+-    dimensions: "{{ kerbside_dimensions }}"
+-    healthcheck: "{{ kerbside_healthcheck }}"
+ 
+ ####################
+ # Config Validate
+@@ -232,31 +224,6 @@ nova_super_conductor_extra_volumes: "{{ nova_extra_volumes }}"
+ # Used by bootstrapping containers.
+ nova_api_bootstrap_extra_volumes: "{{ nova_extra_volumes }}"
+ 
+-kerbside_image: "{{ docker_registry ~ '/' if docker_registry else '' }}{{ docker_namespace }}/kerbside"
+-kerbside_tag: "{{ nova_tag }}"
+-kerbside_image_full: "{{ kerbside_image }}:{{ kerbside_tag }}"
+-kerbside_dimensions: "{{ default_container_dimensions }}"
+-kerbside_enable_healthchecks: "{{ enable_container_healthchecks }}"
+-kerbside_healthcheck_interval: "{{ default_container_healthcheck_interval }}"
+-kerbside_healthcheck_retries: "{{ default_container_healthcheck_retries }}"
+-kerbside_healthcheck_start_period: "{{ default_container_healthcheck_start_period }}"
+-kerbside_healthcheck_test: ["CMD-SHELL", "healthcheck_listen gunicorn {{ kerbside_port }}"]
+-kerbside_healthcheck_timeout: "{{ default_container_healthcheck_timeout }}"
+-kerbside_healthcheck:
+-  interval: "{{ kerbside_healthcheck_interval }}"
+-  retries: "{{ kerbside_healthcheck_retries }}"
+-  start_period: "{{ kerbside_healthcheck_start_period }}"
+-  test: "{% if kerbside_enable_healthchecks | bool %}{{ kerbside_healthcheck_test }}{% else %}NONE{% endif %}"
+-  timeout: "{{ kerbside_healthcheck_timeout }}"
+-kerbside_extra_volumes: "{{ nova_extra_volumes }}"
+-kerbside_default_volumes:
+-  - "{{ node_config_directory }}/kerbside/:{{ container_config_directory }}/:ro"
+-  - "/etc/localtime:/etc/localtime:ro"
+-  - "{{ '/etc/timezone:/etc/timezone:ro' if ansible_facts.os_family == 'Debian' else '' }}"
+-  - "kolla_logs:/var/log/kolla/"
+-  - "{{ kolla_dev_repos_directory ~ '/nova/nova:/var/lib/kolla/venv/lib/python' ~ distro_python_version ~ '/site-packages/nova' if nova_dev_mode | bool else '' }}"
+-kerbside_json_logging: "no"
+-
+ ####################
+ # OpenStack
+ ####################
+@@ -340,11 +307,4 @@ nova_copy_certs: "{{ kolla_copy_ca_into_containers | bool or nova_enable_tls_bac
+ ####################
+ # WSGI
+ ####################
+-nova_wsgi_provider: "uwsgi"
+-
+-####################
+-# Kerbside Database
+-####################
+-kerbside_database_name: "kerbside"
+-kerbside_database_user: "kerbside"
+-kerbside_database_address: "{{ database_address | put_address_in_context('url') }}:{{ database_port }}"
++nova_wsgi_provider: "uwsgi"
+\ No newline at end of file
+diff --git a/ansible/roles/nova/handlers/main.yml b/ansible/roles/nova/handlers/main.yml
+index 5cd6b8c..59a7bdc 100644
+--- a/ansible/roles/nova/handlers/main.yml
++++ b/ansible/roles/nova/handlers/main.yml
+@@ -65,22 +65,4 @@
+     dimensions: "{{ service.dimensions }}"
+     healthcheck: "{{ service.healthcheck | default(omit) }}"
+   when:
+-    - kolla_action != "upgrade" or not nova_safety_upgrade | bool
+-
+-- name: Restart kerbside container
+-  vars:
+-    service_name: "kerbside"
+-    service: "{{ nova_services[service_name] }}"
+-  become: true
+-  kolla_container:
+-    action: "recreate_or_restart_container"
+-    common_options: "{{ docker_common_options }}"
+-    name: "{{ service.container_name }}"
+-    image: "{{ service.image }}"
+-    privileged: "{{ service.privileged | default(False) }}"
+-    volumes: "{{ service.volumes | reject('equalto', '') | list }}"
+-    dimensions: "{{ service.dimensions }}"
+-    healthcheck: "{{ service.healthcheck | default(omit) }}"
+-  when:
+-    - kolla_action != "config"
+-    - kolla_action != "upgrade" or not nova_safety_upgrade | bool
++    - kolla_action != "upgrade" or not nova_safety_upgrade | bool
+\ No newline at end of file
+diff --git a/ansible/roles/nova/tasks/bootstrap.yml b/ansible/roles/nova/tasks/bootstrap.yml
+index 35d47fa..57295ef 100644
+--- a/ansible/roles/nova/tasks/bootstrap.yml
++++ b/ansible/roles/nova/tasks/bootstrap.yml
+@@ -14,7 +14,6 @@
+   with_items:
+     - "{{ nova_cell0_database_name }}"
+     - "{{ nova_api_database_name }}"
+-    - "{{ kerbside_database_name }}"
+   when:
+     - not use_preconfigured_databases | bool
+ 
+@@ -40,9 +39,6 @@
+     - database_name: "{{ nova_api_database_name }}"
+       database_username: "{{ nova_api_database_user }}"
+       database_password: "{{ nova_api_database_password }}"
+-    - database_name: "{{ kerbside_database_name }}"
+-      database_username: "{{ kerbside_database_user }}"
+-      database_password: "{{ kerbside_database_password }}"
+   loop_control:
+     label: "{{ item.database_name }}"
+   run_once: True
+@@ -50,20 +46,6 @@
+     - not use_preconfigured_databases | bool
+   no_log: true
+ 
+-- name: Create kerbside administrative access group
+-  become: true
+-  kolla_toolbox:
+-    container_engine: "{{ kolla_container_engine }}"
+-    module_name: "openstack.cloud.identity_group"
+-    module_args:
+-      state: present
+-      name: kerbside
+-      description: "Kerbside administrative access group"
+-      auth: "{{ openstack_auth }}"
+-  run_once: True
+-  when:
+-    - enable_kerbside | bool
+-
+ - import_tasks: config_bootstrap.yml
+ 
+ - include_tasks: clone.yml
+diff --git a/ansible/roles/nova/tasks/config.yml b/ansible/roles/nova/tasks/config.yml
+index e7d155d..abbcf93 100644
+--- a/ansible/roles/nova/tasks/config.yml
++++ b/ansible/roles/nova/tasks/config.yml
+@@ -68,54 +68,6 @@
+     mode: "0660"
+   with_dict: "{{ nova_services | select_services_enabled_and_mapped_to_host }}"
+ 
+-- name: Copying over kerbside start script
+-  become: true
+-  template:
+-    src: "{{ role_path }}/templates/kerbside_start.j2"
+-    dest: "{{ node_config_directory }}/kerbside/kerbside_start"
+-    mode: "0660"
+-  when:
+-    - inventory_hostname in groups["nova-api"]
+-    - nova_services["kerbside"].enabled | bool
+-  notify:
+-    - "Restart kerbside container"
+-
+-- name: Store the SPICE TLS CA cert in a fact for use in the template
+-  ansible.builtin.set_fact:
+-    spice_cacert: "{{ lookup('ansible.builtin.file', node_custom_config + '/nova/nova-libvirt/cacert.pem') }}"
+-  when:
+-    - inventory_hostname in groups["nova-api"]
+-    - nova_services["kerbside"].enabled | bool
+-    - nova_spice_require_secure | bool
+-
+-- name: Copying over kerbside sources.yaml
+-  become: true
+-  template:
+-    src: "{{ role_path }}/templates/kerbside_sources.yaml.j2"
+-    dest: "{{ node_config_directory }}/kerbside/sources.yaml"
+-    mode: "0660"
+-  when:
+-    - inventory_hostname in groups["nova-api"]
+-    - nova_services["kerbside"].enabled | bool
+-  notify:
+-    - "Restart kerbside container"
+-
+-- name: Copying over kerbside TLS keys
+-  become: true
+-  copy:
+-    src: "{{ node_custom_config }}/nova/kerbside/{{ item }}"
+-    dest: "{{ node_config_directory }}/kerbside/{{ item }}"
+-    mode: "0600"
+-  when:
+-    - inventory_hostname in groups["nova-api"]
+-    - nova_services["kerbside"].enabled | bool
+-  with_items:
+-    - cacert.pem
+-    - servercert.pem
+-    - serverkey.pem
+-  notify:
+-    - Restart kerbside container
+-
+ - name: Copying over existing policy file
+   become: true
+   template:
