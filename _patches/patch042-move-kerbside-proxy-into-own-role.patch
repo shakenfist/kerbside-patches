@@ -1,4 +1,4 @@
-commit 60de4da7d8757e25561cca1a6f24d55e89ac813c
+commit 215b2af0b02f8deb5980996ffc45f2ebb25dbc43
 Author: Michael Still <mikal@stillhq.com>
 Date:   Fri Jun 20 16:59:16 2025 +1000
 
@@ -291,6 +291,15 @@ index 0000000..aed6351
 +    - kerbside_services["kerbside"].enabled | bool
 +  notify:
 +    - "Restart kerbside container"
+\ No newline at end of file
+diff --git a/ansible/roles/kerbside-proxy/tasks/main.yml b/ansible/roles/kerbside-proxy/tasks/main.yml
+new file mode 100644
+index 0000000..37171d5
+--- /dev/null
++++ b/ansible/roles/kerbside-proxy/tasks/main.yml
+@@ -0,0 +1,2 @@
++---
++- include_tasks: "{{ kolla_action }}.yml"
 \ No newline at end of file
 diff --git a/ansible/roles/kerbside-proxy/tasks/reload.yml b/ansible/roles/kerbside-proxy/tasks/reload.yml
 new file mode 100644
