@@ -1,6 +1,6 @@
-commit 53e61387a3f50f06e44a39bc36bc07d93a15336c
-Author: Michael Still <michael.still1@defence.gov.au>
-Date:   Thu Jun 19 14:41:35 2025 +1000
+commit 3a59547fb72bd1c019c93cca168e36e2e4a8de18
+Author: Michael Still <mikal@stillhq.com>
+Date:   Fri Jun 20 16:59:16 2025 +1000
 
     Move kerbside proxy into its own role.
 
@@ -30,6 +30,71 @@ index a617934..4ca24c3 100644
  nova
  
  # Neutron
+diff --git a/ansible/nova.yml b/ansible/nova.yml
+index c41d854..5b7a055 100644
+--- a/ansible/nova.yml
++++ b/ansible/nova.yml
+@@ -20,6 +20,9 @@
+ # * nova-serialproxy
+ # * nova-spicehtml5proxy
+ # * nova-ssh
++#
++# Additionally there is now a kerbside-proxy role which deploys the SPICE native
++# proxy for spice-direct Nova consoles if enable_kerbside is true.
+ 
+ # We need to perform database bootstrapping before deploying or upgrading any
+ # containers, to ensure all database schema migrations have been performed,
+@@ -171,6 +174,23 @@
+         - enable_nova | bool
+         - kolla_action in ['deploy', 'reconfigure']
+ 
++# Standard {{ kolla_action }}.yml for kerbside-proxy role.
++- name: Apply role kerbside-proxy
++  gather_facts: false
++  hosts:
++    - kerbside-proxy
++    - '&enable_kerbside_True'
++  tags:
++    - kerbside-proxy
++  serial: '{{ kolla_serial|default("0") }}'
++  max_fail_percentage: >-
++    {{ nova_max_fail_percentage |
++       default(kolla_max_fail_percentage) |
++       default(100) }}
++  roles:
++    - role: kerbside-proxy
++      when: enable_kerbside | bool
++
+ # Following an upgrade, Nova services must be restarted once all compute
+ # services have registered themselves, to remove the RPC version pin.
+ # Also, when nova_safety_upgrade is true, this starts services which were
+@@ -252,6 +272,26 @@
+         - enable_nova | bool
+         - kolla_action == 'upgrade'
+ 
++- name: Reload kerbside-proxy services
++  gather_facts: false
++  hosts:
++    - kerbside-proxy
++    - '&enable_kerbside_True'
++  tags:
++    - kerbside-proxy
++  serial: '{{ kolla_serial|default("0") }}'
++  max_fail_percentage: >-
++    {{ nova_max_fail_percentage |
++       default(kolla_max_fail_percentage) |
++       default(100) }}
++  tasks:
++    - import_role:
++        name: kerbside-proxy
++        tasks_from: reload
++      when:
++        - enable_kerbside | bool
++        - kolla_action == 'upgrade'
++
+ # Following an upgrade, data migrations should be performed for the API
+ # database.  This should be done once all cells have been upgraded.
+ 
 diff --git a/ansible/roles/kerbside-proxy/defaults/main.yml b/ansible/roles/kerbside-proxy/defaults/main.yml
 new file mode 100644
 index 0000000..0ebd918
@@ -227,6 +292,34 @@ index 0000000..aed6351
 +  notify:
 +    - "Restart kerbside container"
 \ No newline at end of file
+diff --git a/ansible/roles/kerbside-proxy/tasks/reload.yml b/ansible/roles/kerbside-proxy/tasks/reload.yml
+new file mode 100644
+index 0000000..1e879e3
+--- /dev/null
++++ b/ansible/roles/kerbside-proxy/tasks/reload.yml
+@@ -0,0 +1,22 @@
++---
++# NOTE(mgoddard): We use recreate_or_restart_container to cover the case where
++# nova_safety_upgrade is "yes", and we need to recreate all containers.
++
++- name: Reload Kerbside services
++  vars:
++    service: "{{ kerbside_services[item] }}"
++  become: true
++  kolla_container:
++    action: "recreate_or_restart_container"
++    common_options: "{{ docker_common_options }}"
++    name: "{{ service.container_name }}"
++    image: "{{ service.image }}"
++    privileged: "{{ service.privileged | default(False) }}"
++    volumes: "{{ service.volumes | reject('equalto', '') | list }}"
++    dimensions: "{{ service.dimensions }}"
++    healthcheck: "{{ service.healthcheck | default(omit) }}"
++  when:
++    - kolla_action == 'upgrade'
++    - service | service_enabled_and_mapped_to_host
++  with_items:
++    - kerbside-proxy
 diff --git a/ansible/roles/nova/templates/kerbside.json.j2 b/ansible/roles/kerbside-proxy/templates/kerbside.json.j2
 similarity index 100%
 rename from ansible/roles/nova/templates/kerbside.json.j2
