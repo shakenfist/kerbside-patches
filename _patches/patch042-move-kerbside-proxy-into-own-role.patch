@@ -1,4 +1,4 @@
-commit 9db2802d61dcc9207e3d368680ec7cf8c74b03e6
+commit 1faf6c02ec8ac742a5ed267afe77d422de2cc92b
 Author: Michael Still <mikal@stillhq.com>
 Date:   Fri Jun 20 16:59:16 2025 +1000
 
@@ -109,25 +109,20 @@ index c41d854..5b7a055 100644
  
 diff --git a/ansible/roles/kerbside-proxy/defaults/main.yml b/ansible/roles/kerbside-proxy/defaults/main.yml
 new file mode 100644
-index 0000000..0ebd918
+index 0000000..3653176
 --- /dev/null
 +++ b/ansible/roles/kerbside-proxy/defaults/main.yml
-@@ -0,0 +1,50 @@
+@@ -0,0 +1,45 @@
 +---
 +kerbside_services:
 +  kerbside_proxy:
-+    container_name: "kerbside"
++    container_name: "kerbside-proxy"
 +    group: "kerbside-proxy"
 +    image: "{{ kerbside_image_full }}"
 +    enabled: "{{ enable_kerbside }}"
 +    volumes: "{{ kerbside_default_volumes + kerbside_extra_volumes }}"
 +    dimensions: "{{ kerbside_dimensions }}"
 +    healthcheck: "{{ kerbside_healthcheck }}"
-+    
-+####################
-+# Docker
-+####################
-+nova_tag: "{{ openstack_tag }}"
 +
 +####################
 +# Kerbside
@@ -251,7 +246,7 @@ index 0000000..076b429
 \ No newline at end of file
 diff --git a/ansible/roles/kerbside-proxy/tasks/config.yml b/ansible/roles/kerbside-proxy/tasks/config.yml
 new file mode 100644
-index 0000000..aed6351
+index 0000000..cfa6913
 --- /dev/null
 +++ b/ansible/roles/kerbside-proxy/tasks/config.yml
 @@ -0,0 +1,48 @@
@@ -261,7 +256,7 @@ index 0000000..aed6351
 +    spice_cacert: "{{ lookup('ansible.builtin.file', node_custom_config + '/nova/nova-libvirt/cacert.pem') }}"
 +  when:
 +    - inventory_hostname in groups["kerbside-proxy"]
-+    - kerbside_services["kerbside"].enabled | bool
++    - kerbside_services["kerbside_proxy"].enabled | bool
 +    - nova_spice_require_secure | bool
 +
 +- name: Copying over kerbside start script
@@ -272,7 +267,7 @@ index 0000000..aed6351
 +    mode: "0660"
 +  when:
 +    - inventory_hostname in groups["kerbside-proxy"]
-+    - kerbside_services["kerbside"].enabled | bool
++    - kerbside_services["kerbside_proxy"].enabled | bool
 +  notify:
 +    - "Restart kerbside container"
 +
@@ -284,7 +279,7 @@ index 0000000..aed6351
 +    mode: "0600"
 +  when:
 +    - inventory_hostname in groups["kerbside-proxy"]
-+    - kerbside_services["kerbside"].enabled | bool
++    - kerbside_services["kerbside_proxy"].enabled | bool
 +  with_items:
 +    - cacert.pem
 +    - servercert.pem
@@ -300,7 +295,7 @@ index 0000000..aed6351
 +    mode: "0660"
 +  when:
 +    - inventory_hostname in groups["kerbside-proxy"]
-+    - kerbside_services["kerbside"].enabled | bool
++    - kerbside_services["kerbside_proxy"].enabled | bool
 +  notify:
 +    - "Restart kerbside container"
 \ No newline at end of file
@@ -315,7 +310,7 @@ index 0000000..37171d5
 \ No newline at end of file
 diff --git a/ansible/roles/kerbside-proxy/tasks/precheck.yml b/ansible/roles/kerbside-proxy/tasks/precheck.yml
 new file mode 100644
-index 0000000..5255d17
+index 0000000..56917a3
 --- /dev/null
 +++ b/ansible/roles/kerbside-proxy/tasks/precheck.yml
 @@ -0,0 +1,68 @@
@@ -338,7 +333,7 @@ index 0000000..5255d17
 +
 +- name: Checking free port for Kerbside API
 +  vars:
-+    service: "{{ kerbside_services['kerbside-proxy'] }}"
++    service: "{{ kerbside_services['kerbside_proxy'] }}"
 +  wait_for:
 +    host: "{{ api_interface_address }}"
 +    port: "{{ kerbside_port }}"
@@ -351,7 +346,7 @@ index 0000000..5255d17
 +
 +- name: Checking free port for Kerbside Prometheus
 +  vars:
-+    service: "{{ kerbside_services['kerbside-proxy'] }}"
++    service: "{{ kerbside_services['kerbside_proxy'] }}"
 +  wait_for:
 +    host: "{{ api_interface_address }}"
 +    port: "{{ kerbside_prometheus_port }}"
@@ -364,7 +359,7 @@ index 0000000..5255d17
 +
 +- name: Checking free port for Kerbside insecure SPICE port
 +  vars:
-+    service: "{{ kerbside_services['kerbside-proxy'] }}"
++    service: "{{ kerbside_services['kerbside_proxy'] }}"
 +  wait_for:
 +    host: "{{ api_interface_address }}"
 +    port: "{{ kerbside_vdi_insecure_port }}"
@@ -377,7 +372,7 @@ index 0000000..5255d17
 +
 +- name: Checking free port for Kerbside secure SPICE port
 +  vars:
-+    service: "{{ kerbside_services['kerbside-proxy'] }}"
++    service: "{{ kerbside_services['kerbside_proxy'] }}"
 +  wait_for:
 +    host: "{{ api_interface_address }}"
 +    port: "{{ kerbside_vdi_secure_port }}"
