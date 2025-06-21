@@ -1,9 +1,21 @@
-commit 215b2af0b02f8deb5980996ffc45f2ebb25dbc43
+commit 9db2802d61dcc9207e3d368680ec7cf8c74b03e6
 Author: Michael Still <mikal@stillhq.com>
 Date:   Fri Jun 20 16:59:16 2025 +1000
 
     Move kerbside proxy into its own role.
 
+diff --git a/ansible/group_vars/all.yml b/ansible/group_vars/all.yml
+index 1b82d81..5263992 100644
+--- a/ansible/group_vars/all.yml
++++ b/ansible/group_vars/all.yml
+@@ -952,6 +952,7 @@ glance_keystone_user: "glance"
+ # Kerbside configuration options
+ kerbside_keystone_user: "kerbside"
+ kerbside_port: 13002
++kerbside_prometheus_port: 13003
+ kerbside_vdi_insecure_port: 5899
+ kerbside_vdi_secure_port: 5898
+ kerbside_api_url: "http://{{ kolla_external_fqdn }}:{{ kerbside_port }}"
 diff --git a/ansible/inventory/all-in-one b/ansible/inventory/all-in-one
 index 3404adc..2d34a3b 100644
 --- a/ansible/inventory/all-in-one
@@ -300,6 +312,81 @@ index 0000000..37171d5
 @@ -0,0 +1,2 @@
 +---
 +- include_tasks: "{{ kolla_action }}.yml"
+\ No newline at end of file
+diff --git a/ansible/roles/kerbside-proxy/tasks/precheck.yml b/ansible/roles/kerbside-proxy/tasks/precheck.yml
+new file mode 100644
+index 0000000..5255d17
+--- /dev/null
++++ b/ansible/roles/kerbside-proxy/tasks/precheck.yml
+@@ -0,0 +1,68 @@
++---
++- import_role:
++    name: service-precheck
++  vars:
++    service_precheck_services: "{{ kerbside_services }}"
++    service_name: "{{ project_name }}"
++
++- name: Get container facts
++  become: true
++  kolla_container_facts:
++    action: get_containers
++    container_engine: "{{ kolla_container_engine }}"
++    name:
++      - kerbside-proxy
++  check_mode: false
++  register: container_facts
++
++- name: Checking free port for Kerbside API
++  vars:
++    service: "{{ kerbside_services['kerbside-proxy'] }}"
++  wait_for:
++    host: "{{ api_interface_address }}"
++    port: "{{ kerbside_port }}"
++    connect_timeout: 1
++    timeout: 1
++    state: stopped
++  when:
++    - container_facts.containers['kerbside_proxy'] is not defined
++    - service | service_enabled_and_mapped_to_host
++
++- name: Checking free port for Kerbside Prometheus
++  vars:
++    service: "{{ kerbside_services['kerbside-proxy'] }}"
++  wait_for:
++    host: "{{ api_interface_address }}"
++    port: "{{ kerbside_prometheus_port }}"
++    connect_timeout: 1
++    timeout: 1
++    state: stopped
++  when:
++    - container_facts.containers['kerbside_proxy'] is not defined
++    - service | service_enabled_and_mapped_to_host
++
++- name: Checking free port for Kerbside insecure SPICE port
++  vars:
++    service: "{{ kerbside_services['kerbside-proxy'] }}"
++  wait_for:
++    host: "{{ api_interface_address }}"
++    port: "{{ kerbside_vdi_insecure_port }}"
++    connect_timeout: 1
++    timeout: 1
++    state: stopped
++  when:
++    - container_facts.containers['kerbside_proxy'] is not defined
++    - service | service_enabled_and_mapped_to_host
++
++- name: Checking free port for Kerbside secure SPICE port
++  vars:
++    service: "{{ kerbside_services['kerbside-proxy'] }}"
++  wait_for:
++    host: "{{ api_interface_address }}"
++    port: "{{ kerbside_vdi_secure_port }}"
++    connect_timeout: 1
++    timeout: 1
++    state: stopped
++  when:
++    - container_facts.containers['kerbside_proxy'] is not defined
++    - service | service_enabled_and_mapped_to_host
 \ No newline at end of file
 diff --git a/ansible/roles/kerbside-proxy/tasks/reload.yml b/ansible/roles/kerbside-proxy/tasks/reload.yml
 new file mode 100644
