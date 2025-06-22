@@ -128,7 +128,7 @@ index 0000000..634eca2
 +# Kerbside
 +####################
 +kerbside_image: "{{ docker_registry ~ '/' if docker_registry else '' }}{{ docker_namespace }}/kerbside"
-+kerbside_tag: "{{ kerbside_tag }}"
++kerbside_tag: "{{ openstack_tag }}"
 +kerbside_image_full: "{{ kerbside_image }}:{{ kerbside_tag }}"
 +kerbside_dimensions: "{{ default_container_dimensions }}"
 +kerbside_enable_healthchecks: "{{ enable_container_healthchecks }}"
