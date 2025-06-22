@@ -1,4 +1,4 @@
-commit 1faf6c02ec8ac742a5ed267afe77d422de2cc92b
+commit 5d2cc5eac05644073b3040d2d79406cb7eb70eb5
 Author: Michael Still <mikal@stillhq.com>
 Date:   Fri Jun 20 16:59:16 2025 +1000
 
@@ -109,7 +109,7 @@ index c41d854..5b7a055 100644
  
 diff --git a/ansible/roles/kerbside-proxy/defaults/main.yml b/ansible/roles/kerbside-proxy/defaults/main.yml
 new file mode 100644
-index 0000000..3653176
+index 0000000..634eca2
 --- /dev/null
 +++ b/ansible/roles/kerbside-proxy/defaults/main.yml
 @@ -0,0 +1,45 @@
@@ -143,13 +143,13 @@ index 0000000..3653176
 +  start_period: "{{ kerbside_healthcheck_start_period }}"
 +  test: "{% if kerbside_enable_healthchecks | bool %}{{ kerbside_healthcheck_test }}{% else %}NONE{% endif %}"
 +  timeout: "{{ kerbside_healthcheck_timeout }}"
-+kerbside_extra_volumes: "{{ nova_extra_volumes }}"
++kerbside_extra_volumes: "{{ kerbside_extra_volumes }}"
 +kerbside_default_volumes:
 +  - "{{ node_config_directory }}/kerbside/:{{ container_config_directory }}/:ro"
 +  - "/etc/localtime:/etc/localtime:ro"
 +  - "{{ '/etc/timezone:/etc/timezone:ro' if ansible_facts.os_family == 'Debian' else '' }}"
 +  - "kolla_logs:/var/log/kolla/"
-+  - "{{ kolla_dev_repos_directory ~ '/nova/nova:/var/lib/kolla/venv/lib/python' ~ distro_python_version ~ '/site-packages/nova' if nova_dev_mode | bool else '' }}"
++  - "{{ kolla_dev_repos_directory ~ '/kerbside/kerbside:/var/lib/kolla/venv/lib/python' ~ distro_python_version ~ '/site-packages/kerbside' if kerbside | bool else '' }}"
 +kerbside_json_logging: "no"
 +
 +####################
