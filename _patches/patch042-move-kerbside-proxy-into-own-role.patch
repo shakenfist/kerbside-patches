@@ -1,6 +1,6 @@
-commit 445780f7c7b865217d3dcd418538ca6eb783a3bd
+commit 347de9f401a5d109c7726ef59cf191c791dded00
 Author: Michael Still <mikal@stillhq.com>
-Date:   Mon Jun 23 12:28:05 2025 +1000
+Date:   Tue Jun 24 06:24:51 2025 +1000
 
     Move kerbside proxy into its own role.
 
@@ -30,7 +30,7 @@ index 3404adc..2d34a3b 100644
  
  # Neutron
 diff --git a/ansible/inventory/multinode b/ansible/inventory/multinode
-index a617934..4ca24c3 100644
+index a617934..c86231f 100644
 --- a/ansible/inventory/multinode
 +++ b/ansible/inventory/multinode
 @@ -247,7 +247,7 @@ nova
@@ -109,10 +109,10 @@ index c41d854..5b7a055 100644
  
 diff --git a/ansible/roles/kerbside-proxy/defaults/main.yml b/ansible/roles/kerbside-proxy/defaults/main.yml
 new file mode 100644
-index 0000000..d733c2e
+index 0000000..fb6659d
 --- /dev/null
 +++ b/ansible/roles/kerbside-proxy/defaults/main.yml
-@@ -0,0 +1,45 @@
+@@ -0,0 +1,53 @@
 +---
 +kerbside_services:
 +  kerbside_proxy:
@@ -158,6 +158,15 @@ index 0000000..d733c2e
 +kerbside_database_name: "kerbside"
 +kerbside_database_user: "kerbside"
 +kerbside_database_address: "{{ database_address | put_address_in_context('url') }}:{{ database_port }}"
++
++####################
++# Kolla
++####################
++kerbside_git_repository: "{{ kolla_dev_repos_git }}/{{ project_name }}"
++kerbside_dev_repos_pull: "{{ kolla_dev_repos_pull }}"
++kerbside_dev_mode: "{{ kolla_dev_mode }}"
++kerbside_source_version: "{{ kolla_source_version }}"
+\ No newline at end of file
 diff --git a/ansible/roles/kerbside-proxy/handlers/main.yml b/ansible/roles/kerbside-proxy/handlers/main.yml
 new file mode 100644
 index 0000000..126a2d8
