@@ -1,4 +1,4 @@
-commit 347de9f401a5d109c7726ef59cf191c791dded00
+commit 9bd24796b997de6728d1bae37ebfacf689d9f9ff
 Author: Michael Still <mikal@stillhq.com>
 Date:   Tue Jun 24 06:24:51 2025 +1000
 
@@ -253,6 +253,15 @@ index 0000000..076b429
 +  when:
 +    - enable_kerbside | bool
 \ No newline at end of file
+diff --git a/ansible/roles/kerbside-proxy/tasks/check-containers.yml b/ansible/roles/kerbside-proxy/tasks/check-containers.yml
+new file mode 100644
+index 0000000..b7e2f7c
+--- /dev/null
++++ b/ansible/roles/kerbside-proxy/tasks/check-containers.yml
+@@ -0,0 +1,3 @@
++---
++- import_role:
++    name: service-check-containers
 diff --git a/ansible/roles/kerbside-proxy/tasks/config.yml b/ansible/roles/kerbside-proxy/tasks/config.yml
 new file mode 100644
 index 0000000..cfa6913
@@ -308,6 +317,19 @@ index 0000000..cfa6913
 +  notify:
 +    - "Restart kerbside container"
 \ No newline at end of file
+diff --git a/ansible/roles/kerbside-proxy/tasks/deploy.yml b/ansible/roles/kerbside-proxy/tasks/deploy.yml
+new file mode 100644
+index 0000000..49edff8
+--- /dev/null
++++ b/ansible/roles/kerbside-proxy/tasks/deploy.yml
+@@ -0,0 +1,7 @@
++---
++- import_tasks: config.yml
++
++- import_tasks: check-containers.yml
++
++- name: Flush handlers
++  meta: flush_handlers
 diff --git a/ansible/roles/kerbside-proxy/tasks/main.yml b/ansible/roles/kerbside-proxy/tasks/main.yml
 new file mode 100644
 index 0000000..37171d5
