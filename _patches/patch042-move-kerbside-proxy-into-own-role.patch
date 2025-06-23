@@ -143,7 +143,7 @@ index 0000000..634eca2
 +  start_period: "{{ kerbside_healthcheck_start_period }}"
 +  test: "{% if kerbside_enable_healthchecks | bool %}{{ kerbside_healthcheck_test }}{% else %}NONE{% endif %}"
 +  timeout: "{{ kerbside_healthcheck_timeout }}"
-+kerbside_extra_volumes: "{{ kerbside_extra_volumes }}"
++kerbside_extra_volumes: "{{ default_extra_volumes }}"
 +kerbside_default_volumes:
 +  - "{{ node_config_directory }}/kerbside/:{{ container_config_directory }}/:ro"
 +  - "/etc/localtime:/etc/localtime:ro"
