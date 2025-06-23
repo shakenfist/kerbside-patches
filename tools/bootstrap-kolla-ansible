@@ -10,6 +10,9 @@ node_address="${2}"
 echo
 echo -e "${H1}==================================================${Color_Off}"
 echo -e "${H1}Bootstrap Kolla-Ansible into a venv${Color_Off}"
+echo
+echo -e "${H1}python3: "$(which python3)"${Color_Off}"
+echo -e "${H1}pip3: "$(which pip3)"${Color_Off}"
 echo -e "${H1}==================================================${Color_Off}"
 
 echo -e "${H2}Make venv${Color_Off}"
