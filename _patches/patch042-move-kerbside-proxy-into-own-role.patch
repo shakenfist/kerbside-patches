@@ -1,14 +1,14 @@
-commit a9793ecef9468ca3b92932c3bce4946d833f6ec8
+commit 73026a666ab53d19dda0fe633389ffcb59992610
 Author: Michael Still <mikal@stillhq.com>
 Date:   Tue Jun 24 06:24:51 2025 +1000
 
     Move kerbside proxy into its own role.
 
 diff --git a/ansible/group_vars/all.yml b/ansible/group_vars/all.yml
-index 1b82d81..5263992 100644
+index 1b82d81..31918d5 100644
 --- a/ansible/group_vars/all.yml
 +++ b/ansible/group_vars/all.yml
-@@ -952,6 +952,7 @@ glance_keystone_user: "glance"
+@@ -952,9 +952,11 @@ glance_keystone_user: "glance"
  # Kerbside configuration options
  kerbside_keystone_user: "kerbside"
  kerbside_port: 13002
@@ -16,6 +16,10 @@ index 1b82d81..5263992 100644
  kerbside_vdi_insecure_port: 5899
  kerbside_vdi_secure_port: 5898
  kerbside_api_url: "http://{{ kolla_external_fqdn }}:{{ kerbside_port }}"
++kerbside_safety_upgrade: "no"
+ 
+ # Nova fake driver and the number of fake driver per compute node
+ enable_nova_fake: "no"
 diff --git a/ansible/inventory/all-in-one b/ansible/inventory/all-in-one
 index 3404adc..2d34a3b 100644
 --- a/ansible/inventory/all-in-one
@@ -169,15 +173,15 @@ index 0000000..fb6659d
 \ No newline at end of file
 diff --git a/ansible/roles/kerbside-proxy/handlers/main.yml b/ansible/roles/kerbside-proxy/handlers/main.yml
 new file mode 100644
-index 0000000..126a2d8
+index 0000000..a2d5d67
 --- /dev/null
 +++ b/ansible/roles/kerbside-proxy/handlers/main.yml
 @@ -0,0 +1,18 @@
 +---
-+- name: Restart kerbside container
++- name: Restart kerbside_proxy container
 +  vars:
-+    service_name: "kerbside"
-+    service: "{{ nova_services[service_name] }}"
++    service_name: "kerbside_proxy"
++    service: "{{ kerbside_services[service_name] }}"
 +  become: true
 +  kolla_container:
 +    action: "recreate_or_restart_container"
@@ -190,7 +194,7 @@ index 0000000..126a2d8
 +    healthcheck: "{{ service.healthcheck | default(omit) }}"
 +  when:
 +    - kolla_action != "config"
-+    - kolla_action != "upgrade" or not nova_safety_upgrade | bool
++    - kolla_action != "upgrade" or not kerbside_safety_upgrade | bool
 diff --git a/ansible/roles/kerbside-proxy/tasks/bootstrap.yml b/ansible/roles/kerbside-proxy/tasks/bootstrap.yml
 new file mode 100644
 index 0000000..076b429
@@ -264,7 +268,7 @@ index 0000000..b7e2f7c
 +    name: service-check-containers
 diff --git a/ansible/roles/kerbside-proxy/tasks/config.yml b/ansible/roles/kerbside-proxy/tasks/config.yml
 new file mode 100644
-index 0000000..789f7b1
+index 0000000..815b7bf
 --- /dev/null
 +++ b/ansible/roles/kerbside-proxy/tasks/config.yml
 @@ -0,0 +1,58 @@
@@ -297,7 +301,7 @@ index 0000000..789f7b1
 +    - inventory_hostname in groups["kerbside-proxy"]
 +    - kerbside_services["kerbside_proxy"].enabled | bool
 +  notify:
-+    - "Restart kerbside container"
++    - "Restart kerbside_proxy container"
 +
 +- name: Copying over kerbside TLS keys
 +  become: true
@@ -313,7 +317,7 @@ index 0000000..789f7b1
 +    - servercert.pem
 +    - serverkey.pem
 +  notify:
-+    - Restart kerbside container
++    - Restart kerbside_proxy container
 +
 +- name: Copying over kerbside sources.yaml
 +  become: true
@@ -325,7 +329,7 @@ index 0000000..789f7b1
 +    - inventory_hostname in groups["kerbside-proxy"]
 +    - kerbside_services["kerbside_proxy"].enabled | bool
 +  notify:
-+    - "Restart kerbside container"
++    - "Restart kerbside_proxy container"
 \ No newline at end of file
 diff --git a/ansible/roles/kerbside-proxy/tasks/deploy.yml b/ansible/roles/kerbside-proxy/tasks/deploy.yml
 new file mode 100644
