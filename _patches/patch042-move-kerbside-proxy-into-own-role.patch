@@ -1,4 +1,4 @@
-commit 9bd24796b997de6728d1bae37ebfacf689d9f9ff
+commit a9793ecef9468ca3b92932c3bce4946d833f6ec8
 Author: Michael Still <mikal@stillhq.com>
 Date:   Tue Jun 24 06:24:51 2025 +1000
 
@@ -264,11 +264,21 @@ index 0000000..b7e2f7c
 +    name: service-check-containers
 diff --git a/ansible/roles/kerbside-proxy/tasks/config.yml b/ansible/roles/kerbside-proxy/tasks/config.yml
 new file mode 100644
-index 0000000..cfa6913
+index 0000000..789f7b1
 --- /dev/null
 +++ b/ansible/roles/kerbside-proxy/tasks/config.yml
-@@ -0,0 +1,48 @@
+@@ -0,0 +1,58 @@
 +---
++- name: Ensuring config directories exist
++  become: true
++  file:
++    path: "{{ node_config_directory }}/{{ item.key }}"
++    state: "directory"
++    owner: "{{ config_owner_user }}"
++    group: "{{ config_owner_group }}"
++    mode: "0770"
++  with_dict: "{{ kerbside_services | select_services_enabled_and_mapped_to_host }}"
++
 +- name: Store the SPICE TLS CA cert in a fact for use in the template
 +  ansible.builtin.set_fact:
 +    spice_cacert: "{{ lookup('ansible.builtin.file', node_custom_config + '/nova/nova-libvirt/cacert.pem') }}"
@@ -281,7 +291,7 @@ index 0000000..cfa6913
 +  become: true
 +  template:
 +    src: "{{ role_path }}/templates/kerbside_start.j2"
-+    dest: "{{ node_config_directory }}/kerbside/kerbside_start"
++    dest: "{{ node_config_directory }}/kerbside_proxy/kerbside_start"
 +    mode: "0660"
 +  when:
 +    - inventory_hostname in groups["kerbside-proxy"]
@@ -293,7 +303,7 @@ index 0000000..cfa6913
 +  become: true
 +  copy:
 +    src: "{{ node_custom_config }}/nova/kerbside/{{ item }}"
-+    dest: "{{ node_config_directory }}/kerbside/{{ item }}"
++    dest: "{{ node_config_directory }}/kerbside_proxy/{{ item }}"
 +    mode: "0600"
 +  when:
 +    - inventory_hostname in groups["kerbside-proxy"]
@@ -309,7 +319,7 @@ index 0000000..cfa6913
 +  become: true
 +  template:
 +    src: "{{ role_path }}/templates/kerbside_sources.yaml.j2"
-+    dest: "{{ node_config_directory }}/kerbside/sources.yaml"
++    dest: "{{ node_config_directory }}/kerbside_proxy/sources.yaml"
 +    mode: "0660"
 +  when:
 +    - inventory_hostname in groups["kerbside-proxy"]
