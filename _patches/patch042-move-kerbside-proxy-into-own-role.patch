@@ -1,6 +1,6 @@
-commit 73026a666ab53d19dda0fe633389ffcb59992610
+commit 05187efcae99b51bc6afd0cfcc7f203ac126c502
 Author: Michael Still <mikal@stillhq.com>
-Date:   Tue Jun 24 06:24:51 2025 +1000
+Date:   Wed Jun 25 17:35:57 2025 +1000
 
     Move kerbside proxy into its own role.
 
@@ -113,7 +113,7 @@ index c41d854..5b7a055 100644
  
 diff --git a/ansible/roles/kerbside-proxy/defaults/main.yml b/ansible/roles/kerbside-proxy/defaults/main.yml
 new file mode 100644
-index 0000000..fb6659d
+index 0000000..6592888
 --- /dev/null
 +++ b/ansible/roles/kerbside-proxy/defaults/main.yml
 @@ -0,0 +1,53 @@
@@ -268,10 +268,10 @@ index 0000000..b7e2f7c
 +    name: service-check-containers
 diff --git a/ansible/roles/kerbside-proxy/tasks/config.yml b/ansible/roles/kerbside-proxy/tasks/config.yml
 new file mode 100644
-index 0000000..815b7bf
+index 0000000..7be5b5d
 --- /dev/null
 +++ b/ansible/roles/kerbside-proxy/tasks/config.yml
-@@ -0,0 +1,58 @@
+@@ -0,0 +1,66 @@
 +---
 +- name: Ensuring config directories exist
 +  become: true
@@ -330,6 +330,14 @@ index 0000000..815b7bf
 +    - kerbside_services["kerbside_proxy"].enabled | bool
 +  notify:
 +    - "Restart kerbside_proxy container"
++
++- name: Copying over config.json files for services
++  become: true
++  template:
++    src: "{{ item.key }}.json.j2"
++    dest: "{{ node_config_directory }}/{{ item.key }}/config.json"
++    mode: "0660"
++  with_dict: "{{ kerbside_services | select_services_enabled_and_mapped_to_host }}"
 \ No newline at end of file
 diff --git a/ansible/roles/kerbside-proxy/tasks/deploy.yml b/ansible/roles/kerbside-proxy/tasks/deploy.yml
 new file mode 100644
@@ -456,10 +464,10 @@ index 0000000..1e879e3
 +    - service | service_enabled_and_mapped_to_host
 +  with_items:
 +    - kerbside-proxy
-diff --git a/ansible/roles/nova/templates/kerbside.json.j2 b/ansible/roles/kerbside-proxy/templates/kerbside.json.j2
+diff --git a/ansible/roles/nova/templates/kerbside.json.j2 b/ansible/roles/kerbside-proxy/templates/kerbside_proxy.json.j2
 similarity index 100%
 rename from ansible/roles/nova/templates/kerbside.json.j2
-rename to ansible/roles/kerbside-proxy/templates/kerbside.json.j2
+rename to ansible/roles/kerbside-proxy/templates/kerbside_proxy.json.j2
 diff --git a/ansible/roles/nova/templates/kerbside_sources.yaml.j2 b/ansible/roles/kerbside-proxy/templates/kerbside_sources.yaml.j2
 similarity index 100%
 rename from ansible/roles/nova/templates/kerbside_sources.yaml.j2
