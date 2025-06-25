@@ -120,7 +120,7 @@ index 0000000..fb6659d
 +---
 +kerbside_services:
 +  kerbside_proxy:
-+    container_name: "kerbside-proxy"
++    container_name: "kerbside_proxy"
 +    group: "kerbside-proxy"
 +    image: "{{ kerbside_image_full }}"
 +    enabled: "{{ enable_kerbside }}"
