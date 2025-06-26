@@ -28,13 +28,21 @@ echo "... image id is ${imageid}"
 
 echo
 echo -e "${H1}==================================================${Color_Off}"
-echo -e "${H1}Setup flavor and image extra specs${Color_Off}"
+echo -e "${H1}Setup image${Color_Off}"
 echo -e "${H1}==================================================${Color_Off}"
 
 /usr/local/bin/openstack image set --property hw_video_ram=64 ${imageid}
 /usr/local/bin/openstack image set --property hw_firmware_type=uefi ${imageid}
-/usr/local/bin/openstack image set --property hw_sound_model=virtio ${imageid}
+/usr/local/bin/openstack image set --property hw_sound_model=usb ${imageid}
 /usr/local/bin/openstack image set --property hw_usb_model=qemu-xhci ${imageid}
+
+/usr/local/bin/openstack image show ${imageid}
+
+echo
+echo -e "${H1}==================================================${Color_Off}"
+echo -e "${H1}Setup flavor${Color_Off}"
+echo -e "${H1}==================================================${Color_Off}"
+
 /usr/local/bin/openstack flavor create vdi --ram 4096 --disk 200 --vcpus 4 \
     --property hw_video:ram_max_mb=64
 
@@ -102,8 +110,8 @@ if [ $(grep -c "sound model" /tmp/domain.xml || true) -lt 1 ]; then
     echo "...sound model missing from domain XML"
     exit 1
 fi
-if [ $(grep -c "redirdev" /tmp/domain.xml || true) -lt 1 ]; then
-    echo "...redirdev missing from domain XML"
+if [ $(grep -c "controller type='usb'" /tmp/domain.xml || true) -lt 1 ]; then
+    echo "...controller type='usb' missing from domain XML"
     exit 1
 fi
 
