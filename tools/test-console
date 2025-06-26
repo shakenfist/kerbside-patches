@@ -33,6 +33,8 @@ echo -e "${H1}==================================================${Color_Off}"
 
 /usr/local/bin/openstack image set --property hw_video_ram=64 ${imageid}
 /usr/local/bin/openstack image set --property hw_firmware_type=uefi ${imageid}
+/usr/local/bin/openstack image set --property hw_sound_model=virtio ${imageid}
+/usr/local/bin/openstack image set --property hw_usb_model=qemu-xhci ${imageid}
 /usr/local/bin/openstack flavor create vdi --ram 4096 --disk 200 --vcpus 4 \
     --property hw_video:ram_max_mb=64
 
@@ -85,6 +87,25 @@ echo -e "${H1}Dump libvirt domain XML for instance${Color_Off}"
 echo -e "${H1}==================================================${Color_Off}"
 
 docker exec nova_libvirt virsh dumpxml 1
+
+echo
+echo -e "${H1}==================================================${Color_Off}"
+echo -e "${H1}Make assertions about the domain XML${Color_Off}"
+echo -e "${H1}==================================================${Color_Off}"
+
+docker exec nova_libvirt virsh dumpxml 1 > /tmp/domain.xml
+if [ $(grep -c "graphics type='spice'" /tmp/domain.xml || true) -lt 1 ]; then
+    echo "...graphics type='spice' missing from domain XML"
+    exit 1
+fi
+if [ $(grep -c "sound model" /tmp/domain.xml || true) -lt 1 ]; then
+    echo "...sound model missing from domain XML"
+    exit 1
+fi
+if [ $(grep -c "redirdev" /tmp/domain.xml || true) -lt 1 ]; then
+    echo "...redirdev missing from domain XML"
+    exit 1
+fi
 
 echo
 echo -e "${H1}==================================================${Color_Off}"
