@@ -149,7 +149,7 @@ index 0000000..6592888
 +  timeout: "{{ kerbside_healthcheck_timeout }}"
 +kerbside_extra_volumes: "{{ default_extra_volumes }}"
 +kerbside_default_volumes:
-+  - "{{ node_config_directory }}/kerbside-proxy/:{{ container_config_directory }}/:ro"
++  - "{{ node_config_directory }}/kerbside_proxy/:{{ container_config_directory }}/:ro"
 +  - "/etc/localtime:/etc/localtime:ro"
 +  - "{{ '/etc/timezone:/etc/timezone:ro' if ansible_facts.os_family == 'Debian' else '' }}"
 +  - "kolla_logs:/var/log/kolla/"
