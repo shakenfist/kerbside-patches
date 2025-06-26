@@ -365,60 +365,6 @@ diff --git a/nova/virt/hardware.py b/nova/virt/hardware.py
 index d5506a6..4fcbc3f 100644
 --- a/nova/virt/hardware.py
 +++ b/nova/virt/hardware.py
-@@ -665,16 +665,16 @@ def _pack_instance_onto_cores(host_cell, instance_cell,
-     threads_per_core = max(map(len, host_cell.siblings)) or 1
-
-     LOG.debug('Packing an instance onto a set of siblings: '
--             '    host_cell_free_siblings: %(siblings)s'
--             '    instance_cell: %(cells)s'
--             '    host_cell_id: %(host_cell_id)s'
--             '    threads_per_core: %(threads_per_core)s'
--             '    num_cpu_reserved: %(num_cpu_reserved)s',
--                {'siblings': host_cell.free_siblings,
--                 'cells': instance_cell,
--                 'host_cell_id': host_cell.id,
--                 'threads_per_core': threads_per_core,
--                 'num_cpu_reserved': num_cpu_reserved})
-+              '    host_cell_free_siblings: %(siblings)s'
-+              '    instance_cell: %(cells)s'
-+              '    host_cell_id: %(host_cell_id)s'
-+              '    threads_per_core: %(threads_per_core)s'
-+              '    num_cpu_reserved: %(num_cpu_reserved)s',
-+              {'siblings': host_cell.free_siblings,
-+               'cells': instance_cell,
-+               'host_cell_id': host_cell.id,
-+               'threads_per_core': threads_per_core,
-+               'num_cpu_reserved': num_cpu_reserved})
-
-     # We build up a data structure that answers the question: 'Given the
-     # number of threads I want to pack, give me a list of all the available
-@@ -907,7 +907,7 @@ def _pack_instance_onto_cores(host_cell, instance_cell,
-     if pinning is None or (num_cpu_reserved and not cpuset_reserved):
-         return
-     LOG.debug('Selected cores for pinning: %s, in cell %s', pinning,
--                                                            host_cell.id)
-+              host_cell.id)
-
-     instance_cell.pin_vcpus(*pinning)
-     instance_cell.id = host_cell.id
-@@ -1507,7 +1507,7 @@ def _get_numa_node_count_constraint(
-
-     nodes = flavor_nodes or image_nodes
-     if nodes is not None and (not strutils.is_int_like(nodes) or
--            int(nodes) < 1):
-+                              int(nodes) < 1):
-         raise exception.InvalidNUMANodesNumber(nodes=nodes)
-
-     return int(nodes) if nodes else nodes
-@@ -2582,7 +2582,7 @@ def numa_fit_instance_to_host(
-             try:
-                 cpuset_reserved = 0
-                 if (instance_topology.emulator_threads_isolated and
--                    len(chosen_instance_cells) == 0):
-+                        len(chosen_instance_cells) == 0):
-                     # For the case of isolate emulator threads, to
-                     # make predictable where that CPU overhead is
-                     # located we always configure it to be on host
 @@ -2916,3 +2916,27 @@ def check_shares_supported(context, instance):
          )
      ):
@@ -555,3 +501,19 @@ index 68b0ce2..b9bc4b1 100644
 +            'COMPUTE_SOUND_MODEL_USB': True,
 +            'COMPUTE_SOUND_MODEL_VIRTIO': has_virtio
 +        }
+diff --git a/releasenotes/notes/sound-model-extra-specs-2bcbe644b889005c.yaml b/releasenotes/notes/sound-model-extra-specs-2bcbe644b889005c.yaml
+new file mode 100644
+index 0000000..08ae50e
+--- /dev/null
++++ b/releasenotes/notes/sound-model-extra-specs-2bcbe644b889005c.yaml
+@@ -0,0 +1,10 @@
++---
++features:
++  - |
++    The `hw:sound_model` flavor extra spec and the matching `hw_sound_model`
++    image property were added to allow the configuration of a sound device
++    within an instance. This is useful with the new spice-direct console
++    type. The default reamins no sound device, but when using the libvirt
++    hypervisor driver you can select from `sb16`, `es1370`, `pcspk`, `ac97`,
++    `ich6`, `ich9`, `usb`, and `virtio`. For most use-cases `virtio` is
++    likely to be the best choice.
