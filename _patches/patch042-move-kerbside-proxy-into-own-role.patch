@@ -1,6 +1,6 @@
-commit 05187efcae99b51bc6afd0cfcc7f203ac126c502
+commit b62123de2f43ebf3902f52a480d989ff7e50bd11
 Author: Michael Still <mikal@stillhq.com>
-Date:   Wed Jun 25 17:35:57 2025 +1000
+Date:   Fri Jun 27 17:32:36 2025 +1000
 
     Move kerbside proxy into its own role.
 
@@ -113,7 +113,7 @@ index c41d854..5b7a055 100644
  
 diff --git a/ansible/roles/kerbside-proxy/defaults/main.yml b/ansible/roles/kerbside-proxy/defaults/main.yml
 new file mode 100644
-index 0000000..6592888
+index 0000000..aa39e10
 --- /dev/null
 +++ b/ansible/roles/kerbside-proxy/defaults/main.yml
 @@ -0,0 +1,53 @@
@@ -160,7 +160,7 @@ index 0000000..6592888
 +# Kerbside Database
 +####################
 +kerbside_database_name: "kerbside"
-+kerbside_database_user: "kerbside"
++kerbside_database_user: "{% if use_preconfigured_databases | bool and use_common_mariadb_user | bool %}{{ database_user }}{% else %}kerbside{% endif %}"
 +kerbside_database_address: "{{ database_address | put_address_in_context('url') }}:{{ database_port }}"
 +
 +####################
