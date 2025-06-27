@@ -506,7 +506,7 @@ new file mode 100644
 index 0000000..08ae50e
 --- /dev/null
 +++ b/releasenotes/notes/sound-model-extra-specs-2bcbe644b889005c.yaml
-@@ -0,0 +1,10 @@
+@@ -0,0 +1,11 @@
 +---
 +features:
 +  - |
@@ -515,5 +515,6 @@ index 0000000..08ae50e
 +    within an instance. This is useful with the new spice-direct console
 +    type. The default reamins no sound device, but when using the libvirt
 +    hypervisor driver you can select from `sb16`, `es1370`, `pcspk`, `ac97`,
-+    `ich6`, `ich9`, `usb`, and `virtio`. For most use-cases `virtio` is
-+    likely to be the best choice.
++    `ich6`, `ich9`, `usb`, and `virtio`. For most use-cases `usb` is
++    likely to be the best choice unless you have at least libvirt 8.2.0 and
++    libvirt 10.4.0.
