@@ -1,6 +1,6 @@
-commit b62123de2f43ebf3902f52a480d989ff7e50bd11
+commit 9bfa25b35f4fe653c080a53afc83bc48ce4d8ce4
 Author: Michael Still <mikal@stillhq.com>
-Date:   Fri Jun 27 17:32:36 2025 +1000
+Date:   Tue Jul 1 05:53:01 2025 +1000
 
     Move kerbside proxy into its own role.
 
@@ -113,10 +113,10 @@ index c41d854..5b7a055 100644
  
 diff --git a/ansible/roles/kerbside-proxy/defaults/main.yml b/ansible/roles/kerbside-proxy/defaults/main.yml
 new file mode 100644
-index 0000000..aa39e10
+index 0000000..7d97525
 --- /dev/null
 +++ b/ansible/roles/kerbside-proxy/defaults/main.yml
-@@ -0,0 +1,53 @@
+@@ -0,0 +1,69 @@
 +---
 +kerbside_services:
 +  kerbside_proxy:
@@ -164,6 +164,22 @@ index 0000000..aa39e10
 +kerbside_database_address: "{{ database_address | put_address_in_context('url') }}:{{ database_port }}"
 +
 +####################
++# Database sharding
++####################
++kerbside_database_shard_root_user: "{% if enable_proxysql | bool %}root_shard_{{ kerbside_database_shard_id }}{% else %}{{ database_user }}{% endif %}"
++kerbside_database_shard_id: "{{ mariadb_default_database_shard_id | int }}"
++kerbside_database_shard:
++  users:
++    - user: "{{ kerbside_database_user }}"
++      password: "{{ kerbside_database_password }}"
++      shard_id: "{{ kerbside_database_shard_id }}"
++  rules:
++    - schema: "{{ kerbside_database_name }}"
++      shard_id: "{{ kerbside_database_shard_id }}"
++    - user: "{{ kerbside_database_user }}"
++      shard_id: "{{ kerbside_database_shard_id }}"
++
++####################
 +# Kolla
 +####################
 +kerbside_git_repository: "{{ kolla_dev_repos_git }}/{{ project_name }}"
@@ -197,10 +213,10 @@ index 0000000..a2d5d67
 +    - kolla_action != "upgrade" or not kerbside_safety_upgrade | bool
 diff --git a/ansible/roles/kerbside-proxy/tasks/bootstrap.yml b/ansible/roles/kerbside-proxy/tasks/bootstrap.yml
 new file mode 100644
-index 0000000..076b429
+index 0000000..6fb2857
 --- /dev/null
 +++ b/ansible/roles/kerbside-proxy/tasks/bootstrap.yml
-@@ -0,0 +1,55 @@
+@@ -0,0 +1,50 @@
 +---
 +- name: Creating Kerbside databases
 +  become: true
@@ -210,12 +226,13 @@ index 0000000..076b429
 +    module_args:
 +      login_host: "{{ database_address }}"
 +      login_port: "{{ database_port }}"
-+      login_user: "{{ nova_database_shard_root_user }}"
++      login_user: "{{ kerbside_database_shard_root_user }}"
 +      login_password: "{{ database_password }}"
-+      name: "{{ item }}"
++      name: "{{ kerbside_database_name }}"
 +  run_once: True
-+  with_items:
-+    - "{{ kerbside_database_name }}"
++  delegate_to: "{{ groups['kerbside-proxy'][0] }}"
++  when:
++    - not use_preconfigured_databases | bool
 +
 +- name: Creating Kerbside databases user and setting permissions
 +  become: true
@@ -225,23 +242,17 @@ index 0000000..076b429
 +    module_args:
 +      login_host: "{{ database_address }}"
 +      login_port: "{{ database_port }}"
-+      login_user: "{{ nova_database_shard_root_user }}"
++      login_user: "{{ kerbside_database_shard_root_user }}"
 +      login_password: "{{ database_password }}"
-+      name: "{{ item.database_username }}"
-+      password: "{{ item.database_password }}"
++      name: "{{ kerbside_database_user }}"
++      password: "{{ kerbside_database_password }}"
 +      host: "%"
-+      priv: "{{ item.database_name }}.*:ALL"
++      priv: "{{ kerbside_database_name }}.*:ALL"
 +      append_privs: "yes"
-+  with_items:
-+    - database_name: "{{ kerbside_database_name }}"
-+      database_username: "{{ kerbside_database_user }}"
-+      database_password: "{{ kerbside_database_password }}"
-+  loop_control:
-+    label: "{{ item.database_name }}"
 +  run_once: True
++  delegate_to: "{{ groups['kerbside-proxy'][0] }}"
 +  when:
 +    - not use_preconfigured_databases | bool
-+  no_log: true
 +
 +- name: Create kerbside administrative access group
 +  become: true
