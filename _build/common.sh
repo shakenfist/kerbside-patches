@@ -12,12 +12,16 @@ fi
 # Command line parsing                                                       #
 ##############################################################################
 
-default_build_targets="2023.1 2023.2 2024.1 master"
+# Which OpenStack releases to build images for.
+build_targets="2023.1 2023.2 2024.1 master"
 
 # Which images to build. Kerbside only requires customized nova-compute,
 # nova-libvirt, nova-api, and kerbside container images but it can make sense
 # to build all the container images at the same time to keep them consistent.
-default_build_images="nova-compute nova-libvirt nova-api kerbside"
+build_images="nova-compute nova-libvirt nova-api kerbside"
+
+# What tag to use to identify this set of containers.
+image_tag="${CI_COMMIT_SHORT_SHA}-debian-bookworm"
 
 # Should we only test once at the end?
 defer_tests="false"
@@ -35,14 +39,16 @@ ci_registry="192.168.1.5:4000"
 # Should we build a compact archive using occystrap?
 compact_archive="false"
 
+# Sometimes we're only building images and don't want to fetch them just
+# to ignore them
+dont_fetch_images="false"
+
 # Ensure we have a git commit sha
 if [ -z ${CI_COMMIT_SHORT_SHA} ]; then
     export CI_COMMIT_SHORT_SHA=$(git rev-parse --short HEAD)
 fi
 
 # Parse command line
-export build_targets=${default_build_targets}
-export build_images=${default_build_images}
 export positional_args=()
 
 while [[ $# -gt 0 ]]; do
@@ -66,6 +72,16 @@ while [[ $# -gt 0 ]]; do
             export build_targets="$2"
             echo "Setting build targets to ${build_targets}."
             shift; shift
+            ;;
+        --image-tag)
+            export image_tag="$2"
+            echo "Setting image tag to ${image_tag}."
+            shift; shift;
+            ;;
+        --dont-fetch-images)
+            export dont_fetch_images="true"
+            echo "Will not fetch pre-built images if they exist."
+            shift
             ;;
         --skip-tests)
             export skip_tests="true"
