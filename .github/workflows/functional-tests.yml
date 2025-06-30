@@ -112,7 +112,7 @@ jobs:
 
           ssh -i /srv/github/id_ci -o StrictHostKeyChecking=no \
               -o UserKnownHostsFile=/dev/null \
-              debian@10.0.2.2 "${script}"
+              ${{ matrix.test.baseuser }}@10.0.2.2 "${script}"
 
       - name: Disable /etc/hosts for name resolution
         run: |
