@@ -1,0 +1,7 @@
+repo: https://github.com/openstack/kolla
+source_branch: stable/2024.1
+destination_branch: stable/2024.1-patches
+shallow_clone: true
+directory: kolla
+release: 2024.1
+depends_on: ''
