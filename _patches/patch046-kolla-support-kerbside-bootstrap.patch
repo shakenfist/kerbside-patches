@@ -1,0 +1,41 @@
+commit 8d8bf50bb6bb68a5a068f2fbdf4573346d7b050c
+Author: Michael Still <mikal@stillhq.com>
+Date:   Thu Jul 3 08:10:50 2025 +1000
+
+    Support kerbside bootstrap containers.
+
+diff --git a/docker/kerbside/kerbside/Dockerfile.j2 b/docker/kerbside/kerbside/Dockerfile.j2
+index 4199fa9..84154b2 100644
+--- a/docker/kerbside/kerbside/Dockerfile.j2
++++ b/docker/kerbside/kerbside/Dockerfile.j2
+@@ -39,6 +39,9 @@ RUN ln -s kerbside-source/* kerbside \
+     && {{ macros.install_pip(kerbside_pip_packages | customizable("pip_packages"), false) }} \
+     && rm -f /etc/machine-id
+ 
++COPY extend_start.sh /usr/local/bin/kolla_extend_start
++RUN chmod 644 /usr/local/bin/kolla_extend_start
++
+ {% block kerbside_footer %}{% endblock %}
+ {% block footer %}{% endblock %}
+ 
+diff --git a/docker/kerbside/kerbside/extend_start.sh b/docker/kerbside/kerbside/extend_start.sh
+new file mode 100644
+index 0000000..42629d0
+--- /dev/null
++++ b/docker/kerbside/kerbside/extend_start.sh
+@@ -0,0 +1,15 @@
++#!/bin/bash
++
++# Make the log directory
++mkdir -p /var/log/kolla/kerbside
++
++# Load config from environment variables
++. /etc/kerbside/kerbside_config
++
++# Bootstrap and exit if KOLLA_BOOTSTRAP variable is set. This catches all cases
++# of the KOLLA_BOOTSTRAP variable being set, including empty.
++if [[ "${!KOLLA_BOOTSTRAP[@]}" ]]; then
++    cd /kerbside
++    alembic upgrade head
++    exit 0
++fi

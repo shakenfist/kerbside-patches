@@ -3,3 +3,4 @@
 ../_patches/patch035-fix-skyline-apiserver-build.patch
 ../_patches/patch043-kolla-local-clustercheck.patch
 ../_patches/patch044-kolla-fix-zun-badly.patch
+../_patches/patch046-kolla-support-kerbside-bootstrap.patch
