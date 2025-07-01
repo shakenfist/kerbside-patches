@@ -6,13 +6,6 @@
 
 echo
 echo -e "${H1}==================================================${Color_Off}"
-echo -e "${H1}Dump logs of kerbside_proxy container${Color_Off}"
-echo -e "${H1}==================================================${Color_Off}"
-
-docker logs kerbside_proxy
-
-echo
-echo -e "${H1}==================================================${Color_Off}"
 echo -e "${H1}Download test image and setup glance${Color_Off}"
 echo -e "${H1}==================================================${Color_Off}"
 

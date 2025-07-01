@@ -154,6 +154,14 @@ jobs:
               ${{ matrix.test.baseuser }}@10.0.2.2 \
               'cd /srv/shakenfist/kerbside-patches; sudo ./tools/postinstall-kolla-ansible'
 
+      - name: Dump kerbside debugging information
+        run: |
+          . $GITHUB_ENV
+          ssh -i /srv/github/id_ci -o StrictHostKeyChecking=no \
+              -o UserKnownHostsFile=/dev/null \
+              ${{ matrix.test.baseuser }}@10.0.2.2 \
+              'cd /srv/shakenfist/kerbside-patches; sudo ./tools/inspect-kerbside'
+
       - name: Attempt to start an instance with a console and connect to it
         run: |
           . $GITHUB_ENV
