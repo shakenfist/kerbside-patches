@@ -1,6 +1,6 @@
-commit 9bfa25b35f4fe653c080a53afc83bc48ce4d8ce4
+commit 54fb22845a6b482567a6567b955c2d9e8332c450
 Author: Michael Still <mikal@stillhq.com>
-Date:   Tue Jul 1 05:53:01 2025 +1000
+Date:   Tue Jul 1 19:15:22 2025 +1000
 
     Move kerbside proxy into its own role.
 
@@ -352,14 +352,14 @@ index 0000000..7be5b5d
 \ No newline at end of file
 diff --git a/ansible/roles/kerbside-proxy/tasks/deploy.yml b/ansible/roles/kerbside-proxy/tasks/deploy.yml
 new file mode 100644
-index 0000000..49edff8
+index 0000000..ca3509a
 --- /dev/null
 +++ b/ansible/roles/kerbside-proxy/tasks/deploy.yml
 @@ -0,0 +1,7 @@
 +---
 +- import_tasks: config.yml
-+
 +- import_tasks: check-containers.yml
++- import_tasks: bootstrap.yml
 +
 +- name: Flush handlers
 +  meta: flush_handlers
