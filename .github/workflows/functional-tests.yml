@@ -108,7 +108,7 @@ jobs:
 
           script="cd /srv/shakenfist/kerbside-patches;"
           script="${script} hash=\$(./_build/calculate-container-hash.sh kolla*);"
-          script="${script} ./_build/build-containers.sh --use-ci-registry --build-targets master --build-images all --image-tag "\$hash-debian-bookworm" --dont-fetch-images;"
+          script="${script} ./_build/build-containers.sh --use-ci-registry --build-targets master --build-images all --image-tag "\$hash-debian-bookworm";"
 
           ssh -i /srv/github/id_ci -o StrictHostKeyChecking=no \
               -o UserKnownHostsFile=/dev/null \
