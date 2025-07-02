@@ -46,7 +46,7 @@ jobs:
           . $GITHUB_ENV
 
           script="cd /srv/shakenfist/kerbside-patches;"
-          script="${script} hash=\$(./_build/calculate-container-hash.sh kolla*);"
+          script="${script} hash=\$(./_build/calculate-container-hash.sh kolla kolla-2*);"
           script="${script} ./_build/build-containers.sh --use-ci-registry --build-targets master --build-images all --image-tag "\$hash-debian-bookworm" --dont-fetch-images;"
 
           ssh -i /srv/github/id_ci -o StrictHostKeyChecking=no \
@@ -107,8 +107,8 @@ jobs:
           . $GITHUB_ENV
 
           script="cd /srv/shakenfist/kerbside-patches;"
-          script="${script} hash=\$(./_build/calculate-container-hash.sh kolla*);"
-          script="${script} ./_build/build-containers.sh --use-ci-registry --build-targets master --build-images all --image-tag "\$hash-debian-bookworm";"
+          script="${script} hash=\$(./_build/calculate-container-hash.sh kolla kolla-2*);"
+          script="${script} ./_build/build-containers.sh --use-ci-registry --build-targets master --build-images all --image-tag "\$hash-debian-bookworm" --dont-fetch-images;"
 
           ssh -i /srv/github/id_ci -o StrictHostKeyChecking=no \
               -o UserKnownHostsFile=/dev/null \
