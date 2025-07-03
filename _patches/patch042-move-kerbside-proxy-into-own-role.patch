@@ -1,6 +1,6 @@
-commit efb6742b48f546a87a1eb700f5641c048fbe9b92
+commit fce8b93d2faca1d6f6199283515d96ff7631a7a2
 Author: Michael Still <mikal@stillhq.com>
-Date:   Wed Jul 2 08:01:43 2025 +1000
+Date:   Thu Jul 3 08:11:00 2025 +1000
 
     Move kerbside proxy into its own role.
 
@@ -47,7 +47,7 @@ index a617934..c86231f 100644
  
  # Neutron
 diff --git a/ansible/nova.yml b/ansible/nova.yml
-index c41d854..5b7a055 100644
+index c41d854..d714c31 100644
 --- a/ansible/nova.yml
 +++ b/ansible/nova.yml
 @@ -20,6 +20,9 @@
@@ -64,21 +64,21 @@ index c41d854..5b7a055 100644
          - enable_nova | bool
          - kolla_action in ['deploy', 'reconfigure']
  
-+# Standard {{ kolla_action }}.yml for kerbside-proxy role.
-+- name: Apply role kerbside-proxy
++# Standard {{ kolla_action }}.yml for kerbside role.
++- name: Apply role kerbside
 +  gather_facts: false
 +  hosts:
 +    - kerbside-proxy
 +    - '&enable_kerbside_True'
 +  tags:
-+    - kerbside-proxy
++    - kerbside
 +  serial: '{{ kolla_serial|default("0") }}'
 +  max_fail_percentage: >-
 +    {{ nova_max_fail_percentage |
 +       default(kolla_max_fail_percentage) |
 +       default(100) }}
 +  roles:
-+    - role: kerbside-proxy
++    - role: kerbside
 +      when: enable_kerbside | bool
 +
  # Following an upgrade, Nova services must be restarted once all compute
@@ -102,7 +102,7 @@ index c41d854..5b7a055 100644
 +       default(100) }}
 +  tasks:
 +    - import_role:
-+        name: kerbside-proxy
++        name: kerbside
 +        tasks_from: reload
 +      when:
 +        - enable_kerbside | bool
@@ -111,11 +111,11 @@ index c41d854..5b7a055 100644
  # Following an upgrade, data migrations should be performed for the API
  # database.  This should be done once all cells have been upgraded.
  
-diff --git a/ansible/roles/kerbside-proxy/defaults/main.yml b/ansible/roles/kerbside-proxy/defaults/main.yml
+diff --git a/ansible/roles/kerbside/defaults/main.yml b/ansible/roles/kerbside/defaults/main.yml
 new file mode 100644
 index 0000000..7d97525
 --- /dev/null
-+++ b/ansible/roles/kerbside-proxy/defaults/main.yml
++++ b/ansible/roles/kerbside/defaults/main.yml
 @@ -0,0 +1,69 @@
 +---
 +kerbside_services:
@@ -187,11 +187,11 @@ index 0000000..7d97525
 +kerbside_dev_mode: "{{ kolla_dev_mode }}"
 +kerbside_source_version: "{{ kolla_source_version }}"
 \ No newline at end of file
-diff --git a/ansible/roles/kerbside-proxy/handlers/main.yml b/ansible/roles/kerbside-proxy/handlers/main.yml
+diff --git a/ansible/roles/kerbside/handlers/main.yml b/ansible/roles/kerbside/handlers/main.yml
 new file mode 100644
 index 0000000..a2d5d67
 --- /dev/null
-+++ b/ansible/roles/kerbside-proxy/handlers/main.yml
++++ b/ansible/roles/kerbside/handlers/main.yml
 @@ -0,0 +1,18 @@
 +---
 +- name: Restart kerbside_proxy container
@@ -211,11 +211,11 @@ index 0000000..a2d5d67
 +  when:
 +    - kolla_action != "config"
 +    - kolla_action != "upgrade" or not kerbside_safety_upgrade | bool
-diff --git a/ansible/roles/kerbside-proxy/tasks/bootstrap.yml b/ansible/roles/kerbside-proxy/tasks/bootstrap.yml
+diff --git a/ansible/roles/kerbside/tasks/bootstrap.yml b/ansible/roles/kerbside/tasks/bootstrap.yml
 new file mode 100644
 index 0000000..9e7c8f8
 --- /dev/null
-+++ b/ansible/roles/kerbside-proxy/tasks/bootstrap.yml
++++ b/ansible/roles/kerbside/tasks/bootstrap.yml
 @@ -0,0 +1,53 @@
 +---
 +- name: Creating Kerbside databases
@@ -271,11 +271,11 @@ index 0000000..9e7c8f8
 +- import_tasks: config.yml
 +- import_tasks: bootstrap_service.yml
 \ No newline at end of file
-diff --git a/ansible/roles/kerbside-proxy/tasks/bootstrap_service.yml b/ansible/roles/kerbside-proxy/tasks/bootstrap_service.yml
+diff --git a/ansible/roles/kerbside/tasks/bootstrap_service.yml b/ansible/roles/kerbside/tasks/bootstrap_service.yml
 new file mode 100644
 index 0000000..79e635c
 --- /dev/null
-+++ b/ansible/roles/kerbside-proxy/tasks/bootstrap_service.yml
++++ b/ansible/roles/kerbside/tasks/bootstrap_service.yml
 @@ -0,0 +1,18 @@
 +---
 +- name: Running Kerbside bootstrap container
@@ -296,20 +296,20 @@ index 0000000..79e635c
 +  run_once: True
 +  delegate_to: "{{ groups['kerbside-proxy'][0] }}"
 \ No newline at end of file
-diff --git a/ansible/roles/kerbside-proxy/tasks/check-containers.yml b/ansible/roles/kerbside-proxy/tasks/check-containers.yml
+diff --git a/ansible/roles/kerbside/tasks/check-containers.yml b/ansible/roles/kerbside/tasks/check-containers.yml
 new file mode 100644
 index 0000000..b7e2f7c
 --- /dev/null
-+++ b/ansible/roles/kerbside-proxy/tasks/check-containers.yml
++++ b/ansible/roles/kerbside/tasks/check-containers.yml
 @@ -0,0 +1,3 @@
 +---
 +- import_role:
 +    name: service-check-containers
-diff --git a/ansible/roles/kerbside-proxy/tasks/config.yml b/ansible/roles/kerbside-proxy/tasks/config.yml
+diff --git a/ansible/roles/kerbside/tasks/config.yml b/ansible/roles/kerbside/tasks/config.yml
 new file mode 100644
 index 0000000..393a33f
 --- /dev/null
-+++ b/ansible/roles/kerbside-proxy/tasks/config.yml
++++ b/ansible/roles/kerbside/tasks/config.yml
 @@ -0,0 +1,75 @@
 +---
 +- name: Ensuring config directories exist
@@ -387,11 +387,11 @@ index 0000000..393a33f
 +    mode: "0660"
 +  with_dict: "{{ kerbside_services | select_services_enabled_and_mapped_to_host }}"
 \ No newline at end of file
-diff --git a/ansible/roles/kerbside-proxy/tasks/deploy.yml b/ansible/roles/kerbside-proxy/tasks/deploy.yml
+diff --git a/ansible/roles/kerbside/tasks/deploy.yml b/ansible/roles/kerbside/tasks/deploy.yml
 new file mode 100644
 index 0000000..ca3509a
 --- /dev/null
-+++ b/ansible/roles/kerbside-proxy/tasks/deploy.yml
++++ b/ansible/roles/kerbside/tasks/deploy.yml
 @@ -0,0 +1,7 @@
 +---
 +- import_tasks: config.yml
@@ -400,20 +400,20 @@ index 0000000..ca3509a
 +
 +- name: Flush handlers
 +  meta: flush_handlers
-diff --git a/ansible/roles/kerbside-proxy/tasks/main.yml b/ansible/roles/kerbside-proxy/tasks/main.yml
+diff --git a/ansible/roles/kerbside/tasks/main.yml b/ansible/roles/kerbside/tasks/main.yml
 new file mode 100644
 index 0000000..37171d5
 --- /dev/null
-+++ b/ansible/roles/kerbside-proxy/tasks/main.yml
++++ b/ansible/roles/kerbside/tasks/main.yml
 @@ -0,0 +1,2 @@
 +---
 +- include_tasks: "{{ kolla_action }}.yml"
 \ No newline at end of file
-diff --git a/ansible/roles/kerbside-proxy/tasks/precheck.yml b/ansible/roles/kerbside-proxy/tasks/precheck.yml
+diff --git a/ansible/roles/kerbside/tasks/precheck.yml b/ansible/roles/kerbside/tasks/precheck.yml
 new file mode 100644
 index 0000000..56917a3
 --- /dev/null
-+++ b/ansible/roles/kerbside-proxy/tasks/precheck.yml
++++ b/ansible/roles/kerbside/tasks/precheck.yml
 @@ -0,0 +1,68 @@
 +---
 +- import_role:
@@ -484,11 +484,11 @@ index 0000000..56917a3
 +    - container_facts.containers['kerbside_proxy'] is not defined
 +    - service | service_enabled_and_mapped_to_host
 \ No newline at end of file
-diff --git a/ansible/roles/kerbside-proxy/tasks/reload.yml b/ansible/roles/kerbside-proxy/tasks/reload.yml
+diff --git a/ansible/roles/kerbside/tasks/reload.yml b/ansible/roles/kerbside/tasks/reload.yml
 new file mode 100644
 index 0000000..1e879e3
 --- /dev/null
-+++ b/ansible/roles/kerbside-proxy/tasks/reload.yml
++++ b/ansible/roles/kerbside/tasks/reload.yml
 @@ -0,0 +1,22 @@
 +---
 +# NOTE(mgoddard): We use recreate_or_restart_container to cover the case where
@@ -512,22 +512,22 @@ index 0000000..1e879e3
 +    - service | service_enabled_and_mapped_to_host
 +  with_items:
 +    - kerbside-proxy
-diff --git a/ansible/roles/kerbside-proxy/tasks/upgrade.yml b/ansible/roles/kerbside-proxy/tasks/upgrade.yml
+diff --git a/ansible/roles/kerbside/tasks/upgrade.yml b/ansible/roles/kerbside/tasks/upgrade.yml
 new file mode 100644
 index 0000000..a742b40
 --- /dev/null
-+++ b/ansible/roles/kerbside-proxy/tasks/upgrade.yml
++++ b/ansible/roles/kerbside/tasks/upgrade.yml
 @@ -0,0 +1,2 @@
 +---
 +- import_tasks: bootstrap_service.yml
 \ No newline at end of file
-diff --git a/ansible/roles/nova/templates/kerbside_start.j2 b/ansible/roles/kerbside-proxy/templates/kerbside_config.j2
+diff --git a/ansible/roles/nova/templates/kerbside_start.j2 b/ansible/roles/kerbside/templates/kerbside_config.j2
 similarity index 86%
 rename from ansible/roles/nova/templates/kerbside_start.j2
-rename to ansible/roles/kerbside-proxy/templates/kerbside_config.j2
+rename to ansible/roles/kerbside/templates/kerbside_config.j2
 index f8d7120..f83e7b3 100644
 --- a/ansible/roles/nova/templates/kerbside_start.j2
-+++ b/ansible/roles/kerbside-proxy/templates/kerbside_config.j2
++++ b/ansible/roles/kerbside/templates/kerbside_config.j2
 @@ -32,16 +32,4 @@ export KERBSIDE_KEYSTONE_SERVICE_AUTH_PASSWORD={{ keystone_admin_password }}
  export KERBSIDE_KEYSTONE_SERVICE_AUTH_PROJECT={{ keystone_admin_project }}
  export KERBSIDE_KEYSTONE_SERVICE_AUTH_USER_DOMAIN_ID={{ default_user_domain_id }}
@@ -548,13 +548,13 @@ index f8d7120..f83e7b3 100644
 \ No newline at end of file
 +export KERBSIDE_KEYSTONE_ACCESS_GROUP=kerbside
 \ No newline at end of file
-diff --git a/ansible/roles/nova/templates/kerbside.json.j2 b/ansible/roles/kerbside-proxy/templates/kerbside_proxy.json.j2
+diff --git a/ansible/roles/nova/templates/kerbside.json.j2 b/ansible/roles/kerbside/templates/kerbside_proxy.json.j2
 similarity index 91%
 rename from ansible/roles/nova/templates/kerbside.json.j2
-rename to ansible/roles/kerbside-proxy/templates/kerbside_proxy.json.j2
+rename to ansible/roles/kerbside/templates/kerbside_proxy.json.j2
 index 32f9dde..c7a587c 100644
 --- a/ansible/roles/nova/templates/kerbside.json.j2
-+++ b/ansible/roles/kerbside-proxy/templates/kerbside_proxy.json.j2
++++ b/ansible/roles/kerbside/templates/kerbside_proxy.json.j2
 @@ -1,9 +1,9 @@
  {
 -    "command": "bash /etc/kerbside/kerbside_start",
@@ -568,15 +568,15 @@ index 32f9dde..c7a587c 100644
              "owner": "kerbside",
              "perm": "0600"
          },
-diff --git a/ansible/roles/nova/templates/kerbside_sources.yaml.j2 b/ansible/roles/kerbside-proxy/templates/kerbside_sources.yaml.j2
+diff --git a/ansible/roles/nova/templates/kerbside_sources.yaml.j2 b/ansible/roles/kerbside/templates/kerbside_sources.yaml.j2
 similarity index 100%
 rename from ansible/roles/nova/templates/kerbside_sources.yaml.j2
-rename to ansible/roles/kerbside-proxy/templates/kerbside_sources.yaml.j2
-diff --git a/ansible/roles/kerbside-proxy/vars/main.yml b/ansible/roles/kerbside-proxy/vars/main.yml
+rename to ansible/roles/kerbside/templates/kerbside_sources.yaml.j2
+diff --git a/ansible/roles/kerbside/vars/main.yml b/ansible/roles/kerbside/vars/main.yml
 new file mode 100644
 index 0000000..fce52d4
 --- /dev/null
-+++ b/ansible/roles/kerbside-proxy/vars/main.yml
++++ b/ansible/roles/kerbside/vars/main.yml
 @@ -0,0 +1,2 @@
 +---
 +project_name: "kerbside"
