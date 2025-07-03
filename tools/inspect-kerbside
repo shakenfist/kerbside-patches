@@ -7,7 +7,7 @@ echo -e "${H1}==================================================${Color_Off}"
 echo -e "${H1}List containers${Color_Off}"
 echo -e "${H1}==================================================${Color_Off}"
 
-docker ps
+docker ps || true
 
 echo
 echo -e "${H1}==================================================${Color_Off}"
@@ -16,11 +16,20 @@ echo -e "${H1}==================================================${Color_Off}"
 
 db_user="root"
 db_password=$(yq -r ".database_password" /etc/kolla/passwords.yml)
-docker exec mariadb mysql -u ${db_user} --password=${db_password} -e "show databases;"
+docker exec mariadb mysql -u ${db_user} --password=${db_password} -e "show databases;" || true
+
+echo
+echo -e "${H1}==================================================${Color_Off}"
+echo -e "${H1}Inspect kerbside_proxy container${Color_Off}"
+echo -e "${H1}==================================================${Color_Off}"
+
+docker inspect kerbside_proxy || true
 
 echo
 echo -e "${H1}==================================================${Color_Off}"
 echo -e "${H1}Dump logs of kerbside_proxy container${Color_Off}"
 echo -e "${H1}==================================================${Color_Off}"
 
-docker logs kerbside_proxy
+cat /var/log/kolla/kerbside* || true
+
+exit 0
