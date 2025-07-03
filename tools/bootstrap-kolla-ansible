@@ -24,6 +24,10 @@ echo "pip3 ${Arrow} "$(which pip3)
 echo "python3 ${Arrow} "$(which python3)
 echo
 
+echo -e "${H2}Log python version${Color_Off}"
+python3 --version
+echo
+
 echo -e "${H2}Install Ansible${Color_Off}"
 ansible_core=""
 if [ "${target_release}" == "2024.1" ]; then
