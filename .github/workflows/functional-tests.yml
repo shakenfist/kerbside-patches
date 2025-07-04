@@ -44,10 +44,14 @@ jobs:
       - name: Build container images
         run: |
           . $GITHUB_ENV
+
+          script="cd /srv/shakenfist/kerbside-patches;"
+          script="${script} hash=\$(./_build/calculate-container-hash.sh kolla kolla-2*);"
+          script="${script} ./_build/build-containers.sh --use-ci-registry --build-targets master --build-images all --image-tag "\$hash-debian-bookworm" --dont-fetch-images;"
+
           ssh -i /srv/github/id_ci -o StrictHostKeyChecking=no \
               -o UserKnownHostsFile=/dev/null \
-              debian@10.0.2.2 \
-              'cd /srv/shakenfist/kerbside-patches; ./_build/build-containers.sh --use-ci-registry --build-targets master --build-images all'
+              debian@10.0.2.2 "${script}"
 
 
   functional_matrix:
@@ -101,10 +105,14 @@ jobs:
       - name: Build container images
         run: |
           . $GITHUB_ENV
+
+          script="cd /srv/shakenfist/kerbside-patches;"
+          script="${script} hash=\$(./_build/calculate-container-hash.sh kolla kolla-2*);"
+          script="${script} ./_build/build-containers.sh --use-ci-registry --build-targets master --build-images all --image-tag "\$hash-debian-bookworm" --dont-fetch-images;"
+
           ssh -i /srv/github/id_ci -o StrictHostKeyChecking=no \
               -o UserKnownHostsFile=/dev/null \
-              ${{ matrix.test.baseuser }}@10.0.2.2 \
-              'cd /srv/shakenfist/kerbside-patches; ./_build/build-containers.sh --use-ci-registry --build-targets ${{ matrix.test.release }} --build-images all'
+              ${{ matrix.test.baseuser }}@10.0.2.2 "${script}"
 
       - name: Disable /etc/hosts for name resolution
         run: |
@@ -145,6 +153,14 @@ jobs:
               -o UserKnownHostsFile=/dev/null \
               ${{ matrix.test.baseuser }}@10.0.2.2 \
               'cd /srv/shakenfist/kerbside-patches; sudo ./tools/postinstall-kolla-ansible'
+
+      # - name: Dump kerbside debugging information
+      #   run: |
+      #     . $GITHUB_ENV
+      #     ssh -i /srv/github/id_ci -o StrictHostKeyChecking=no \
+      #         -o UserKnownHostsFile=/dev/null \
+      #         ${{ matrix.test.baseuser }}@10.0.2.2 \
+      #         'cd /srv/shakenfist/kerbside-patches; sudo ./tools/inspect-kerbside'
 
       - name: Attempt to start an instance with a console and connect to it
         run: |

@@ -9,36 +9,39 @@ echo -e "${H1}Building container images${Color_Off}"
 echo -e "${H1}==================================================${Color_Off}"
 
 for target in ${build_targets}; do
-    debian_codename="bookworm"
-    image_tag="${target}-${CI_COMMIT_SHORT_SHA}-debian-${debian_codename}"
-
+    complete_image_tag="${target}-${image_tag}"
     echo
     echo -e "${H1}==================================================${Color_Off}"
     echo -e "${H1}Build configuration${Color_Off}"
     echo -e "${H1}    Target: ${target}${Color_Off}"
     echo -e "${H1}    Images: ${build_images}${Color_Off}"
     echo -e "${H1}    CI SHA: ${CI_COMMIT_SHORT_SHA}${Color_Off}"
-    echo -e "${H1}    Image tag: ${image_tag}${Color_Off}"
+    echo -e "${H1}    Image tag: ${complete_image_tag}${Color_Off}"
     echo -e "${H1}==================================================${Color_Off}"
 
     have_images="false"
     if [ ${use_ci_registry} == "true" ]; then
         echo -e "${H2}Check if we already have built images${Color_Off}"
         images=$(/srv/kerbside/venv-tools/bin/python3 ${topdir}/tools/find_images \
-            --registry http://${ci_registry} find ${image_tag} || true)
+            --registry http://${ci_registry} find ${complete_image_tag} || true)
 
         if [ $(echo ${images} | grep -c kolla || true) -gt 0 ]; then
-            echo "Found existing images. Pulling them."
+            if [ ${dont_fetch_images} == "true" ]; then
+                echo "Found existing images, but configured not to pull them."
+                have_images="true"
+            else
+                echo "Found existing images. Pulling them."
 
-            for image in $(echo ${images}); do
-                echo -e "    ${image}..."
-                docker pull ${ci_registry}/${image}:${image_tag}
+                for image in $(echo ${images}); do
+                    echo -e "    ${image}..."
+                    docker pull ${ci_registry}/${image}:${complete_image_tag}
 
-                echo -e "    ${image}:${image_tag} ${Arrow} ${image}:${target}-debian-${debian_codename}"
-                docker image tag ${ci_registry}/${image}:${image_tag} \
-                    ${image}:${target}-debian-${debian_codename}
-            done
-            have_images="true"
+                    echo -e "    ${image}:${complete_image_tag} ${Arrow} ${image}:${target}-debian-bookworm"
+                    docker image tag ${ci_registry}/${image}:${complete_image_tag} \
+                        ${image}:${target}-debian-bookworm
+                done
+                have_images="true"
+            fi
         fi
     fi
 
@@ -57,16 +60,16 @@ for target in ${build_targets}; do
             echo -e "${H2}Pushing to the CI registry${Color_Off}"
             for image in $(docker image list --format json | \
                 jq --slurp -r ".[] | select(.Tag == \"${target}-${CI_COMMIT_SHORT_SHA}\") | .Repository"); do
-                echo -e "    ${image}:${target}-${CI_COMMIT_SHORT_SHA} ${Arrow} ${ci_registry}/openstack.${image}:${target}-debian-${debian_codename}"
+                echo -e "    ${image}:${target}-${CI_COMMIT_SHORT_SHA} ${Arrow} ${ci_registry}/openstack.${image}:${target}-debian-bookworm"
                 docker image tag ${image}:${target}-${CI_COMMIT_SHORT_SHA} \
-                    ${ci_registry}/openstack${image}:${target}-debian-${debian_codename}
+                    ${ci_registry}/openstack${image}:${target}-debian-bookworm
                 docker image push \
-                    ${ci_registry}/openstack${image}:${target}-debian-${debian_codename}
+                    ${ci_registry}/openstack${image}:${target}-debian-bookworm
 
-                echo -e "    ${image}:${target}-${CI_COMMIT_SHORT_SHA} ${Arrow} ${ci_registry}/openstack.${image}:${image_tag}"
+                echo -e "    ${image}:${target}-${CI_COMMIT_SHORT_SHA} ${Arrow} ${ci_registry}/openstack.${image}:${complete_image_tag}"
                 docker image tag ${image}:${target}-${CI_COMMIT_SHORT_SHA} \
-                    ${ci_registry}/openstack${image}:${image_tag}
-                docker image push ${ci_registry}/openstack${image}:${image_tag}
+                    ${ci_registry}/openstack${image}:${complete_image_tag}
+                docker image push ${ci_registry}/openstack${image}:${complete_image_tag}
             done
         fi
     fi

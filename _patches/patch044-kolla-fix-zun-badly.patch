@@ -1,0 +1,22 @@
+commit 81de326026414bc2a03b0187df68e92b5020482a
+Author: Michael Still <mikal@stillhq.com>
+Date:   Tue Jul 1 10:51:26 2025 +1000
+
+    Fix zun build, probably badly.
+    
+    https://github.com/openstack/zun/commit/fa04137529a6fb8eb3de3455c916340042a72468
+    break the kolla container build by renaming a file.
+
+diff --git a/docker/zun/zun-base/Dockerfile.j2 b/docker/zun/zun-base/Dockerfile.j2
+index 908720b..60bfc33 100644
+--- a/docker/zun/zun-base/Dockerfile.j2
++++ b/docker/zun/zun-base/Dockerfile.j2
+@@ -42,7 +42,7 @@ RUN ln -s zun-base-source/* zun \
+     && {{ macros.install_pip(zun_base_pip_packages | customizable("pip_packages")) }} \
+     && mkdir -p /etc/zun /var/www/cgi-bin/zun \
+     && cp -r /zun/etc/zun/* /etc/zun/ \
+-    && cp /zun/zun/api/app.wsgi /var/www/cgi-bin/zun \
++    && cp /zun/zun/wsgi/api.py /var/www/cgi-bin/zun \
+     && sed -i 's|^exec_dirs.*|exec_dirs=/var/lib/kolla/venv/bin,/sbin,/usr/sbin,/bin,/usr/bin,/usr/local/bin,/usr/local/sbin|g' /etc/zun/rootwrap.conf \
+     && chmod 750 /etc/sudoers.d \
+     && chmod 640 /etc/sudoers.d/kolla_zun_sudoers \

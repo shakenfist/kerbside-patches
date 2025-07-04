@@ -1,3 +1,6 @@
 ../_patches/patch013-kerbside-container-build.patch
 ../_patches/patch019-disable-upper-constraints-for-kerbside.patch
 ../_patches/patch035-fix-skyline-apiserver-build.patch
+../_patches/patch043-kolla-local-clustercheck.patch
+../_patches/patch044-kolla-fix-zun-badly.patch
+../_patches/patch046-kolla-support-kerbside-bootstrap.patch

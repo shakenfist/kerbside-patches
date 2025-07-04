@@ -7,3 +7,4 @@
 ../_patches/patch021-support-sound-enabled.patch
 ../_patches/patch033-docs-rendering-errors.patch
 ../_patches/patch041-fix-kolla-ansible-kerbside-url.patch
+../_patches/patch042-move-kerbside-proxy-into-own-role.patch
