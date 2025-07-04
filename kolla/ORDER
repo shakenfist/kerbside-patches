@@ -4,3 +4,4 @@
 ../_patches/patch043-kolla-local-clustercheck.patch
 ../_patches/patch044-kolla-fix-zun-badly.patch
 ../_patches/patch046-kolla-support-kerbside-bootstrap.patch
+../_patches/patch047-kolla-fluentd-enable-syslog.patch
