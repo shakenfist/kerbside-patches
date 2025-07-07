@@ -120,7 +120,7 @@ if [ -e ${project}/PREPATCH ]; then
         echo -e "${H3}Extracting commit message from ${topdir}/${project}/${patch}${Color_Off}"
         python3 ${topdir}/tools/extract-commit-message ${topdir}/${project}/${patch}
 
-        git commit -a --file ${topdir}/${project}/${patch}-message
+        git commit -s -a --file ${topdir}/${project}/${patch}-message
         echo
 
         popd > /dev/null
@@ -162,7 +162,7 @@ do
         python3 ${topdir}/tools/extract-commit-message ${topdir}/${project}/${patch}
     fi
 
-    git commit -a --file ${topdir}/${project}/${patch}-message
+    git commit -s -a --file ${topdir}/${project}/${patch}-message
     echo
 
     if [ "${defer_tests}" != "true" ]; then
