@@ -3,6 +3,7 @@
 . ./_build/common.sh
 . /etc/kolla/admin-openrc.sh
 . /srv/kolla-ansible/venv/bin/activate
+. tools/set-ca-path
 
 echo
 echo -e "${H1}==================================================${Color_Off}"

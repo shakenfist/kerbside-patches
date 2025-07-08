@@ -239,7 +239,11 @@ kolla_enable_tls_external: "{{ kolla_enable_tls_internal if kolla_same_external_
 kolla_certificates_dir: "{{ node_config }}/certificates"
 kolla_external_fqdn_cert: "{{ kolla_certificates_dir }}/haproxy.pem"
 kolla_internal_fqdn_cert: "{{ kolla_certificates_dir }}/haproxy-internal.pem"
-kolla_admin_openrc_cacert: "yes"
+
+# NOTE(mikal): this is the correct value for CentOS / Rocky, for Debian / Ubuntu
+# it would be /etc/ssl/certs/ca-certificates.crt
+# kolla_admin_openrc_cacert: "/etc/pki/tls/certs/ca-bundle.crt"
+
 kolla_copy_ca_into_containers: "yes"
 haproxy_backend_cacert: "{{ 'ca-certificates.crt' if kolla_base_distro in ['debian', 'ubuntu'] else 'ca-bundle.trust.crt' }}"
 haproxy_backend_cacert_dir: "/etc/ssl/certs"
