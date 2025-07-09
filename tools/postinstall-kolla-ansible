@@ -26,6 +26,7 @@ if [ ! -e ${OS_CACERT} ]; then
 fi
 echo
 
+echo -e "${H2}Run Kolla-Ansible init-runonce${Color_Off}"
 export ENABLE_EXT_NET=1
 export EXT_NET_CIDR='10.0.2.0/24'
 export EXT_NET_RANGE='start=10.0.2.100,end=10.0.2.150'
