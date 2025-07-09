@@ -16,8 +16,8 @@ echo -e "${H1}python3: "$(which python3)"${Color_Off}"
 echo -e "${H1}pip3: "$(which pip3)"${Color_Off}"
 echo -e "${H1}==================================================${Color_Off}"
 
-echo -e "${H2}Make venv for ${ID_LIKE} distro${Color_Off}"
-if [ "${ID_LIKE}" == "debian" ]; then
+echo -e "${H2}Make venv for '${ID}' distro${Color_Off}"
+if [ "${ID}" == "debian" ]; then
     python3 -mvenv /srv/kolla-ansible/venv
 else
     python3.12 -mvenv /srv/kolla-ansible/venv
