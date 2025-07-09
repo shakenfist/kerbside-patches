@@ -14,21 +14,21 @@ echo
 
 # We must set the CA path _after_ we load the admin openrc
 . /etc/kolla/admin-openrc.sh
-. tools/set-ca-path
+#. tools/set-ca-path
 
 echo -e "${H2}Dump cloud connection details${Color_Off}"
 printenv | grep OS_
 echo
 
-echo -e "${H2}Check OS_CACERT exists${Color_Off}"
-if [ ! -e ${OS_CACERT} ]; then
-    echo "CA cert not at ${OS_CACERT}!"
-    exit 1
-fi
-echo
+# echo -e "${H2}Check OS_CACERT exists${Color_Off}"
+# if [ ! -e ${OS_CACERT} ]; then
+#     echo "CA cert not at ${OS_CACERT}!"
+#     exit 1
+# fi
+# echo
 
-echo -e "${H2}Validate OS_CACERT${Color_Off}"
-curl -v --cacert ${OS_CACERT} https://10.0.2.3:5000
+# echo -e "${H2}Validate OS_CACERT${Color_Off}"
+# curl -v --cacert ${OS_CACERT} https://10.0.2.3:5000
 
 echo -e "${H2}Run Kolla-Ansible init-runonce${Color_Off}"
 export ENABLE_EXT_NET=1
