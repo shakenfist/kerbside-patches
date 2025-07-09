@@ -15,6 +15,17 @@ echo
 
 . /etc/kolla/admin-openrc.sh
 
+echo -e "${H2}Dump cloud connection details${Color_Off}"
+printenv | grep OS_
+echo
+
+echo -e "${H2}Check OS_CACERT exists${Color_Off}"
+if [ ! -e ${OS_CACERT} ]; then
+    echo "CA cert not at ${OS_CACERT}!"
+    exit 1
+fi
+echo
+
 export ENABLE_EXT_NET=1
 export EXT_NET_CIDR='10.0.2.0/24'
 export EXT_NET_RANGE='start=10.0.2.100,end=10.0.2.150'
