@@ -1,8 +1,10 @@
 #!/bin/bash -e
 
 . ./_build/common.sh
-. /etc/kolla/admin-openrc.sh
 . /srv/kolla-ansible/venv/bin/activate
+
+# We must set the CA path _after_ we load the admin openrc
+. /etc/kolla/admin-openrc.sh
 . tools/set-ca-path
 
 echo

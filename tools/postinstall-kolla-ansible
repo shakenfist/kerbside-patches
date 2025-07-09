@@ -2,7 +2,6 @@
 
 . ./_build/common.sh
 . /srv/kolla-ansible/venv/bin/activate
-. tools/set-ca-path
 
 echo
 echo -e "${H1}==================================================${Color_Off}"
@@ -13,7 +12,9 @@ echo -e "${H2}Post deply${Color_Off}"
 kolla-ansible post-deploy -i /etc/kolla/inventory
 echo
 
+# We must set the CA path _after_ we load the admin openrc
 . /etc/kolla/admin-openrc.sh
+. tools/set-ca-path
 
 echo -e "${H2}Dump cloud connection details${Color_Off}"
 printenv | grep OS_
