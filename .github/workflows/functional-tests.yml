@@ -146,6 +146,22 @@ jobs:
               ${{ matrix.test.baseuser }}@10.0.2.2 \
               'cd /srv/shakenfist/kerbside-patches; sudo ./tools/install-openstack-clients'
 
+      - name: Dump haproxy logs
+        run: |
+          . $GITHUB_ENV
+          ssh -i /srv/github/id_ci -o StrictHostKeyChecking=no \
+              -o UserKnownHostsFile=/dev/null \
+              ${{ matrix.test.baseuser }}@10.0.2.2 \
+              'sudo docker logs haproxy || true'
+
+      - name: Dump kerbside proxy logs
+        run: |
+          . $GITHUB_ENV
+          ssh -i /srv/github/id_ci -o StrictHostKeyChecking=no \
+              -o UserKnownHostsFile=/dev/null \
+              ${{ matrix.test.baseuser }}@10.0.2.2 \
+              'sudo docker logs kerbside_proxy || true'
+
       - name: Post install Kolla-Ansible setup
         run: |
           . $GITHUB_ENV
