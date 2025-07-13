@@ -162,6 +162,22 @@ jobs:
               ${{ matrix.test.baseuser }}@10.0.2.2 \
               'sudo docker logs kerbside_proxy || true'
 
+      - name: Dump internal VIP CA cert details
+        run: |
+          . $GITHUB_ENV
+          ssh -i /srv/github/id_ci -o StrictHostKeyChecking=no \
+              -o UserKnownHostsFile=/dev/null \
+              ${{ matrix.test.baseuser }}@10.0.2.2 \
+              'openssl s_client -showcerts -connect 10.0.2.3:5000'
+
+      - name: Dump CA cert bundle
+        run: |
+          . $GITHUB_ENV
+          ssh -i /srv/github/id_ci -o StrictHostKeyChecking=no \
+              -o UserKnownHostsFile=/dev/null \
+              ${{ matrix.test.baseuser }}@10.0.2.2 \
+              'openssl storeutl -noout -text -certs /etc/kolla/certificates/ca/root.crt'
+
       - name: Post install Kolla-Ansible setup
         run: |
           . $GITHUB_ENV
