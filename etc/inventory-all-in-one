@@ -1,22 +1,22 @@
 # These initial groups are the only groups required to be modified. The
 # additional groups are for more control of the environment.
 [control]
-10.0.2.2       ansible_connection=local
+kolla       ansible_connection=local
 
 [network]
-10.0.2.2       ansible_connection=local
+kolla       ansible_connection=local
 
 [compute]
-10.0.2.2       ansible_connection=local
+kolla       ansible_connection=local
 
 [storage]
-10.0.2.2       ansible_connection=local
+kolla       ansible_connection=local
 
 [monitoring]
-10.0.2.2       ansible_connection=local
+kolla       ansible_connection=local
 
 [deployment]
-10.0.2.2       ansible_connection=local
+kolla       ansible_connection=local
 
 # You can explicitly specify which hosts run each project by updating the
 # groups in the sections below. Common services are grouped together.
