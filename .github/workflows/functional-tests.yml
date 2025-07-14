@@ -27,11 +27,12 @@ jobs:
           sudo apt-get install -y moreutils git
 
       - name: Setup test environment
-        uses: shakenfist/actions/setup-kerbside-single-node-environment@main
+        uses: shakenfist/actions/setup-kerbside-environment@main
         with:
           base: debian:12
           base_user: debian
           openstack_release: master
+          topology: all-in-one
 
       - name: Build patched repositories
         run: |
@@ -61,18 +62,20 @@ jobs:
       matrix:
         test: [
           {
-            'name': 'master-debian12',
-            'description': 'OpenStack master on Debian 12',
+            'name': 'master-debian12-aio',
+            'description': 'OpenStack master on Debian 12 all-in-one',
             'release': 'master',
             'base': 'debian:12',
-            'baseuser': 'debian'
+            'baseuser': 'debian',
+            'topology': 'all-in-one'
           },
           {
-            'name': 'master-rocky9',
-            'description': 'OpenStack master on Rocky 9',
+            'name': 'master-rocky9-aio',
+            'description': 'OpenStack master on Rocky 9 all-in-one',
             'release': 'master',
             'base': 'rocky:9',
-            'baseuser': 'cloud-user'
+            'baseuser': 'cloud-user',
+            'topology': 'all-in-one'
           },
         ]
     runs-on: [self-hosted, vm]
@@ -88,11 +91,12 @@ jobs:
 
     steps:
       - name: Setup test environment
-        uses: shakenfist/actions/setup-kerbside-single-node-environment@main
+        uses: shakenfist/actions/setup-kerbside-environment@main
         with:
           base: ${{ matrix.test.base }}
           base_user: ${{ matrix.test.baseuser }}
           openstack_release: ${{ matrix.test.release }}
+          topology: ${{ matrix.test.topology }}
 
       - name: Build patched repositories
         run: |
