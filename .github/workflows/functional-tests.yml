@@ -176,7 +176,7 @@ jobs:
           ssh -i /srv/github/id_ci -o StrictHostKeyChecking=no \
               -o UserKnownHostsFile=/dev/null \
               ${{ matrix.test.baseuser }}@10.0.2.2 \
-              'openssl storeutl -noout -text -certs /etc/kolla/certificates/ca/root.crt'
+              'sudo openssl storeutl -noout -text -certs /etc/kolla/certificates/ca/root.crt'
 
       - name: Post install Kolla-Ansible setup
         run: |
