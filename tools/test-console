@@ -154,7 +154,7 @@ echo -e "${H1}==================================================${Color_Off}"
 echo -e "${H1}Attempt to fetch a .vv file from Kerbside${Color_Off}"
 echo -e "${H1}==================================================${Color_Off}"
 
-curl ${consoleurl}
+curl --cacert /etc/kolla/certificates/ca/root.crt ${consoleurl}
 
 trap - EXIT
 
