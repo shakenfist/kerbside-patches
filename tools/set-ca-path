@@ -1,0 +1,10 @@
+#!/bin/bash
+
+# NOTE(mikal): the correct value differs between RHEL derived distos
+# and Debian derived distros because of course it does.
+. /etc/os-release
+if [ "${ID}" == "debian" ]; then
+    export OS_CACERT="/etc/ssl/certs/ca-certificates.crt"
+else
+    export OS_CACERT="/etc/pki/tls/certs/ca-bundle.crt"
+fi

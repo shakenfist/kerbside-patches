@@ -6,6 +6,7 @@ target_release="${1}"
 node_address="${2}"
 
 . ./_build/common.sh
+. /etc/os-release
 
 echo
 echo -e "${H1}==================================================${Color_Off}"
@@ -15,8 +16,12 @@ echo -e "${H1}python3: "$(which python3)"${Color_Off}"
 echo -e "${H1}pip3: "$(which pip3)"${Color_Off}"
 echo -e "${H1}==================================================${Color_Off}"
 
-echo -e "${H2}Make venv${Color_Off}"
-python3 -mvenv /srv/kolla-ansible/venv
+echo -e "${H2}Make venv for '${ID}' distro${Color_Off}"
+if [ "${ID}" == "debian" ]; then
+    python3 -mvenv /srv/kolla-ansible/venv
+else
+    python3.12 -mvenv /srv/kolla-ansible/venv
+fi
 . /srv/kolla-ansible/venv/bin/activate
 
 echo -e "${H2}Log python binary locations${Color_Off}"
@@ -28,14 +33,14 @@ echo -e "${H2}Log python version${Color_Off}"
 python3 --version
 echo
 
-echo -e "${H2}Install Ansible${Color_Off}"
+echo -e "${H2}Install dependencies${Color_Off}"
 ansible_core=""
 if [ "${target_release}" == "2024.1" ]; then
     ansible_core="ansible-core<2.17"
 elif [ "${target_release}" == "2024.2" ]; then
-    ansible_core="ansible-core>=2.16,<2.18"
+    ansible_core="ansible-core>=2.15,<2.18"
 else
-    ansible_core="ansible-core>=2.16,<2.18"
+    ansible_core="ansible-core>=2.17,<2.19"
 fi
 pip3 install -U ${ansible_core} ansible "selinux<0.3.0" dbus-python
 echo

@@ -1,8 +1,10 @@
-commit fce8b93d2faca1d6f6199283515d96ff7631a7a2
+commit c557fa8a1a00d3a8f7ce240f06ac8efbd73fee06
 Author: Michael Still <mikal@stillhq.com>
-Date:   Thu Jul 3 08:11:00 2025 +1000
+Date:   Tue Jul 8 11:10:12 2025 +1000
 
     Move kerbside proxy into its own role.
+    
+    Signed-off-by: Michael Still <mikal@stillhq.com>
 
 diff --git a/ansible/group_vars/all.yml b/ansible/group_vars/all.yml
 index 1b82d81..31918d5 100644
@@ -400,6 +402,19 @@ index 0000000..ca3509a
 +
 +- name: Flush handlers
 +  meta: flush_handlers
+diff --git a/ansible/roles/kerbside/tasks/loadbalancer.yml b/ansible/roles/kerbside/tasks/loadbalancer.yml
+new file mode 100644
+index 0000000..0699d89
+--- /dev/null
++++ b/ansible/roles/kerbside/tasks/loadbalancer.yml
+@@ -0,0 +1,7 @@
++---
++- name: "Configure loadbalancer for {{ project_name }}"
++  import_role:
++    name: loadbalancer-config
++  vars:
++    project_services: "{{ kerbside_services }}"
++  tags: always
 diff --git a/ansible/roles/kerbside/tasks/main.yml b/ansible/roles/kerbside/tasks/main.yml
 new file mode 100644
 index 0000000..37171d5
@@ -777,7 +792,7 @@ index e7d155d..abbcf93 100644
    become: true
    template:
 diff --git a/ansible/site.yml b/ansible/site.yml
-index da11504..31b80fa 100644
+index da11504..d3e91f3 100644
 --- a/ansible/site.yml
 +++ b/ansible/site.yml
 @@ -42,6 +42,7 @@
@@ -788,3 +803,15 @@ index da11504..31b80fa 100644
          - enable_keystone_{{ enable_keystone | bool }}
          - enable_kuryr_{{ enable_kuryr | bool }}
          - enable_letsencrypt_{{ enable_letsencrypt | bool }}
+@@ -204,6 +205,11 @@
+             tasks_from: loadbalancer
+           tags: keystone
+           when: enable_keystone | bool
++        - include_role:
++            name: kerbside
++            tasks_from: loadbalancer
++          tags: kerbside
++          when: enable_kerbside | bool
+         - include_role:
+             name: letsencrypt
+             tasks_from: loadbalancer
