@@ -22,9 +22,6 @@ jobs:
       matrix:
         test: [
           {
-              'release': '2024.1'
-          },
-          {
               'release': '2025.1'
           },
           {
