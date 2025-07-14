@@ -77,6 +77,14 @@ jobs:
             'baseuser': 'cloud-user',
             'topology': 'all-in-one'
           },
+          {
+            'name': 'master-debian12-multi',
+            'description': 'OpenStack master on Debian 12 multinode',
+            'release': 'master',
+            'base': 'debian:12',
+            'baseuser': 'debian',
+            'topology': 'multinode'
+          },
         ]
     runs-on: [self-hosted, vm]
     needs: build_images
