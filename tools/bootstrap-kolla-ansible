@@ -63,7 +63,13 @@ echo -e "${H2}Bootstrap inventory${Color_Off}"
 mkdir -p /etc/kolla
 cp -r etc/kolla /etc/
 cd "${topdir}"
-cp etc/inventory-${topology} /etc/kolla/inventory
+cat etc/inventory-${topology} | \
+        sed "s|USER|${SUDO_USER}|g" \
+        > /etc/kolla/inventory
+echo
+
+echo -e "${H2}Dump /etc/kolla/inventory${Color_Off}"
+cat /etc/kolla/inventory
 echo
 
 echo -e "${H2}Copy globals.yml${Color_Off}"
