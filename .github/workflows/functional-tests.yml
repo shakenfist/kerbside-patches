@@ -126,13 +126,13 @@ jobs:
               -o UserKnownHostsFile=/dev/null \
               ${{ matrix.test.baseuser }}@10.0.2.2 "${script}"
 
-      - name: Disable /etc/hosts for name resolution
-        run: |
-          . $GITHUB_ENV
-          ssh -i /srv/github/id_ci -o StrictHostKeyChecking=no \
-              -o UserKnownHostsFile=/dev/null \
-              ${{ matrix.test.baseuser }}@10.0.2.2 \
-              'sudo sed -i s"|hosts:      files dns myhostname|hosts:      dns myhostname|" /etc/nsswitch.conf'
+      # - name: Disable /etc/hosts for name resolution
+      #   run: |
+      #     . $GITHUB_ENV
+      #     ssh -i /srv/github/id_ci -o StrictHostKeyChecking=no \
+      #         -o UserKnownHostsFile=/dev/null \
+      #         ${{ matrix.test.baseuser }}@10.0.2.2 \
+      #         'sudo sed -i s"|hosts:      files dns myhostname|hosts:      dns myhostname|" /etc/nsswitch.conf'
 
       - name: Bootstrap Kolla-Ansible
         run: |
