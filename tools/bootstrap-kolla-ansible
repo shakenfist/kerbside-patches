@@ -1,9 +1,9 @@
 #!/bin/bash -e
 
 # $1: is an OpenStack release version -- for example 2024.1
-# $2: is the IP address of the node the cloud is being built on
+# $2: is the target topology (all-in-one or multinode)
 target_release="${1}"
-node_address="${2}"
+topology="${2}"
 
 . ./_build/common.sh
 . /etc/os-release
@@ -63,22 +63,49 @@ echo -e "${H2}Bootstrap inventory${Color_Off}"
 mkdir -p /etc/kolla
 cp -r etc/kolla /etc/
 cd "${topdir}"
-cp etc/inventory-all-in-one /etc/kolla/inventory
+cp etc/inventory-${topology} /etc/kolla/inventory
 echo
 
 echo -e "${H2}Copy globals.yml${Color_Off}"
 cp etc/globals-${target_release}.yml /etc/kolla/globals.yml
 echo
 
+if [ "${topology}" == "all-in-one" ]; then
 echo -e "${H2}Tweak /etc/hosts${Color_Off}"
-sed -i "1s/^/${node_address} kolla\n\n/" /etc/hosts
-echo
+    sed -i "1s/^/10.0.2.2 kolla\n\n/" /etc/hosts
+    echo
 
-if [ -e /etc/cloud/templates/hosts.redhat.tmpl ]; then
-    echo -e "${H2}Tweak /etc/hosts template for cloud-init${Color_Off}"
-    sed -i "1s/^/${node_address} kolla\n\n/" /etc/cloud/templates/hosts.redhat.tmpl
-echo
+    if [ -e /etc/cloud/templates/hosts.redhat.tmpl ]; then
+        echo -e "${H2}Tweak /etc/hosts template for cloud-init${Color_Off}"
+        sed -i "1s/^/10.0.2.2 kolla\n\n/" /etc/cloud/templates/hosts.redhat.tmpl
+        echo
+    fi
+else
+    sed -i "1s/^/10.0.2.2 deploy\n\n/" /etc/hosts
+    sed -i "1s/^/10.0.2.10 control-1\n\n/" /etc/hosts
+    sed -i "1s/^/10.0.2.11 control-2\n\n/" /etc/hosts
+    sed -i "1s/^/10.0.2.20 compute-1\n\n/" /etc/hosts
+    sed -i "1s/^/10.0.2.21 compute-2\n\n/" /etc/hosts
+    sed -i "1s/^/10.0.2.30 kerbside-1\n\n/" /etc/hosts
+    sed -i "1s/^/10.0.2.31 kerbside-2\n\n/" /etc/hosts
+    echo
+
+    if [ -e /etc/cloud/templates/hosts.redhat.tmpl ]; then
+        echo -e "${H2}Tweak /etc/hosts template for cloud-init${Color_Off}"
+        sed -i "1s/^/10.0.2.2 deploy\n\n/" /etc/cloud/templates/hosts.redhat.tmpl
+        sed -i "1s/^/10.0.2.10 control-1\n\n/" /etc/cloud/templates/hosts.redhat.tmpl
+        sed -i "1s/^/10.0.2.11 control-2\n\n/" /etc/cloud/templates/hosts.redhat.tmpl
+        sed -i "1s/^/10.0.2.20 compute-1\n\n/" /etc/cloud/templates/hosts.redhat.tmpl
+        sed -i "1s/^/10.0.2.21 compute-2\n\n/" /etc/cloud/templates/hosts.redhat.tmpl
+        sed -i "1s/^/10.0.2.30 kerbside-1\n\n/" /etc/cloud/templates/hosts.redhat.tmpl
+        sed -i "1s/^/10.0.2.31 kerbside-2\n\n/" /etc/cloud/templates/hosts.redhat.tmpl
+        echo
+    fi
 fi
+
+echo -e "${H2}Dump /etc/hosts${Color_Off}"
+cat /etc/hosts
+echo
 
 echo -e "${H2}Generate passwords${Color_Off}"
 kolla-genpwd

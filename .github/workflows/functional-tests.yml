@@ -140,7 +140,7 @@ jobs:
           ssh -i /srv/github/id_ci -o StrictHostKeyChecking=no \
               -o UserKnownHostsFile=/dev/null \
               ${{ matrix.test.baseuser }}@10.0.2.2 \
-              'cd /srv/shakenfist/kerbside-patches; sudo ./tools/bootstrap-kolla-ansible ${{ matrix.test.release }}'
+              'cd /srv/shakenfist/kerbside-patches; sudo ./tools/bootstrap-kolla-ansible ${{ matrix.test.release }} ${{ matrix.test.topology }}'
 
       - name: Install Kolla-Ansible
         run: |
