@@ -18,6 +18,9 @@ kolla       ansible_connection=local
 [deployment]
 kolla       ansible_connection=local
 
+[vdiproxy]
+kolla       ansible_connection=local
+
 # You can explicitly specify which hosts run each project by updating the
 # groups in the sections below. Common services are grouped together.
 
@@ -27,6 +30,7 @@ network
 compute
 storage
 monitoring
+vdiproxy
 
 [collectd:children]
 compute
@@ -49,6 +53,7 @@ control
 monitoring
 network
 storage
+vdiproxy
 
 [hacluster:children]
 control
@@ -229,8 +234,12 @@ nova
 [nova-serialproxy:children]
 nova
 
+# Kerbside
+[kerbside-api:children]
+control
+
 [kerbside-proxy:children]
-nova
+vdiproxy
 
 # Neutron
 [neutron-server:children]

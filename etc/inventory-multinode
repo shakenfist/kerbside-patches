@@ -31,7 +31,7 @@ control-2
 control-1
 control-2
 
-[kerbside-proxy]
+[vdiproxy]
 kerbside-1
 kerbside-2
 
@@ -44,6 +44,7 @@ network
 compute
 storage
 monitoring
+vdiproxy
 
 [tls-backend:children]
 control
@@ -57,6 +58,7 @@ network
 compute
 storage
 monitoring
+vdiproxy
 
 [collectd:children]
 compute
@@ -79,6 +81,7 @@ control
 monitoring
 network
 storage
+vdiproxy
 
 [hacluster:children]
 control
@@ -253,8 +256,12 @@ nova
 [nova-serialproxy:children]
 nova
 
+# Kerbside
+[kerbside-api:children]
+control
+
 [kerbside-proxy:children]
-nova
+vdiproxy
 
 # Neutron
 [neutron-server:children]

@@ -1,4 +1,4 @@
-commit c557fa8a1a00d3a8f7ce240f06ac8efbd73fee06
+commit 5344437df158f32e3155a5305077fb36c2b74100
 Author: Michael Still <mikal@stillhq.com>
 Date:   Tue Jul 8 11:10:12 2025 +1000
 
@@ -23,10 +23,36 @@ index 1b82d81..31918d5 100644
  # Nova fake driver and the number of fake driver per compute node
  enable_nova_fake: "no"
 diff --git a/ansible/inventory/all-in-one b/ansible/inventory/all-in-one
-index 3404adc..2d34a3b 100644
+index 3404adc..70aa89c 100644
 --- a/ansible/inventory/all-in-one
 +++ b/ansible/inventory/all-in-one
-@@ -229,7 +229,7 @@ nova
+@@ -18,6 +18,9 @@ localhost       ansible_connection=local
+ [deployment]
+ localhost       ansible_connection=local
+ 
++[vdiproxpy]
++localhost       ansible_connection=local
++
+ # You can explicitly specify which hosts run each project by updating the
+ # groups in the sections below. Common services are grouped together.
+ 
+@@ -27,6 +30,7 @@ network
+ compute
+ storage
+ monitoring
++vdiproxy
+ 
+ [collectd:children]
+ compute
+@@ -49,6 +53,7 @@ control
+ monitoring
+ network
+ storage
++vdiproxy
+ 
+ [hacluster:children]
+ control
+@@ -229,9 +234,16 @@ nova
  [nova-serialproxy:children]
  nova
  
@@ -34,12 +60,56 @@ index 3404adc..2d34a3b 100644
 +[kerbside-proxy:children]
  nova
  
++# Kerbside
++[kerbside-api:children]
++control
++
++[kerbside-proxy:children]
++vdiproxy
++
  # Neutron
+ [neutron-server:children]
+ control
 diff --git a/ansible/inventory/multinode b/ansible/inventory/multinode
-index a617934..c86231f 100644
+index a617934..f18c7dc 100644
 --- a/ansible/inventory/multinode
 +++ b/ansible/inventory/multinode
-@@ -247,7 +247,7 @@ nova
+@@ -29,6 +29,10 @@ monitoring01
+ [storage]
+ storage01
+ 
++[vdiproxy]
++kerbside01
++kerbside02
++
+ [deployment]
+ localhost       ansible_connection=local
+ 
+@@ -38,6 +42,7 @@ network
+ compute
+ storage
+ monitoring
++vdiproxy
+ 
+ [tls-backend:children]
+ control
+@@ -51,6 +56,7 @@ network
+ compute
+ storage
+ monitoring
++vdiproxy
+ 
+ [collectd:children]
+ compute
+@@ -73,6 +79,7 @@ control
+ monitoring
+ network
+ storage
++vdiproxy
+ 
+ [hacluster:children]
+ control
+@@ -247,9 +254,16 @@ nova
  [nova-serialproxy:children]
  nova
  
@@ -47,7 +117,16 @@ index a617934..c86231f 100644
 +[kerbside-proxy:children]
  nova
  
++# Kerbside
++[kerbside-api:children]
++control
++
++[kerbside-proxy:children]
++vdiproxy
++
  # Neutron
+ [neutron-server:children]
+ control
 diff --git a/ansible/nova.yml b/ansible/nova.yml
 index c41d854..d714c31 100644
 --- a/ansible/nova.yml
