@@ -3,6 +3,7 @@
 ansible_user=USER
 ansible_ssh_private_key_file=/srv/github/id_ci
 ansible_ssh_extra_args='-o StrictHostKeyChecking=no'
+ansible_ssh_timeout=120
 
 # These initial groups are the only groups required to be modified. The
 # additional groups are for more control of the environment.
