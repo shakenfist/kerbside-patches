@@ -42,6 +42,29 @@ jobs:
               debian@10.0.2.2 \
               'cd /srv/shakenfist/kerbside-patches; ./_build/assemble-source.sh master'
 
+      - name: Build container images for master
+        run: |
+          . $GITHUB_ENV
+
+          script="cd /srv/shakenfist/kerbside-patches;"
+          script="${script} hash=\$(./_build/calculate-container-hash.sh kolla kolla-2*);"
+          script="${script} ./_build/build-containers.sh --use-ci-registry --build-targets "master" --build-images all --image-tag "\$hash-debian-bookworm" --dont-fetch-images;"
+
+          ssh -i /srv/github/id_ci -o StrictHostKeyChecking=no \
+              -o UserKnownHostsFile=/dev/null \
+              debian@10.0.2.2 "${script}"
+
+      - name: Cleanup
+        run: |
+          . $GITHUB_ENV
+
+          script="cd /srv/shakenfist/kerbside-patches;"
+          script="${script} rm -rf src archive;"
+
+          ssh -i /srv/github/id_ci -o StrictHostKeyChecking=no \
+              -o UserKnownHostsFile=/dev/null \
+              debian@10.0.2.2 "${script}"
+
       - name: Build patched repositories for 2025.1
         run: |
           . $GITHUB_ENV
@@ -50,13 +73,13 @@ jobs:
               debian@10.0.2.2 \
               'cd /srv/shakenfist/kerbside-patches; ./_build/assemble-source.sh 2025.1'
 
-      - name: Build container images for master
+      - name: Build container images for 2025.1
         run: |
           . $GITHUB_ENV
 
           script="cd /srv/shakenfist/kerbside-patches;"
           script="${script} hash=\$(./_build/calculate-container-hash.sh kolla kolla-2*);"
-          script="${script} ./_build/build-containers.sh --use-ci-registry --build-targets "2025.1 master" --build-images all --image-tag "\$hash-debian-bookworm" --dont-fetch-images;"
+          script="${script} ./_build/build-containers.sh --use-ci-registry --build-targets "2025.1" --build-images all --image-tag "\$hash-debian-bookworm" --dont-fetch-images;"
 
           ssh -i /srv/github/id_ci -o StrictHostKeyChecking=no \
               -o UserKnownHostsFile=/dev/null \
