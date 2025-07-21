@@ -1,4 +1,4 @@
-commit 74cd64b71adc036dd717176cebf874fee1300be2
+commit 083d385d4905bf99a1d16d04d6590503fc2960e6
 Author: Michael Still <mikal@stillhq.com>
 Date:   Tue Jul 8 11:10:12 2025 +1000
 
@@ -194,10 +194,10 @@ index c41d85407..d714c3134 100644
  
 diff --git a/ansible/roles/kerbside/defaults/main.yml b/ansible/roles/kerbside/defaults/main.yml
 new file mode 100644
-index 000000000..7d97525d9
+index 000000000..91c3d84af
 --- /dev/null
 +++ b/ansible/roles/kerbside/defaults/main.yml
-@@ -0,0 +1,69 @@
+@@ -0,0 +1,74 @@
 +---
 +kerbside_services:
 +  kerbside_proxy:
@@ -267,7 +267,11 @@ index 000000000..7d97525d9
 +kerbside_dev_repos_pull: "{{ kolla_dev_repos_pull }}"
 +kerbside_dev_mode: "{{ kolla_dev_mode }}"
 +kerbside_source_version: "{{ kolla_source_version }}"
-\ No newline at end of file
++
++###################
++# Copy certificates
++###################
++kerbside_copy_certs: "{{ yes | bool }}"
 diff --git a/ansible/roles/kerbside/handlers/main.yml b/ansible/roles/kerbside/handlers/main.yml
 new file mode 100644
 index 000000000..a2d5d67bb
