@@ -1,4 +1,4 @@
-commit ae3829e97793b43c68d43e9cba5d16625e91d079
+commit 74cd64b71adc036dd717176cebf874fee1300be2
 Author: Michael Still <mikal@stillhq.com>
 Date:   Tue Jul 8 11:10:12 2025 +1000
 
@@ -621,12 +621,21 @@ index 000000000..a742b4055
 +- import_tasks: bootstrap_service.yml
 \ No newline at end of file
 diff --git a/ansible/roles/nova/templates/kerbside_start.j2 b/ansible/roles/kerbside/templates/kerbside_config.j2
-similarity index 86%
+similarity index 84%
 rename from ansible/roles/nova/templates/kerbside_start.j2
 rename to ansible/roles/kerbside/templates/kerbside_config.j2
-index f8d7120e0..f83e7b3f8 100644
+index f8d7120e0..72e084c09 100644
 --- a/ansible/roles/nova/templates/kerbside_start.j2
 +++ b/ansible/roles/kerbside/templates/kerbside_config.j2
+@@ -12,7 +12,7 @@ export KERBSIDE_LOG_OUTPUT_JSON=true
+ {% endif %}
+ 
+ export KERBSIDE_PUBLIC_FQDN={{ keystone_external_fqdn | put_address_in_context('url') }}
+-export KERBSIDE_CACERT_PATH=/etc/pki/kerbside/cacert.pem
++export KERBSIDE_CACERT_PATH={{ openstack_cacert }}
+ export KERBSIDE_PROXY_HOST_CERT_PATH=/etc/pki/kerbside/servercert.pem
+ export KERBSIDE_PROXY_HOST_CERT_KEY_PATH=/etc/pki/kerbside/serverkey.pem
+ export KERBSIDE_PROXY_HOST_SUBJECT=""
 @@ -32,16 +32,4 @@ export KERBSIDE_KEYSTONE_SERVICE_AUTH_PASSWORD={{ keystone_admin_password }}
  export KERBSIDE_KEYSTONE_SERVICE_AUTH_PROJECT={{ keystone_admin_project }}
  export KERBSIDE_KEYSTONE_SERVICE_AUTH_USER_DOMAIN_ID={{ default_user_domain_id }}
@@ -648,10 +657,10 @@ index f8d7120e0..f83e7b3f8 100644
 +export KERBSIDE_KEYSTONE_ACCESS_GROUP=kerbside
 \ No newline at end of file
 diff --git a/ansible/roles/nova/templates/kerbside.json.j2 b/ansible/roles/kerbside/templates/kerbside_proxy.json.j2
-similarity index 91%
+similarity index 63%
 rename from ansible/roles/nova/templates/kerbside.json.j2
 rename to ansible/roles/kerbside/templates/kerbside_proxy.json.j2
-index 32f9dde0b..c7a587c82 100644
+index 32f9dde0b..1e6a74f95 100644
 --- a/ansible/roles/nova/templates/kerbside.json.j2
 +++ b/ansible/roles/kerbside/templates/kerbside_proxy.json.j2
 @@ -1,9 +1,9 @@
@@ -667,6 +676,39 @@ index 32f9dde0b..c7a587c82 100644
              "owner": "kerbside",
              "perm": "0600"
          },
+@@ -14,23 +14,23 @@
+             "perm": "0600"
+         },
+         {
+-            "source": "{{ container_config_directory }}/cacert.pem",
+-            "dest": "/etc/pki/kerbside/cacert.pem",
+-            "owner": "kerbside",
+-            "perm": "0600"
+-        },
+-        {
+-            "source": "{{ container_config_directory }}/servercert.pem",
++            "source": "{{ container_config_directory }}/kerbside-cert.pem",
+             "dest": "/etc/pki/kerbside/servercert.pem",
+             "owner": "kerbside",
+             "perm": "0600"
+         },
+         {
+-            "source": "{{ container_config_directory }}/serverkey.pem",
++            "source": "{{ container_config_directory }}/kerbside-key.pem",
+             "dest": "/etc/pki/kerbside/serverkey.pem",
+             "owner": "kerbside",
+             "perm": "0600"
+-        }
++        }{% if kerbside_copy_certs | bool %},
++        {
++            "source": "{{ container_config_directory }}/ca-certificates",
++            "dest": "/var/lib/kolla/share/ca-certificates",
++            "owner": "root",
++            "perm": "0600"
++        }{% endif %}
+     ],
+     "permissions": [
+         {
 diff --git a/ansible/roles/nova/templates/kerbside_sources.yaml.j2 b/ansible/roles/kerbside/templates/kerbside_sources.yaml.j2
 similarity index 100%
 rename from ansible/roles/nova/templates/kerbside_sources.yaml.j2
