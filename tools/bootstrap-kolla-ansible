@@ -125,6 +125,10 @@ echo -e "${H2}Bootstrap servers${Color_Off}"
 kolla-ansible bootstrap-servers -i /etc/kolla/inventory
 echo
 
+echo -e "${H2}Pull images${Color_Off}"
+kolla-ansible pull -i /etc/kolla/inventory
+echo
+
 trap - EXIT
 
 echo -e "${H1}==================================================${Color_Off}"
