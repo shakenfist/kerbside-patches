@@ -67,22 +67,6 @@ jobs:
               'targets': 'nova:master',
               'infrastructure': 'debian-12-metal'
           },
-          {
-              'description': "python-openstackclient on rocky 9",
-              'name': 'rocky-9-python-openstackclient',
-              'baseimage': 'sf://label/ci-images/rocky-9',
-              'baseuser': 'cloud-user',
-              'targets': 'python-openstackclient:master',
-              'infrastructure': 'vm'
-          },
-          {
-              'description': "python-openstackclient on debian 12",
-              'name': 'debian-12-python-openstackclient',
-              'baseimage': 'sf://label/ci-images/debian-12',
-              'baseuser': 'debian',
-              'targets': 'python-openstackclient:master',
-              'infrastructure': 'vm'
-          },
         ]
     runs-on: [self-hosted, "${{ matrix.test.infrastructure }}"]
     concurrency:
