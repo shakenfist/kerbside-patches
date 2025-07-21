@@ -34,7 +34,7 @@ jobs:
           openstack_release: master
           topology: all-in-one
 
-      - name: Build patched repositories
+      - name: Build patched repositories for master
         run: |
           . $GITHUB_ENV
           ssh -i /srv/github/id_ci -o StrictHostKeyChecking=no \
@@ -42,18 +42,25 @@ jobs:
               debian@10.0.2.2 \
               'cd /srv/shakenfist/kerbside-patches; ./_build/assemble-source.sh master'
 
-      - name: Build container images
+      - name: Build patched repositories for 2025.1
+        run: |
+          . $GITHUB_ENV
+          ssh -i /srv/github/id_ci -o StrictHostKeyChecking=no \
+              -o UserKnownHostsFile=/dev/null \
+              debian@10.0.2.2 \
+              'cd /srv/shakenfist/kerbside-patches; ./_build/assemble-source.sh 2025.1'
+
+      - name: Build container images for master
         run: |
           . $GITHUB_ENV
 
           script="cd /srv/shakenfist/kerbside-patches;"
           script="${script} hash=\$(./_build/calculate-container-hash.sh kolla kolla-2*);"
-          script="${script} ./_build/build-containers.sh --use-ci-registry --build-targets master --build-images all --image-tag "\$hash-debian-bookworm" --dont-fetch-images;"
+          script="${script} ./_build/build-containers.sh --use-ci-registry --build-targets "2025.1 master" --build-images all --image-tag "\$hash-debian-bookworm" --dont-fetch-images;"
 
           ssh -i /srv/github/id_ci -o StrictHostKeyChecking=no \
               -o UserKnownHostsFile=/dev/null \
               debian@10.0.2.2 "${script}"
-
 
   functional_matrix:
     name: "Build a test cloud for ${{ matrix.test.description }}"
@@ -73,6 +80,22 @@ jobs:
             'name': 'master-rocky9-aio',
             'description': 'OpenStack master on Rocky 9 all-in-one',
             'release': 'master',
+            'base': 'rocky:9',
+            'baseuser': 'cloud-user',
+            'topology': 'all-in-one'
+          },
+          {
+            'name': '2025.1-debian12-aio',
+            'description': 'OpenStack 2025.1 on Debian 12 all-in-one',
+            'release': '2025.1',
+            'base': 'debian:12',
+            'baseuser': 'debian',
+            'topology': 'all-in-one'
+          },
+          {
+            'name': '2025.1-rocky9-aio',
+            'description': 'OpenStack 2025.1 on Rocky 9 all-in-one',
+            'release': '2025.1',
             'base': 'rocky:9',
             'baseuser': 'cloud-user',
             'topology': 'all-in-one'
