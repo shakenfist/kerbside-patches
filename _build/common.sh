@@ -49,8 +49,6 @@ if [ -z ${CI_COMMIT_SHORT_SHA} ]; then
 fi
 
 # Parse command line
-export positional_args=()
-
 while [[ $# -gt 0 ]]; do
     case $1 in
         --compact-archive)
@@ -102,18 +100,8 @@ while [[ $# -gt 0 ]]; do
             echo "Unknown option $1"
             exit 1
             ;;
-        *)
-            positional_args+=("$1")
-            shift
-            ;;
     esac
 done
-
-# You can't export bash arrays, so we dance instead
-export positional_args=$(printf "%s\n" "${positional_args[@]}")
-if [ -z ${positional_args} ]; then
-    export positional_args=$(find . -type f -name "config.yaml" | cut -f 2 -d "/")
-fi
 
 # Ensure we fail even when piping output to ts
 set -o pipefail
