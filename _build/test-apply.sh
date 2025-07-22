@@ -17,7 +17,7 @@ if [ ${skip_tests} == "true" ]; then
 fi
 
 for project in ${@}; do
-    ./_build/apply-patches-and-test.sh ${project} ${extra}
+    ./_build/apply-patches-and-test.sh ${extra} ${project}
 done
 
 trap - EXIT
