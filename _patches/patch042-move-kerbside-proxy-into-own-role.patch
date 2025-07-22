@@ -1,4 +1,4 @@
-commit 083d385d4905bf99a1d16d04d6590503fc2960e6
+commit 86228caca44e8dc4ef59791c9395ebbbe0349e51
 Author: Michael Still <mikal@stillhq.com>
 Date:   Tue Jul 8 11:10:12 2025 +1000
 
@@ -194,7 +194,7 @@ index c41d85407..d714c3134 100644
  
 diff --git a/ansible/roles/kerbside/defaults/main.yml b/ansible/roles/kerbside/defaults/main.yml
 new file mode 100644
-index 000000000..91c3d84af
+index 000000000..5403e54e1
 --- /dev/null
 +++ b/ansible/roles/kerbside/defaults/main.yml
 @@ -0,0 +1,74 @@
@@ -271,7 +271,7 @@ index 000000000..91c3d84af
 +###################
 +# Copy certificates
 +###################
-+kerbside_copy_certs: "{{ yes | bool }}"
++kerbside_copy_certs: "{{ 'yes' | bool }}"
 diff --git a/ansible/roles/kerbside/handlers/main.yml b/ansible/roles/kerbside/handlers/main.yml
 new file mode 100644
 index 000000000..a2d5d67bb
