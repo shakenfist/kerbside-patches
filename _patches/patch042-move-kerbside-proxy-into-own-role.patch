@@ -1,4 +1,4 @@
-commit 022d9bb971e6984eec21439ba9e8ba927a687fe1
+commit 066f08f75a8bfb981a8e678cf7a1bf784ec60320
 Author: Michael Still <mikal@stillhq.com>
 Date:   Tue Jul 8 11:10:12 2025 +1000
 
@@ -193,6 +193,104 @@ index c41d85407..d714c3134 100644
  # Following an upgrade, data migrations should be performed for the API
  # database.  This should be done once all cells have been upgraded.
  
+diff --git a/ansible/roles/certificates/tasks/generate-kerbside.yml b/ansible/roles/certificates/tasks/generate-kerbside.yml
+deleted file mode 100644
+index 1e435c5f9..000000000
+--- a/ansible/roles/certificates/tasks/generate-kerbside.yml
++++ /dev/null
+@@ -1,78 +0,0 @@
+----
+-- name: Ensuring private kerbside directory exists
+-  file:
+-    path: "{{ kerbside_dir }}"
+-    state: "directory"
+-    mode: "0770"
+-
+-- name: Creating kerbside SSL configuration file
+-  template:
+-    src: "{{ item }}.j2"
+-    dest: "{{ kolla_certificates_dir }}/{{ item }}"
+-    mode: "0660"
+-  with_items:
+-    - "openssl-kolla-kerbside.cnf"
+-
+-- name: Creating kerbside certificate key
+-  command: >
+-    openssl genrsa
+-    -out "{{ kerbside_dir }}/kerbside.key" 2048
+-  args:
+-    creates: "{{ kerbside_dir }}/kerbside.key"
+-
+-- name: Creating kerbside certificate signing request
+-  command: >
+-    openssl req
+-    -new
+-    -key "{{ kerbside_dir }}/kerbside.key"
+-    -out "{{ kerbside_dir }}/kerbside.csr"
+-    -config "{{ kolla_certificates_dir }}/openssl-kolla-kerbside.cnf"
+-    -sha256
+-  args:
+-    creates: "{{ kerbside_dir }}/kerbside.csr"
+-
+-- name: Creating kerbside certificate
+-  command: >
+-    openssl x509
+-    -req
+-    -in "{{ kerbside_dir }}/kerbside.csr"
+-    -CA "{{ root_dir }}/root.crt"
+-    -CAkey "{{ root_dir }}/root.key"
+-    -CAcreateserial
+-    -extensions v3_req
+-    -extfile "{{ kolla_certificates_dir }}/openssl-kolla-kerbside.cnf"
+-    -out "{{ kerbside_dir }}/kerbside.crt"
+-    -days 500
+-    -sha256
+-  args:
+-    creates: "{{ kerbside_dir }}/kerbside.crt"
+-
+-- name: Setting permissions on kerbside key
+-  file:
+-    path: "{{ kerbside_dir }}/kerbside.key"
+-    mode: "0660"
+-    state: file
+-
+-- name: Ensure kerbside output directory exists
+-  file:
+-    path: "{{ certificates_kerbside_output_dir }}"
+-    state: directory
+-    mode: "0770"
+-
+-- name: Copy kerbside root CA to default configuration location
+-  copy:
+-    src: "{{ root_dir }}/root.crt"
+-    dest: "{{ certificates_kerbside_output_dir }}/cacert.pem"
+-    mode: "0660"
+-
+-- name: Copy kerbside cert to default configuration locations
+-  copy:
+-    src: "{{ kerbside_dir }}/kerbside.crt"
+-    dest: "{{ certificates_kerbside_output_dir }}/servercert.pem"
+-    mode: "0660"
+-
+-- name: Copy kerbside key to default configuration locations
+-  copy:
+-    src: "{{ kerbside_dir }}/kerbside.key"
+-    dest: "{{ certificates_kerbside_output_dir }}/serverkey.pem"
+-    mode: "0660"
+\ No newline at end of file
+diff --git a/ansible/roles/certificates/tasks/main.yml b/ansible/roles/certificates/tasks/main.yml
+index a1d0551eb..b66a6a478 100644
+--- a/ansible/roles/certificates/tasks/main.yml
++++ b/ansible/roles/certificates/tasks/main.yml
+@@ -5,6 +5,4 @@
+   when:
+     - kolla_enable_tls_backend | bool or rabbitmq_enable_tls | bool or database_enable_tls_backend | bool
+ - include_tasks: generate-libvirt.yml
+-  when: certificates_generate_libvirt | bool
+-- include_tasks: generate-kerbside.yml
+-  when: certificates_generate_kerbside | bool
++  when: certificates_generate_libvirt | bool
+\ No newline at end of file
 diff --git a/ansible/roles/kerbside/defaults/main.yml b/ansible/roles/kerbside/defaults/main.yml
 new file mode 100644
 index 000000000..5403e54e1
@@ -393,10 +491,10 @@ index 000000000..b7e2f7c29
 +    name: service-check-containers
 diff --git a/ansible/roles/kerbside/tasks/config.yml b/ansible/roles/kerbside/tasks/config.yml
 new file mode 100644
-index 000000000..75d69cb74
+index 000000000..bc47f33b5
 --- /dev/null
 +++ b/ansible/roles/kerbside/tasks/config.yml
-@@ -0,0 +1,59 @@
+@@ -0,0 +1,61 @@
 +---
 +- name: Ensuring config directories exist
 +  become: true
@@ -448,6 +546,8 @@ index 000000000..75d69cb74
 +    - kerbside_services["kerbside_proxy"].enabled | bool
 +  notify:
 +    - "Restart kerbside_proxy container"
++
++- include_tasks: copy-certs.yml
 +
 +- name: Copying over config.json files for services
 +  become: true
