@@ -1,6 +1,6 @@
-commit c5f3529ccdb861dfd7ece92ca32d6f02f46ee4b5
+commit 9feb3c24e04b50de1bc06a654066d41859c24b75
 Author: Michael Still <mikal@stillhq.com>
-Date:   Mon Jul 7 05:37:46 2025 +1000
+Date:   Thu Jul 24 05:27:31 2025 +1000
 
     Implement USB controller extra spec for libvirt.
     
@@ -9,9 +9,10 @@ Date:   Mon Jul 7 05:37:46 2025 +1000
     redirection support is a frequently requested feature for VDI users.
     
     Change-Id: I71edd03b5c63a8028c23a746c01c59d303994144
+    Signed-off-by: Michael Still <mikal@stillhq.com>
 
 diff --git a/nova/api/validation/extra_specs/hw.py b/nova/api/validation/extra_specs/hw.py
-index c50355b..40a815f 100644
+index c50355b..2ce79cb 100644
 --- a/nova/api/validation/extra_specs/hw.py
 +++ b/nova/api/validation/extra_specs/hw.py
 @@ -552,6 +552,32 @@ feature_flag_validators = [
@@ -257,22 +258,47 @@ index d6d5534..c585df4 100644
  
          self._guest_add_pci_devices(guest, instance)
  
+diff --git a/releasenotes/notes/sound-model-extra-specs-2bcbe644b889005c.yaml b/releasenotes/notes/sound-model-extra-specs-2bcbe644b889005c.yaml
+index 4ead886..ebc0f0f 100644
+--- a/releasenotes/notes/sound-model-extra-specs-2bcbe644b889005c.yaml
++++ b/releasenotes/notes/sound-model-extra-specs-2bcbe644b889005c.yaml
+@@ -1,11 +1,12 @@
+ ---
+ features:
+   - |
+-    The `hw:sound_model` flavor extra spec and the matching `hw_sound_model`
+-    image property were added to allow the configuration of a sound device
+-    within an instance. This is useful with the new spice-direct console
+-    type. The default remains no sound device, but when using the libvirt
+-    hypervisor driver you can select from `sb16`, `es1370`, `pcspk`, `ac97`,
+-    `ich6`, `ich9`, `usb`, and `virtio`. For most use-cases `usb` is
+-    likely to be the best choice unless you have at least libvirt 8.2.0 and
+-    libvirt 10.4.0.
++    The ``hw:sound_model`` flavor extra spec and the matching
++    ``hw_sound_model`` image property were added to allow the
++    configuration of a sound device within an instance. This is useful
++    with the new spice-direct console type. The default remains no sound
++    device, but when using the libvirt hypervisor driver you can select
++    from ``sb16``, ``es1370``, ``pcspk``, ``ac97``, ``ich6``, ``ich9``,
++    ``usb``, and ``virtio``. For most use-cases ``usb`` is likely to be
++    the best choice unless you have at least libvirt 8.2.0 and libvirt
++    10.4.0.
 diff --git a/releasenotes/notes/usb-controller-extra-specs-a2209e3563d18a26.yaml b/releasenotes/notes/usb-controller-extra-specs-a2209e3563d18a26.yaml
 new file mode 100644
-index 0000000..08ae50e
+index 0000000..f23156c
 --- /dev/null
 +++ b/releasenotes/notes/usb-controller-extra-specs-a2209e3563d18a26.yaml
 @@ -0,0 +1,13 @@
 +---
 +features:
 +  - |
-+    The `hw:usb_model` flavor extra spec and the matching `hw_usb_model`
++    The ``hw:usb_model`` flavor extra spec and the matching ``hw_usb_model``
 +    image property were added to allow the configuration of a USB controller
 +    within an instance. This is useful with the new spice-direct console
 +    type which supports passing through USB devices from the client to the
 +    instance, such as a smart card reader. There is also an additional
-+    `hw:redirected_usb_ports` / `hw_redirected_usb_ports` pair which
++    ``hw:redirected_usb_ports`` / ``hw_redirected_usb_ports`` pair which
 +    controls how many ports the USB controller has. This number will
 +    vary based on the USB controller selected. The default remains no
 +    USB controller, but when using the libvirt hypervisor driver you can
-+    now also select from `qemu_xhci` and `nec_xhci`.
++    now also select from ``qemu_xhci`` and ``nec_xhci``.
