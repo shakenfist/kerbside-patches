@@ -1,4 +1,3 @@
-../_patches/patch025-sound-model-extra-spec.patch
 ../_patches/patch031-compute-manager-version-sound-model.patch
 ../_patches/patch029-usb-redirection-extra-spec.patch
 ../_patches/patch010-allow-concurrent-spice-connections.patch
