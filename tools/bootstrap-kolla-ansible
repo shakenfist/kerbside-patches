@@ -45,6 +45,10 @@ fi
 pip3 install -U ${ansible_core} ansible dbus-python
 echo
 
+echo -e "${H2}Upgrade the POSIX ansible collection${Color_Off}"
+ansible-galaxy collection install ansible.posix --upgrade
+echo
+
 echo -e "${H2}Install docker python libraries${Color_Off}"
 pip3 install docker
 echo

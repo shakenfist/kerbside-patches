@@ -1,0 +1,23 @@
+commit af678f0062650c0ee99fd7da641e5785760564ca
+Author: Michael Still <mikal@stillhq.com>
+Date:   Thu Jul 24 09:21:06 2025 +1000
+
+    Backport proxysql for epoxy.
+
+diff --git a/ansible/roles/kerbside/defaults/main.yml b/ansible/roles/kerbside/defaults/main.yml
+index 5403e54e1..16b8e5afe 100644
+--- a/ansible/roles/kerbside/defaults/main.yml
++++ b/ansible/roles/kerbside/defaults/main.yml
+@@ -53,12 +53,9 @@ kerbside_database_shard:
+   users:
+     - user: "{{ kerbside_database_user }}"
+       password: "{{ kerbside_database_password }}"
+-      shard_id: "{{ kerbside_database_shard_id }}"
+   rules:
+     - schema: "{{ kerbside_database_name }}"
+       shard_id: "{{ kerbside_database_shard_id }}"
+-    - user: "{{ kerbside_database_user }}"
+-      shard_id: "{{ kerbside_database_shard_id }}"
+ 
+ ####################
+ # Kolla
