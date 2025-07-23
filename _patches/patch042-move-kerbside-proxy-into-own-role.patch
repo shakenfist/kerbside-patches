@@ -1,4 +1,4 @@
-commit 86228caca44e8dc4ef59791c9395ebbbe0349e51
+commit 022d9bb971e6984eec21439ba9e8ba927a687fe1
 Author: Michael Still <mikal@stillhq.com>
 Date:   Tue Jul 8 11:10:12 2025 +1000
 
@@ -7,10 +7,10 @@ Date:   Tue Jul 8 11:10:12 2025 +1000
     Signed-off-by: Michael Still <mikal@stillhq.com>
 
 diff --git a/ansible/group_vars/all.yml b/ansible/group_vars/all.yml
-index 1b82d8150..31918d578 100644
+index 1b82d8150..4c5154e85 100644
 --- a/ansible/group_vars/all.yml
 +++ b/ansible/group_vars/all.yml
-@@ -952,9 +952,11 @@ glance_keystone_user: "glance"
+@@ -952,9 +952,12 @@ glance_keystone_user: "glance"
  # Kerbside configuration options
  kerbside_keystone_user: "kerbside"
  kerbside_port: 13002
@@ -19,6 +19,7 @@ index 1b82d8150..31918d578 100644
  kerbside_vdi_secure_port: 5898
  kerbside_api_url: "http://{{ kolla_external_fqdn }}:{{ kerbside_port }}"
 +kerbside_safety_upgrade: "no"
++kerbside_enable_tls_backend: "yes"
  
  # Nova fake driver and the number of fake driver per compute node
  enable_nova_fake: "no"
