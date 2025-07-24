@@ -47,7 +47,7 @@ jobs:
           . $GITHUB_ENV
 
           script="cd /srv/shakenfist/kerbside-patches;"
-          script="${script} hash=\$(./_build/calculate-container-hash.sh kolla kolla-2*);"
+          script="${script} hash=\$(./_build/calculate-container-hash.sh kolla kolla-2* nova nova-2*);"
           script="${script} ./_build/build-containers.sh --use-ci-registry --build-targets "master" --build-images all --image-tag "\$hash-debian-bookworm" --dont-fetch-images;"
 
           ssh -i /srv/github/id_ci -o StrictHostKeyChecking=no \
@@ -78,7 +78,7 @@ jobs:
           . $GITHUB_ENV
 
           script="cd /srv/shakenfist/kerbside-patches;"
-          script="${script} hash=\$(./_build/calculate-container-hash.sh kolla kolla-2*);"
+          script="${script} hash=\$(./_build/calculate-container-hash.sh kolla kolla-2* nova nova-2*);"
           script="${script} ./_build/build-containers.sh --use-ci-registry --build-targets "2025.1" --build-images all --image-tag "\$hash-debian-bookworm" --dont-fetch-images;"
 
           ssh -i /srv/github/id_ci -o StrictHostKeyChecking=no \
@@ -157,7 +157,7 @@ jobs:
           . $GITHUB_ENV
 
           script="cd /srv/shakenfist/kerbside-patches;"
-          script="${script} hash=\$(./_build/calculate-container-hash.sh kolla kolla-2*);"
+          script="${script} hash=\$(./_build/calculate-container-hash.sh kolla kolla-2* nova nova-2*);"
           script="${script} ./_build/build-containers.sh --use-ci-registry --build-targets ${{ matrix.test.release }} --build-images all --image-tag "\$hash-debian-bookworm" --dont-fetch-images;"
 
           ssh -i /srv/github/id_ci -o StrictHostKeyChecking=no \
