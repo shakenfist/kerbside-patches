@@ -1,6 +1,6 @@
-commit 9feb3c24e04b50de1bc06a654066d41859c24b75
+commit 2c9137b2c2fcc9f5b43cc2449fea2c7200be235d
 Author: Michael Still <mikal@stillhq.com>
-Date:   Thu Jul 24 05:27:31 2025 +1000
+Date:   Thu Jul 24 09:54:29 2025 +1000
 
     Implement USB controller extra spec for libvirt.
     
@@ -12,10 +12,10 @@ Date:   Thu Jul 24 05:27:31 2025 +1000
     Signed-off-by: Michael Still <mikal@stillhq.com>
 
 diff --git a/nova/api/validation/extra_specs/hw.py b/nova/api/validation/extra_specs/hw.py
-index c50355b..2ce79cb 100644
+index c50355b..9a9e8f9 100644
 --- a/nova/api/validation/extra_specs/hw.py
 +++ b/nova/api/validation/extra_specs/hw.py
-@@ -552,6 +552,32 @@ feature_flag_validators = [
+@@ -552,6 +552,33 @@ feature_flag_validators = [
              'enum': fields.SoundModelType.ALL,
          },
      ),
@@ -43,6 +43,7 @@ index c50355b..2ce79cb 100644
 +            'type': int,
 +            'description': 'The number of USB redirection devices to add',
 +            'min': 0,
++            'max': 15
 +        },
 +    ),
  ]
@@ -83,6 +84,82 @@ index 60863e5..5903ed7 100644
  )
  
  # This is the version after which we can rely on having a persistent
+diff --git a/nova/tests/unit/compute/test_flavors.py b/nova/tests/unit/compute/test_flavors.py
+index ba0eabc..f5cf447 100644
+--- a/nova/tests/unit/compute/test_flavors.py
++++ b/nova/tests/unit/compute/test_flavors.py
+@@ -22,6 +22,7 @@ from nova import exception
+ from nova import objects
+ from nova.objects import base as obj_base
+ from nova import test
++from nova.virt.hardware import get_redirected_usb_ports
+ 
+ 
+ class TestValidateExtraSpecKeys(test.NoDBTestCase):
+@@ -292,3 +293,63 @@ class TestCreateFlavor(test.TestCase):
+         self.assertRaises(
+             exception.FlavorIdExists,
+             flavors.create, 'flavor2', 64, 1, 120, flavorid='flavorid')
++
++
++class RedirectedUSBPortsFlavorTests(test.TestCase):
++    def setUp(self):
++        super().setUp()
++
++        self.image_meta = objects.ImageMeta.from_dict(
++            {
++                'status': 'active',
++                'container_format': 'bare',
++                'min_ram': 0,
++                'updated_at': '2014-12-12T11:16:36.000000',
++                'min_disk': 0,
++                'owner': '2d8b9502858c406ebee60f0849486222',
++                'protected': 'yes',
++                'properties': {
++                    'os_type': 'Linux',
++                    'hw_video_model': 'vga',
++                    'hw_video_ram': '512',
++                    'hw_qemu_guest_agent': 'yes',
++                    'hw_scsi_model': 'virtio-scsi',
++                },
++                'size': 213581824,
++                'name': 'f16-x86_64-openstack-sda',
++                'checksum': '755122332caeb9f661d5c978adb8b45f',
++                'created_at': '2014-12-10T16:23:14.000000',
++                'disk_format': 'qcow2',
++                'id': 'c8b1790e-a07d-4971-b137-44f2432936cd',
++            }
++        )
++
++    def test_redirected_usb_ports_flavor_specs_integer(self):
++        self.assertEqual(
++            1, get_redirected_usb_ports(
++            {
++                'extra_specs': {
++                    'hw:redirected_usb_ports': 1
++                }
++            },
++        self.image_meta))
++
++    def test_redirected_usb_ports_flavor_specs_integer_as_string(self):
++        self.assertEqual(
++            1, get_redirected_usb_ports(
++            {
++                'extra_specs': {
++                    'hw:redirected_usb_ports': '1'
++                }
++            },
++            self.image_meta))
++
++    def test_redirected_usb_ports_flavor_specs_non_integer(self):
++        self.assertRaises(exception.Invalid,
++            get_redirected_usb_ports,
++            {
++                'extra_specs': {
++                    'hw:redirected_usb_ports': 'banana'
++                }
++            },
++            self.image_meta)
 diff --git a/nova/tests/unit/objects/test_image_meta.py b/nova/tests/unit/objects/test_image_meta.py
 index 508ed4d..fab3ae8 100644
 --- a/nova/tests/unit/objects/test_image_meta.py
@@ -110,10 +187,10 @@ index 508ed4d..fab3ae8 100644
          obj = objects.ImageMetaProps(
              hw_pci_numa_affinity_policy=fields.PCINUMAAffinityPolicy.SOCKET)
 diff --git a/nova/virt/hardware.py b/nova/virt/hardware.py
-index d35d17f..a365440 100644
+index d35d17f..7b52759 100644
 --- a/nova/virt/hardware.py
 +++ b/nova/virt/hardware.py
-@@ -2940,3 +2940,57 @@ def get_sound_model(
+@@ -2940,3 +2940,66 @@ def get_sound_model(
          )
  
      return model
@@ -164,11 +241,20 @@ index d35d17f..a365440 100644
 +        'redirected_usb_ports', flavor, image_meta)
 +    if not count:
 +        count = 0
++    else:
++        try:
++            count = int(count)
++        except ValueError:
++            raise exception.Invalid('"%s" is not a valid integer.' % count)
++
++    if count < 0:
++        raise exception.Invalid(
++            'You cannot have a negative number of USB ports.')
 +    elif count > 15:
 +        # NOTE(mikal): XHCI controllers only support up to 15 ports. This isn't
 +        # documented in the libvirt domain XML documentation at the moment, but
 +        # is at https://www.kraxel.org/blog/2018/08/qemu-usb-tips/.
-+        raise exception.Invalid('Nova  only supports up to 15 USB ports.')
++        raise exception.Invalid('Nova only supports up to 15 USB ports.')
 +
 +    return count
 diff --git a/nova/virt/libvirt/config.py b/nova/virt/libvirt/config.py
