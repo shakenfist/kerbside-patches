@@ -9,6 +9,8 @@ Date:   Wed May 7 19:53:17 2025 +1000
     referenced change has now merged, remove the TODO and the temporary
     fix.
 
+    Change-Id: If2b9aff8f1900fb98e038972e775c3eddaad373f
+
 diff --git a/docker/skyline/skyline-apiserver/Dockerfile.j2 b/docker/skyline/skyline-apiserver/Dockerfile.j2
 index a34178a85..00c871165 100644
 --- a/docker/skyline/skyline-apiserver/Dockerfile.j2
