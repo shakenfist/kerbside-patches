@@ -1,6 +1,6 @@
-commit 2c9137b2c2fcc9f5b43cc2449fea2c7200be235d
+commit 32d6e90f61a32a7b67d6d98b89cc39876f97d02e
 Author: Michael Still <mikal@stillhq.com>
-Date:   Thu Jul 24 09:54:29 2025 +1000
+Date:   Sat Jul 26 16:05:49 2025 +1000
 
     Implement USB controller extra spec for libvirt.
     
@@ -85,7 +85,7 @@ index 60863e5..5903ed7 100644
  
  # This is the version after which we can rely on having a persistent
 diff --git a/nova/tests/unit/compute/test_flavors.py b/nova/tests/unit/compute/test_flavors.py
-index ba0eabc..f5cf447 100644
+index ba0eabc..fef5417 100644
 --- a/nova/tests/unit/compute/test_flavors.py
 +++ b/nova/tests/unit/compute/test_flavors.py
 @@ -22,6 +22,7 @@ from nova import exception
@@ -96,7 +96,7 @@ index ba0eabc..f5cf447 100644
  
  
  class TestValidateExtraSpecKeys(test.NoDBTestCase):
-@@ -292,3 +293,63 @@ class TestCreateFlavor(test.TestCase):
+@@ -292,3 +293,73 @@ class TestCreateFlavor(test.TestCase):
          self.assertRaises(
              exception.FlavorIdExists,
              flavors.create, 'flavor2', 64, 1, 120, flavorid='flavorid')
@@ -150,6 +150,16 @@ index ba0eabc..f5cf447 100644
 +                }
 +            },
 +            self.image_meta))
++
++    def test_redirected_usb_ports_flavor_specs_integer_is_negative(self):
++        self.assertRaises(exception.Invalid,
++            get_redirected_usb_ports,
++            {
++                'extra_specs': {
++                    'hw:redirected_usb_ports': -1
++                }
++            },
++            self.image_meta)
 +
 +    def test_redirected_usb_ports_flavor_specs_non_integer(self):
 +        self.assertRaises(exception.Invalid,
