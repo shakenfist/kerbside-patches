@@ -1,13 +1,13 @@
-commit 066f08f75a8bfb981a8e678cf7a1bf784ec60320
+commit 9bc5ab397afe8dbce717a661dbb6980af198a652
 Author: Michael Still <mikal@stillhq.com>
-Date:   Tue Jul 8 11:10:12 2025 +1000
+Date:   Mon Jul 28 08:35:03 2025 +1000
 
     Move kerbside proxy into its own role.
     
     Signed-off-by: Michael Still <mikal@stillhq.com>
 
 diff --git a/ansible/group_vars/all.yml b/ansible/group_vars/all.yml
-index 1b82d8150..4c5154e85 100644
+index 2024fcc..7c2a816 100644
 --- a/ansible/group_vars/all.yml
 +++ b/ansible/group_vars/all.yml
 @@ -952,9 +952,12 @@ glance_keystone_user: "glance"
@@ -24,7 +24,7 @@ index 1b82d8150..4c5154e85 100644
  # Nova fake driver and the number of fake driver per compute node
  enable_nova_fake: "no"
 diff --git a/ansible/inventory/all-in-one b/ansible/inventory/all-in-one
-index 3404adc08..70aa89c03 100644
+index 13af9b4..0cb48e9 100644
 --- a/ansible/inventory/all-in-one
 +++ b/ansible/inventory/all-in-one
 @@ -18,6 +18,9 @@ localhost       ansible_connection=local
@@ -45,7 +45,7 @@ index 3404adc08..70aa89c03 100644
  
  [collectd:children]
  compute
-@@ -49,6 +53,7 @@ control
+@@ -50,6 +54,7 @@ control
  monitoring
  network
  storage
@@ -53,7 +53,7 @@ index 3404adc08..70aa89c03 100644
  
  [hacluster:children]
  control
-@@ -229,9 +234,16 @@ nova
+@@ -230,9 +235,16 @@ nova
  [nova-serialproxy:children]
  nova
  
@@ -72,7 +72,7 @@ index 3404adc08..70aa89c03 100644
  [neutron-server:children]
  control
 diff --git a/ansible/inventory/multinode b/ansible/inventory/multinode
-index a61793460..f18c7dcd7 100644
+index c5ea3e3..56ec884 100644
 --- a/ansible/inventory/multinode
 +++ b/ansible/inventory/multinode
 @@ -29,6 +29,10 @@ monitoring01
@@ -94,7 +94,7 @@ index a61793460..f18c7dcd7 100644
  
  [tls-backend:children]
  control
-@@ -51,6 +56,7 @@ network
+@@ -52,6 +57,7 @@ network
  compute
  storage
  monitoring
@@ -102,7 +102,7 @@ index a61793460..f18c7dcd7 100644
  
  [collectd:children]
  compute
-@@ -73,6 +79,7 @@ control
+@@ -74,6 +80,7 @@ control
  monitoring
  network
  storage
@@ -110,7 +110,7 @@ index a61793460..f18c7dcd7 100644
  
  [hacluster:children]
  control
-@@ -247,9 +254,16 @@ nova
+@@ -248,9 +255,16 @@ nova
  [nova-serialproxy:children]
  nova
  
@@ -129,7 +129,7 @@ index a61793460..f18c7dcd7 100644
  [neutron-server:children]
  control
 diff --git a/ansible/nova.yml b/ansible/nova.yml
-index c41d85407..d714c3134 100644
+index c41d854..d714c31 100644
 --- a/ansible/nova.yml
 +++ b/ansible/nova.yml
 @@ -20,6 +20,9 @@
@@ -195,7 +195,7 @@ index c41d85407..d714c3134 100644
  
 diff --git a/ansible/roles/certificates/tasks/generate-kerbside.yml b/ansible/roles/certificates/tasks/generate-kerbside.yml
 deleted file mode 100644
-index 1e435c5f9..000000000
+index 1e435c5..0000000
 --- a/ansible/roles/certificates/tasks/generate-kerbside.yml
 +++ /dev/null
 @@ -1,78 +0,0 @@
@@ -279,12 +279,15 @@ index 1e435c5f9..000000000
 -    mode: "0660"
 \ No newline at end of file
 diff --git a/ansible/roles/certificates/tasks/main.yml b/ansible/roles/certificates/tasks/main.yml
-index a1d0551eb..b66a6a478 100644
+index a1d0551..a79282a 100644
 --- a/ansible/roles/certificates/tasks/main.yml
 +++ b/ansible/roles/certificates/tasks/main.yml
-@@ -5,6 +5,4 @@
+@@ -3,8 +3,6 @@
+ - include_tasks: generate.yml
+ - include_tasks: generate-backend.yml
    when:
-     - kolla_enable_tls_backend | bool or rabbitmq_enable_tls | bool or database_enable_tls_backend | bool
+-    - kolla_enable_tls_backend | bool or rabbitmq_enable_tls | bool or database_enable_tls_backend | bool
++    - kolla_enable_tls_backend | bool or rabbitmq_enable_tls | bool or database_enable_tls_backend | bool or enable_kerbside | bool
  - include_tasks: generate-libvirt.yml
 -  when: certificates_generate_libvirt | bool
 -- include_tasks: generate-kerbside.yml
@@ -293,7 +296,7 @@ index a1d0551eb..b66a6a478 100644
 \ No newline at end of file
 diff --git a/ansible/roles/kerbside/defaults/main.yml b/ansible/roles/kerbside/defaults/main.yml
 new file mode 100644
-index 000000000..5403e54e1
+index 0000000..5403e54
 --- /dev/null
 +++ b/ansible/roles/kerbside/defaults/main.yml
 @@ -0,0 +1,74 @@
@@ -373,7 +376,7 @@ index 000000000..5403e54e1
 +kerbside_copy_certs: "{{ 'yes' | bool }}"
 diff --git a/ansible/roles/kerbside/handlers/main.yml b/ansible/roles/kerbside/handlers/main.yml
 new file mode 100644
-index 000000000..a2d5d67bb
+index 0000000..a2d5d67
 --- /dev/null
 +++ b/ansible/roles/kerbside/handlers/main.yml
 @@ -0,0 +1,18 @@
@@ -397,7 +400,7 @@ index 000000000..a2d5d67bb
 +    - kolla_action != "upgrade" or not kerbside_safety_upgrade | bool
 diff --git a/ansible/roles/kerbside/tasks/bootstrap.yml b/ansible/roles/kerbside/tasks/bootstrap.yml
 new file mode 100644
-index 000000000..9e7c8f8a1
+index 0000000..9e7c8f8
 --- /dev/null
 +++ b/ansible/roles/kerbside/tasks/bootstrap.yml
 @@ -0,0 +1,53 @@
@@ -457,7 +460,7 @@ index 000000000..9e7c8f8a1
 \ No newline at end of file
 diff --git a/ansible/roles/kerbside/tasks/bootstrap_service.yml b/ansible/roles/kerbside/tasks/bootstrap_service.yml
 new file mode 100644
-index 000000000..79e635cfe
+index 0000000..79e635c
 --- /dev/null
 +++ b/ansible/roles/kerbside/tasks/bootstrap_service.yml
 @@ -0,0 +1,18 @@
@@ -482,7 +485,7 @@ index 000000000..79e635cfe
 \ No newline at end of file
 diff --git a/ansible/roles/kerbside/tasks/check-containers.yml b/ansible/roles/kerbside/tasks/check-containers.yml
 new file mode 100644
-index 000000000..b7e2f7c29
+index 0000000..b7e2f7c
 --- /dev/null
 +++ b/ansible/roles/kerbside/tasks/check-containers.yml
 @@ -0,0 +1,3 @@
@@ -491,7 +494,7 @@ index 000000000..b7e2f7c29
 +    name: service-check-containers
 diff --git a/ansible/roles/kerbside/tasks/config.yml b/ansible/roles/kerbside/tasks/config.yml
 new file mode 100644
-index 000000000..bc47f33b5
+index 0000000..bc47f33
 --- /dev/null
 +++ b/ansible/roles/kerbside/tasks/config.yml
 @@ -0,0 +1,61 @@
@@ -559,7 +562,7 @@ index 000000000..bc47f33b5
 \ No newline at end of file
 diff --git a/ansible/roles/kerbside/tasks/copy-certs.yml b/ansible/roles/kerbside/tasks/copy-certs.yml
 new file mode 100644
-index 000000000..c80990f8c
+index 0000000..c80990f
 --- /dev/null
 +++ b/ansible/roles/kerbside/tasks/copy-certs.yml
 @@ -0,0 +1,6 @@
@@ -571,7 +574,7 @@ index 000000000..c80990f8c
 +    project_services: "{{ kerbside_services }}"
 diff --git a/ansible/roles/kerbside/tasks/deploy.yml b/ansible/roles/kerbside/tasks/deploy.yml
 new file mode 100644
-index 000000000..ca3509aff
+index 0000000..ca3509a
 --- /dev/null
 +++ b/ansible/roles/kerbside/tasks/deploy.yml
 @@ -0,0 +1,7 @@
@@ -584,7 +587,7 @@ index 000000000..ca3509aff
 +  meta: flush_handlers
 diff --git a/ansible/roles/kerbside/tasks/loadbalancer.yml b/ansible/roles/kerbside/tasks/loadbalancer.yml
 new file mode 100644
-index 000000000..0699d8962
+index 0000000..0699d89
 --- /dev/null
 +++ b/ansible/roles/kerbside/tasks/loadbalancer.yml
 @@ -0,0 +1,7 @@
@@ -597,7 +600,7 @@ index 000000000..0699d8962
 +  tags: always
 diff --git a/ansible/roles/kerbside/tasks/main.yml b/ansible/roles/kerbside/tasks/main.yml
 new file mode 100644
-index 000000000..37171d53b
+index 0000000..37171d5
 --- /dev/null
 +++ b/ansible/roles/kerbside/tasks/main.yml
 @@ -0,0 +1,2 @@
@@ -606,7 +609,7 @@ index 000000000..37171d53b
 \ No newline at end of file
 diff --git a/ansible/roles/kerbside/tasks/precheck.yml b/ansible/roles/kerbside/tasks/precheck.yml
 new file mode 100644
-index 000000000..56917a34c
+index 0000000..56917a3
 --- /dev/null
 +++ b/ansible/roles/kerbside/tasks/precheck.yml
 @@ -0,0 +1,68 @@
@@ -681,7 +684,7 @@ index 000000000..56917a34c
 \ No newline at end of file
 diff --git a/ansible/roles/kerbside/tasks/pull.yml b/ansible/roles/kerbside/tasks/pull.yml
 new file mode 100644
-index 000000000..53f9c5fda
+index 0000000..53f9c5f
 --- /dev/null
 +++ b/ansible/roles/kerbside/tasks/pull.yml
 @@ -0,0 +1,3 @@
@@ -690,7 +693,7 @@ index 000000000..53f9c5fda
 +    role: service-images-pull
 diff --git a/ansible/roles/kerbside/tasks/reload.yml b/ansible/roles/kerbside/tasks/reload.yml
 new file mode 100644
-index 000000000..1e879e366
+index 0000000..1e879e3
 --- /dev/null
 +++ b/ansible/roles/kerbside/tasks/reload.yml
 @@ -0,0 +1,22 @@
@@ -718,7 +721,7 @@ index 000000000..1e879e366
 +    - kerbside-proxy
 diff --git a/ansible/roles/kerbside/tasks/upgrade.yml b/ansible/roles/kerbside/tasks/upgrade.yml
 new file mode 100644
-index 000000000..a742b4055
+index 0000000..a742b40
 --- /dev/null
 +++ b/ansible/roles/kerbside/tasks/upgrade.yml
 @@ -0,0 +1,2 @@
@@ -729,7 +732,7 @@ diff --git a/ansible/roles/nova/templates/kerbside_start.j2 b/ansible/roles/kerb
 similarity index 84%
 rename from ansible/roles/nova/templates/kerbside_start.j2
 rename to ansible/roles/kerbside/templates/kerbside_config.j2
-index f8d7120e0..72e084c09 100644
+index f8d7120..72e084c 100644
 --- a/ansible/roles/nova/templates/kerbside_start.j2
 +++ b/ansible/roles/kerbside/templates/kerbside_config.j2
 @@ -12,7 +12,7 @@ export KERBSIDE_LOG_OUTPUT_JSON=true
@@ -765,7 +768,7 @@ diff --git a/ansible/roles/nova/templates/kerbside.json.j2 b/ansible/roles/kerbs
 similarity index 63%
 rename from ansible/roles/nova/templates/kerbside.json.j2
 rename to ansible/roles/kerbside/templates/kerbside_proxy.json.j2
-index 32f9dde0b..1e6a74f95 100644
+index 32f9dde..1e6a74f 100644
 --- a/ansible/roles/nova/templates/kerbside.json.j2
 +++ b/ansible/roles/kerbside/templates/kerbside_proxy.json.j2
 @@ -1,9 +1,9 @@
@@ -820,14 +823,14 @@ rename from ansible/roles/nova/templates/kerbside_sources.yaml.j2
 rename to ansible/roles/kerbside/templates/kerbside_sources.yaml.j2
 diff --git a/ansible/roles/kerbside/vars/main.yml b/ansible/roles/kerbside/vars/main.yml
 new file mode 100644
-index 000000000..fce52d4de
+index 0000000..fce52d4
 --- /dev/null
 +++ b/ansible/roles/kerbside/vars/main.yml
 @@ -0,0 +1,2 @@
 +---
 +project_name: "kerbside"
 diff --git a/ansible/roles/nova/defaults/main.yml b/ansible/roles/nova/defaults/main.yml
-index 897b0b5dd..d7d2b542f 100644
+index 3ffe8c2..cb7feb1 100644
 --- a/ansible/roles/nova/defaults/main.yml
 +++ b/ansible/roles/nova/defaults/main.yml
 @@ -75,14 +75,6 @@ nova_services:
@@ -877,7 +880,7 @@ index 897b0b5dd..d7d2b542f 100644
  ####################
  # OpenStack
  ####################
-@@ -340,11 +307,4 @@ nova_copy_certs: "{{ kolla_copy_ca_into_containers | bool or nova_enable_tls_bac
+@@ -341,11 +308,4 @@ nova_database_enable_tls_internal: "{{ database_enable_tls_internal | bool }}"
  ####################
  # WSGI
  ####################
@@ -892,7 +895,7 @@ index 897b0b5dd..d7d2b542f 100644
 +nova_wsgi_provider: "uwsgi"
 \ No newline at end of file
 diff --git a/ansible/roles/nova/handlers/main.yml b/ansible/roles/nova/handlers/main.yml
-index 5cd6b8c51..59a7bdc49 100644
+index 5cd6b8c..59a7bdc 100644
 --- a/ansible/roles/nova/handlers/main.yml
 +++ b/ansible/roles/nova/handlers/main.yml
 @@ -65,22 +65,4 @@
@@ -921,10 +924,10 @@ index 5cd6b8c51..59a7bdc49 100644
 +    - kolla_action != "upgrade" or not nova_safety_upgrade | bool
 \ No newline at end of file
 diff --git a/ansible/roles/nova/tasks/bootstrap.yml b/ansible/roles/nova/tasks/bootstrap.yml
-index 35d47fad2..57295ef7e 100644
+index ccc27b6..cde4c04 100644
 --- a/ansible/roles/nova/tasks/bootstrap.yml
 +++ b/ansible/roles/nova/tasks/bootstrap.yml
-@@ -14,7 +14,6 @@
+@@ -15,7 +15,6 @@
    with_items:
      - "{{ nova_cell0_database_name }}"
      - "{{ nova_api_database_name }}"
@@ -932,7 +935,7 @@ index 35d47fad2..57295ef7e 100644
    when:
      - not use_preconfigured_databases | bool
  
-@@ -40,9 +39,6 @@
+@@ -42,9 +41,6 @@
      - database_name: "{{ nova_api_database_name }}"
        database_username: "{{ nova_api_database_user }}"
        database_password: "{{ nova_api_database_password }}"
@@ -942,7 +945,7 @@ index 35d47fad2..57295ef7e 100644
    loop_control:
      label: "{{ item.database_name }}"
    run_once: True
-@@ -50,20 +46,6 @@
+@@ -52,20 +48,6 @@
      - not use_preconfigured_databases | bool
    no_log: true
  
@@ -964,7 +967,7 @@ index 35d47fad2..57295ef7e 100644
  
  - include_tasks: clone.yml
 diff --git a/ansible/roles/nova/tasks/config.yml b/ansible/roles/nova/tasks/config.yml
-index e7d155d9c..abbcf939d 100644
+index b785a6a..92e55f4 100644
 --- a/ansible/roles/nova/tasks/config.yml
 +++ b/ansible/roles/nova/tasks/config.yml
 @@ -68,54 +68,6 @@
@@ -1023,7 +1026,7 @@ index e7d155d9c..abbcf939d 100644
    become: true
    template:
 diff --git a/ansible/site.yml b/ansible/site.yml
-index da1150464..d3e91f303 100644
+index da11504..d3e91f3 100644
 --- a/ansible/site.yml
 +++ b/ansible/site.yml
 @@ -42,6 +42,7 @@
