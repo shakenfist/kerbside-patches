@@ -1,0 +1,44 @@
+commit e64e23b0ae454e99e865bef18f41b3402fa1a07c
+Author: Michael Still <mikal@stillhq.com>
+Date:   Mon Jul 28 08:33:02 2025 +1000
+
+    Backport proxysql for epoxy.
+    
+    Signed-off-by: Michael Still <mikal@stillhq.com>
+
+diff --git a/ansible/roles/kerbside/defaults/main.yml b/ansible/roles/kerbside/defaults/main.yml
+index 5403e54..16b8e5a 100644
+--- a/ansible/roles/kerbside/defaults/main.yml
++++ b/ansible/roles/kerbside/defaults/main.yml
+@@ -53,12 +53,9 @@ kerbside_database_shard:
+   users:
+     - user: "{{ kerbside_database_user }}"
+       password: "{{ kerbside_database_password }}"
+-      shard_id: "{{ kerbside_database_shard_id }}"
+   rules:
+     - schema: "{{ kerbside_database_name }}"
+       shard_id: "{{ kerbside_database_shard_id }}"
+-    - user: "{{ kerbside_database_user }}"
+-      shard_id: "{{ kerbside_database_shard_id }}"
+ 
+ ####################
+ # Kolla
+diff --git a/ansible/roles/kerbside/tasks/bootstrap_service.yml b/ansible/roles/kerbside/tasks/bootstrap_service.yml
+index 79e635c..9d650f9 100644
+--- a/ansible/roles/kerbside/tasks/bootstrap_service.yml
++++ b/ansible/roles/kerbside/tasks/bootstrap_service.yml
+@@ -8,11 +8,11 @@
+     environment:
+       KOLLA_BOOTSTRAP:
+       KOLLA_CONFIG_STRATEGY: "{{ config_strategy }}"
+-    image: "{{ kerbside_services['kerbside_proxy']['image'] }}"
++    image: "{{ kerbside_proxy.image }}"
+     labels:
+       BOOTSTRAP:
+     name: "bootstrap_kerbside"
+     restart_policy: oneshot
+-    volumes: "{{ kerbside_services['kerbside_proxy']['volumes'] | reject('equalto', '') | list }}"
++    volumes: "{{ kerbside_proxy.volumes | reject('equalto', '') | list }}"
+   run_once: True
+   delegate_to: "{{ groups['kerbside-proxy'][0] }}"
+\ No newline at end of file
