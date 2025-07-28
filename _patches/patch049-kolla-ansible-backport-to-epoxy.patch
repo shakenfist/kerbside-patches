@@ -23,22 +23,3 @@ index 5403e54..16b8e5a 100644
  
  ####################
  # Kolla
-diff --git a/ansible/roles/kerbside/tasks/bootstrap_service.yml b/ansible/roles/kerbside/tasks/bootstrap_service.yml
-index 79e635c..9d650f9 100644
---- a/ansible/roles/kerbside/tasks/bootstrap_service.yml
-+++ b/ansible/roles/kerbside/tasks/bootstrap_service.yml
-@@ -8,11 +8,11 @@
-     environment:
-       KOLLA_BOOTSTRAP:
-       KOLLA_CONFIG_STRATEGY: "{{ config_strategy }}"
--    image: "{{ kerbside_services['kerbside_proxy']['image'] }}"
-+    image: "{{ kerbside_proxy.image }}"
-     labels:
-       BOOTSTRAP:
-     name: "bootstrap_kerbside"
-     restart_policy: oneshot
--    volumes: "{{ kerbside_services['kerbside_proxy']['volumes'] | reject('equalto', '') | list }}"
-+    volumes: "{{ kerbside_proxy.volumes | reject('equalto', '') | list }}"
-   run_once: True
-   delegate_to: "{{ groups['kerbside-proxy'][0] }}"
-\ No newline at end of file
