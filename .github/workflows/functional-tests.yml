@@ -197,6 +197,7 @@ jobs:
               'cd /srv/shakenfist/kerbside-patches; sudo ./tools/install-openstack-clients'
 
       - name: Dump haproxy logs
+        if: always()
         run: |
           . $GITHUB_ENV
           ssh -i /srv/github/id_ci -o StrictHostKeyChecking=no \
@@ -205,6 +206,7 @@ jobs:
               'sudo docker logs haproxy || true'
 
       - name: Dump kerbside proxy logs
+        if: always()
         run: |
           . $GITHUB_ENV
           ssh -i /srv/github/id_ci -o StrictHostKeyChecking=no \
@@ -213,6 +215,7 @@ jobs:
               'sudo docker logs kerbside_proxy || true'
 
       - name: Dump internal VIP CA cert details
+        if: always()
         run: |
           . $GITHUB_ENV
           ssh -i /srv/github/id_ci -o StrictHostKeyChecking=no \
@@ -221,6 +224,7 @@ jobs:
               'openssl s_client -showcerts -connect 10.0.2.3:5000'
 
       - name: Dump CA cert bundle
+        if: always()
         run: |
           . $GITHUB_ENV
           ssh -i /srv/github/id_ci -o StrictHostKeyChecking=no \
