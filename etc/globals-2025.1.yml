@@ -612,7 +612,7 @@ enable_proxysql: "yes"
 
 # Valid options are [ none, novnc, spice ]
 nova_console: "spice"
-nova_spice_html5: "yes"
+nova_spice_html5: "no"
 nova_spicehtml5proxy_fqdn: "10.0.2.2"
 nova_spice_require_secure: "no"
 nova_spice_debug_logging: "no"
