@@ -9,4 +9,3 @@
 ../_patches/patch041-fix-kolla-ansible-kerbside-url.patch
 ../_patches/patch042-move-kerbside-proxy-into-own-role.patch
 ../_patches/patch049-kolla-ansible-backport-to-epoxy.patch
-../_patches/patch050-debug-bootstrap-container.patch
