@@ -72,6 +72,25 @@ jobs:
               -o UserKnownHostsFile=/dev/null \
               debian@10.0.2.2 "${script}"
 
+      - name: Archive patched source
+        if: always()
+        run: |
+          . $GITHUB_ENV
+          mkdir /tmp/bundle
+          scp -i /srv/github/id_ci -o StrictHostKeyChecking=no \
+              -o UserKnownHostsFile=/dev/null \
+              debian@10.0.2.2:/srv/shakenfist/kerbside-patches/src/*.tgz /tmp/bundle/
+          cd /tmp
+          zip -r bundle.zip bundle
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: source-${{ matrix.test.release }}
+          retention-days: 90
+          if-no-files-found: error
+          path: /tmp/bundle.zip
+
   functional_matrix:
     name: "Build a test cloud for ${{ matrix.test.description }}"
     strategy:
