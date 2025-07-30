@@ -8,11 +8,29 @@ on:
 
 jobs:
   build_images:
-    name: "Build docker images"
+    name: "Build docker images for ${{ matrix.test.release }}"
+    strategy:
+      fail-fast: false
+      matrix:
+        test: [
+          {
+            'name': 'build-2025.1',
+            'release': '2025.1',
+            'base': 'debian:12',
+            'baseuser': 'debian'
+          },
+          {
+            'name': 'build-master',
+            'release': 'master',
+            'base': 'debian:12',
+            'baseuser': 'debian',
+            'topology': 'all-in-one'
+          },
+        ]
     runs-on: [self-hosted, vm]
-    timeout-minutes: 180
+    timeout-minutes: 120
     concurrency:
-      group: ${{ github.workflow }}-${{ github.ref }}
+      group: ${{ github.workflow }}-${{ github.ref }}-${{ matrix.test.name }}
       cancel-in-progress: true
 
     # NOTE(mikal): git repos are checked out to /srv/github/_work/{org}/{repo}
@@ -34,52 +52,21 @@ jobs:
           openstack_release: master
           topology: all-in-one
 
-      - name: Build patched repositories for master
+      - name: Build patched repositories
         run: |
           . $GITHUB_ENV
           ssh -i /srv/github/id_ci -o StrictHostKeyChecking=no \
               -o UserKnownHostsFile=/dev/null \
               debian@10.0.2.2 \
-              'cd /srv/shakenfist/kerbside-patches; ./_build/assemble-source.sh master'
+              'cd /srv/shakenfist/kerbside-patches; ./_build/assemble-source.sh ${{ matrix.test.release }}'
 
-      - name: Build container images for master
+      - name: Build container images
         run: |
           . $GITHUB_ENV
 
           script="cd /srv/shakenfist/kerbside-patches;"
           script="${script} hash=\$(./_build/calculate-container-hash.sh kolla kolla-2* nova nova-2*);"
-          script="${script} ./_build/build-containers.sh --use-ci-registry --build-targets "master" --build-images all --image-tag "\$hash-debian-bookworm" --dont-fetch-images;"
-
-          ssh -i /srv/github/id_ci -o StrictHostKeyChecking=no \
-              -o UserKnownHostsFile=/dev/null \
-              debian@10.0.2.2 "${script}"
-
-      - name: Cleanup
-        run: |
-          . $GITHUB_ENV
-
-          script="cd /srv/shakenfist/kerbside-patches;"
-          script="${script} rm -rf src archive;"
-
-          ssh -i /srv/github/id_ci -o StrictHostKeyChecking=no \
-              -o UserKnownHostsFile=/dev/null \
-              debian@10.0.2.2 "${script}"
-
-      - name: Build patched repositories for 2025.1
-        run: |
-          . $GITHUB_ENV
-          ssh -i /srv/github/id_ci -o StrictHostKeyChecking=no \
-              -o UserKnownHostsFile=/dev/null \
-              debian@10.0.2.2 \
-              'cd /srv/shakenfist/kerbside-patches; ./_build/assemble-source.sh 2025.1'
-
-      - name: Build container images for 2025.1
-        run: |
-          . $GITHUB_ENV
-
-          script="cd /srv/shakenfist/kerbside-patches;"
-          script="${script} hash=\$(./_build/calculate-container-hash.sh kolla kolla-2* nova nova-2*);"
-          script="${script} ./_build/build-containers.sh --use-ci-registry --build-targets "2025.1" --build-images all --image-tag "\$hash-debian-bookworm" --dont-fetch-images;"
+          script="${script} ./_build/build-containers.sh --use-ci-registry --build-targets "${{ matrix.test.release }}" --build-images all --image-tag "\$hash-debian-bookworm" --dont-fetch-images;"
 
           ssh -i /srv/github/id_ci -o StrictHostKeyChecking=no \
               -o UserKnownHostsFile=/dev/null \
