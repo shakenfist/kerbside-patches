@@ -1,0 +1,191 @@
+commit 3e7c6c85fd0884c53fd67be01336a0d005ae247c
+Author: Michael Still <mikal@stillhq.com>
+Date:   Mon May 19 06:43:08 2025 +1000
+
+    libvirt: Add objects and notifications for sound model.
+
+    This patch adds just the objects and notifications required to
+    support an extra spec to configure a sound device inside
+    the guest. This is useful for SPICE consoles using the native
+    protocol.
+
+    Change-Id: I2faeda0fd0fb9c8894d69558a1ccaab8da9f6a1b
+
+diff --git a/doc/notification_samples/common_payloads/ImageMetaPropsPayload.json b/doc/notification_samples/common_payloads/ImageMetaPropsPayload.json
+index cc05522..79f2559 100644
+--- a/doc/notification_samples/common_payloads/ImageMetaPropsPayload.json
++++ b/doc/notification_samples/common_payloads/ImageMetaPropsPayload.json
+@@ -4,5 +4,5 @@
+         "hw_architecture": "x86_64"
+     },
+     "nova_object.name": "ImageMetaPropsPayload",
+-    "nova_object.version": "1.15"
++    "nova_object.version": "1.16"
+ }
+diff --git a/nova/notifications/objects/image.py b/nova/notifications/objects/image.py
+index 513c257..42e6153 100644
+--- a/nova/notifications/objects/image.py
++++ b/nova/notifications/objects/image.py
+@@ -133,7 +133,8 @@ class ImageMetaPropsPayload(base.NotificationPayloadBase):
+     # Version 1.13: Added 'hw_virtio_packed_ring' field
+     # Version 1.14: Added 'hw_firmware_stateless' field
+     # Version 1.15: Added igb value to 'hw_vif_model' enum
+-    VERSION = '1.15'
++    # Version 1.16: Added 'hw_sound_model' field
++    VERSION = '1.16'
+
+     # NOTE(efried): This logic currently relies on all of the fields of
+     # ImageMetaProps being initialized with no arguments. See the docstring.
+diff --git a/nova/objects/fields.py b/nova/objects/fields.py
+index d64234f..0cb7922 100644
+--- a/nova/objects/fields.py
++++ b/nova/objects/fields.py
+@@ -855,6 +855,20 @@ class PointerModelType(BaseNovaEnum):
+     ALL = (USBTABLET,)
+
+
++class SoundModelType(BaseNovaEnum):
++
++    SB16 = 'sb16'
++    ES1370 = 'es1370'
++    PCSPK = 'pcspk'
++    AC97 = 'ac97'
++    ICH6 = 'ich6'
++    ICH9 = 'ich9'
++    USB = 'usb'
++    VIRTIO = 'virtio'
++
++    ALL = (SB16, ES1370, PCSPK, AC97, ICH6, ICH9, USB, VIRTIO,)
++
++
+ class NotificationPriority(BaseNovaEnum):
+     AUDIT = 'audit'
+     CRITICAL = 'critical'
+@@ -1393,6 +1407,10 @@ class PointerModelField(BaseEnumField):
+     AUTO_TYPE = PointerModelType()
+
+
++class SoundModelField(BaseEnumField):
++    AUTO_TYPE = SoundModelType()
++
++
+ class NotificationPriorityField(BaseEnumField):
+     AUTO_TYPE = NotificationPriority()
+
+diff --git a/nova/objects/image_meta.py b/nova/objects/image_meta.py
+index c8764e9..b6f0ba5 100644
+--- a/nova/objects/image_meta.py
++++ b/nova/objects/image_meta.py
+@@ -198,14 +198,18 @@ class ImageMetaProps(base.NovaObject):
+     # Version 1.37: Added 'hw_ephemeral_encryption_secret_uuid' field
+     # Version 1.38: Added 'hw_firmware_stateless' field
+     # Version 1.39: Added igb value to 'hw_vif_model' enum
++    # Version 1.40: Added 'hw_sound_model' field
++
+     # NOTE(efried): When bumping this version, the version of
+     # ImageMetaPropsPayload must also be bumped. See its docstring for details.
+-    VERSION = '1.39'
++    VERSION = '1.40'
+
+     def obj_make_compatible(self, primitive, target_version):
+         super(ImageMetaProps, self).obj_make_compatible(primitive,
+                                                         target_version)
+         target_version = versionutils.convert_version_to_tuple(target_version)
++        if target_version < (1, 40):
++            primitive.pop('hw_sound_model', None)
+         if target_version < (1, 39):
+             base.raise_on_too_new_values(
+                 target_version, primitive,
+@@ -494,6 +498,9 @@ class ImageMetaProps(base.NovaObject):
+         # Control bits for the physical memory address bit of Libvirt guests.
+         'hw_maxphysaddr_bits': fields.IntegerField(),
+
++        # Name of sound device model to use.
++        'hw_sound_model': fields.SoundModelField(),
++
+         # if true download using bittorrent
+         'img_bittorrent': fields.FlexibleBooleanField(),
+
+diff --git a/nova/tests/functional/notification_sample_tests/test_instance.py b/nova/tests/functional/notification_sample_tests/test_instance.py
+index fcb2812..471fb92 100644
+--- a/nova/tests/functional/notification_sample_tests/test_instance.py
++++ b/nova/tests/functional/notification_sample_tests/test_instance.py
+@@ -1244,7 +1244,7 @@ class TestInstanceNotificationSample(
+                     'nova_object.data': {},
+                     'nova_object.name': 'ImageMetaPropsPayload',
+                     'nova_object.namespace': 'nova',
+-                    'nova_object.version': '1.15',
++                    'nova_object.version': '1.16',
+                 },
+                 'image.size': 58145823,
+                 'image.tags': [],
+@@ -1340,7 +1340,7 @@ class TestInstanceNotificationSample(
+                     'nova_object.data': {},
+                     'nova_object.name': 'ImageMetaPropsPayload',
+                     'nova_object.namespace': 'nova',
+-                    'nova_object.version': '1.15',
++                    'nova_object.version': '1.16',
+                 },
+                 'image.size': 58145823,
+                 'image.tags': [],
+diff --git a/nova/tests/unit/notifications/objects/test_notification.py b/nova/tests/unit/notifications/objects/test_notification.py
+index bde7fd3..319892a 100644
+--- a/nova/tests/unit/notifications/objects/test_notification.py
++++ b/nova/tests/unit/notifications/objects/test_notification.py
+@@ -385,7 +385,7 @@ notification_object_data = {
+     # ImageMetaProps, so when you see a fail here for that reason, you must
+     # *also* bump the version of ImageMetaPropsPayload. See its docstring for
+     # more information.
+-    'ImageMetaPropsPayload': '1.15-a3d7a75fedbf373bcab2d9d6ece249df',
++    'ImageMetaPropsPayload': '1.16-871cffafce16ab4b6296c1f071262aa8',
+     'InstanceActionNotification': '1.0-a73147b93b520ff0061865849d3dfa56',
+     'InstanceActionPayload': '1.9-525dcf81b6e4592d935712a2675309dc',
+     'InstanceActionRebuildNotification':
+diff --git a/nova/tests/unit/objects/test_image_meta.py b/nova/tests/unit/objects/test_image_meta.py
+index 47226c9..508ed4d 100644
+--- a/nova/tests/unit/objects/test_image_meta.py
++++ b/nova/tests/unit/objects/test_image_meta.py
+@@ -558,6 +558,17 @@ class TestImageMetaProps(test.NoDBTestCase):
+         self.assertNotIn('hw_tpm_model', primitive['nova_object.data'])
+         self.assertNotIn('hw_tpm_version', primitive['nova_object.data'])
+
++    def test_obj_make_compatible_sound_model(self):
++        """Test that checks if we pop hw_sound_model."""
++        obj = objects.ImageMetaProps(
++            hw_sound_model='sb16',
++        )
++        primitive = obj.obj_to_primitive()
++        self.assertIn('hw_sound_model', primitive['nova_object.data'])
++
++        primitive = obj.obj_to_primitive('1.27')
++        self.assertNotIn('hw_sound_model', primitive['nova_object.data'])
++
+     def test_obj_make_compatible_socket_policy(self):
+         obj = objects.ImageMetaProps(
+             hw_pci_numa_affinity_policy=fields.PCINUMAAffinityPolicy.SOCKET)
+diff --git a/nova/tests/unit/objects/test_objects.py b/nova/tests/unit/objects/test_objects.py
+index 27bcf43..b7550a0 100644
+--- a/nova/tests/unit/objects/test_objects.py
++++ b/nova/tests/unit/objects/test_objects.py
+@@ -1105,7 +1105,7 @@ object_data = {
+     'HyperVLiveMigrateData': '1.5-b424b27305f259fb3c15d720856585c7',
+     'IDEDeviceBus': '1.0-29d4c9f27ac44197f01b6ac1b7e16502',
+     'ImageMeta': '1.8-642d1b2eb3e880a367f37d72dd76162d',
+-    'ImageMetaProps': '1.39-b0fb2690fa477480e42a1469769cb9fc',
++    'ImageMetaProps': '1.40-6cd46dc34799f30e98a3a79d72c3b6eb',
+     'Instance': '2.8-2727dba5e4a078e6cc848c1f94f7eb24',
+     'InstanceAction': '1.2-9a5abc87fdd3af46f45731960651efb5',
+     'InstanceActionEvent': '1.4-5b1f361bd81989f8bb2c20bb7e8a4cb4',
+diff --git a/requirements.txt b/requirements.txt
+index 2a62a4b..11b73cd 100644
+--- a/requirements.txt
++++ b/requirements.txt
+@@ -51,7 +51,7 @@ psutil>=3.2.2 # BSD
+ oslo.versionedobjects>=1.35.0 # Apache-2.0
+ os-brick>=6.10.0 # Apache-2.0
+ os-resource-classes>=1.1.0 # Apache-2.0
+-os-traits>=3.3.0 # Apache-2.0
++os-traits>=3.5.0 # Apache-2.0
+ os-vif>=3.1.0 # Apache-2.0
+ castellan>=0.16.0 # Apache-2.0
+ microversion-parse>=0.2.1 # Apache-2.0

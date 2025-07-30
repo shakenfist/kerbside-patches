@@ -1,0 +1,15 @@
+commit 5058034bba74c6f819362fb257482c213e79bf20
+Author: Michael Still <mikal@stillhq.com>
+Date:   Tue Jul 22 08:42:22 2025 +1000
+
+    Pin ansible to avoid ModuleNotFoundError for ansible.parsing.yaml.constructor
+
+diff --git a/test-requirements.txt b/test-requirements.txt
+index e9fa093..41417fb 100644
+--- a/test-requirements.txt
++++ b/test-requirements.txt
+@@ -1,3 +1,4 @@
++ansible-core<2.19.0
+ ansible-lint<25 # MIT
+ bandit!=1.6.0,>=1.1.0 # Apache-2.0
+ bashate>=0.5.1 # Apache-2.0

@@ -25,7 +25,7 @@ jobs:
               'baseimage': 'sf://label/ci-images/rocky-9',
               'baseuser': 'cloud-user',
               'targets': 'kolla:master',
-              'infrastructure': 'vm'
+              'infrastructure': 'rocky-9-metal'
           },
           {
               'description': "kolla on debian 12",
@@ -33,7 +33,7 @@ jobs:
               'baseimage': 'sf://label/ci-images/debian-12',
               'baseuser': 'debian',
               'targets': 'kolla:master',
-              'infrastructure': 'vm'
+              'infrastructure': 'debian-12-metal'
           },
           {
               'description': "kolla-ansible on rocky 9",
@@ -41,7 +41,7 @@ jobs:
               'baseimage': 'sf://label/ci-images/rocky-9',
               'baseuser': 'cloud-user',
               'targets': 'kolla-ansible:master',
-              'infrastructure': 'vm'
+              'infrastructure': 'rocky-9-metal'
           },
           {
               'description': "kolla-ansible on debian 12",
@@ -49,7 +49,7 @@ jobs:
               'baseimage': 'sf://label/ci-images/debian-12',
               'baseuser': 'debian',
               'targets': 'kolla-ansible:master',
-              'infrastructure': 'vm'
+              'infrastructure': 'debian-12-metal'
           },
           {
               'description': "nova master on rocky 9",
@@ -66,22 +66,6 @@ jobs:
               'baseuser': 'debian',
               'targets': 'nova:master',
               'infrastructure': 'debian-12-metal'
-          },
-          {
-              'description': "python-openstackclient on rocky 9",
-              'name': 'rocky-9-python-openstackclient',
-              'baseimage': 'sf://label/ci-images/rocky-9',
-              'baseuser': 'cloud-user',
-              'targets': 'python-openstackclient:master',
-              'infrastructure': 'vm'
-          },
-          {
-              'description': "python-openstackclient on debian 12",
-              'name': 'debian-12-python-openstackclient',
-              'baseimage': 'sf://label/ci-images/debian-12',
-              'baseuser': 'debian',
-              'targets': 'python-openstackclient:master',
-              'infrastructure': 'vm'
           },
         ]
     runs-on: [self-hosted, "${{ matrix.test.infrastructure }}"]

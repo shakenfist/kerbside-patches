@@ -1,25 +1,53 @@
+# Turn off host key checking in CI
+[all:vars]
+ansible_user=USER
+ansible_ssh_private_key_file=/srv/github/id_ci
+ansible_ssh_extra_args='-o StrictHostKeyChecking=no'
+ansible_ssh_timeout=120
+
 # These initial groups are the only groups required to be modified. The
 # additional groups are for more control of the environment.
 [control]
-kolla       ansible_connection=local
+control-1
+control-2
 
 [network]
-kolla       ansible_connection=local
+control-1
+control-2
 
 [compute]
-kolla       ansible_connection=local
-
-[storage]
-kolla       ansible_connection=local
+compute-1
 
 [monitoring]
-kolla       ansible_connection=local
+control-1
+control-2
 
-[deployment]
-kolla       ansible_connection=local
+# When compute nodes and control nodes use different interfaces,
+# you need to comment out "api_interface" and other interfaces from the globals.yml
+# and specify like below:
+#compute01 neutron_external_interface=eth0 api_interface=em1 tunnel_interface=em1
+
+[storage]
+control-1
+control-2
 
 [vdiproxy]
-kolla       ansible_connection=local
+kerbside-1
+kerbside-2
+
+[deployment]
+localhost ansible_connection=local
+
+[baremetal:children]
+control
+network
+compute
+storage
+monitoring
+vdiproxy
+
+[tls-backend:children]
+control
 
 # You can explicitly specify which hosts run each project by updating the
 # groups in the sections below. Common services are grouped together.
@@ -35,17 +63,17 @@ vdiproxy
 [collectd:children]
 compute
 
-[baremetal:children]
-control
-
-[tls-backend:children]
-control
-
 [grafana:children]
 monitoring
 
 [etcd:children]
 control
+
+[influxdb:children]
+monitoring
+
+[prometheus:children]
+monitoring
 
 [telegraf:children]
 compute
@@ -108,12 +136,6 @@ control
 [ironic:children]
 control
 
-[influxdb:children]
-monitoring
-
-[prometheus:children]
-monitoring
-
 [magnum:children]
 control
 
@@ -121,9 +143,6 @@ control
 control
 
 [manila:children]
-control
-
-[gnocchi:children]
 control
 
 [ceilometer:children]
@@ -135,6 +154,9 @@ control
 [cyborg:children]
 control
 compute
+
+[gnocchi:children]
+control
 
 [tacker:children]
 control
@@ -258,9 +280,6 @@ neutron
 compute
 network
 
-[neutron-ovn-agent:children]
-compute
-
 [neutron-bgp-dragent:children]
 neutron
 
@@ -272,6 +291,10 @@ neutron
 
 [ironic-neutron-agent:children]
 neutron
+
+[neutron-ovn-agent:children]
+compute
+network
 
 # Cinder
 [cinder-api:children]
@@ -325,16 +348,6 @@ barbican
 [barbican-worker:children]
 barbican
 
-# Trove
-[trove-api:children]
-trove
-
-[trove-conductor:children]
-trove
-
-[trove-taskmanager:children]
-trove
-
 # Heat
 [heat-api:children]
 heat
@@ -381,6 +394,19 @@ mistral
 [mistral-event-engine:children]
 mistral
 
+# Ceilometer
+[ceilometer-central:children]
+ceilometer
+
+[ceilometer-notification:children]
+ceilometer
+
+[ceilometer-compute:children]
+compute
+
+[ceilometer-ipmi:children]
+compute
+
 # Aodh
 [aodh-api:children]
 aodh
@@ -414,18 +440,15 @@ gnocchi
 [gnocchi-metricd:children]
 gnocchi
 
-# Ceilometer
-[ceilometer-central:children]
-ceilometer
+# Trove
+[trove-api:children]
+trove
 
-[ceilometer-notification:children]
-ceilometer
+[trove-conductor:children]
+trove
 
-[ceilometer-compute:children]
-compute
-
-[ceilometer-ipmi:children]
-compute
+[trove-taskmanager:children]
+trove
 
 # Multipathd
 [multipathd:children]

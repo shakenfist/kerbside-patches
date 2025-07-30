@@ -1,0 +1,19 @@
+commit 9f29ba4eacb6ceefc04e2954318770e677041f2b
+Author: Michael Still <mikal@stillhq.com>
+Date:   Wed Jul 30 12:28:04 2025 +1000
+
+    Wedge the backported compute service versions into epoxy.
+
+diff --git a/nova/objects/service.py b/nova/objects/service.py
+index 5903ed7ee5..2b0ae36b92 100644
+--- a/nova/objects/service.py
++++ b/nova/objects/service.py
+@@ -276,7 +276,7 @@ SERVICE_VERSION_ALIASES = {
+     'Bobcat': 66,
+     'Caracal': 66,
+     'Dalmatian': 67,
+-    'Epoxy': 68,
++    'Epoxy': 70,
+ }
+ 
+ 

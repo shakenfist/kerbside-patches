@@ -49,71 +49,70 @@ if [ -z ${CI_COMMIT_SHORT_SHA} ]; then
 fi
 
 # Parse command line
-export positional_args=()
-
-while [[ $# -gt 0 ]]; do
+found_arg=1
+while [[ ${found_arg} -gt 0 ]]; do
+    found_arg=0
     case $1 in
         --compact-archive)
             export skip_tests="true"
             echo "Will create a compact archive."
             shift
+            found_arg=1
             ;;
         --defer-tests)
             export defer_tests="true"
             echo "Will defer testing."
             shift
+            found_arg=1
             ;;
         --build-images)
             export build_images="$2"
             echo "Setting build images to ${build_images}."
             shift; shift
+            found_arg=1
             ;;
         --build-targets)
             export build_targets="$2"
             echo "Setting build targets to ${build_targets}."
             shift; shift
+            found_arg=1
             ;;
         --image-tag)
             export image_tag="$2"
             echo "Setting image tag to ${image_tag}."
             shift; shift;
+            found_arg=1
             ;;
         --dont-fetch-images)
             export dont_fetch_images="true"
             echo "Will not fetch pre-built images if they exist."
             shift
+            found_arg=1
             ;;
         --skip-tests)
             export skip_tests="true"
             echo "Will skip testing."
             shift
+            found_arg=1
             ;;
         --use-ci-registry)
             export use_ci_registry="true"
             echo "Will use the CI environment's OCI registry."
             shift
+            found_arg=1
             ;;
        --ci-registry)
-           export ci_registry="$2"
-           echo "Set CI registry to ${ci_registry}."
-           shift; shift
+            export ci_registry="$2"
+            echo "Set CI registry to ${ci_registry}."
+            shift; shift
+            found_arg=1
 	   ;;
         -*|--*)
             echo "Unknown option $1"
             exit 1
             ;;
-        *)
-            positional_args+=("$1")
-            shift
-            ;;
     esac
 done
-
-# You can't export bash arrays, so we dance instead
-export positional_args=$(printf "%s\n" "${positional_args[@]}")
-if [ -z ${positional_args} ]; then
-    export positional_args=$(find . -type f -name "config.yaml" | cut -f 2 -d "/")
-fi
 
 # Ensure we fail even when piping output to ts
 set -o pipefail

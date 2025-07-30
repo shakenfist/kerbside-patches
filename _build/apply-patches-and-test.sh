@@ -1,14 +1,13 @@
 #!/bin/bash -e
 
 # Run from the top directory.
-project="${1}"
+. _build/common.sh
 
+project="${1}"
 if [ -z ${project} ]; then
     echo "Please specify a project."
     exit 1
 fi
-
-. _build/common.sh
 
 echo
 echo -e "${H1}==================================================${Color_Off}"
@@ -43,7 +42,7 @@ for dependency in ${depends_on}; do
     if [ "${skip_tests}" == "true" ]; then
         extra="--skip-tests"
     fi
-    $0 ${dependency} ${extra}
+    $0 ${extra} ${dependency}
 
     echo
     echo -e "${H1}**************************************************${Color_Off}"

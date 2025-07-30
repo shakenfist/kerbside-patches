@@ -55,7 +55,7 @@ echo -e "${H3}The following directories contain patches: ${directories[@]}${Colo
 echo
 
 for project in "${directories[@]}"; do
-    ./_build/apply-patches-and-test.sh ${project} --skip-tests
+    ./_build/apply-patches-and-test.sh --skip-tests ${project}
 done
 
 # Some projects require a local checkout even if we don't have any patches

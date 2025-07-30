@@ -1,0 +1,67 @@
+commit 040982b75505fcee24ba633b497ab861f35cc96e
+Author: Michael Still <mikal@stillhq.com>
+Date:   Wed Jul 30 14:58:21 2025 +1000
+
+    Debugging USB and sound failures in backport to epoxy.
+
+diff --git a/nova/objects/image_meta.py b/nova/objects/image_meta.py
+index 3ccb267..354f2b3 100644
+--- a/nova/objects/image_meta.py
++++ b/nova/objects/image_meta.py
+@@ -14,6 +14,7 @@
+ 
+ import copy
+ 
++from oslo_log import log as logging
+ from oslo_utils import versionutils
+ 
+ from nova.network import model as network_model
+@@ -24,6 +25,9 @@ from nova import utils
+ from nova.virt import hardware
+ 
+ 
++LOG = logging.getLogger(__name__)
++
++
+ NULLABLE_STRING_FIELDS = ['name', 'checksum', 'owner',
+                           'container_format', 'disk_format']
+ NULLABLE_INTEGER_FIELDS = ['size', 'virtual_size']
+@@ -210,9 +214,14 @@ class ImageMetaProps(base.NovaObject):
+                                                         target_version)
+         target_version = versionutils.convert_version_to_tuple(target_version)
+         if target_version < (1, 41):
++            LOG.warning(
++                'Dropping hw_usb_model and hw_redirected_usb_ports because target '
++                'version is %s' % target_version)
+             primitive.pop('hw_usb_model', None)
+             primitive.pop('hw_redirected_usb_ports', None)
+         if target_version < (1, 40):
++            LOG.warning(
++                'Dropping hw_sound_model because target version is %s' % target_version)
+             primitive.pop('hw_sound_model', None)
+         if target_version < (1, 39):
+             base.raise_on_too_new_values(
+diff --git a/nova/virt/hardware.py b/nova/virt/hardware.py
+index 2f18454..611555c 100644
+--- a/nova/virt/hardware.py
++++ b/nova/virt/hardware.py
+@@ -2935,6 +2935,7 @@ def get_sound_model(
+             % {'model': model, 'valid': ', '.join(fields.SoundModelType.ALL)}
+         )
+ 
++    LOG.info('Sound model is %s' % model)
+     return model
+ 
+ 
+diff --git a/nova/virt/libvirt/driver.py b/nova/virt/libvirt/driver.py
+index 12767ac..75e7a7f 100644
+--- a/nova/virt/libvirt/driver.py
++++ b/nova/virt/libvirt/driver.py
+@@ -7514,6 +7514,7 @@ class LibvirtDriver(driver.ComputeDriver):
+         :param accel_info: optional list of accelerator requests (ARQs)
+         :param share_info: optional list of share_mapping
+         """
++        LOG.info('For instance %s, image meta is %s' %(instance.uuid, image_meta))
+         flavor = instance.flavor
+         inst_path = libvirt_utils.get_instance_path(instance)
+         disk_mapping = disk_info['mapping']

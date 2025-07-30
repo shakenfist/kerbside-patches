@@ -1,16 +1,16 @@
-commit c557fa8a1a00d3a8f7ce240f06ac8efbd73fee06
+commit abca6bf3ccd684d45815150d7965b21f953dc395
 Author: Michael Still <mikal@stillhq.com>
-Date:   Tue Jul 8 11:10:12 2025 +1000
+Date:   Mon Jul 28 16:45:34 2025 +1000
 
     Move kerbside proxy into its own role.
     
     Signed-off-by: Michael Still <mikal@stillhq.com>
 
 diff --git a/ansible/group_vars/all.yml b/ansible/group_vars/all.yml
-index 1b82d81..31918d5 100644
+index 2024fcc..7c2a816 100644
 --- a/ansible/group_vars/all.yml
 +++ b/ansible/group_vars/all.yml
-@@ -952,9 +952,11 @@ glance_keystone_user: "glance"
+@@ -952,9 +952,12 @@ glance_keystone_user: "glance"
  # Kerbside configuration options
  kerbside_keystone_user: "kerbside"
  kerbside_port: 13002
@@ -19,14 +19,41 @@ index 1b82d81..31918d5 100644
  kerbside_vdi_secure_port: 5898
  kerbside_api_url: "http://{{ kolla_external_fqdn }}:{{ kerbside_port }}"
 +kerbside_safety_upgrade: "no"
++kerbside_enable_tls_backend: "yes"
  
  # Nova fake driver and the number of fake driver per compute node
  enable_nova_fake: "no"
 diff --git a/ansible/inventory/all-in-one b/ansible/inventory/all-in-one
-index 3404adc..2d34a3b 100644
+index 13af9b4..0cb48e9 100644
 --- a/ansible/inventory/all-in-one
 +++ b/ansible/inventory/all-in-one
-@@ -229,7 +229,7 @@ nova
+@@ -18,6 +18,9 @@ localhost       ansible_connection=local
+ [deployment]
+ localhost       ansible_connection=local
+ 
++[vdiproxpy]
++localhost       ansible_connection=local
++
+ # You can explicitly specify which hosts run each project by updating the
+ # groups in the sections below. Common services are grouped together.
+ 
+@@ -27,6 +30,7 @@ network
+ compute
+ storage
+ monitoring
++vdiproxy
+ 
+ [collectd:children]
+ compute
+@@ -50,6 +54,7 @@ control
+ monitoring
+ network
+ storage
++vdiproxy
+ 
+ [hacluster:children]
+ control
+@@ -230,9 +235,16 @@ nova
  [nova-serialproxy:children]
  nova
  
@@ -34,12 +61,56 @@ index 3404adc..2d34a3b 100644
 +[kerbside-proxy:children]
  nova
  
++# Kerbside
++[kerbside-api:children]
++control
++
++[kerbside-proxy:children]
++vdiproxy
++
  # Neutron
+ [neutron-server:children]
+ control
 diff --git a/ansible/inventory/multinode b/ansible/inventory/multinode
-index a617934..c86231f 100644
+index c5ea3e3..56ec884 100644
 --- a/ansible/inventory/multinode
 +++ b/ansible/inventory/multinode
-@@ -247,7 +247,7 @@ nova
+@@ -29,6 +29,10 @@ monitoring01
+ [storage]
+ storage01
+ 
++[vdiproxy]
++kerbside01
++kerbside02
++
+ [deployment]
+ localhost       ansible_connection=local
+ 
+@@ -38,6 +42,7 @@ network
+ compute
+ storage
+ monitoring
++vdiproxy
+ 
+ [tls-backend:children]
+ control
+@@ -52,6 +57,7 @@ network
+ compute
+ storage
+ monitoring
++vdiproxy
+ 
+ [collectd:children]
+ compute
+@@ -74,6 +80,7 @@ control
+ monitoring
+ network
+ storage
++vdiproxy
+ 
+ [hacluster:children]
+ control
+@@ -248,9 +255,16 @@ nova
  [nova-serialproxy:children]
  nova
  
@@ -47,7 +118,16 @@ index a617934..c86231f 100644
 +[kerbside-proxy:children]
  nova
  
++# Kerbside
++[kerbside-api:children]
++control
++
++[kerbside-proxy:children]
++vdiproxy
++
  # Neutron
+ [neutron-server:children]
+ control
 diff --git a/ansible/nova.yml b/ansible/nova.yml
 index c41d854..d714c31 100644
 --- a/ansible/nova.yml
@@ -113,12 +193,113 @@ index c41d854..d714c31 100644
  # Following an upgrade, data migrations should be performed for the API
  # database.  This should be done once all cells have been upgraded.
  
+diff --git a/ansible/roles/certificates/tasks/generate-kerbside.yml b/ansible/roles/certificates/tasks/generate-kerbside.yml
+deleted file mode 100644
+index 1e435c5..0000000
+--- a/ansible/roles/certificates/tasks/generate-kerbside.yml
++++ /dev/null
+@@ -1,78 +0,0 @@
+----
+-- name: Ensuring private kerbside directory exists
+-  file:
+-    path: "{{ kerbside_dir }}"
+-    state: "directory"
+-    mode: "0770"
+-
+-- name: Creating kerbside SSL configuration file
+-  template:
+-    src: "{{ item }}.j2"
+-    dest: "{{ kolla_certificates_dir }}/{{ item }}"
+-    mode: "0660"
+-  with_items:
+-    - "openssl-kolla-kerbside.cnf"
+-
+-- name: Creating kerbside certificate key
+-  command: >
+-    openssl genrsa
+-    -out "{{ kerbside_dir }}/kerbside.key" 2048
+-  args:
+-    creates: "{{ kerbside_dir }}/kerbside.key"
+-
+-- name: Creating kerbside certificate signing request
+-  command: >
+-    openssl req
+-    -new
+-    -key "{{ kerbside_dir }}/kerbside.key"
+-    -out "{{ kerbside_dir }}/kerbside.csr"
+-    -config "{{ kolla_certificates_dir }}/openssl-kolla-kerbside.cnf"
+-    -sha256
+-  args:
+-    creates: "{{ kerbside_dir }}/kerbside.csr"
+-
+-- name: Creating kerbside certificate
+-  command: >
+-    openssl x509
+-    -req
+-    -in "{{ kerbside_dir }}/kerbside.csr"
+-    -CA "{{ root_dir }}/root.crt"
+-    -CAkey "{{ root_dir }}/root.key"
+-    -CAcreateserial
+-    -extensions v3_req
+-    -extfile "{{ kolla_certificates_dir }}/openssl-kolla-kerbside.cnf"
+-    -out "{{ kerbside_dir }}/kerbside.crt"
+-    -days 500
+-    -sha256
+-  args:
+-    creates: "{{ kerbside_dir }}/kerbside.crt"
+-
+-- name: Setting permissions on kerbside key
+-  file:
+-    path: "{{ kerbside_dir }}/kerbside.key"
+-    mode: "0660"
+-    state: file
+-
+-- name: Ensure kerbside output directory exists
+-  file:
+-    path: "{{ certificates_kerbside_output_dir }}"
+-    state: directory
+-    mode: "0770"
+-
+-- name: Copy kerbside root CA to default configuration location
+-  copy:
+-    src: "{{ root_dir }}/root.crt"
+-    dest: "{{ certificates_kerbside_output_dir }}/cacert.pem"
+-    mode: "0660"
+-
+-- name: Copy kerbside cert to default configuration locations
+-  copy:
+-    src: "{{ kerbside_dir }}/kerbside.crt"
+-    dest: "{{ certificates_kerbside_output_dir }}/servercert.pem"
+-    mode: "0660"
+-
+-- name: Copy kerbside key to default configuration locations
+-  copy:
+-    src: "{{ kerbside_dir }}/kerbside.key"
+-    dest: "{{ certificates_kerbside_output_dir }}/serverkey.pem"
+-    mode: "0660"
+\ No newline at end of file
+diff --git a/ansible/roles/certificates/tasks/main.yml b/ansible/roles/certificates/tasks/main.yml
+index a1d0551..a79282a 100644
+--- a/ansible/roles/certificates/tasks/main.yml
++++ b/ansible/roles/certificates/tasks/main.yml
+@@ -3,8 +3,6 @@
+ - include_tasks: generate.yml
+ - include_tasks: generate-backend.yml
+   when:
+-    - kolla_enable_tls_backend | bool or rabbitmq_enable_tls | bool or database_enable_tls_backend | bool
++    - kolla_enable_tls_backend | bool or rabbitmq_enable_tls | bool or database_enable_tls_backend | bool or enable_kerbside | bool
+ - include_tasks: generate-libvirt.yml
+-  when: certificates_generate_libvirt | bool
+-- include_tasks: generate-kerbside.yml
+-  when: certificates_generate_kerbside | bool
++  when: certificates_generate_libvirt | bool
+\ No newline at end of file
 diff --git a/ansible/roles/kerbside/defaults/main.yml b/ansible/roles/kerbside/defaults/main.yml
 new file mode 100644
-index 0000000..7d97525
+index 0000000..5403e54
 --- /dev/null
 +++ b/ansible/roles/kerbside/defaults/main.yml
-@@ -0,0 +1,69 @@
+@@ -0,0 +1,74 @@
 +---
 +kerbside_services:
 +  kerbside_proxy:
@@ -188,7 +369,11 @@ index 0000000..7d97525
 +kerbside_dev_repos_pull: "{{ kolla_dev_repos_pull }}"
 +kerbside_dev_mode: "{{ kolla_dev_mode }}"
 +kerbside_source_version: "{{ kolla_source_version }}"
-\ No newline at end of file
++
++###################
++# Copy certificates
++###################
++kerbside_copy_certs: "{{ 'yes' | bool }}"
 diff --git a/ansible/roles/kerbside/handlers/main.yml b/ansible/roles/kerbside/handlers/main.yml
 new file mode 100644
 index 0000000..a2d5d67
@@ -275,12 +460,14 @@ index 0000000..9e7c8f8
 \ No newline at end of file
 diff --git a/ansible/roles/kerbside/tasks/bootstrap_service.yml b/ansible/roles/kerbside/tasks/bootstrap_service.yml
 new file mode 100644
-index 0000000..79e635c
+index 0000000..f06bb7b
 --- /dev/null
 +++ b/ansible/roles/kerbside/tasks/bootstrap_service.yml
-@@ -0,0 +1,18 @@
+@@ -0,0 +1,20 @@
 +---
 +- name: Running Kerbside bootstrap container
++  vars:
++    kerbside_proxy: "{{ kerbside_services['kerbside_proxy'] }}"
 +  become: true
 +  kolla_container:
 +    action: "start_container"
@@ -289,12 +476,12 @@ index 0000000..79e635c
 +    environment:
 +      KOLLA_BOOTSTRAP:
 +      KOLLA_CONFIG_STRATEGY: "{{ config_strategy }}"
-+    image: "{{ kerbside_services['kerbside_proxy']['image'] }}"
++    image: "{{ kerbside_proxy.image }}"
 +    labels:
 +      BOOTSTRAP:
 +    name: "bootstrap_kerbside"
 +    restart_policy: oneshot
-+    volumes: "{{ kerbside_services['kerbside_proxy']['volumes'] | reject('equalto', '') | list }}"
++    volumes: "{{ kerbside_proxy.volumes | reject('equalto', '') | list }}"
 +  run_once: True
 +  delegate_to: "{{ groups['kerbside-proxy'][0] }}"
 \ No newline at end of file
@@ -309,10 +496,10 @@ index 0000000..b7e2f7c
 +    name: service-check-containers
 diff --git a/ansible/roles/kerbside/tasks/config.yml b/ansible/roles/kerbside/tasks/config.yml
 new file mode 100644
-index 0000000..393a33f
+index 0000000..bc47f33
 --- /dev/null
 +++ b/ansible/roles/kerbside/tasks/config.yml
-@@ -0,0 +1,75 @@
+@@ -0,0 +1,61 @@
 +---
 +- name: Ensuring config directories exist
 +  become: true
@@ -353,22 +540,6 @@ index 0000000..393a33f
 +  notify:
 +    - "Restart kerbside_proxy container"
 +
-+- name: Copying over kerbside TLS keys
-+  become: true
-+  copy:
-+    src: "{{ node_custom_config }}/nova/kerbside/{{ item }}"
-+    dest: "{{ node_config_directory }}/kerbside_proxy/{{ item }}"
-+    mode: "0600"
-+  when:
-+    - inventory_hostname in groups["kerbside-proxy"]
-+    - kerbside_services["kerbside_proxy"].enabled | bool
-+  with_items:
-+    - cacert.pem
-+    - servercert.pem
-+    - serverkey.pem
-+  notify:
-+    - Restart kerbside_proxy container
-+
 +- name: Copying over kerbside sources.yaml
 +  become: true
 +  template:
@@ -381,6 +552,8 @@ index 0000000..393a33f
 +  notify:
 +    - "Restart kerbside_proxy container"
 +
++- include_tasks: copy-certs.yml
++
 +- name: Copying over config.json files for services
 +  become: true
 +  template:
@@ -389,6 +562,18 @@ index 0000000..393a33f
 +    mode: "0660"
 +  with_dict: "{{ kerbside_services | select_services_enabled_and_mapped_to_host }}"
 \ No newline at end of file
+diff --git a/ansible/roles/kerbside/tasks/copy-certs.yml b/ansible/roles/kerbside/tasks/copy-certs.yml
+new file mode 100644
+index 0000000..c80990f
+--- /dev/null
++++ b/ansible/roles/kerbside/tasks/copy-certs.yml
+@@ -0,0 +1,6 @@
++---
++- name: "Copy certificates and keys for {{ project_name }}"
++  import_role:
++    role: service-cert-copy
++  vars:
++    project_services: "{{ kerbside_services }}"
 diff --git a/ansible/roles/kerbside/tasks/deploy.yml b/ansible/roles/kerbside/tasks/deploy.yml
 new file mode 100644
 index 0000000..ca3509a
@@ -499,6 +684,15 @@ index 0000000..56917a3
 +    - container_facts.containers['kerbside_proxy'] is not defined
 +    - service | service_enabled_and_mapped_to_host
 \ No newline at end of file
+diff --git a/ansible/roles/kerbside/tasks/pull.yml b/ansible/roles/kerbside/tasks/pull.yml
+new file mode 100644
+index 0000000..53f9c5f
+--- /dev/null
++++ b/ansible/roles/kerbside/tasks/pull.yml
+@@ -0,0 +1,3 @@
++---
++- import_role:
++    role: service-images-pull
 diff --git a/ansible/roles/kerbside/tasks/reload.yml b/ansible/roles/kerbside/tasks/reload.yml
 new file mode 100644
 index 0000000..1e879e3
@@ -537,12 +731,21 @@ index 0000000..a742b40
 +- import_tasks: bootstrap_service.yml
 \ No newline at end of file
 diff --git a/ansible/roles/nova/templates/kerbside_start.j2 b/ansible/roles/kerbside/templates/kerbside_config.j2
-similarity index 86%
+similarity index 84%
 rename from ansible/roles/nova/templates/kerbside_start.j2
 rename to ansible/roles/kerbside/templates/kerbside_config.j2
-index f8d7120..f83e7b3 100644
+index f8d7120..72e084c 100644
 --- a/ansible/roles/nova/templates/kerbside_start.j2
 +++ b/ansible/roles/kerbside/templates/kerbside_config.j2
+@@ -12,7 +12,7 @@ export KERBSIDE_LOG_OUTPUT_JSON=true
+ {% endif %}
+ 
+ export KERBSIDE_PUBLIC_FQDN={{ keystone_external_fqdn | put_address_in_context('url') }}
+-export KERBSIDE_CACERT_PATH=/etc/pki/kerbside/cacert.pem
++export KERBSIDE_CACERT_PATH={{ openstack_cacert }}
+ export KERBSIDE_PROXY_HOST_CERT_PATH=/etc/pki/kerbside/servercert.pem
+ export KERBSIDE_PROXY_HOST_CERT_KEY_PATH=/etc/pki/kerbside/serverkey.pem
+ export KERBSIDE_PROXY_HOST_SUBJECT=""
 @@ -32,16 +32,4 @@ export KERBSIDE_KEYSTONE_SERVICE_AUTH_PASSWORD={{ keystone_admin_password }}
  export KERBSIDE_KEYSTONE_SERVICE_AUTH_PROJECT={{ keystone_admin_project }}
  export KERBSIDE_KEYSTONE_SERVICE_AUTH_USER_DOMAIN_ID={{ default_user_domain_id }}
@@ -564,10 +767,10 @@ index f8d7120..f83e7b3 100644
 +export KERBSIDE_KEYSTONE_ACCESS_GROUP=kerbside
 \ No newline at end of file
 diff --git a/ansible/roles/nova/templates/kerbside.json.j2 b/ansible/roles/kerbside/templates/kerbside_proxy.json.j2
-similarity index 91%
+similarity index 63%
 rename from ansible/roles/nova/templates/kerbside.json.j2
 rename to ansible/roles/kerbside/templates/kerbside_proxy.json.j2
-index 32f9dde..c7a587c 100644
+index 32f9dde..1e6a74f 100644
 --- a/ansible/roles/nova/templates/kerbside.json.j2
 +++ b/ansible/roles/kerbside/templates/kerbside_proxy.json.j2
 @@ -1,9 +1,9 @@
@@ -583,6 +786,39 @@ index 32f9dde..c7a587c 100644
              "owner": "kerbside",
              "perm": "0600"
          },
+@@ -14,23 +14,23 @@
+             "perm": "0600"
+         },
+         {
+-            "source": "{{ container_config_directory }}/cacert.pem",
+-            "dest": "/etc/pki/kerbside/cacert.pem",
+-            "owner": "kerbside",
+-            "perm": "0600"
+-        },
+-        {
+-            "source": "{{ container_config_directory }}/servercert.pem",
++            "source": "{{ container_config_directory }}/kerbside-cert.pem",
+             "dest": "/etc/pki/kerbside/servercert.pem",
+             "owner": "kerbside",
+             "perm": "0600"
+         },
+         {
+-            "source": "{{ container_config_directory }}/serverkey.pem",
++            "source": "{{ container_config_directory }}/kerbside-key.pem",
+             "dest": "/etc/pki/kerbside/serverkey.pem",
+             "owner": "kerbside",
+             "perm": "0600"
+-        }
++        }{% if kerbside_copy_certs | bool %},
++        {
++            "source": "{{ container_config_directory }}/ca-certificates",
++            "dest": "/var/lib/kolla/share/ca-certificates",
++            "owner": "root",
++            "perm": "0600"
++        }{% endif %}
+     ],
+     "permissions": [
+         {
 diff --git a/ansible/roles/nova/templates/kerbside_sources.yaml.j2 b/ansible/roles/kerbside/templates/kerbside_sources.yaml.j2
 similarity index 100%
 rename from ansible/roles/nova/templates/kerbside_sources.yaml.j2
@@ -596,7 +832,7 @@ index 0000000..fce52d4
 +---
 +project_name: "kerbside"
 diff --git a/ansible/roles/nova/defaults/main.yml b/ansible/roles/nova/defaults/main.yml
-index 897b0b5..d7d2b54 100644
+index 3ffe8c2..cb7feb1 100644
 --- a/ansible/roles/nova/defaults/main.yml
 +++ b/ansible/roles/nova/defaults/main.yml
 @@ -75,14 +75,6 @@ nova_services:
@@ -646,7 +882,7 @@ index 897b0b5..d7d2b54 100644
  ####################
  # OpenStack
  ####################
-@@ -340,11 +307,4 @@ nova_copy_certs: "{{ kolla_copy_ca_into_containers | bool or nova_enable_tls_bac
+@@ -341,11 +308,4 @@ nova_database_enable_tls_internal: "{{ database_enable_tls_internal | bool }}"
  ####################
  # WSGI
  ####################
@@ -690,10 +926,10 @@ index 5cd6b8c..59a7bdc 100644
 +    - kolla_action != "upgrade" or not nova_safety_upgrade | bool
 \ No newline at end of file
 diff --git a/ansible/roles/nova/tasks/bootstrap.yml b/ansible/roles/nova/tasks/bootstrap.yml
-index 35d47fa..57295ef 100644
+index ccc27b6..cde4c04 100644
 --- a/ansible/roles/nova/tasks/bootstrap.yml
 +++ b/ansible/roles/nova/tasks/bootstrap.yml
-@@ -14,7 +14,6 @@
+@@ -15,7 +15,6 @@
    with_items:
      - "{{ nova_cell0_database_name }}"
      - "{{ nova_api_database_name }}"
@@ -701,7 +937,7 @@ index 35d47fa..57295ef 100644
    when:
      - not use_preconfigured_databases | bool
  
-@@ -40,9 +39,6 @@
+@@ -42,9 +41,6 @@
      - database_name: "{{ nova_api_database_name }}"
        database_username: "{{ nova_api_database_user }}"
        database_password: "{{ nova_api_database_password }}"
@@ -711,7 +947,7 @@ index 35d47fa..57295ef 100644
    loop_control:
      label: "{{ item.database_name }}"
    run_once: True
-@@ -50,20 +46,6 @@
+@@ -52,20 +48,6 @@
      - not use_preconfigured_databases | bool
    no_log: true
  
@@ -733,7 +969,7 @@ index 35d47fa..57295ef 100644
  
  - include_tasks: clone.yml
 diff --git a/ansible/roles/nova/tasks/config.yml b/ansible/roles/nova/tasks/config.yml
-index e7d155d..abbcf93 100644
+index b785a6a..92e55f4 100644
 --- a/ansible/roles/nova/tasks/config.yml
 +++ b/ansible/roles/nova/tasks/config.yml
 @@ -68,54 +68,6 @@

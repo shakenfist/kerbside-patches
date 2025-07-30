@@ -12,6 +12,7 @@ if [ "${NAME}" == "Rocky Linux" ]; then
     ln -s /usr/bin/python3.12 /usr/bin/python3
     ln -s /usr/bin/pip3.12 /usr/bin/pip3
     echo "Upgraded OS python to 3.12."
+    /usr/bin/pip3.12 install "selinux<0.3.0"
 else
     echo "OS is not Rocky Linux, skipping."
 fi

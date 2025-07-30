@@ -8,11 +8,29 @@ on:
 
 jobs:
   build_images:
-    name: "Build docker images"
+    name: "Build docker images for ${{ matrix.test.release }}"
+    strategy:
+      fail-fast: false
+      matrix:
+        test: [
+          {
+            'name': 'build-2025.1',
+            'release': '2025.1',
+            'base': 'debian:12',
+            'baseuser': 'debian'
+          },
+          {
+            'name': 'build-master',
+            'release': 'master',
+            'base': 'debian:12',
+            'baseuser': 'debian',
+            'topology': 'all-in-one'
+          },
+        ]
     runs-on: [self-hosted, vm]
-    timeout-minutes: 180
+    timeout-minutes: 120
     concurrency:
-      group: ${{ github.workflow }}-${{ github.ref }}
+      group: ${{ github.workflow }}-${{ github.ref }}-${{ matrix.test.name }}
       cancel-in-progress: true
 
     # NOTE(mikal): git repos are checked out to /srv/github/_work/{org}/{repo}
@@ -40,20 +58,19 @@ jobs:
           ssh -i /srv/github/id_ci -o StrictHostKeyChecking=no \
               -o UserKnownHostsFile=/dev/null \
               debian@10.0.2.2 \
-              'cd /srv/shakenfist/kerbside-patches; ./_build/assemble-source.sh master'
+              'cd /srv/shakenfist/kerbside-patches; ./_build/assemble-source.sh ${{ matrix.test.release }}'
 
       - name: Build container images
         run: |
           . $GITHUB_ENV
 
           script="cd /srv/shakenfist/kerbside-patches;"
-          script="${script} hash=\$(./_build/calculate-container-hash.sh kolla kolla-2*);"
-          script="${script} ./_build/build-containers.sh --use-ci-registry --build-targets master --build-images all --image-tag "\$hash-debian-bookworm" --dont-fetch-images;"
+          script="${script} hash=\$(./_build/calculate-container-hash.sh kolla kolla-2* nova nova-2*);"
+          script="${script} ./_build/build-containers.sh --use-ci-registry --build-targets "${{ matrix.test.release }}" --build-images all --image-tag "\$hash-debian-bookworm" --dont-fetch-images;"
 
           ssh -i /srv/github/id_ci -o StrictHostKeyChecking=no \
               -o UserKnownHostsFile=/dev/null \
               debian@10.0.2.2 "${script}"
-
 
   functional_matrix:
     name: "Build a test cloud for ${{ matrix.test.description }}"
@@ -61,6 +78,14 @@ jobs:
       fail-fast: false
       matrix:
         test: [
+          {
+            'name': '2025.1-debian12-aio',
+            'description': 'OpenStack 2025.1 on Debian 12 all-in-one',
+            'release': '2025.1',
+            'base': 'debian:12',
+            'baseuser': 'debian',
+            'topology': 'all-in-one'
+          },
           {
             'name': 'master-debian12-aio',
             'description': 'OpenStack master on Debian 12 all-in-one',
@@ -70,12 +95,20 @@ jobs:
             'topology': 'all-in-one'
           },
           {
-            'name': 'master-rocky9-aio',
-            'description': 'OpenStack master on Rocky 9 all-in-one',
+            'name': 'master-rocky10-aio',
+            'description': 'OpenStack master on Rocky 10 all-in-one',
             'release': 'master',
-            'base': 'rocky:9',
+            'base': 'rocky:10',
             'baseuser': 'cloud-user',
             'topology': 'all-in-one'
+          },
+          {
+            'name': 'master-debian12-multi',
+            'description': 'OpenStack master on Debian 12 multinode',
+            'release': 'master',
+            'base': 'debian:12',
+            'baseuser': 'debian',
+            'topology': 'multinode'
           },
         ]
     runs-on: [self-hosted, vm]
@@ -111,20 +144,20 @@ jobs:
           . $GITHUB_ENV
 
           script="cd /srv/shakenfist/kerbside-patches;"
-          script="${script} hash=\$(./_build/calculate-container-hash.sh kolla kolla-2*);"
-          script="${script} ./_build/build-containers.sh --use-ci-registry --build-targets master --build-images all --image-tag "\$hash-debian-bookworm" --dont-fetch-images;"
+          script="${script} hash=\$(./_build/calculate-container-hash.sh kolla kolla-2* nova nova-2*);"
+          script="${script} ./_build/build-containers.sh --use-ci-registry --build-targets ${{ matrix.test.release }} --build-images all --image-tag "\$hash-debian-bookworm" --dont-fetch-images;"
 
           ssh -i /srv/github/id_ci -o StrictHostKeyChecking=no \
               -o UserKnownHostsFile=/dev/null \
               ${{ matrix.test.baseuser }}@10.0.2.2 "${script}"
 
-      - name: Disable /etc/hosts for name resolution
-        run: |
-          . $GITHUB_ENV
-          ssh -i /srv/github/id_ci -o StrictHostKeyChecking=no \
-              -o UserKnownHostsFile=/dev/null \
-              ${{ matrix.test.baseuser }}@10.0.2.2 \
-              'sudo sed -i s"|hosts:      files dns myhostname|hosts:      dns myhostname|" /etc/nsswitch.conf'
+      # - name: Disable /etc/hosts for name resolution
+      #   run: |
+      #     . $GITHUB_ENV
+      #     ssh -i /srv/github/id_ci -o StrictHostKeyChecking=no \
+      #         -o UserKnownHostsFile=/dev/null \
+      #         ${{ matrix.test.baseuser }}@10.0.2.2 \
+      #         'sudo sed -i s"|hosts:      files dns myhostname|hosts:      dns myhostname|" /etc/nsswitch.conf'
 
       - name: Bootstrap Kolla-Ansible
         run: |
@@ -132,7 +165,7 @@ jobs:
           ssh -i /srv/github/id_ci -o StrictHostKeyChecking=no \
               -o UserKnownHostsFile=/dev/null \
               ${{ matrix.test.baseuser }}@10.0.2.2 \
-              'cd /srv/shakenfist/kerbside-patches; sudo ./tools/bootstrap-kolla-ansible ${{ matrix.test.release }}'
+              'cd /srv/shakenfist/kerbside-patches; sudo ./tools/bootstrap-kolla-ansible ${{ matrix.test.release }} ${{ matrix.test.topology }}'
 
       - name: Install Kolla-Ansible
         run: |
@@ -151,6 +184,7 @@ jobs:
               'cd /srv/shakenfist/kerbside-patches; sudo ./tools/install-openstack-clients'
 
       - name: Dump haproxy logs
+        if: always()
         run: |
           . $GITHUB_ENV
           ssh -i /srv/github/id_ci -o StrictHostKeyChecking=no \
@@ -159,6 +193,7 @@ jobs:
               'sudo docker logs haproxy || true'
 
       - name: Dump kerbside proxy logs
+        if: always()
         run: |
           . $GITHUB_ENV
           ssh -i /srv/github/id_ci -o StrictHostKeyChecking=no \
@@ -167,6 +202,7 @@ jobs:
               'sudo docker logs kerbside_proxy || true'
 
       - name: Dump internal VIP CA cert details
+        if: always()
         run: |
           . $GITHUB_ENV
           ssh -i /srv/github/id_ci -o StrictHostKeyChecking=no \
@@ -175,6 +211,7 @@ jobs:
               'openssl s_client -showcerts -connect 10.0.2.3:5000'
 
       - name: Dump CA cert bundle
+        if: always()
         run: |
           . $GITHUB_ENV
           ssh -i /srv/github/id_ci -o StrictHostKeyChecking=no \

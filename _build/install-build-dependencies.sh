@@ -1,5 +1,25 @@
 #!/bin/bash -e
 
+. /etc/os-release
+echo "Claimed OS name: ${NAME}"
+
+echo
+echo -e "${H2}Early bootstrapping${Color_Off}"
+if [ "${NAME}" == "Rocky Linux" ]; then
+    sudo dnf update -y
+    sudo dnf install -y epel-release
+    sudo dnf config-manager --set-enabled crb
+    echo
+
+    sudo dnf install -y git
+else
+    sudo apt-get update
+    sudo apt-get dist-upgrade -y
+    echo
+
+    sudo apt-get install -y git
+fi
+
 # Run from the top directory.
 . _build/common.sh
 
@@ -8,15 +28,8 @@ echo -e "${H1}==================================================${Color_Off}"
 echo -e "${H1}Installing build dependencies${Color_Off}"
 echo -e "${H1}==================================================${Color_Off}"
 
-. /etc/os-release
-echo "Claimed OS name: ${NAME}"
+echo
 if [ "${NAME}" == "Rocky Linux" ]; then
-    echo -e "${H2}Basic OS updates${Color_Off}"
-    sudo dnf update -y
-    sudo dnf install -y epel-release
-    sudo dnf config-manager --set-enabled crb
-    echo
-
     echo -e "${H2}Additional packages${Color_Off}"
     sudo dnf install -y moreutils pkg-config python3-lxml libxml2-devel \
         libxslt jq gcc python3-devel dbus-devel glib2-devel dbus-python-devel \
@@ -32,15 +45,10 @@ if [ "${NAME}" == "Rocky Linux" ]; then
     sudo systemctl start docker
     echo
 else
-    echo -e "${H2}Basic OS updates${Color_Off}"
-    sudo apt-get update
-    sudo apt-get dist-upgrade -y
-    echo
-
     echo -e "${H2}Additional packages${Color_Off}"
     sudo apt-get install -y moreutils pkg-config python3-lxml libxml2-dev \
         libxslt1-dev jq gcc python3-dev libdbus-1-dev libglib2.0-dev \
-        python3-dbus git python3-venv netcat-openbsd python3-dev \
+        python3-dbus python3-venv netcat-openbsd python3-dev \
         build-essential libpcre3-dev
     sudo apt-get remove -y python3-virtualenv
     sudo pip3 install --break-system-packages tox yq occystrap virtualenv \
