@@ -150,6 +150,10 @@ jobs:
           openstack_release: ${{ matrix.test.release }}
           topology: ${{ matrix.test.topology }}
 
+      - name: Dump CI environment details
+        run: |
+          cat ci-environment.sh
+
       - name: Build patched repositories
         run: |
           . $GITHUB_ENV
