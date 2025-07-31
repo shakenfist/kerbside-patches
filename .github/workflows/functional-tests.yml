@@ -65,12 +65,31 @@ jobs:
           . $GITHUB_ENV
 
           script="cd /srv/shakenfist/kerbside-patches;"
-          script="${script} hash=\$(./_build/calculate-container-hash.sh kolla kolla-2* nova nova-2*);"
+          script="${script} hash=\$(./_build/calculate-container-hash.sh kolla kolla-2* nova nova-2* requirements requirements-2*);"
           script="${script} ./_build/build-containers.sh --use-ci-registry --build-targets "${{ matrix.test.release }}" --build-images all --image-tag "\$hash-debian-bookworm" --dont-fetch-images;"
 
           ssh -i /srv/github/id_ci -o StrictHostKeyChecking=no \
               -o UserKnownHostsFile=/dev/null \
               debian@10.0.2.2 "${script}"
+
+      - name: Archive patched source
+        if: always()
+        run: |
+          . $GITHUB_ENV
+          mkdir /tmp/bundle
+          scp -i /srv/github/id_ci -o StrictHostKeyChecking=no \
+              -o UserKnownHostsFile=/dev/null \
+              debian@10.0.2.2:/srv/shakenfist/kerbside-patches/src/*.tgz /tmp/bundle/
+          cd /tmp
+          zip -r bundle.zip bundle
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: source-${{ matrix.test.release }}
+          retention-days: 90
+          if-no-files-found: error
+          path: /tmp/bundle.zip
 
   functional_matrix:
     name: "Build a test cloud for ${{ matrix.test.description }}"
@@ -144,8 +163,8 @@ jobs:
           . $GITHUB_ENV
 
           script="cd /srv/shakenfist/kerbside-patches;"
-          script="${script} hash=\$(./_build/calculate-container-hash.sh kolla kolla-2* nova nova-2*);"
-          script="${script} ./_build/build-containers.sh --use-ci-registry --build-targets ${{ matrix.test.release }} --build-images all --image-tag "\$hash-debian-bookworm" --dont-fetch-images;"
+          script="${script} hash=\$(./_build/calculate-container-hash.sh kolla kolla-2* nova nova-2* requirements requirements-2*);"
+          script="${script} ./_build/build-containers.sh --use-ci-registry --build-targets ${{ matrix.test.release }} --build-images all --image-tag "\$hash-debian-bookworm";"
 
           ssh -i /srv/github/id_ci -o StrictHostKeyChecking=no \
               -o UserKnownHostsFile=/dev/null \
