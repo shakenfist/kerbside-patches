@@ -3,6 +3,10 @@ base = debian
 debug = true
 push = false
 
+[openstack-base]
+type = local
+location = TOPSRCDIR/requirements
+
 [kerbside-plugin-openstacksdk]
 type = local
 location = TOPSRCDIR/openstacksdk
