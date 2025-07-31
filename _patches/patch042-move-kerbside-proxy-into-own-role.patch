@@ -1,6 +1,6 @@
-commit abca6bf3ccd684d45815150d7965b21f953dc395
+commit e772b098f158884384cc452de25c0543e0f746a1
 Author: Michael Still <mikal@stillhq.com>
-Date:   Mon Jul 28 16:45:34 2025 +1000
+Date:   Thu Jul 31 17:30:21 2025 +1000
 
     Move kerbside proxy into its own role.
     
@@ -193,6 +193,23 @@ index c41d854..d714c31 100644
  # Following an upgrade, data migrations should be performed for the API
  # database.  This should be done once all cells have been upgraded.
  
+diff --git a/ansible/roles/certificates/defaults/main.yml b/ansible/roles/certificates/defaults/main.yml
+index 9bfc916..828729b 100644
+--- a/ansible/roles/certificates/defaults/main.yml
++++ b/ansible/roles/certificates/defaults/main.yml
+@@ -9,9 +9,4 @@ kerbside_dir: "{{ kolla_certificates_dir }}/private/kerbside"
+ # Whether to generate certificates for libvirt TLS.
+ certificates_generate_libvirt: "{{ libvirt_tls | default(false) | bool }}"
+ # Directory into which to copy generated certificates and keys for libvirt TLS.
+-certificates_libvirt_output_dir: "{{ node_custom_config }}/nova/nova-libvirt"
+-
+-# Whether to generate certificates for kerbside.
+-certificates_generate_kerbside: "{{ enable_kerbside | default(false) | bool }}"
+-# Directory into which to copy generated certificates and keys for kerbside.
+-certificates_kerbside_output_dir: "{{ node_custom_config }}/nova/kerbside"
+\ No newline at end of file
++certificates_libvirt_output_dir: "{{ node_custom_config }}/nova/nova-libvirt"
+\ No newline at end of file
 diff --git a/ansible/roles/certificates/tasks/generate-kerbside.yml b/ansible/roles/certificates/tasks/generate-kerbside.yml
 deleted file mode 100644
 index 1e435c5..0000000
