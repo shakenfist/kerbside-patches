@@ -51,22 +51,6 @@ jobs:
               'targets': 'kolla-ansible:master',
               'infrastructure': 'debian-12-metal'
           },
-          {
-              'description': "nova master on rocky 9",
-              'name': 'rocky-9-nova-master',
-              'baseimage': 'sf://label/ci-images/rocky-9',
-              'baseuser': 'cloud-user',
-              'targets': 'nova:master',
-              'infrastructure': 'rocky-9-metal'
-          },
-          {
-              'description': "nova master on debian 12",
-              'name': 'debian-12-nova-master',
-              'baseimage': 'sf://label/ci-images/debian-12',
-              'baseuser': 'debian',
-              'targets': 'nova:master',
-              'infrastructure': 'debian-12-metal'
-          },
         ]
     runs-on: [self-hosted, "${{ matrix.test.infrastructure }}"]
     concurrency:

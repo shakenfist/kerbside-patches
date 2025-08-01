@@ -1,7 +1,0 @@
-repo: https://github.com/openstack/nova
-source_branch: master
-destination_branch: kerbside-all-patches
-shallow_clone: true
-directory: nova
-release: master
-depends_on: ''
