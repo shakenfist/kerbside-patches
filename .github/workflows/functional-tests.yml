@@ -270,13 +270,35 @@ jobs:
         if: always()
         run: |
           . $GITHUB_ENV
-          ssh -i /srv/github/id_ci -o StrictHostKeyChecking=no \
-              -o UserKnownHostsFile=/dev/null \
-              ${{ matrix.test.baseuser }}@10.0.2.2 \
-              'cd /srv/shakenfist/kerbside-patches/tools; sudo ./gather-logs'
-          scp -i /srv/github/id_ci -o StrictHostKeyChecking=no \
-              -o UserKnownHostsFile=/dev/null \
-              ${{ matrix.test.baseuser }}@10.0.2.2:/tmp/bundle.zip /tmp/bundle.zip
+          . ci-environment.sh
+
+          mkdir -p /tmp/bundle
+          cp /etc/hosts /tmp/bundle/
+
+          for node in ${nodes}; do
+              echo
+              echo
+              node_address=${!node}
+              echo "${node} is at ${node_address}"
+              echo
+
+              ssh -i /srv/github/id_ci -o StrictHostKeyChecking=no \
+                  -o UserKnownHostsFile=/dev/null \
+                  ${{ matrix.test.baseuser }}@${node_address} \
+                  'cd /srv/shakenfist/kerbside-patches/tools; sudo ./gather-logs'
+              scp -i /srv/github/id_ci -o StrictHostKeyChecking=no \
+                  -o UserKnownHostsFile=/dev/null \
+                  ${{ matrix.test.baseuser }}@${node_address}:/tmp/bundle.zip /tmp/bundle/${node}.zip
+
+              mkdir -p /tmp/bundle/${node}
+              cd /tmp/bundle/${node}
+              unzip ../${node}.zip
+              rm ../${node}.zip
+          done
+
+          cd /tmp/
+          zip bundle.zip bundle
+
 
       - uses: actions/upload-artifact@v4
         if: always()
