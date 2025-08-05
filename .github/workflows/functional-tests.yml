@@ -103,7 +103,8 @@ jobs:
             'release': '2025.1',
             'base': 'debian:12',
             'baseuser': 'debian',
-            'topology': 'all-in-one'
+            'topology': 'all-in-one',
+            'runs_on': 'debian-11'
           },
           {
             'name': 'master-debian12-aio',
@@ -111,7 +112,8 @@ jobs:
             'release': 'master',
             'base': 'debian:12',
             'baseuser': 'debian',
-            'topology': 'all-in-one'
+            'topology': 'all-in-one',
+            'runs_on': 'debian-11'
           },
           {
             'name': 'master-rocky10-aio',
@@ -119,7 +121,8 @@ jobs:
             'release': 'master',
             'base': 'rocky:10',
             'baseuser': 'cloud-user',
-            'topology': 'all-in-one'
+            'topology': 'all-in-one',
+            'runs_on': 'debian-12'
           },
           {
             'name': 'master-debian12-multi',
@@ -127,10 +130,11 @@ jobs:
             'release': 'master',
             'base': 'debian:12',
             'baseuser': 'debian',
-            'topology': 'multinode'
+            'topology': 'multinode',
+            'runs_on': 'debian-11'
           },
         ]
-    runs-on: [self-hosted, vm]
+    runs-on: [self-hosted, vm, '${{ matrix.test.runs_on }}']
     needs: build_images
     timeout-minutes: 120
     concurrency:
