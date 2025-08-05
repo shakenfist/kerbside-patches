@@ -50,6 +50,7 @@ jobs:
           cd kerbside-patches
 
           ./_build/setup-local-build-environment.sh
+          ./_build/add-insecure-ci-registry.sh
 
           # This is terrible, but its easier than reloading groups
           sudo chmod ugo+rw /var/run/docker.sock
