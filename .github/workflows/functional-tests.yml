@@ -27,7 +27,7 @@ jobs:
             'topology': 'all-in-one'
           },
         ]
-    runs-on: [self-hosted, vm]
+    runs-on: [self-hosted, vm, 'debian-12', 'xl']
     timeout-minutes: 120
     concurrency:
       group: ${{ github.workflow }}-${{ github.ref }}-${{ matrix.test.name }}
@@ -38,48 +38,53 @@ jobs:
     # variables at https://docs.github.com/en/actions/learn-github-actions/environment-variables
 
     steps:
+      - name: Checkout kerbside-patches
+        uses: actions/checkout@v4
+        with:
+          path: kerbside-patches
+          fetch-depth: 0
+
       - name: Install dependencies on local runner
         run: |
-          sudo apt-get update
-          sudo apt-get dist-upgrade -y
-          sudo apt-get install -y moreutils git
+          . $GITHUB_ENV
+          cd kerbside-patches
 
-      - name: Setup test environment
-        uses: shakenfist/actions/setup-kerbside-environment@main
-        with:
-          base: debian:12
-          base_user: debian
-          openstack_release: master
-          topology: all-in-one
+          ./_build/setup-local-build-environment.sh
+
+          # This is terrible, but its easier than reloading groups
+          sudo chmod ugo+rw /var/run/docker.sock
 
       - name: Build patched repositories
         run: |
           . $GITHUB_ENV
-          ssh -i /srv/github/id_ci -o StrictHostKeyChecking=no \
-              -o UserKnownHostsFile=/dev/null \
-              debian@10.0.2.2 \
-              'cd /srv/shakenfist/kerbside-patches; ./_build/assemble-source.sh ${{ matrix.test.release }}'
+          cd kerbside-patches
+          ./_build/assemble-source.sh ${{ matrix.test.release }}
 
       - name: Build container images
         run: |
           . $GITHUB_ENV
+          cd kerbside-patches
 
-          script="cd /srv/shakenfist/kerbside-patches;"
-          script="${script} hash=\$(./_build/calculate-container-hash.sh kolla kolla-2* nova nova-2* requirements requirements-2*);"
-          script="${script} ./_build/build-containers.sh --use-ci-registry --build-targets "${{ matrix.test.release }}" --build-images all --image-tag "\$hash-debian-bookworm" --dont-fetch-images;"
+          hash=$(./_build/calculate-container-hash.sh \
+              kolla kolla-2* \
+              nova nova-2* \
+              requirements requirements-2*)
 
-          ssh -i /srv/github/id_ci -o StrictHostKeyChecking=no \
-              -o UserKnownHostsFile=/dev/null \
-              debian@10.0.2.2 "${script}"
+          ./_build/build-containers.sh \
+              --use-ci-registry \
+              --build-targets "${{ matrix.test.release }}" \
+              --build-images all \
+              --image-tag "${hash-debian-bookworm}" \
+              --dont-fetch-images
 
       - name: Archive patched source
         if: always()
         run: |
           . $GITHUB_ENV
+          cd kerbside-patches
+
           mkdir /tmp/bundle
-          scp -i /srv/github/id_ci -o StrictHostKeyChecking=no \
-              -o UserKnownHostsFile=/dev/null \
-              debian@10.0.2.2:/srv/shakenfist/kerbside-patches/src/*.tgz /tmp/bundle/
+          mv src/*.tgz /tmp/bundle/
           cd /tmp
           zip -r bundle.zip bundle
 
