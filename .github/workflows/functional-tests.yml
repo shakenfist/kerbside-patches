@@ -49,6 +49,7 @@ jobs:
           . $GITHUB_ENV
           cd kerbside-patches
 
+          ./_build/install-build-dependencies.sh
           ./_build/setup-local-build-environment.sh
           ./_build/add-insecure-ci-registry.sh
 
