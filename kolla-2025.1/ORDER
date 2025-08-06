@@ -5,3 +5,4 @@
 ../_patches/patch046-kolla-support-kerbside-bootstrap.patch
 ../_patches/patch056-use-more-generic-mariadb-version.patch
 ../_patches/patch058-mariadb-mirror-epoxy.patch
+../_patches/patch059-use-epoxy-osbpo-repo.patch
