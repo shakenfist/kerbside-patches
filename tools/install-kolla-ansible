@@ -9,9 +9,11 @@ echo -e "${H1}==================================================${Color_Off}"
 echo -e "${H1}Install Kolla-Ansible${Color_Off}"
 echo -e "${H1}==================================================${Color_Off}"
 
-echo -e "${H2}Pull images${Color_Off}"
-kolla-ansible pull -i /etc/kolla/inventory
-echo
+if [ ${use_ci_registry} == "true" ]; then
+    echo -e "${H2}Pull images${Color_Off}"
+    kolla-ansible pull -i /etc/kolla/inventory
+    echo
+fi
 
 echo -e "${H2}Run pre-checks${Color_Off}"
 kolla-ansible prechecks -i /etc/kolla/inventory
