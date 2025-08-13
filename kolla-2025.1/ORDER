@@ -4,4 +4,3 @@
 ../_patches/patch043-kolla-local-clustercheck.patch
 ../_patches/patch046-kolla-support-kerbside-bootstrap.patch
 ../_patches/patch056-use-more-generic-mariadb-version.patch
-../_patches/patch058-mariadb-mirror-epoxy.patch

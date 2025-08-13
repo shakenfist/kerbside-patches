@@ -1,0 +1,19 @@
+commit 577447c77a254570e4f783445072d55619530c4e
+Author: Michael Still <mikal@stillhq.com>
+Date:   Wed Aug 6 18:13:26 2025 +1000
+
+    Use epoxy osbpo repo.
+
+diff --git a/docker/base/Dockerfile.j2 b/docker/base/Dockerfile.j2
+index 9ac08b8..1bb24ce 100644
+--- a/docker/base/Dockerfile.j2
++++ b/docker/base/Dockerfile.j2
+@@ -253,7 +253,7 @@ COPY sources.list /etc/apt/sources.list.d/kolla-custom.list
+ 
+ RUN apt update \
+  && apt install -y --no-install-recommends extrepo \
+- && extrepo enable openstack_dalmatian \
++ && extrepo enable openstack_epoxy \
+  && apt purge -y extrepo \
+  && apt --purge autoremove -y \
+  && apt clean

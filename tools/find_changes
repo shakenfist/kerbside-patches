@@ -1,0 +1,13 @@
+#!/bin/bash
+
+# Look at recent git history and try and find changes which altered
+# a given path. $1 is a path to grep for.
+
+for hash in $(git log --no-merges --pretty=format:"%h"); do
+    message=$(git show --pretty=format:"%s" ${hash} | head -1)
+    paths=$(git diff-tree --no-commit-id --name-only ${hash} -r | grep ${1})
+
+    echo "${hash} -- ${message}"
+    echo "${paths}"
+    echo
+done

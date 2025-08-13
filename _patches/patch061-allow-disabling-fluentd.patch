@@ -1,0 +1,32 @@
+commit 4dde5e5e5fcfdf610e42a8de5bb90e6f9d78f117
+Author: Michael Still <mikal@stillhq.com>
+Date:   Wed Aug 13 08:14:47 2025 +1000
+
+    Make fluentd optional.
+    
+    The refactoring of fluentd out of the common role into its own
+    role appears to have missed supporting enable_fluentd being set
+    to "no".
+    
+    Signed-off-by: Michael Still <mikal@stillhq.com>
+
+diff --git a/ansible/site.yml b/ansible/site.yml
+index b3e06de..40e956a 100644
+--- a/ansible/site.yml
++++ b/ansible/site.yml
+@@ -110,10 +110,11 @@
+     {{ fluentd_max_fail_percentage |
+        default(kolla_max_fail_percentage) |
+        default(100) }}
+-  tags:
+-    - fluentd
+-  roles:
+-    - role: fluentd
++  tasks:
++    - include_role:
++        name: fluentd
++      tags: fluentd
++      when: enable_fluentd | bool
+ 
+ - name: Apply role loadbalancer
+   gather_facts: false
