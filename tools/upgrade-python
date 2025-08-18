@@ -1,8 +1,11 @@
 #!/bin/bash
 
+# We need at least python 3.12 for modern versions of Kolla Ansible
+# (those post 2024.2).
+
 . /etc/os-release
 echo "Claimed OS name: ${NAME}"
-if [ "${NAME}" == "Rocky Linux" ]; then
+if [ "${NAME}" == "Rocky Linux" ] -a [ "${VERSION_ID}" == "9.0" ]; then
     dnf update
     dnf upgrade
     dnf install -y python3.12 python3.12-pip python3.12-wheel python3.12-devel \
@@ -14,7 +17,7 @@ if [ "${NAME}" == "Rocky Linux" ]; then
     echo "Upgraded OS python to 3.12."
     /usr/bin/pip3.12 install "selinux<0.3.0"
 else
-    echo "OS is not Rocky Linux, skipping."
+    echo "OS is not Rocky Linux below v10, skipping."
 fi
 
 echo
