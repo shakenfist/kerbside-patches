@@ -303,10 +303,14 @@ jobs:
 
               mkdir -p /tmp/bundle/${node}
               cd /tmp/bundle/${node}
-              unzip ../${node}.zip
+              unzip ../${node}.zip || true
               rm ../${node}.zip
           done
 
+          echo
+          echo
+          echo "Building single bundle"
+          echo
           cd /tmp/
           zip bundle.zip bundle
 
