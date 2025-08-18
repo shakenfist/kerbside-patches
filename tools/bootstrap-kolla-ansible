@@ -18,7 +18,7 @@ echo -e "${H1}==================================================${Color_Off}"
 
 echo -e "${H2}Make venv for '${ID}' distro${Color_Off}"
 if [ "${ID}" == "rocky" ]; then
-    dnf install python3-libselinux
+    dnf install python3-libselinux libselinux-python3
 fi
 
 python3 -mvenv --system-site-packages /srv/kolla-ansible/venv
