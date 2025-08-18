@@ -1,0 +1,19 @@
+commit c2e08cff79310a38452fa3b9e6dd35e6a40c7862
+Author: Michael Still <mikal@stillhq.com>
+Date:   Mon Aug 18 10:36:47 2025 +1000
+
+    Use local mirror of osbpo to work around reliability issues.
+
+diff --git a/docker/base/Dockerfile.j2 b/docker/base/Dockerfile.j2
+index 1bb24ce..8c343a9 100644
+--- a/docker/base/Dockerfile.j2
++++ b/docker/base/Dockerfile.j2
+@@ -253,7 +253,7 @@ COPY sources.list /etc/apt/sources.list.d/kolla-custom.list
+ 
+ RUN apt update \
+  && apt install -y --no-install-recommends extrepo \
+- && extrepo enable openstack_epoxy \
++ && extrepo enable openstack_epoxy --mirror http://mirror-osbpo.home.stillhq.com/debian \
+  && apt purge -y extrepo \
+  && apt --purge autoremove -y \
+  && apt clean
