@@ -7,10 +7,10 @@ Date:   Thu Jul 31 17:30:21 2025 +1000
     Signed-off-by: Michael Still <mikal@stillhq.com>
 
 diff --git a/ansible/group_vars/all.yml b/ansible/group_vars/all.yml
-index d588750..5cf7e5b 100644
+index 2024fcc..7c2a816 100644
 --- a/ansible/group_vars/all.yml
 +++ b/ansible/group_vars/all.yml
-@@ -951,9 +951,12 @@ glance_keystone_user: "glance"
+@@ -952,9 +952,12 @@ glance_keystone_user: "glance"
  # Kerbside configuration options
  kerbside_keystone_user: "kerbside"
  kerbside_port: 13002
@@ -24,7 +24,7 @@ index d588750..5cf7e5b 100644
  # Nova fake driver and the number of fake driver per compute node
  enable_nova_fake: "no"
 diff --git a/ansible/inventory/all-in-one b/ansible/inventory/all-in-one
-index 02e7867..45da38b 100644
+index 13af9b4..0cb48e9 100644
 --- a/ansible/inventory/all-in-one
 +++ b/ansible/inventory/all-in-one
 @@ -18,6 +18,9 @@ localhost       ansible_connection=local
@@ -69,10 +69,10 @@ index 02e7867..45da38b 100644
 +vdiproxy
 +
  # Neutron
- [ironic-neutron-agent:children]
- neutron
+ [neutron-server:children]
+ control
 diff --git a/ansible/inventory/multinode b/ansible/inventory/multinode
-index d46acde..9ec6927 100644
+index c5ea3e3..56ec884 100644
 --- a/ansible/inventory/multinode
 +++ b/ansible/inventory/multinode
 @@ -29,6 +29,10 @@ monitoring01
@@ -126,8 +126,8 @@ index d46acde..9ec6927 100644
 +vdiproxy
 +
  # Neutron
- [ironic-neutron-agent:children]
- neutron
+ [neutron-server:children]
+ control
 diff --git a/ansible/nova.yml b/ansible/nova.yml
 index c41d854..d714c31 100644
 --- a/ansible/nova.yml
@@ -1045,7 +1045,7 @@ index b785a6a..92e55f4 100644
    become: true
    template:
 diff --git a/ansible/site.yml b/ansible/site.yml
-index 1f80eaf..b3e06de 100644
+index da11504..d3e91f3 100644
 --- a/ansible/site.yml
 +++ b/ansible/site.yml
 @@ -42,6 +42,7 @@
@@ -1056,7 +1056,7 @@ index 1f80eaf..b3e06de 100644
          - enable_keystone_{{ enable_keystone | bool }}
          - enable_kuryr_{{ enable_kuryr | bool }}
          - enable_letsencrypt_{{ enable_letsencrypt | bool }}
-@@ -217,6 +218,11 @@
+@@ -204,6 +205,11 @@
              tasks_from: loadbalancer
            tags: keystone
            when: enable_keystone | bool
