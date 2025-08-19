@@ -67,7 +67,7 @@ echo -e "${H2}Bootstrap inventory${Color_Off}"
 mkdir -p /etc/kolla
 cp -r etc/kolla /etc/
 cd "${topdir}"
-cat etc/inventory-${topology} | \
+cat etc/inventory-${topology}-${target_release} | \
         sed "s|USER|${SUDO_USER}|g" \
         > /etc/kolla/inventory
 echo
