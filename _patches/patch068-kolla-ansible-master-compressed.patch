@@ -1,6 +1,6 @@
-commit fea9499696e7c2af456d5d163b2fe791ee0fdfa5
+commit 32746de0bf45dbc22ca16ce4af3d71163f93bc04
 Author: Michael Still <mikal@stillhq.com>
-Date:   Wed Aug 20 09:18:51 2025 +1000
+Date:   Thu Aug 21 08:43:42 2025 +1000
 
     Deploy Kerbside with Kolla-Ansible.
     
@@ -303,10 +303,10 @@ index ee761a3..fe4aa80 100644
      pattern .+
 diff --git a/ansible/roles/kerbside/defaults/main.yml b/ansible/roles/kerbside/defaults/main.yml
 new file mode 100644
-index 0000000..5403e54
+index 0000000..9dd5452
 --- /dev/null
 +++ b/ansible/roles/kerbside/defaults/main.yml
-@@ -0,0 +1,74 @@
+@@ -0,0 +1,94 @@
 +---
 +kerbside_services:
 +  kerbside_proxy:
@@ -317,6 +317,26 @@ index 0000000..5403e54
 +    volumes: "{{ kerbside_default_volumes + kerbside_extra_volumes }}"
 +    dimensions: "{{ kerbside_dimensions }}"
 +    healthcheck: "{{ kerbside_healthcheck }}"
++    haproxy:
++      kerbside_api:
++        enabled: true
++        mode: "http"
++        external: false
++        port: "{{ kerbside_port }}"
++        listen_port: "{{ kerbside_port }}"
++        backend_http_extra:
++          - "option httpchk"
++        tls_backend: true
++      kerbside_api_external:
++        enabled: true
++        mode: "http"
++        external: true
++        external_fqdn: "{{ kolla_external_fqdn }}"
++        port: "{{ kerbside_port }}"
++        listen_port: "{{ kerbside_port }}"
++        backend_http_extra:
++          - "option httpchk"
++        tls_backend: true
 +
 +####################
 +# Kerbside
@@ -860,7 +880,7 @@ index 0000000..fce52d4
 +---
 +project_name: "kerbside"
 diff --git a/ansible/roles/nova-cell/templates/nova.conf.j2 b/ansible/roles/nova-cell/templates/nova.conf.j2
-index 8da5e6b..91241a4 100644
+index 8da5e6b..c3d6443 100644
 --- a/ansible/roles/nova-cell/templates/nova.conf.j2
 +++ b/ansible/roles/nova-cell/templates/nova.conf.j2
 @@ -71,6 +71,7 @@ zlib_compression = {{ nova_spice_zlib_compression }}
