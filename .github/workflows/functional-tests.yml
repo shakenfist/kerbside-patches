@@ -194,7 +194,7 @@ jobs:
       #         'sudo sed -i s"|hosts:      files dns myhostname|hosts:      dns myhostname|" /etc/nsswitch.conf'
 
       - name: Log getent resolution for kolla
-        if: "!contains(matrix.test.topology, 'all-in-one')"
+        if: "contains(matrix.test.topology, 'all-in-one')"
         run: |
           . $GITHUB_ENV
           ssh -i /srv/github/id_ci -o StrictHostKeyChecking=no \
