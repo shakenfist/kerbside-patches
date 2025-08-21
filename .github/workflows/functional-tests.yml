@@ -278,6 +278,23 @@ jobs:
       #         ${{ matrix.test.baseuser }}@10.0.2.2 \
       #         'cd /srv/shakenfist/kerbside-patches; sudo ./tools/inspect-kerbside'
 
+      - name: Verify that the haproxy is configured correctly for the Kerbside API
+        run: |
+          . $GITHUB_ENV
+          ssh -i /srv/github/id_ci -o StrictHostKeyChecking=no \
+              -o UserKnownHostsFile=/dev/null \
+              ${{ matrix.test.baseuser }}@10.0.2.2 \
+              'curl -v -k https://10.0.2.3:13002'
+
+      - name: Dump Kerbside API CA cert details
+        if: always()
+        run: |
+          . $GITHUB_ENV
+          ssh -i /srv/github/id_ci -o StrictHostKeyChecking=no \
+              -o UserKnownHostsFile=/dev/null \
+              ${{ matrix.test.baseuser }}@10.0.2.2 \
+              'openssl s_client -showcerts -connect 10.0.2.3:13002'
+
       - name: Attempt to start an instance with a console and connect to it
         run: |
           . $GITHUB_ENV
