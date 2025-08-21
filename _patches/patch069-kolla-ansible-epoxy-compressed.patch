@@ -1,4 +1,4 @@
-commit 452cb937b2888622a9216f8be909d1d61a6fd9a3
+commit 3570012ec50699acfccc629309450d34cca7e52b
 Author: Michael Still <mikal@stillhq.com>
 Date:   Wed Aug 20 17:09:15 2025 +1000
 
@@ -21,7 +21,7 @@ index 772aa2f..04cbc87 100644
  - name: Apply role certificates
    hosts: localhost
 diff --git a/ansible/group_vars/all.yml b/ansible/group_vars/all.yml
-index 29e1686..947c0a5 100644
+index 29e1686..2cbf09e 100644
 --- a/ansible/group_vars/all.yml
 +++ b/ansible/group_vars/all.yml
 @@ -881,6 +881,7 @@ enable_ironic_inspector: "no"
@@ -32,13 +32,16 @@ index 29e1686..947c0a5 100644
  enable_kuryr: "no"
  enable_letsencrypt: "no"
  enable_magnum: "no"
-@@ -947,6 +948,16 @@ placement_keystone_user: "placement"
+@@ -947,6 +948,19 @@ placement_keystone_user: "placement"
  cinder_keystone_user: "cinder"
  glance_keystone_user: "glance"
  
 +# Kerbside configuration options
 +kerbside_keystone_user: "kerbside"
 +kerbside_port: 13002
++kerbside_api_port: "{{ kerbside_port }}"
++kerbside_api_listen_port: "{{ kerbside_api_port }}"
++kerbside_api_public_port: "{{ haproxy_single_external_frontend_public_port if haproxy_single_external_frontend | bool else kerbside_api_port }}"
 +kerbside_prometheus_port: 13003
 +kerbside_vdi_insecure_port: 5899
 +kerbside_vdi_secure_port: 5898
@@ -300,10 +303,10 @@ index ee761a3..be8fc70 100644
    <rule>
 diff --git a/ansible/roles/kerbside/defaults/main.yml b/ansible/roles/kerbside/defaults/main.yml
 new file mode 100644
-index 0000000..16b8e5a
+index 0000000..9256560
 --- /dev/null
 +++ b/ansible/roles/kerbside/defaults/main.yml
-@@ -0,0 +1,71 @@
+@@ -0,0 +1,101 @@
 +---
 +kerbside_services:
 +  kerbside_proxy:
@@ -314,6 +317,36 @@ index 0000000..16b8e5a
 +    volumes: "{{ kerbside_default_volumes + kerbside_extra_volumes }}"
 +    dimensions: "{{ kerbside_dimensions }}"
 +    healthcheck: "{{ kerbside_healthcheck }}"
++    haproxy:
++      kerbside_api:
++        enabled: "{{ enable_kerbside | bool }}"
++        mode: "http"
++        external: false
++        port: "{{ kerbside_api_port }}"
++        listen_port: "{{ kerbside_api_listen_port }}"
++        backend_http_extra:
++          - "option httpchk GET /"
++      kerbside_api_external:
++        enabled: "{{ enable_kerbside | bool }}"
++        mode: "http"
++        external: true
++        external_fqdn: "{{ kolla_external_fqdn }}"
++        port: "{{ kerbside_api_public_port }}"
++        listen_port: "{{ kerbside_api_listen_port }}"
++        backend_http_extra:
++          - "option httpchk GET /"
++      kerbside_proxy_insecure:
++        enabled: "{{ enable_kerbside | bool }}"
++        mode: "tcp"
++        external: true
++        port: "{{ kerbside_vdi_insecure_port }}"
++        listen_port: "{{ kerbside_vdi_insecure_port }}"
++      kerbside_proxy_secure:
++        enabled: "{{ enable_kerbside | bool }}"
++        mode: "tcp"
++        external: true
++        port: "{{ kerbside_vdi_secure_port }}"
++        listen_port: "{{ kerbside_vdi_secure_port }}"
 +
 +####################
 +# Kerbside
@@ -854,14 +887,14 @@ index 0000000..fce52d4
 +---
 +project_name: "kerbside"
 diff --git a/ansible/roles/nova-cell/templates/nova.conf.j2 b/ansible/roles/nova-cell/templates/nova.conf.j2
-index 7eaa1dc..19bdb9f 100644
+index 7eaa1dc..4349d7c 100644
 --- a/ansible/roles/nova-cell/templates/nova.conf.j2
 +++ b/ansible/roles/nova-cell/templates/nova.conf.j2
 @@ -73,6 +73,7 @@ zlib_compression = {{ nova_spice_zlib_compression }}
  playback_compression = {{ nova_spice_playback_compression | bool | lower }}
  streaming_mode = {{ nova_spice_streaming_mode }}
  server_proxyclient_address = "{{ 'api' | kolla_address }}"
-+spice_direct_proxy_base_url = "http://{{ kolla_external_fqdn }}:13002/nova"
++spice_direct_proxy_base_url = "https://{{ kolla_external_fqdn }}:13002/nova"
  {% if nova_spice_html5 == 'yes' %}
  {% if inventory_hostname in groups[nova_cell_compute_group] %}
  html5proxy_base_url = {{ nova_spicehtml5proxy_fqdn | kolla_url(public_protocol, nova_spicehtml5proxy_public_port, '/spice_auto.html') }}
