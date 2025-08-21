@@ -1,4 +1,4 @@
-commit 883e7a0297d5df556c565d01fe5fed5513b4e550
+commit 7a1a8779a93a64d710b2f93e2543c8a5c3c90467
 Author: Michael Still <mikal@stillhq.com>
 Date:   Thu Aug 21 08:43:42 2025 +1000
 
@@ -21,7 +21,7 @@ index 772aa2f..04cbc87 100644
  - name: Apply role certificates
    hosts: localhost
 diff --git a/ansible/group_vars/all.yml b/ansible/group_vars/all.yml
-index a7809c5..d1406a3 100644
+index a7809c5..30af9bf 100644
 --- a/ansible/group_vars/all.yml
 +++ b/ansible/group_vars/all.yml
 @@ -881,6 +881,7 @@ enable_ironic_inspector: "no"
@@ -32,13 +32,16 @@ index a7809c5..d1406a3 100644
  enable_kuryr: "no"
  enable_letsencrypt: "no"
  enable_magnum: "no"
-@@ -947,6 +948,16 @@ placement_keystone_user: "placement"
+@@ -947,6 +948,19 @@ placement_keystone_user: "placement"
  cinder_keystone_user: "cinder"
  glance_keystone_user: "glance"
  
 +# Kerbside configuration options
 +kerbside_keystone_user: "kerbside"
 +kerbside_port: 13002
++kerbside_api_port: "{{ kerbside_port }}"
++kerbside_api_listen_port: "{{ kerbside_api_port }}"
++kerbside_api_public_port: "{{ haproxy_single_external_frontend_public_port if haproxy_single_external_frontend | bool else kerbside_api_port }}"
 +kerbside_prometheus_port: 13003
 +kerbside_vdi_insecure_port: 5899
 +kerbside_vdi_secure_port: 5898
@@ -303,10 +306,10 @@ index ee761a3..fe4aa80 100644
      pattern .+
 diff --git a/ansible/roles/kerbside/defaults/main.yml b/ansible/roles/kerbside/defaults/main.yml
 new file mode 100644
-index 0000000..54e1c14
+index 0000000..50c357e
 --- /dev/null
 +++ b/ansible/roles/kerbside/defaults/main.yml
-@@ -0,0 +1,109 @@
+@@ -0,0 +1,105 @@
 +---
 +kerbside_services:
 +  kerbside_proxy:
@@ -319,38 +322,34 @@ index 0000000..54e1c14
 +    healthcheck: "{{ kerbside_healthcheck }}"
 +    haproxy:
 +      kerbside_api:
-+        enabled: true
++        enabled: "{{ enable_kerbside | bool }}"
 +        mode: "http"
 +        external: false
-+        port: "{{ kerbside_port }}"
-+        listen_port: "{{ kerbside_port }}"
++        port: "{{ kerbside_api_port }}"
++        listen_port: "{{ kerbside_api_listen_port }}"
 +        backend_http_extra:
 +          - "option httpchk GET /"
-+        tls_backend: false
 +      kerbside_api_external:
-+        enabled: true
++        enabled: "{{ enable_kerbside | bool }}"
 +        mode: "http"
 +        external: true
 +        external_fqdn: "{{ kolla_external_fqdn }}"
-+        port: "{{ kerbside_port }}"
-+        listen_port: "{{ kerbside_port }}"
++        port: "{{ kerbside_api_public_port }}"
++        listen_port: "{{ kerbside_api_listen_port }}"
 +        backend_http_extra:
 +          - "option httpchk GET /"
-+        tls_backend: false
 +      kerbside_proxy_insecure:
-+        enabled: true
++        enabled: "{{ enable_kerbside | bool }}"
 +        mode: "tcp"
 +        external: true
 +        port: "{{ kerbside_vdi_insecure_port }}"
 +        listen_port: "{{ kerbside_vdi_insecure_port }}"
-+        tls_backend: false
 +      kerbside_proxy_secure:
-+        enabled: true
++        enabled: "{{ enable_kerbside | bool }}"
 +        mode: "tcp"
 +        external: true
 +        port: "{{ kerbside_vdi_secure_port }}"
 +        listen_port: "{{ kerbside_vdi_secure_port }}"
-+        tls_backend: false
 +
 +
 +####################
