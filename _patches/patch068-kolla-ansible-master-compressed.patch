@@ -1,4 +1,4 @@
-commit 317e5c644a98f7e9a7e420b234563fdbaa08d91e
+commit 22032ef4441eaac5ecadd424cef480959e4bf26f
 Author: Michael Still <mikal@stillhq.com>
 Date:   Thu Aug 21 08:43:42 2025 +1000
 
@@ -303,10 +303,10 @@ index ee761a3..fe4aa80 100644
      pattern .+
 diff --git a/ansible/roles/kerbside/defaults/main.yml b/ansible/roles/kerbside/defaults/main.yml
 new file mode 100644
-index 0000000..9dd5452
+index 0000000..88f2b01
 --- /dev/null
 +++ b/ansible/roles/kerbside/defaults/main.yml
-@@ -0,0 +1,94 @@
+@@ -0,0 +1,109 @@
 +---
 +kerbside_services:
 +  kerbside_proxy:
@@ -326,7 +326,7 @@ index 0000000..9dd5452
 +        listen_port: "{{ kerbside_port }}"
 +        backend_http_extra:
 +          - "option httpchk"
-+        tls_backend: true
++        tls_backend: false
 +      kerbside_api_external:
 +        enabled: true
 +        mode: "http"
@@ -336,7 +336,22 @@ index 0000000..9dd5452
 +        listen_port: "{{ kerbside_port }}"
 +        backend_http_extra:
 +          - "option httpchk"
-+        tls_backend: true
++        tls_backend: false
++      kerbside_proxy_insecure:
++        enabled: true
++        mode: "tcp"
++        external: true
++        port: "{{ kerbside_vdi_insecure_port }}"
++        listen_port: "{{ kerbside_vdi_insecure_port }}"
++        tls_backend: false
++      kerbside_proxy_secure:
++        enabled: true
++        mode: "tcp"
++        external: true
++        port: "{{ kerbside_vdi_secure_port }}"
++        listen_port: "{{ kerbside_vdi_secure_port }}"
++        tls_backend: false
++
 +
 +####################
 +# Kerbside
