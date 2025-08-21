@@ -1,4 +1,4 @@
-commit 32746de0bf45dbc22ca16ce4af3d71163f93bc04
+commit 317e5c644a98f7e9a7e420b234563fdbaa08d91e
 Author: Michael Still <mikal@stillhq.com>
 Date:   Thu Aug 21 08:43:42 2025 +1000
 
@@ -880,14 +880,14 @@ index 0000000..fce52d4
 +---
 +project_name: "kerbside"
 diff --git a/ansible/roles/nova-cell/templates/nova.conf.j2 b/ansible/roles/nova-cell/templates/nova.conf.j2
-index 8da5e6b..c3d6443 100644
+index 8da5e6b..2e9992a 100644
 --- a/ansible/roles/nova-cell/templates/nova.conf.j2
 +++ b/ansible/roles/nova-cell/templates/nova.conf.j2
 @@ -71,6 +71,7 @@ zlib_compression = {{ nova_spice_zlib_compression }}
  playback_compression = {{ nova_spice_playback_compression | bool | lower }}
  streaming_mode = {{ nova_spice_streaming_mode }}
  server_proxyclient_address = "{{ 'api' | kolla_address }}"
-+spice_direct_proxy_base_url = "http://{{ kolla_external_fqdn }}:13002/nova"
++spice_direct_proxy_base_url = "https://{{ kolla_external_fqdn }}:13002/nova"
  {% if nova_spice_html5 == 'yes' %}
  {% if inventory_hostname in groups[nova_cell_compute_group] %}
  html5proxy_base_url = {{ nova_spicehtml5proxy_fqdn | kolla_url(public_protocol, nova_spicehtml5proxy_public_port, '/spice_auto.html') }}
