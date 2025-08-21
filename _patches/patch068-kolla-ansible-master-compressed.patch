@@ -1,4 +1,4 @@
-commit 22032ef4441eaac5ecadd424cef480959e4bf26f
+commit 883e7a0297d5df556c565d01fe5fed5513b4e550
 Author: Michael Still <mikal@stillhq.com>
 Date:   Thu Aug 21 08:43:42 2025 +1000
 
@@ -303,7 +303,7 @@ index ee761a3..fe4aa80 100644
      pattern .+
 diff --git a/ansible/roles/kerbside/defaults/main.yml b/ansible/roles/kerbside/defaults/main.yml
 new file mode 100644
-index 0000000..88f2b01
+index 0000000..54e1c14
 --- /dev/null
 +++ b/ansible/roles/kerbside/defaults/main.yml
 @@ -0,0 +1,109 @@
@@ -325,7 +325,7 @@ index 0000000..88f2b01
 +        port: "{{ kerbside_port }}"
 +        listen_port: "{{ kerbside_port }}"
 +        backend_http_extra:
-+          - "option httpchk"
++          - "option httpchk GET /"
 +        tls_backend: false
 +      kerbside_api_external:
 +        enabled: true
@@ -335,7 +335,7 @@ index 0000000..88f2b01
 +        port: "{{ kerbside_port }}"
 +        listen_port: "{{ kerbside_port }}"
 +        backend_http_extra:
-+          - "option httpchk"
++          - "option httpchk GET /"
 +        tls_backend: false
 +      kerbside_proxy_insecure:
 +        enabled: true

@@ -129,8 +129,8 @@ echo -e "${H1}==================================================${Color_Off}"
 echo -e "${H1}Create console${Color_Off}"
 echo -e "${H1}==================================================${Color_Off}"
 
-consoleurl=$(/usr/local/bin/openstack console url show ${instancename} --spice-direct -f json | \
-    jq -e -r ".url")
+consoleurl=$(/usr/local/bin/openstack console url show ${instancename} \
+    --spice-direct -f json | jq -e -r ".url")
 consoletoken=$(echo ${consoleurl} | sed 's/.*token=//')
 
 echo
