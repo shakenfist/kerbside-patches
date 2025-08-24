@@ -1,4 +1,4 @@
-commit 3570012ec50699acfccc629309450d34cca7e52b
+commit 75c9a5a401c2a93f8ac02a7a9f764f93cfbf8ee4
 Author: Michael Still <mikal@stillhq.com>
 Date:   Wed Aug 20 17:09:15 2025 +1000
 
@@ -21,7 +21,7 @@ index 772aa2f..04cbc87 100644
  - name: Apply role certificates
    hosts: localhost
 diff --git a/ansible/group_vars/all.yml b/ansible/group_vars/all.yml
-index 29e1686..2cbf09e 100644
+index 29e1686..2973778 100644
 --- a/ansible/group_vars/all.yml
 +++ b/ansible/group_vars/all.yml
 @@ -881,6 +881,7 @@ enable_ironic_inspector: "no"
@@ -32,7 +32,7 @@ index 29e1686..2cbf09e 100644
  enable_kuryr: "no"
  enable_letsencrypt: "no"
  enable_magnum: "no"
-@@ -947,6 +948,19 @@ placement_keystone_user: "placement"
+@@ -947,6 +948,21 @@ placement_keystone_user: "placement"
  cinder_keystone_user: "cinder"
  glance_keystone_user: "glance"
  
@@ -44,7 +44,9 @@ index 29e1686..2cbf09e 100644
 +kerbside_api_public_port: "{{ haproxy_single_external_frontend_public_port if haproxy_single_external_frontend | bool else kerbside_api_port }}"
 +kerbside_prometheus_port: 13003
 +kerbside_vdi_insecure_port: 5899
++kerbside_vdi_insecure_listen_port: "{{ kerbside_vdi_insecure_port}}"
 +kerbside_vdi_secure_port: 5898
++kerbside_vdi_secure_listen_port: "{{ kerbside_vdi_secure_port}}"
 +kerbside_api_url: "http://{{ kolla_external_fqdn }}:{{ kerbside_port }}"
 +kerbside_safety_upgrade: "no"
 +kerbside_enable_tls_backend: "yes"
@@ -303,10 +305,10 @@ index ee761a3..be8fc70 100644
    <rule>
 diff --git a/ansible/roles/kerbside/defaults/main.yml b/ansible/roles/kerbside/defaults/main.yml
 new file mode 100644
-index 0000000..9256560
+index 0000000..080fe8c
 --- /dev/null
 +++ b/ansible/roles/kerbside/defaults/main.yml
-@@ -0,0 +1,101 @@
+@@ -0,0 +1,103 @@
 +---
 +kerbside_services:
 +  kerbside_proxy:
@@ -341,12 +343,14 @@ index 0000000..9256560
 +        external: true
 +        port: "{{ kerbside_vdi_insecure_port }}"
 +        listen_port: "{{ kerbside_vdi_insecure_port }}"
++        tls_backend: false
 +      kerbside_proxy_secure:
 +        enabled: "{{ enable_kerbside | bool }}"
 +        mode: "tcp"
 +        external: true
 +        port: "{{ kerbside_vdi_secure_port }}"
 +        listen_port: "{{ kerbside_vdi_secure_port }}"
++        tls_backend: false
 +
 +####################
 +# Kerbside
