@@ -233,7 +233,7 @@ jobs:
           ssh -i /srv/github/id_ci -o StrictHostKeyChecking=no \
               -o UserKnownHostsFile=/dev/null \
               ${{ matrix.test.baseuser }}@10.0.2.2 \
-              'sudo docker exec -u root -it haproxy cat /etc/haproxy/services.d/kerbside_proxy.cfg || true'
+              'sudo docker exec -u root haproxy cat /etc/haproxy/services.d/kerbside_proxy.cfg || true'
 
       - name: Dump haproxy logs
         if: always()
@@ -347,7 +347,7 @@ jobs:
           echo "Building single bundle"
           echo
           cd /tmp/
-          zip bundle.zip bundle
+          zip -r bundle.zip bundle
 
 
       - uses: actions/upload-artifact@v4
