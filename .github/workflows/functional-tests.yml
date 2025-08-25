@@ -226,14 +226,32 @@ jobs:
               ${{ matrix.test.baseuser }}@10.0.2.2 \
               'cd /srv/shakenfist/kerbside-patches; sudo ./tools/install-openstack-clients'
 
-      - name: Dump haproxy kerbside configuration
+      - name: Dump list of configured haproxy services
         if: always()
         run: |
           . $GITHUB_ENV
           ssh -i /srv/github/id_ci -o StrictHostKeyChecking=no \
               -o UserKnownHostsFile=/dev/null \
               ${{ matrix.test.baseuser }}@10.0.2.2 \
-              'sudo docker exec -u root haproxy cat /etc/haproxy/services.d/kerbside_proxy.cfg || true'
+              'sudo ls -l /etc/kolla/haproxy/services.d/ || true'
+
+      - name: Dump haproxy kerbside API configuration
+        if: always()
+        run: |
+          . $GITHUB_ENV
+          ssh -i /srv/github/id_ci -o StrictHostKeyChecking=no \
+              -o UserKnownHostsFile=/dev/null \
+              ${{ matrix.test.baseuser }}@10.0.2.2 \
+              'sudo cat /etc/kolla/haproxy/services.d/kerbside_api.cfg || true'
+
+      - name: Dump haproxy kerbside proxy configuration
+        if: always()
+        run: |
+          . $GITHUB_ENV
+          ssh -i /srv/github/id_ci -o StrictHostKeyChecking=no \
+              -o UserKnownHostsFile=/dev/null \
+              ${{ matrix.test.baseuser }}@10.0.2.2 \
+              'sudo cat /etc/kolla/haproxy/services.d/kerbside_proxy.cfg || true'
 
       - name: Dump internal VIP CA cert details
         if: always()
@@ -261,14 +279,6 @@ jobs:
               ${{ matrix.test.baseuser }}@10.0.2.2 \
               'cd /srv/shakenfist/kerbside-patches; sudo ./tools/postinstall-kolla-ansible --use-ci-registry'
 
-      # - name: Dump kerbside debugging information
-      #   run: |
-      #     . $GITHUB_ENV
-      #     ssh -i /srv/github/id_ci -o StrictHostKeyChecking=no \
-      #         -o UserKnownHostsFile=/dev/null \
-      #         ${{ matrix.test.baseuser }}@10.0.2.2 \
-      #         'cd /srv/shakenfist/kerbside-patches; sudo ./tools/inspect-kerbside'
-
       - name: Verify that the haproxy is configured correctly for the Kerbside API
         run: |
           . $GITHUB_ENV
@@ -294,6 +304,15 @@ jobs:
               ${{ matrix.test.baseuser }}@10.0.2.2 \
               'cd /srv/shakenfist/kerbside-patches; sudo ./tools/test-console'
 
+      - name: Dump netstat
+        if: always()
+        run: |
+          . $GITHUB_ENV
+          ssh -i /srv/github/id_ci -o StrictHostKeyChecking=no \
+              -o UserKnownHostsFile=/dev/null \
+              ${{ matrix.test.baseuser }}@10.0.2.2 \
+              'sudo netstat -plnt || true'
+
       - name: Dump haproxy docker logs
         if: always()
         run: |
@@ -303,6 +322,15 @@ jobs:
               ${{ matrix.test.baseuser }}@10.0.2.2 \
               'sudo docker logs haproxy || true'
 
+      - name: Dump kerbside API docker logs
+        if: always()
+        run: |
+          . $GITHUB_ENV
+          ssh -i /srv/github/id_ci -o StrictHostKeyChecking=no \
+              -o UserKnownHostsFile=/dev/null \
+              ${{ matrix.test.baseuser }}@10.0.2.2 \
+              'sudo docker logs kerbside_api || true'
+
       - name: Dump kerbside proxy docker logs
         if: always()
         run: |
@@ -311,6 +339,24 @@ jobs:
               -o UserKnownHostsFile=/dev/null \
               ${{ matrix.test.baseuser }}@10.0.2.2 \
               'sudo docker logs kerbside_proxy || true'
+
+      - name: Inspect kerbside API docker container
+        if: always()
+        run: |
+          . $GITHUB_ENV
+          ssh -i /srv/github/id_ci -o StrictHostKeyChecking=no \
+              -o UserKnownHostsFile=/dev/null \
+              ${{ matrix.test.baseuser }}@10.0.2.2 \
+              'sudo docker inspect kerbside_api || true'
+
+      - name: Inspect kerbside proxy docker container
+        if: always()
+        run: |
+          . $GITHUB_ENV
+          ssh -i /srv/github/id_ci -o StrictHostKeyChecking=no \
+              -o UserKnownHostsFile=/dev/null \
+              ${{ matrix.test.baseuser }}@10.0.2.2 \
+              'sudo docker inspect kerbside_proxy || true'
 
       - name: Collect logs
         if: always()

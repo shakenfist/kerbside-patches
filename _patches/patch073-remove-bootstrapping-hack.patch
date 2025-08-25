@@ -1,0 +1,42 @@
+commit 2de6bc01ce59cc19b7f60e7d70b594f90fa64b80
+Author: Michael Still <mikal@stillhq.com>
+Date:   Tue Sep 2 11:27:42 2025 +1000
+
+    Remove bootstrapping hack.
+    
+    Signed-off-by: Michael Still <mikal@stillhq.com>
+
+diff --git a/docker/kerbside/kerbside-api/extend_start.sh b/docker/kerbside/kerbside-api/extend_start.sh
+index 48b2af6..f2a2b52 100644
+--- a/docker/kerbside/kerbside-api/extend_start.sh
++++ b/docker/kerbside/kerbside-api/extend_start.sh
+@@ -1,5 +1,4 @@
+ #!/bin/bash
+-set -o errexit
+ 
+ # Make the log directory
+ mkdir -p /var/log/kolla/kerbside
+@@ -7,7 +6,4 @@ mkdir -p /var/log/kolla/kerbside
+ # Load config from environment variables
+ . /etc/kerbside/kerbside_config
+ 
+-# Bootstrapping is done with the kerbside-proxy image, not this
+-# one.
+-
+ . /usr/local/bin/kolla_httpd_setup
+diff --git a/docker/kerbside/kerbside-proxy/extend_start.sh b/docker/kerbside/kerbside-proxy/extend_start.sh
+index 42629d0..0299b27 100644
+--- a/docker/kerbside/kerbside-proxy/extend_start.sh
++++ b/docker/kerbside/kerbside-proxy/extend_start.sh
+@@ -5,11 +5,3 @@ mkdir -p /var/log/kolla/kerbside
+ 
+ # Load config from environment variables
+ . /etc/kerbside/kerbside_config
+-
+-# Bootstrap and exit if KOLLA_BOOTSTRAP variable is set. This catches all cases
+-# of the KOLLA_BOOTSTRAP variable being set, including empty.
+-if [[ "${!KOLLA_BOOTSTRAP[@]}" ]]; then
+-    cd /kerbside
+-    alembic upgrade head
+-    exit 0
+-fi

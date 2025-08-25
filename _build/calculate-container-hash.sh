@@ -25,4 +25,4 @@ for dir in ${*}; do
     cd ${topdir}
 done
 
-echo "v3-${unique}" | sha1sum | cut -f 1 -d " " | sed -rn 's/^(........).*/\1/gp'
+echo "v9-${unique}" | sha1sum | cut -f 1 -d " " | sed -rn 's/^(........).*/\1/gp'

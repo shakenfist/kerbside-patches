@@ -1,3 +1,6 @@
 ../_patches/patch066-kolla-master-compressed.patch
 ../_patches/patch047-kolla-fluentd-enable-syslog.patch
 ../_patches/patch062-local-osbpo-mirror.patch
+../_patches/patch071-kerbside-wsgi-split-images.patch
+../_patches/patch073-remove-bootstrapping-hack.patch
+../_patches/patch076-drop-proxy-extend-start.patch

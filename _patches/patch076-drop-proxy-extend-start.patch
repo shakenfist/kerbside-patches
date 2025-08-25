@@ -1,0 +1,43 @@
+commit bd6370cd85e1b154eeeca6c1feb38bf9c71cc6e4
+Author: Michael Still <mikal@stillhq.com>
+Date:   Thu Sep 4 10:58:15 2025 +1000
+
+    Drop proxy extend_start.
+
+diff --git a/docker/kerbside/kerbside-api/extend_start.sh b/docker/kerbside/kerbside-api/extend_start.sh
+index f2a2b52..9b917b3 100644
+--- a/docker/kerbside/kerbside-api/extend_start.sh
++++ b/docker/kerbside/kerbside-api/extend_start.sh
+@@ -3,7 +3,4 @@
+ # Make the log directory
+ mkdir -p /var/log/kolla/kerbside
+ 
+-# Load config from environment variables
+-. /etc/kerbside/kerbside_config
+-
+ . /usr/local/bin/kolla_httpd_setup
+diff --git a/docker/kerbside/kerbside-proxy/Dockerfile.j2 b/docker/kerbside/kerbside-proxy/Dockerfile.j2
+index 4e5e1f7..5b72e99 100644
+--- a/docker/kerbside/kerbside-proxy/Dockerfile.j2
++++ b/docker/kerbside/kerbside-proxy/Dockerfile.j2
+@@ -3,7 +3,4 @@ FROM {{ namespace }}/{{ image_prefix }}kerbside-base:{{ tag }}
+ LABEL maintainer="{{ maintainer }}" name="{{ image_name }}" build-date="{{ build_date }}"
+ {% endblock %}
+ 
+-COPY extend_start.sh /usr/local/bin/kolla_extend_start
+-RUN chmod 644 /usr/local/bin/kolla_extend_start
+-
+ USER kerbside
+diff --git a/docker/kerbside/kerbside-proxy/extend_start.sh b/docker/kerbside/kerbside-proxy/extend_start.sh
+deleted file mode 100644
+index 0299b27..0000000
+--- a/docker/kerbside/kerbside-proxy/extend_start.sh
++++ /dev/null
+@@ -1,7 +0,0 @@
+-#!/bin/bash
+-
+-# Make the log directory
+-mkdir -p /var/log/kolla/kerbside
+-
+-# Load config from environment variables
+-. /etc/kerbside/kerbside_config

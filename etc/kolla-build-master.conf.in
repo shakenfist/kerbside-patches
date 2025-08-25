@@ -12,7 +12,7 @@ reference = master
 type = local
 location = TOPSRCDIR/openstacksdk
 
-[kerbside]
+[kerbside-base]
 type = local
 location = TOPSRCDIR/kerbside
 
