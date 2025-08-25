@@ -1,4 +1,4 @@
-commit 75c9a5a401c2a93f8ac02a7a9f764f93cfbf8ee4
+commit 523437a182d8a2d381b9bb523e9a5f1517285695
 Author: Michael Still <mikal@stillhq.com>
 Date:   Wed Aug 20 17:09:15 2025 +1000
 
@@ -771,10 +771,10 @@ index 0000000..a742b40
 \ No newline at end of file
 diff --git a/ansible/roles/kerbside/templates/kerbside_config.j2 b/ansible/roles/kerbside/templates/kerbside_config.j2
 new file mode 100644
-index 0000000..72e084c
+index 0000000..676781f
 --- /dev/null
 +++ b/ansible/roles/kerbside/templates/kerbside_config.j2
-@@ -0,0 +1,35 @@
+@@ -0,0 +1,38 @@
 +#!/bin/bash -ex
 +
 +# This is a simple start script for Kerbside. Shaken Fist's configuration
@@ -810,6 +810,9 @@ index 0000000..72e084c
 +export KERBSIDE_KEYSTONE_SERVICE_AUTH_USER_DOMAIN_ID={{ default_user_domain_id }}
 +export KERBSIDE_KEYSTONE_SERVICE_AUTH_PROJECT_DOMAIN_ID={{ default_project_domain_id }}
 +export KERBSIDE_KEYSTONE_ACCESS_GROUP=kerbside
++
++# This is needed so that Keystone can trust the internal certificate
++export OS_CACERT={{ openstack_cacert }}
 \ No newline at end of file
 diff --git a/ansible/roles/kerbside/templates/kerbside_proxy.json.j2 b/ansible/roles/kerbside/templates/kerbside_proxy.json.j2
 new file mode 100644

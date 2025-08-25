@@ -167,6 +167,7 @@ echo
 echo -e "${H1}==================================================${Color_Off}"
 echo -e "${H1}Dump .vv file${Color_Off}"
 echo -e "${H1}==================================================${Color_Off}"
+
 if [ ! -e /tmp/console.vv ]; then
     echo "Console file missing!"
     exit 1
