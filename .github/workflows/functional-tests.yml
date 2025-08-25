@@ -235,24 +235,6 @@ jobs:
               ${{ matrix.test.baseuser }}@10.0.2.2 \
               'sudo docker exec -u root haproxy cat /etc/haproxy/services.d/kerbside_proxy.cfg || true'
 
-      - name: Dump haproxy logs
-        if: always()
-        run: |
-          . $GITHUB_ENV
-          ssh -i /srv/github/id_ci -o StrictHostKeyChecking=no \
-              -o UserKnownHostsFile=/dev/null \
-              ${{ matrix.test.baseuser }}@10.0.2.2 \
-              'sudo docker logs haproxy || true'
-
-      - name: Dump kerbside proxy logs
-        if: always()
-        run: |
-          . $GITHUB_ENV
-          ssh -i /srv/github/id_ci -o StrictHostKeyChecking=no \
-              -o UserKnownHostsFile=/dev/null \
-              ${{ matrix.test.baseuser }}@10.0.2.2 \
-              'sudo docker logs kerbside_proxy || true'
-
       - name: Dump internal VIP CA cert details
         if: always()
         run: |
@@ -311,6 +293,24 @@ jobs:
               -o UserKnownHostsFile=/dev/null \
               ${{ matrix.test.baseuser }}@10.0.2.2 \
               'cd /srv/shakenfist/kerbside-patches; sudo ./tools/test-console'
+
+      - name: Dump haproxy docker logs
+        if: always()
+        run: |
+          . $GITHUB_ENV
+          ssh -i /srv/github/id_ci -o StrictHostKeyChecking=no \
+              -o UserKnownHostsFile=/dev/null \
+              ${{ matrix.test.baseuser }}@10.0.2.2 \
+              'sudo docker logs haproxy || true'
+
+      - name: Dump kerbside proxy docker logs
+        if: always()
+        run: |
+          . $GITHUB_ENV
+          ssh -i /srv/github/id_ci -o StrictHostKeyChecking=no \
+              -o UserKnownHostsFile=/dev/null \
+              ${{ matrix.test.baseuser }}@10.0.2.2 \
+              'sudo docker logs kerbside_proxy || true'
 
       - name: Collect logs
         if: always()
