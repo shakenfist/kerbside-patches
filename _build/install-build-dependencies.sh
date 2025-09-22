@@ -28,6 +28,8 @@ echo -e "${H1}==================================================${Color_Off}"
 echo -e "${H1}Installing build dependencies${Color_Off}"
 echo -e "${H1}==================================================${Color_Off}"
 
+git clone https://github.com/shakenfist/clingwrap /srv/shakenfist/clingwrap
+
 echo
 if [ "${NAME}" == "Rocky Linux" ]; then
     echo -e "${H2}Additional packages${Color_Off}"
@@ -35,7 +37,8 @@ if [ "${NAME}" == "Rocky Linux" ]; then
         libxslt jq gcc python3-devel dbus-devel glib2-devel dbus-python-devel \
         netcat
     sudo dnf remove python3-virtualenv
-    sudo pip3 install tox yq occystrap virtualenv MarkupSafe==2.1.5 clingwrap
+    sudo pip3 install tox yq occystrap virtualenv MarkupSafe==2.1.5 \
+        /srv/shakenfist/clingwrap
     echo
 
     echo -e "${H2}Install a recent Docker${Color_Off}"
@@ -52,7 +55,7 @@ else
         build-essential libpcre3-dev
     sudo apt-get remove -y python3-virtualenv
     sudo pip3 install --break-system-packages tox yq occystrap virtualenv \
-        MarkupSafe==2.1.5 clingwrap
+        MarkupSafe==2.1.5 /srv/shakenfist/clingwrap
     echo
 
     echo -e "${H2}Install a recent Docker${Color_Off}"
