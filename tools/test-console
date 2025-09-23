@@ -9,7 +9,7 @@
 
 echo
 echo -e "${H1}==================================================${Color_Off}"
-echo -e "${H1}List compute services{Color_Off}"
+echo -e "${H1}List compute services${Color_Off}"
 echo -e "${H1}==================================================${Color_Off}"
 /usr/local/bin/openstack compute service list --long
 
