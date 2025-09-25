@@ -1,0 +1,18 @@
+commit 14632b5080fac27c1a7642b7c72e3b536f640c66
+Author: Michael Still <mikal@stillhq.com>
+Date:   Thu Sep 25 16:20:44 2025 +1000
+
+    Use trunk utilities for testing.
+
+diff --git a/docker/kerbside/kerbside-base/Dockerfile.j2 b/docker/kerbside/kerbside-base/Dockerfile.j2
+index 6ede949..cbaf9b0 100644
+--- a/docker/kerbside/kerbside-base/Dockerfile.j2
++++ b/docker/kerbside/kerbside-base/Dockerfile.j2
+@@ -29,6 +29,7 @@ LABEL maintainer="{{ maintainer }}" name="{{ image_name }}" build-date="{{ build
+ ADD plugins-archive /
+ 
+ {% set kerbside_pip_packages = [
++    'http://github.com/shakenfist/library-utilities',
+     '/kerbside'
+ ] %}
+ 
