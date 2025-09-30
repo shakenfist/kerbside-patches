@@ -27,10 +27,9 @@ echo
 
 # Fetch the Shaken Fist utilities library
 echo -e "${H2}Cloning Shaken Fist utilities${Color_Off}"
-mkdir src
 cd src
 git clone https://github.com/shakenfist/library-utilities
-tar cf kerblibrary-utilitiesside.tgz library-utilities
+tar cf library-utilities.tgz library-utilities
 cd ..
 echo
 echo
