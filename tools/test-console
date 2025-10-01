@@ -173,7 +173,39 @@ if [ ! -e /tmp/console.vv ]; then
     exit 1
 fi
 
+echo
 cat /tmp/console.vv
+echo
+
+echo
+echo -e "${H1}==================================================${Color_Off}"
+echo -e "${H1}Verify the .vv file contents are believable${Color_Off}"
+echo -e "${H1}==================================================${Color_Off}"
+
+if [ $(egrep -c "^type=spice" /tmp/console.vv || true) -lt 1 ]; then
+    echo "Console file is not of type=spice!"
+    exit 1
+fi
+
+if [ $(egrep -c "^host=" /tmp/console.vv || true) -lt 1 ]; then
+    echo "Console file does not specify a host!"
+    exit 1
+fi
+
+if [ $(egrep -c "^port=" /tmp/console.vv || true) -lt 1 ]; then
+    echo "Console file does not specify a port!"
+    exit 1
+fi
+
+if [ $(egrep -c "^password=" /tmp/console.vv || true) -lt 1 ]; then
+    echo "Console file does not specify a password!"
+    exit 1
+fi
+
+if [ $(egrep -c "^ca_cert=" /tmp/console.vv || true) -lt 1 ]; then
+    echo "Console file does not specify a CA certificate!"
+    exit 1
+fi
 
 trap - EXIT
 
