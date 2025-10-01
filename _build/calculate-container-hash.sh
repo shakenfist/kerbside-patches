@@ -14,8 +14,13 @@ for dir in ${*}; do
         cd ${dir}
         
         if [ "${dir}" == "src" ]; then
-            # `src` is handled differently
-            hash=$(tar c . | sha1sum - | cut -f 1 -d " " | sed -rn 's/^(........).*/\1/gp')
+            # `src` is handled differently. My original idea here was to generate
+            # a tarball on the fly and then use the hash of that, but that doesn't
+            # work because tarballs include file modification times and the sort
+            # order of their entries is interdeterminate. While there are flags to
+            # address those, I could not get it to work reliably. Instead, we
+            # are going to hash the contents of every python file...
+            hash=$(find . -type f -name "*.py" -exec cat {} \; | sort | sha1sum - | cut -f 1 -d " " | sed -rn 's/^(........).*/\1/gp')
             unique="${unique};${hash}"
         else
             # And the others are assumed to be directories of patches
