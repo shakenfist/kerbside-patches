@@ -70,7 +70,8 @@ jobs:
           hash=$(./_build/calculate-container-hash.sh \
               kolla kolla-2* \
               nova nova-2* \
-              requirements requirements-2*)
+              requirements requirements-2* \
+              src )
 
           ./_build/build-containers.sh \
               --use-ci-registry \
