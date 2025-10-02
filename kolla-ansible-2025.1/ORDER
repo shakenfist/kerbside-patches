@@ -8,3 +8,4 @@
 ../_patches/patch072-kerbside-bootstrap-container-split.patch
 ../_patches/patch085-use-kerbside-ini-epoxy.patch
 ../_patches/patch083-kerbside-keystone-tls-verification.patch
+../_patches/patch086-backport-docker-image-url.patch

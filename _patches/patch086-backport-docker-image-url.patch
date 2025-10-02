@@ -1,0 +1,18 @@
+commit 8918840e47d755e0b469c83c31ce4949c527b55d
+Author: Michael Still <mikal@stillhq.com>
+Date:   Fri Oct 3 06:41:56 2025 +1000
+
+    Backport docker_image_url.
+
+diff --git a/ansible/roles/kerbside/defaults/main.yml b/ansible/roles/kerbside/defaults/main.yml
+index 2d808f6..7abc702 100644
+--- a/ansible/roles/kerbside/defaults/main.yml
++++ b/ansible/roles/kerbside/defaults/main.yml
+@@ -74,6 +74,7 @@ kerbside_services:
+ ####################
+ 
+ kerbside_tag: "{{ openstack_tag }}"
++docker_image_url: "{{ docker_registry ~ '/' if docker_registry else '' }}{{ docker_namespace }}/{{ docker_image_name_prefix }}"
+ kerbside_base_image: "{{ docker_image_url }}kerbside-base"
+ kerbside_base_image_full: "{{ kerbside_api_image }}:{{ kerbside_tag }}"
+ kerbside_api_image: "{{ docker_image_url }}kerbside-api"
