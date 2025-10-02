@@ -1,2 +1,5 @@
 ../_patches/patch067-kolla-epoxy-compressed.patch
 ../_patches/patch063-local-osbpo-mirror-epoxy.patch
+../_patches/patch071-kerbside-wsgi-split-images.patch
+../_patches/patch073-remove-bootstrapping-hack.patch
+../_patches/patch076-drop-proxy-extend-start.patch
