@@ -4,3 +4,7 @@
 ../_patches/patch011-allow-concurrent-spice-connections.patch
 ../_patches/patch018-expose-spice-debug-logging.patch
 ../_patches/patch069-kolla-ansible-epoxy-compressed.patch
+../_patches/patch084-kerbside-wsgi-split-epoxy.patch
+../_patches/patch072-kerbside-bootstrap-container-split.patch
+../_patches/patch085-use-kerbside-ini-epoxy.patch
+../_patches/patch083-kerbside-keystone-tls-verification.patch
