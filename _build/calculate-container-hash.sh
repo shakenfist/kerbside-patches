@@ -22,6 +22,10 @@ for dir in ${*}; do
             # are going to hash the contents of every python file...
             hash=$(find . -type f -name "*.py" -exec cat {} \; | sort | sha1sum - | cut -f 1 -d " " | sed -rn 's/^(........).*/\1/gp')
             unique="${unique};${hash}"
+        elif [ "${dir}" == "etc" ]; then
+            # `etc` is like `src`, but has a simpler structure and no python files
+            hash=$(find . -type f -exec cat {} \; | sort | sha1sum - | cut -f 1 -d " " | sed -rn 's/^(........).*/\1/gp')
+            unique="${unique};${hash}"
         else
             # And the others are assumed to be directories of patches
             if [ -e PREPATCH ]; then
@@ -39,7 +43,7 @@ for dir in ${*}; do
             fi
         fi
 
-        echo "Hash directory ${dir} is ${hash}." >&2
+        echo "Hash of directory ${dir} is ${hash}." >&2
         cd ${topdir}
     fi
 done
