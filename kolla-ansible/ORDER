@@ -9,3 +9,4 @@
 ../_patches/patch070-kerbside-wsgi-split.patch
 ../_patches/patch072-kerbside-bootstrap-container-split.patch
 ../_patches/patch075-use-kerbside-ini.patch
+../_patches/patch083-kerbside-keystone-tls-verification.patch

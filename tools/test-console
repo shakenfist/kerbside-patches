@@ -202,7 +202,7 @@ if [ $(egrep -c "^password=" /tmp/console.vv || true) -lt 1 ]; then
     exit 1
 fi
 
-if [ $(egrep -c "^ca_cert=" /tmp/console.vv || true) -lt 1 ]; then
+if [ $(egrep -c "^ca=" /tmp/console.vv || true) -lt 1 ]; then
     echo "Console file does not specify a CA certificate!"
     exit 1
 fi
