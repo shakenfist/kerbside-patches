@@ -13,7 +13,10 @@ echo -e "${H1}==================================================${Color_Off}"
 
 extra=""
 if [ ${skip_tests} == "true" ]; then
-    extra="--skip-tests"
+    extra="${extra} --skip-tests"
+fi
+if [ ${use_ci_registry} == "true" ]; then
+    extra="${extra} --use-ci-registry"
 fi
 
 for project in ${@}; do

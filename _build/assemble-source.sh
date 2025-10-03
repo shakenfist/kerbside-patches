@@ -1,14 +1,15 @@
 #!/bin/bash -e
 
 # Run from the top directory.
+
+. _build/common.sh
+
 target_release="${1}"
 
 if [ -z ${target_release} ]; then
     echo "Please specify a target release."
     exit 1
 fi
-
-. _build/common.sh
 
 echo
 echo -e "${H1}==================================================${Color_Off}"
@@ -63,8 +64,13 @@ echo
 echo -e "${H3}The following directories contain patches: ${directories[@]}${Color_Off}"
 echo
 
+extra=""
+if [ ${use_ci_registry} == "true" ]; then
+    extra="${extra} --use-ci-registry"
+fi
+
 for project in "${directories[@]}"; do
-    ./_build/apply-patches-and-test.sh --skip-tests ${project}
+    ./_build/apply-patches-and-test.sh --skip-tests ${extra} ${project}
 done
 
 # Some projects require a local checkout even if we don't have any patches
