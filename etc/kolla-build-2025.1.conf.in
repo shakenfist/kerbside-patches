@@ -10,6 +10,7 @@ location = TOPSRCDIR/requirements
 [kerbside-plugin-openstacksdk]
 type = local
 location = TOPSRCDIR/openstacksdk
+reference = master
 
 [kerbside-base]
 type = local
