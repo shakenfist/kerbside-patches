@@ -6,10 +6,7 @@
 
 . _build/common.sh
 
-echo
-echo -e "${H1}==================================================${Color_Off}"
-echo -e "${H1}Will build:\n\n${@}${Color_Off}"
-echo -e "${H1}==================================================${Color_Off}"
+banner "Will build:\n\n${@}"
 
 extra=""
 if [ ${skip_tests} == "true" ]; then
@@ -25,6 +22,4 @@ done
 
 trap - EXIT
 
-echo -e "${H1}==================================================${Color_Off}"
-echo -e "${H1}All patches applied correctly.${Color_Off}"
-echo -e "${H1}==================================================${Color_Off}"
+banner "All patches applied correctly."

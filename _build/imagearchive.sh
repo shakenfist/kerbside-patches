@@ -3,10 +3,7 @@
 # Run from the top directory.
 . _build/common.sh
 
-echo
-echo -e "${H1}==================================================${Color_Off}"
-echo -e "${H1}Archiving artifacts from previous stages${Color_Off}"
-echo -e "${H1}==================================================${Color_Off}"
+banner "Archiving artifacts from previous stages"
 
 # Save images
 echo
@@ -60,5 +57,4 @@ gzip "${target}-${CI_COMMIT_SHORT_SHA}-sbom.tar"
 
 trap - EXIT
 
-echo -e "${H1}==================================================${Color_Off}"
-echo -e "${H1}All artifacts exported correctly for ${CI_COMMIT_SHORT_SHA}.${Color_Off}"
+banner "All artifacts exported correctly for ${CI_COMMIT_SHORT_SHA}."

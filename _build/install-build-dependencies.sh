@@ -23,10 +23,7 @@ fi
 # Run from the top directory.
 . _build/common.sh
 
-echo
-echo -e "${H1}==================================================${Color_Off}"
-echo -e "${H1}Installing build dependencies${Color_Off}"
-echo -e "${H1}==================================================${Color_Off}"
+banner "Installing build dependencies"
 
 git clone https://github.com/shakenfist/clingwrap /srv/shakenfist/clingwrap
 
@@ -92,6 +89,4 @@ python3 -mvenv /srv/kerbside/venv-tools
 
 trap - EXIT
 
-echo -e "${H1}==================================================${Color_Off}"
-echo -e "${H1}Build dependencies installed.${Color_Off}"
-echo -e "${H1}==================================================${Color_Off}"
+banner "Build dependencies installed."

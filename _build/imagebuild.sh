@@ -3,18 +3,12 @@
 # Run from the top directory.
 . _build/common.sh
 
-echo
-echo -e "${H1}==================================================${Color_Off}"
-echo -e "${H1}State of build dependencies${Color_Off}"
-echo -e "${H1}==================================================${Color_Off}"
+banner "State of build dependencies"
 du -sh ${topsrcdir}/*
 
 # Docker image build steps, which are pre target branch
 for target in ${build_targets}; do
-    echo
-    echo -e "${H1}==================================================${Color_Off}"
-    echo -e "${H1}Preparing artifacts from previous stages${Color_Off}"
-    echo -e "${H1}==================================================${Color_Off}"
+    banner "Preparing artifacts from previous stages"
     echo -e "${H2}Finding projects for release ${target}${Color_Off}"
     declare -a directories
     directories+=(kerbside)
@@ -41,10 +35,7 @@ for target in ${build_targets}; do
         fi
     done
 
-    echo
-    echo -e "${H1}==================================================${Color_Off}"
-    echo -e "${H1}Building docker images for ${target}${Color_Off}"
-    echo -e "${H1}==================================================${Color_Off}"
+    banner "Building docker images for ${target}"
 
     if [ ${target} == "master" ]; then
         target_branch="master-patches"
@@ -190,6 +181,4 @@ done
 
 trap - EXIT
 
-echo -e "${H1}==================================================${Color_Off}"
-echo -e "${H1}All docker images built correctly.${Color_Off}"
-echo -e "${H1}==================================================${Color_Off}"
+banner "All docker images built correctly."

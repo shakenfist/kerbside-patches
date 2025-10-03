@@ -3,10 +3,7 @@
 # Run from the top directory.
 . _build/common.sh
 
-echo
-echo -e "${H1}==================================================${Color_Off}"
-echo -e "${H1}Setup HTTP CI registry${Color_Off}"
-echo -e "${H1}==================================================${Color_Off}"
+banner "Setup HTTP CI registry"
 
 sudo mkdir -p /etc/docker/
 cat - <<EOF | sudo tee /etc/docker/daemon.json
@@ -18,6 +15,4 @@ sudo systemctl restart docker
 
 trap - EXIT
 
-echo -e "${H1}==================================================${Color_Off}"
-echo -e "${H1}HTTP CI registry setup${Color_Off}"
-echo -e "${H1}==================================================${Color_Off}"
+banner "HTTP CI registry setup"

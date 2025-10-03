@@ -11,10 +11,7 @@ if [ -z ${target_release} ]; then
     exit 1
 fi
 
-echo
-echo -e "${H1}==================================================${Color_Off}"
-echo -e "${H1}Building patched source tree for ${target_release}${Color_Off}"
-echo -e "${H1}==================================================${Color_Off}"
+banner "Building patched source tree for ${target_release}"
 
 # Fetch kerbside
 echo -e "${H2}Cloning kerbside${Color_Off}"
@@ -96,6 +93,4 @@ echo
 
 trap - EXIT
 
-echo -e "${H1}==================================================${Color_Off}"
-echo -e "${H1}Patched source tree finalized.${Color_Off}"
-echo -e "${H1}==================================================${Color_Off}"
+banner "Patched source tree finalized."

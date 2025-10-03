@@ -3,10 +3,7 @@
 # Run from the top directory.
 . _build/common.sh
 
-echo
-echo -e "${H1}==================================================${Color_Off}"
-echo -e "${H1}Building container images${Color_Off}"
-echo -e "${H1}==================================================${Color_Off}"
+banner "Building container images"
 
 for target in ${build_targets}; do
     complete_image_tag="${target}-${image_tag}"
@@ -78,6 +75,4 @@ done
 echo
 trap - EXIT
 
-echo -e "${H1}==================================================${Color_Off}"
-echo -e "${H1}Container image build complete.${Color_Off}"
-echo -e "${H1}==================================================${Color_Off}"
+banner "Container image build complete."

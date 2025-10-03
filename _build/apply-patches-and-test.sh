@@ -9,10 +9,7 @@ if [ -z ${project} ]; then
     exit 1
 fi
 
-echo
-echo -e "${H1}==================================================${Color_Off}"
-echo -e "${H1}${project}${Color_Off}"
-echo -e "${H1}==================================================${Color_Off}"
+banner ${project}
 
 repo=$(yq -r .repo ${project}/config.yaml)
 source_branch=$(yq -r .source_branch ${project}/config.yaml)
@@ -33,11 +30,7 @@ echo
 
 # Do this thing, but for our dependencies...
 for dependency in ${depends_on}; do
-    echo
-    echo -e "${H1}**************************************************${Color_Off}"
-    echo -e "${H1}Entering ${dependency}${Color_Off}"
-    echo -e "${H1}**************************************************${Color_Off}"
-    echo
+    banner "Entering ${dependency}"
 
     extra=""
     if [ "${skip_tests}" == "true" ]; then
@@ -45,11 +38,7 @@ for dependency in ${depends_on}; do
     fi
     $0 ${extra} ${dependency}
 
-    echo
-    echo -e "${H1}**************************************************${Color_Off}"
-    echo -e "${H1}Finished with ${dependency}${Color_Off}"
-    echo -e "${H1}**************************************************${Color_Off}"
-    echo
+    banner "Finished with ${dependency}"
 done
 
 echo
@@ -173,7 +162,7 @@ do
 done
 
 if [ ${use_ci_registry} == "true" ]; then
-    if [ -e ${project}/PREPATCH ]; then
+    if [ -e ${project}/ADDITIONAL_FOR_CI ]; then
         for patch in $(cat ${project}/ADDITIONAL_FOR_CI)
         do
             echo

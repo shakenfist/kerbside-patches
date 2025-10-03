@@ -163,6 +163,15 @@ trap 'on_exit $?' EXIT
 # Helpers                                                                    #
 ##############################################################################
 
+function banner {
+    echo
+    echo -e "${H1}**************************************************${Color_Off}"
+    echo -e "${H1}${1}${Color_Off}"
+    echo -e "${H1}**************************************************${Color_Off}"
+    echo
+}
+
+
 function run_tests {
     # $1 is the repo
     # $2 is the name of the branch
