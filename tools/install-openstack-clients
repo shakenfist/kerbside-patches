@@ -11,19 +11,23 @@ echo -e "${H1}==================================================${Color_Off}"
 cd "${topsrcdir}"
 
 for client in openstacksdk python-openstackclient; do
-    cd ${client}
+    if [ -e ${client} ]; then
+        cd ${client}
 
-    echo -e "${H2}Installing ${client}${Color_Off}"
-    pip3 install -e .
-    echo
+        echo -e "${H2}Installing ${client}${Color_Off}"
+        pip3 install -e .
+        echo
+
+        cd ..
+    else
+        pip3 install ${client}
+    fi
 
     for executable in $(pip3 show -f ${client} | grep "/bin/" | sed 's/.*\///'); do
         ln -s /srv/kolla-ansible/venv/bin/${executable} /usr/local/bin/
         echo "Linked /srv/kolla-ansible/venv/bin/${executable} ${Arrow} /usr/local/bin/"
     done
     echo
-
-    cd ..
 done
 
 trap - EXIT

@@ -3,10 +3,6 @@ base = debian
 debug = true
 push = false
 
-[kerbside-base-plugin-openstacksdk]
-type = local
-location = TOPSRCDIR/openstacksdk
-
 [kerbside-base]
 type = local
 location = TOPSRCDIR/kerbside
@@ -14,7 +10,3 @@ location = TOPSRCDIR/kerbside
 [nova-base]
 type = local
 location = TOPSRCDIR/nova
-
-[nova-plugin-os-traits]
-type = local
-location = TOPSRCDIR/os-traits
