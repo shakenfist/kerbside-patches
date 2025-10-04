@@ -8,7 +8,7 @@ type = git
 location = https://opendev.org/openstack/requirements
 reference = master
 
-[kerbside-plugin-openstacksdk]
+[kerbside-base-plugin-openstacksdk]
 type = local
 location = TOPSRCDIR/openstacksdk
 
