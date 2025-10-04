@@ -22,8 +22,9 @@ for dir in ${*}; do
             # are going to hash the contents of every python file...
             hash=$(find . -type f -name "*.py" -exec cat {} \; | sort | sha1sum - | cut -f 1 -d " " | sed -rn 's/^(........).*/\1/gp')
             unique="${unique};${hash}"
-        elif [ "${dir}" == "etc" ]; then
-            # `etc` is like `src`, but has a simpler structure and no python files
+        elif [ $(echo "_build etc tools" | grep -c "${dir}" || true) -gt 0 ]; then
+            # These directories are like `src`, but has a simpler structure and
+            # no python files
             hash=$(find . -type f -exec cat {} \; | sort | sha1sum - | cut -f 1 -d " " | sed -rn 's/^(........).*/\1/gp')
             unique="${unique};${hash}"
         else
