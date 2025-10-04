@@ -1,11 +1,13 @@
-commit f639efbc7c619b6c843a76dccc07763f8b5b5cbe
+commit 544d392594b8212258eaf7a5455c8ee53cdc7019
 Author: Michael Still <mikal@stillhq.com>
-Date:   Thu Jul 31 12:28:58 2025 +1000
+Date:   Sat Oct 4 19:23:58 2025 +1000
 
-    Use a newer os-traits.
+    Use a newer os-traits and openstacksdk.
+    
+    Signed-off-by: Michael Still <mikal@stillhq.com>
 
 diff --git a/upper-constraints.txt b/upper-constraints.txt
-index 23161f5..e597422 100644
+index 89e0fdc..3c983e1 100644
 --- a/upper-constraints.txt
 +++ b/upper-constraints.txt
 @@ -359,7 +359,7 @@ django-formtools===2.5.1
@@ -17,3 +19,12 @@ index 23161f5..e597422 100644
  typepy===1.3.4
  SecretStorage===3.3.3
  opentracing===2.4.0
+@@ -455,7 +455,7 @@ cotyledon===2.0.0
+ xattr===1.1.4
+ systemd-python===235
+ python-memcached===1.62
+-openstacksdk===4.4.0
++openstacksdk>4.4.0
+ infi.dtypes.nqn===0.1.0
+ looseversion===1.3.0
+ six===1.17.0
