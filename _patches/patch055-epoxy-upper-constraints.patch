@@ -1,15 +1,24 @@
-commit 544d392594b8212258eaf7a5455c8ee53cdc7019
+commit 690fde8649316ba435a1cab0acf95132d201eaa1
 Author: Michael Still <mikal@stillhq.com>
-Date:   Sat Oct 4 19:23:58 2025 +1000
+Date:   Mon Oct 6 13:59:17 2025 +1100
 
     Use a newer os-traits and openstacksdk.
     
     Signed-off-by: Michael Still <mikal@stillhq.com>
 
 diff --git a/upper-constraints.txt b/upper-constraints.txt
-index 89e0fdc..3c983e1 100644
+index 89e0fdc..7e39932 100644
 --- a/upper-constraints.txt
 +++ b/upper-constraints.txt
+@@ -329,7 +329,7 @@ opentelemetry-api===1.30.0
+ frozenlist===1.5.0
+ automaton===3.2.0
+ types-urllib3===1.26.25.14
+-os-service-types===1.7.0
++os-service-types>1.7.0
+ keyring===25.6.0
+ elementpath===4.7.0
+ wsgi_intercept===1.13.1
 @@ -359,7 +359,7 @@ django-formtools===2.5.1
  XStatic-Spin===1.2.5.3
  rich===13.9.4

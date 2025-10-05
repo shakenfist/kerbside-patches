@@ -1,5 +1,5 @@
 repo: https://github.com/openstack/openstacksdk
-source_branch: stable/2025.1
+source_branch: stable/2025.2
 destination_branch: stable/2025.1-patches
 shallow_clone: false
 directory: openstacksdk

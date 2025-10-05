@@ -1,5 +1,5 @@
 repo: https://github.com/openstack/python-openstackclient
-source_branch: stable/2025.1
+source_branch: stable/2025.2
 destination_branch: libvirt-spice-direct
 shallow_clone: false
 directory: python-openstackclient
