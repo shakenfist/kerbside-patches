@@ -139,6 +139,13 @@ echo "... console token is ${consoletoken}"
 
 echo
 echo -e "${H1}==================================================${Color_Off}"
+echo -e "${H1}Dump an attempt to lookup the console with debug on${Color_Off}"
+echo -e "${H1}==================================================${Color_Off}"
+
+/usr/local/bin/openstack --debug console connection show ${consoletoken}
+
+echo
+echo -e "${H1}==================================================${Color_Off}"
 echo -e "${H1}Lookup console connection details${Color_Off}"
 echo -e "${H1}==================================================${Color_Off}"
 
