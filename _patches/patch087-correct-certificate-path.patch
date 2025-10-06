@@ -1,0 +1,105 @@
+commit 75f30d17dba986dd0c43bfff2316600bcabcc659
+Author: Michael Still <mikal@stillhq.com>
+Date:   Tue Oct 7 14:36:49 2025 +1100
+
+    Correct certificate paths.
+    
+    Signed-off-by: Michael Still <mikal@stillhq.com>
+
+diff --git a/ansible/roles/kerbside/defaults/main.yml b/ansible/roles/kerbside/defaults/main.yml
+index a95196b..5d32a74 100644
+--- a/ansible/roles/kerbside/defaults/main.yml
++++ b/ansible/roles/kerbside/defaults/main.yml
+@@ -151,11 +151,6 @@ kerbside_dev_repos_pull: "{{ kolla_dev_repos_pull }}"
+ kerbside_dev_mode: "{{ kolla_dev_mode }}"
+ kerbside_source_version: "{{ kolla_source_version }}"
+ 
+-###################
+-# Copy certificates
+-###################
+-kerbside_copy_certs: true
+-
+ ############
+ # WSGI
+ ############
+diff --git a/ansible/roles/kerbside/tasks/copy-certs.yml b/ansible/roles/kerbside/tasks/copy-certs.yml
+index c80990f..6b731cd 100644
+--- a/ansible/roles/kerbside/tasks/copy-certs.yml
++++ b/ansible/roles/kerbside/tasks/copy-certs.yml
+@@ -3,4 +3,4 @@
+   import_role:
+     role: service-cert-copy
+   vars:
+-    project_services: "{{ kerbside_services }}"
++    project_services: "{{ kerbside_services }}"
+\ No newline at end of file
+diff --git a/ansible/roles/kerbside/templates/kerbside.ini.j2 b/ansible/roles/kerbside/templates/kerbside.ini.j2
+index 1af91cc..012e857 100644
+--- a/ansible/roles/kerbside/templates/kerbside.ini.j2
++++ b/ansible/roles/kerbside/templates/kerbside.ini.j2
+@@ -5,7 +5,7 @@ log_output_json = true
+ {% endif %}
+ 
+ public_fqdn = {{ keystone_external_fqdn | put_address_in_context('url') }}
+-cacert_path = {{ openstack_cacert }}
++cacert_path = /var/lib/kolla/share/ca-certificates/root.crt
+ proxy_host_cert_path = /etc/pki/kerbside/servercert.pem
+ proxy_host_cert_key_path = /etc/pki/kerbside/serverkey.pem
+ proxy_host_subject = 
+diff --git a/ansible/roles/kerbside/templates/kerbside_api.json.j2 b/ansible/roles/kerbside/templates/kerbside_api.json.j2
+index b9ffb43..f1844f5 100644
+--- a/ansible/roles/kerbside/templates/kerbside_api.json.j2
++++ b/ansible/roles/kerbside/templates/kerbside_api.json.j2
+@@ -36,13 +36,13 @@
+             "dest": "/etc/kerbside/kerbside-key.pem",
+             "owner": "kerbside",
+             "perm": "0600"
+-        }{% if kerbside_copy_certs | bool %},
++        }{,
+         {
+             "source": "{{ container_config_directory }}/ca-certificates",
+             "dest": "/var/lib/kolla/share/ca-certificates",
+-            "owner": "root",
++            "owner": "kerbside",
+             "perm": "0600"
+-        }{% endif %}
++        }
+     ],
+     "permissions": [
+         {
+diff --git a/ansible/roles/kerbside/templates/kerbside_proxy.json.j2 b/ansible/roles/kerbside/templates/kerbside_proxy.json.j2
+index da0cd6e..f3b9167 100644
+--- a/ansible/roles/kerbside/templates/kerbside_proxy.json.j2
++++ b/ansible/roles/kerbside/templates/kerbside_proxy.json.j2
+@@ -24,13 +24,13 @@
+             "dest": "/etc/pki/kerbside/serverkey.pem",
+             "owner": "kerbside",
+             "perm": "0600"
+-        }{% if kerbside_copy_certs | bool %},
++        },
+         {
+             "source": "{{ container_config_directory }}/ca-certificates",
+             "dest": "/var/lib/kolla/share/ca-certificates",
+-            "owner": "root",
++            "owner": "kerbside",
+             "perm": "0600"
+-        }{% endif %}
++        }
+     ],
+     "permissions": [
+         {
+diff --git a/ansible/roles/kerbside/templates/kerbside_sources.yaml.j2 b/ansible/roles/kerbside/templates/kerbside_sources.yaml.j2
+index 7311a6f..225bb0b 100644
+--- a/ansible/roles/kerbside/templates/kerbside_sources.yaml.j2
++++ b/ansible/roles/kerbside/templates/kerbside_sources.yaml.j2
+@@ -11,6 +11,10 @@
+   user_domain_id: {{ default_user_domain_id }}
+   project_domain_id: {{ default_project_domain_id }}
+ {% if nova_spice_require_secure | bool %}
++
++  # NOTE(mikal): This is the CA for the Kerbside <-> Hypervisor SPICE
++  # connection, _not_ the CA used to serve the Client <-> Kerbside
++  # connection.
+   ca_cert: |
+ {% for line in spice_cacert.split('\n') %}
+     {{ line }}
