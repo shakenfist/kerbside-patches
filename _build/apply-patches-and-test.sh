@@ -9,10 +9,7 @@ if [ -z ${project} ]; then
     exit 1
 fi
 
-echo
-echo -e "${H1}==================================================${Color_Off}"
-echo -e "${H1}${project}${Color_Off}"
-echo -e "${H1}==================================================${Color_Off}"
+banner ${project}
 
 repo=$(yq -r .repo ${project}/config.yaml)
 source_branch=$(yq -r .source_branch ${project}/config.yaml)
@@ -28,15 +25,12 @@ echo -e "${H2}${Arrow}Shallow cloning: ${shallow_clone}${Color_Off}"
 echo -e "${H2}${Arrow}Dependencies: ${depends_on}${Color_Off}"
 echo
 echo -e "${H2}${Arrow}Skip tests: ${skip_tests}${Color_Off}"
+echo -e "${H2}${Arrow}Use CI registry: ${use_ci_registry}${Color_Off}"
 echo
 
 # Do this thing, but for our dependencies...
 for dependency in ${depends_on}; do
-    echo
-    echo -e "${H1}**************************************************${Color_Off}"
-    echo -e "${H1}Entering ${dependency}${Color_Off}"
-    echo -e "${H1}**************************************************${Color_Off}"
-    echo
+    banner "Entering ${dependency}"
 
     extra=""
     if [ "${skip_tests}" == "true" ]; then
@@ -44,11 +38,7 @@ for dependency in ${depends_on}; do
     fi
     $0 ${extra} ${dependency}
 
-    echo
-    echo -e "${H1}**************************************************${Color_Off}"
-    echo -e "${H1}Finished with ${dependency}${Color_Off}"
-    echo -e "${H1}**************************************************${Color_Off}"
-    echo
+    banner "Finished with ${dependency}"
 done
 
 echo
@@ -170,6 +160,46 @@ do
 
     popd > /dev/null
 done
+
+if [ ${use_ci_registry} == "true" ]; then
+    if [ -e ${project}/ADDITIONAL_FOR_CI ]; then
+        for patch in $(cat ${project}/ADDITIONAL_FOR_CI)
+        do
+            echo
+            shortpatch=$(echo ${patch} | sed -e 's|.*/||' -e 's/.patch$//')
+
+            echo -e "${H3}Applying ${source_branch} ${project}/${patch}${Color_Off}"
+            git -C ${topsrcdir}/${directory} apply -v ${topdir}/${project}/${patch}
+            if [ $? -gt 0 ]; then
+                echo -e "${H3}Applying ${source_branch} ${project}/${patch} failed!${Color_Off}"
+                exit 1
+            fi
+
+            pushd ${topsrcdir}/${directory} > /dev/null
+            echo -e "${H3}Committing ${source_branch} ${patch}${Color_Off}"
+            git add -A .
+
+            if [ $(git status | grep -c "Untracked files:" || true) -gt 0 ]; then
+                echo "Untracked files!"
+                exit 1
+            fi
+
+            if [ ! -e ${topdir}/${project}/${patch}-message ]; then
+                echo -e "${H3}Extracting commit message from ${topdir}/${project}/${patch}${Color_Off}"
+                python3 ${topdir}/tools/extract-commit-message ${topdir}/${project}/${patch}
+            fi
+
+            git commit -s -a --file ${topdir}/${project}/${patch}-message
+            echo
+
+            if [ "${defer_tests}" != "true" ]; then
+                run_tests ${repo} ${source_branch} ${shortpatch}
+            fi
+
+            popd > /dev/null
+        done
+    fi
+fi
 
 pushd ${topsrcdir}/${directory} > /dev/null
 if [ "${defer_tests}" == "true" ]; then

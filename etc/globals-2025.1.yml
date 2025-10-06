@@ -599,6 +599,12 @@ enable_kerbside: "yes"
 kerbside_json_logging: "no"
 kerbside_vdi_flavors: ["vdi", "othervdi"]
 
+# Because we're on a single node, we need to tweak these to not clash
+# with haproxy
+kerbside_api_listen_port: 13102
+kerbside_vdi_insecure_listen_port: 13103
+kerbside_vdi_secure_listen_port: 13104
+
 ##############################
 # Neutron - networking options
 ##############################

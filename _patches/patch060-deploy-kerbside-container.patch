@@ -18,10 +18,10 @@ index 772aa2f..04cbc87 100644
  - name: Apply role certificates
    hosts: localhost
 diff --git a/ansible/group_vars/all.yml b/ansible/group_vars/all.yml
-index f6898fd..892f7c6 100644
+index ee3ea55..b507ed4 100644
 --- a/ansible/group_vars/all.yml
 +++ b/ansible/group_vars/all.yml
-@@ -880,6 +880,7 @@ enable_ironic_inspector: "no"
+@@ -881,6 +881,7 @@ enable_ironic_inspector: "no"
  enable_ironic_neutron_agent: "no"
  enable_ironic_prometheus_exporter: "{{ enable_ironic | bool and enable_prometheus | bool }}"
  enable_iscsid: "{{ enable_cinder | bool and enable_cinder_backend_iscsi | bool }}"
@@ -29,7 +29,7 @@ index f6898fd..892f7c6 100644
  enable_kuryr: "no"
  enable_letsencrypt: "no"
  enable_magnum: "no"
-@@ -945,6 +946,13 @@ placement_keystone_user: "placement"
+@@ -947,6 +948,13 @@ placement_keystone_user: "placement"
  cinder_keystone_user: "cinder"
  glance_keystone_user: "glance"
  
@@ -44,10 +44,10 @@ index f6898fd..892f7c6 100644
  enable_nova_fake: "no"
  num_nova_fake_per_node: 5
 diff --git a/ansible/inventory/all-in-one b/ansible/inventory/all-in-one
-index 51ee06b..3404adc 100644
+index 1dd7914..02e7867 100644
 --- a/ansible/inventory/all-in-one
 +++ b/ansible/inventory/all-in-one
-@@ -229,6 +229,9 @@ nova
+@@ -230,6 +230,9 @@ nova
  [nova-serialproxy:children]
  nova
  
@@ -55,13 +55,13 @@ index 51ee06b..3404adc 100644
 +nova
 +
  # Neutron
- [neutron-server:children]
- control
+ [ironic-neutron-agent:children]
+ neutron
 diff --git a/ansible/inventory/multinode b/ansible/inventory/multinode
-index 3859150..a617934 100644
+index 178890b..d46acde 100644
 --- a/ansible/inventory/multinode
 +++ b/ansible/inventory/multinode
-@@ -247,6 +247,9 @@ nova
+@@ -248,6 +248,9 @@ nova
  [nova-serialproxy:children]
  nova
  
@@ -69,8 +69,8 @@ index 3859150..a617934 100644
 +nova
 +
  # Neutron
- [neutron-server:children]
- control
+ [ironic-neutron-agent:children]
+ neutron
 diff --git a/ansible/roles/certificates/defaults/main.yml b/ansible/roles/certificates/defaults/main.yml
 index 473bbb4..9bfc916 100644
 --- a/ansible/roles/certificates/defaults/main.yml
@@ -224,8 +224,24 @@ index 3672106..5d31baa 100644
 +export KERBSIDE_API_URL='{{ kerbside_api_url }}'
 +{% endif %}
 \ No newline at end of file
+diff --git a/ansible/roles/fluentd/templates/conf/filter/01-rewrite.conf.j2 b/ansible/roles/fluentd/templates/conf/filter/01-rewrite.conf.j2
+index ee761a3..fe4aa80 100644
+--- a/ansible/roles/fluentd/templates/conf/filter/01-rewrite.conf.j2
++++ b/ansible/roles/fluentd/templates/conf/filter/01-rewrite.conf.j2
+@@ -146,6 +146,11 @@
+     pattern ^(skyline)$
+     tag openstack_python
+   </rule>
++  <rule>
++    key     programname
++    pattern ^(kerbside-proxy)$
++    tag kerbside
++  </rule>
+   <rule>
+     key     programname
+     pattern .+
 diff --git a/ansible/roles/nova/defaults/main.yml b/ansible/roles/nova/defaults/main.yml
-index 780d262..c9312c1 100644
+index dec9d06..3ffe8c2 100644
 --- a/ansible/roles/nova/defaults/main.yml
 +++ b/ansible/roles/nova/defaults/main.yml
 @@ -75,6 +75,14 @@ nova_services:
@@ -243,7 +259,7 @@ index 780d262..c9312c1 100644
  
  ####################
  # Config Validate
-@@ -237,6 +245,30 @@ nova_super_conductor_extra_volumes: "{{ nova_extra_volumes }}"
+@@ -224,6 +232,30 @@ nova_super_conductor_extra_volumes: "{{ nova_extra_volumes }}"
  # Used by bootstrapping containers.
  nova_api_bootstrap_extra_volumes: "{{ nova_extra_volumes }}"
  
@@ -274,7 +290,7 @@ index 780d262..c9312c1 100644
  
  ####################
  # OpenStack
-@@ -322,3 +354,10 @@ nova_copy_certs: "{{ kolla_copy_ca_into_containers | bool or nova_enable_tls_bac
+@@ -310,3 +342,10 @@ nova_database_enable_tls_internal: "{{ database_enable_tls_internal | bool }}"
  # WSGI
  ####################
  nova_wsgi_provider: "uwsgi"
@@ -312,10 +328,10 @@ index 917113c..5cd6b8c 100644
 +    - kolla_action != "config"
 +    - kolla_action != "upgrade" or not nova_safety_upgrade | bool
 diff --git a/ansible/roles/nova/tasks/bootstrap.yml b/ansible/roles/nova/tasks/bootstrap.yml
-index 57295ef..35d47fa 100644
+index cde4c04..ccc27b6 100644
 --- a/ansible/roles/nova/tasks/bootstrap.yml
 +++ b/ansible/roles/nova/tasks/bootstrap.yml
-@@ -14,6 +14,7 @@
+@@ -15,6 +15,7 @@
    with_items:
      - "{{ nova_cell0_database_name }}"
      - "{{ nova_api_database_name }}"
@@ -323,7 +339,7 @@ index 57295ef..35d47fa 100644
    when:
      - not use_preconfigured_databases | bool
  
-@@ -39,6 +40,9 @@
+@@ -41,6 +42,9 @@
      - database_name: "{{ nova_api_database_name }}"
        database_username: "{{ nova_api_database_user }}"
        database_password: "{{ nova_api_database_password }}"
@@ -333,7 +349,7 @@ index 57295ef..35d47fa 100644
    loop_control:
      label: "{{ item.database_name }}"
    run_once: True
-@@ -46,6 +50,20 @@
+@@ -48,6 +52,20 @@
      - not use_preconfigured_databases | bool
    no_log: true
  
@@ -355,7 +371,7 @@ index 57295ef..35d47fa 100644
  
  - include_tasks: clone.yml
 diff --git a/ansible/roles/nova/tasks/config.yml b/ansible/roles/nova/tasks/config.yml
-index abbcf93..e7d155d 100644
+index 92e55f4..b785a6a 100644
 --- a/ansible/roles/nova/tasks/config.yml
 +++ b/ansible/roles/nova/tasks/config.yml
 @@ -68,6 +68,54 @@
@@ -539,10 +555,10 @@ index 0000000..f8d7120
 +kerbside daemon run
 \ No newline at end of file
 diff --git a/etc/kolla/passwords.yml b/etc/kolla/passwords.yml
-index 9d11c74..5e8d33a 100644
+index 70ab8b5..2f2b129 100644
 --- a/etc/kolla/passwords.yml
 +++ b/etc/kolla/passwords.yml
-@@ -70,6 +70,10 @@ glance_keystone_password:
+@@ -60,6 +60,10 @@ glance_keystone_password:
  gnocchi_database_password:
  gnocchi_keystone_password:
  
@@ -554,7 +570,7 @@ index 9d11c74..5e8d33a 100644
  
  nova_database_password:
 diff --git a/tests/templates/inventory.j2 b/tests/templates/inventory.j2
-index 9dc36c5..7c22de7 100644
+index 9a5c879..3ebbd32 100644
 --- a/tests/templates/inventory.j2
 +++ b/tests/templates/inventory.j2
 @@ -299,6 +299,9 @@ nova
@@ -565,22 +581,5 @@ index 9dc36c5..7c22de7 100644
 +nova
 +
  # Neutron
- [neutron-server:children]
- control
-
-diff --git a/ansible/roles/fluentd/templates/conf/filter/01-rewrite.conf.j2 b/ansible/roles/fluentd/templates/conf/filter/01-rewrite.conf.j2
-index ee761a3..fe4aa80 100644
---- a/ansible/roles/fluentd/templates/conf/filter/01-rewrite.conf.j2
-+++ b/ansible/roles/fluentd/templates/conf/filter/01-rewrite.conf.j2
-@@ -146,6 +146,11 @@
-     pattern ^(skyline)$
-     tag openstack_python
-   </rule>
-+  <rule>
-+    key     programname
-+    pattern ^(kerbside-proxy)$
-+    tag kerbside
-+  </rule>
-   <rule>
-     key     programname
-     pattern .+
+ [ironic-neutron-agent:children]
+ neutron

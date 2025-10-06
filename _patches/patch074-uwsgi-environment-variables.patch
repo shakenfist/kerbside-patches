@@ -1,0 +1,65 @@
+commit d101e391a747498ed8c3d34096bd64a87795f428
+Author: Michael Still <mikal@stillhq.com>
+Date:   Tue Sep 2 16:53:29 2025 +1000
+
+    Support passing environment variables through to uwsgi.
+
+diff --git a/ansible/roles/kerbside/tasks/config.yml b/ansible/roles/kerbside/tasks/config.yml
+index ec1dcf6..a01b9cb 100644
+--- a/ansible/roles/kerbside/tasks/config.yml
++++ b/ansible/roles/kerbside/tasks/config.yml
+@@ -159,6 +159,30 @@
+     service_uwsgi_config_tls_cert: "/etc/kerbside/kerbside-cert.pem"
+     service_uwsgi_config_tls_key: "/etc/kerbside/kerbside-key.pem"
+     service_uwsgi_config_uid: "kerbside"
++    service_uwsgi_environment_variables:
++      KERBSIDE_LOG_OUTPUT_PATH: "/var/log/kolla/kerbside/kerbside-api.log"
++      KERBSIDE_LOG_OUTPUT_JSON: "{{ kerbside_json_logging | bool }}"
++      KERBSIDE_PUBLIC_FQDN: "{{ keystone_external_fqdn | put_address_in_context('url') }}"
++      KERBSIDE_CACERT_PATH: "{{ openstack_cacert }}"
++      KERBSIDE_PROXY_HOST_CERT_PATH: "/etc/pki/kerbside/servercert.pem"
++      KERBSIDE_PROXY_HOST_CERT_KEY_PATH: "/etc/pki/kerbside/serverkey.pem"
++      KERBSIDE_PROXY_HOST_SUBJECT: ""
++      KERBSIDE_SQL_URL: "mysql+pymysql://{{ kerbside_database_user }}:{{ kerbside_database_password }}@{{ kerbside_database_address }}/{{ kerbside_database_name }}"
++      KERBSIDE_API_PORT: "{{ kerbside_api_listen_port }}"
++      KERBSIDE_NODE_NAME: "{{ inventory_hostname }}"
++      KERBSIDE_VDI_ADDRESS: "{{ api_interface_address }}"
++      KERBSIDE_VDI_SECURE_PORT: "{{ kerbside_vdi_secure_listen_port }}"
++      KERBSIDE_VDI_INSECURE_PORT: "{{ kerbside_vdi_insecure_listen_port }}"
++      KERBSIDE_SOURCES_PATH: "/etc/kerbside/sources.yaml"
++      KERBSIDE_AUTH_SECRET_SEED: "{{ kerbside_auth_secret_seed }}"
++      KERBSIDE_KEYSTONE_AUTH_URL: "{{ keystone_internal_url }}"
++      KERBSIDE_KEYSTONE_SERVICE_AUTH_USER: "{{ keystone_admin_user }}"
++      KERBSIDE_KEYSTONE_SERVICE_AUTH_PASSWORD: "{{ keystone_admin_password }}"
++      KERBSIDE_KEYSTONE_SERVICE_AUTH_PROJECT: "{{ keystone_admin_project }}"
++      KERBSIDE_KEYSTONE_SERVICE_AUTH_USER_DOMAIN_ID: "{{ default_user_domain_id }}"
++      KERBSIDE_KEYSTONE_SERVICE_AUTH_PROJECT_DOMAIN_ID: "{{ default_project_domain_id }}"
++      KERBSIDE_KEYSTONE_ACCESS_GROUP: "kerbside"
++      OS_CACERT: "{{ openstack_cacert }}"
+   when:
+     - service | service_enabled_and_mapped_to_host
+     - kerbside_wsgi_provider == "uwsgi"
+\ No newline at end of file
+diff --git a/ansible/roles/service-uwsgi-config/defaults/main.yml b/ansible/roles/service-uwsgi-config/defaults/main.yml
+index 6e5225c..c228219 100644
+--- a/ansible/roles/service-uwsgi-config/defaults/main.yml
++++ b/ansible/roles/service-uwsgi-config/defaults/main.yml
+@@ -6,3 +6,4 @@ service_uwsgi_config_log_file: "{{ service_name }}-uwsgi.log"
+ service_uwsgi_config_tls_backend: false
+ service_uwsgi_config_worker_timeout: 80
+ service_uwsgi_config_workers: "{{ openstack_service_workers }}"
++service_uwsgi_environment_variables: {}
+\ No newline at end of file
+diff --git a/ansible/roles/service-uwsgi-config/templates/uwsgi.ini.j2 b/ansible/roles/service-uwsgi-config/templates/uwsgi.ini.j2
+index 8704482..45e6f74 100644
+--- a/ansible/roles/service-uwsgi-config/templates/uwsgi.ini.j2
++++ b/ansible/roles/service-uwsgi-config/templates/uwsgi.ini.j2
+@@ -32,3 +32,7 @@ thunder-lock = true
+ uid = {{ service_uwsgi_config_uid }}
+ {% endif %}
+ worker-reload-mercy = {{ service_uwsgi_config_worker_timeout }}
++
++{% for envkey in service_uwsgi_environment_variables %}
++env {{ envkey }}={{ service_uwsgi_environment_variables[envkey] }}
++{% endfor %}
+\ No newline at end of file

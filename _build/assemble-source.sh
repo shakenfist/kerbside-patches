@@ -1,6 +1,9 @@
 #!/bin/bash -e
 
 # Run from the top directory.
+
+. _build/common.sh
+
 target_release="${1}"
 
 if [ -z ${target_release} ]; then
@@ -8,12 +11,7 @@ if [ -z ${target_release} ]; then
     exit 1
 fi
 
-. _build/common.sh
-
-echo
-echo -e "${H1}==================================================${Color_Off}"
-echo -e "${H1}Building patched source tree for ${target_release}${Color_Off}"
-echo -e "${H1}==================================================${Color_Off}"
+banner "Building patched source tree for ${target_release}"
 
 # Fetch kerbside
 echo -e "${H2}Cloning kerbside${Color_Off}"
@@ -21,6 +19,15 @@ mkdir src
 cd src
 git clone https://github.com/shakenfist/kerbside
 tar cf kerbside.tgz kerbside
+cd ..
+echo
+echo
+
+# Fetch the Shaken Fist utilities library
+echo -e "${H2}Cloning Shaken Fist utilities${Color_Off}"
+cd src
+git clone https://github.com/shakenfist/library-utilities
+tar cf library-utilities.tgz library-utilities
 cd ..
 echo
 echo
@@ -54,13 +61,18 @@ echo
 echo -e "${H3}The following directories contain patches: ${directories[@]}${Color_Off}"
 echo
 
+extra=""
+if [ ${use_ci_registry} == "true" ]; then
+    extra="${extra} --use-ci-registry"
+fi
+
 for project in "${directories[@]}"; do
-    ./_build/apply-patches-and-test.sh --skip-tests ${project}
+    ./_build/apply-patches-and-test.sh --skip-tests ${extra} ${project}
 done
 
 # Some projects require a local checkout even if we don't have any patches
 # for them.
-for required in kolla kolla-ansible nova openstacksdk python-openstackclient; do
+for required in kolla kolla-ansible nova; do
     if [ ! -e src/${required} ]; then
         if [ "${target_release}" == "master" ]; then
             required_branch="master"
@@ -81,6 +93,4 @@ echo
 
 trap - EXIT
 
-echo -e "${H1}==================================================${Color_Off}"
-echo -e "${H1}Patched source tree finalized.${Color_Off}"
-echo -e "${H1}==================================================${Color_Off}"
+banner "Patched source tree finalized."

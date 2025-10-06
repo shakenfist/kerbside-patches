@@ -9,7 +9,7 @@
 
 echo
 echo -e "${H1}==================================================${Color_Off}"
-echo -e "${H1}List compute services{Color_Off}"
+echo -e "${H1}List compute services${Color_Off}"
 echo -e "${H1}==================================================${Color_Off}"
 /usr/local/bin/openstack compute service list --long
 
@@ -129,13 +129,20 @@ echo -e "${H1}==================================================${Color_Off}"
 echo -e "${H1}Create console${Color_Off}"
 echo -e "${H1}==================================================${Color_Off}"
 
-consoleurl=$(/usr/local/bin/openstack console url show ${instancename} --spice-direct -f json | \
-    jq -e -r ".url")
+consoleurl=$(/usr/local/bin/openstack console url show ${instancename} \
+    --spice-direct -f json | jq -e -r ".url")
 consoletoken=$(echo ${consoleurl} | sed 's/.*token=//')
 
 echo
 echo "... console url is ${consoleurl}"
 echo "... console token is ${consoletoken}"
+
+echo
+echo -e "${H1}==================================================${Color_Off}"
+echo -e "${H1}Dump an attempt to lookup the console with debug on${Color_Off}"
+echo -e "${H1}==================================================${Color_Off}"
+
+/usr/local/bin/openstack --debug console connection show ${consoletoken}
 
 echo
 echo -e "${H1}==================================================${Color_Off}"
@@ -160,7 +167,52 @@ echo -e "${H1}==================================================${Color_Off}"
 echo -e "${H1}Attempt to fetch a .vv file from Kerbside${Color_Off}"
 echo -e "${H1}==================================================${Color_Off}"
 
-curl --cacert /etc/kolla/certificates/ca/root.crt ${consoleurl}
+curl --cacert /etc/kolla/certificates/ca/root.crt \
+    --output /tmp/console.vv ${consoleurl}
+
+echo
+echo -e "${H1}==================================================${Color_Off}"
+echo -e "${H1}Dump .vv file${Color_Off}"
+echo -e "${H1}==================================================${Color_Off}"
+
+if [ ! -e /tmp/console.vv ]; then
+    echo "Console file missing!"
+    exit 1
+fi
+
+echo
+cat /tmp/console.vv
+echo
+
+echo
+echo -e "${H1}==================================================${Color_Off}"
+echo -e "${H1}Verify the .vv file contents are believable${Color_Off}"
+echo -e "${H1}==================================================${Color_Off}"
+
+if [ $(egrep -c "^type=spice" /tmp/console.vv || true) -lt 1 ]; then
+    echo "Console file is not of type=spice!"
+    exit 1
+fi
+
+if [ $(egrep -c "^host=" /tmp/console.vv || true) -lt 1 ]; then
+    echo "Console file does not specify a host!"
+    exit 1
+fi
+
+if [ $(egrep -c "^port=" /tmp/console.vv || true) -lt 1 ]; then
+    echo "Console file does not specify a port!"
+    exit 1
+fi
+
+if [ $(egrep -c "^password=" /tmp/console.vv || true) -lt 1 ]; then
+    echo "Console file does not specify a password!"
+    exit 1
+fi
+
+if [ $(egrep -c "^ca=" /tmp/console.vv || true) -lt 1 ]; then
+    echo "Console file does not specify a CA certificate!"
+    exit 1
+fi
 
 trap - EXIT
 

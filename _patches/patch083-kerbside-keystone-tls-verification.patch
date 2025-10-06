@@ -1,0 +1,30 @@
+commit 8859e74392f8e0a440c0d5ad890d7407de43a825
+Author: Michael Still <mikal@stillhq.com>
+Date:   Thu Oct 2 14:06:20 2025 +1000
+
+    A first terrible swing at SSL verification for Kerbside's use of Keystone.
+
+diff --git a/ansible/roles/kerbside/templates/kerbside.ini.j2 b/ansible/roles/kerbside/templates/kerbside.ini.j2
+index 2143f46..1af91cc 100644
+--- a/ansible/roles/kerbside/templates/kerbside.ini.j2
++++ b/ansible/roles/kerbside/templates/kerbside.ini.j2
+@@ -20,6 +20,7 @@ sources_path = /etc/kerbside/sources.yaml
+ 
+ auth_secret_seed = {{ kerbside_auth_secret_seed }}
+ keystone_auth_url = {{ keystone_internal_url }}
++keystone_auth_verify = false
+ keystone_service_auth_user = {{ keystone_admin_user }}
+ keystone_service_auth_password = {{ keystone_admin_password }}
+ keystone_service_auth_project = {{ keystone_admin_project }}
+diff --git a/ansible/roles/kerbside/templates/kerbside_sources.yaml.j2 b/ansible/roles/kerbside/templates/kerbside_sources.yaml.j2
+index 8fd684f..7311a6f 100644
+--- a/ansible/roles/kerbside/templates/kerbside_sources.yaml.j2
++++ b/ansible/roles/kerbside/templates/kerbside_sources.yaml.j2
+@@ -4,6 +4,7 @@
+ - source: {{ openstack_region_name }}
+   type: openstack
+   url: {{ keystone_internal_url }}
++  verify: false
+   username: {{ keystone_admin_user }}
+   password: {{ keystone_admin_password }}
+   project_name: {{ keystone_admin_project }}

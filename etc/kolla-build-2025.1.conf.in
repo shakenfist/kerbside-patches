@@ -7,11 +7,11 @@ push = false
 type = local
 location = TOPSRCDIR/requirements
 
-[kerbside-plugin-openstacksdk]
+[kerbside-base-plugin-openstacksdk]
 type = local
 location = TOPSRCDIR/openstacksdk
 
-[kerbside]
+[kerbside-base]
 type = local
 location = TOPSRCDIR/kerbside
 

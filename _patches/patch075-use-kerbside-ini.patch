@@ -1,0 +1,171 @@
+commit 431282e3375d471d5cfc77ddcbdffc22d14bb602
+Author: Michael Still <mikal@stillhq.com>
+Date:   Wed Sep 3 19:01:45 2025 +1000
+
+    Pivot to kerbside.ini based config.
+
+diff --git a/ansible/roles/kerbside/tasks/config.yml b/ansible/roles/kerbside/tasks/config.yml
+index ec1dcf6..a3c4d5d 100644
+--- a/ansible/roles/kerbside/tasks/config.yml
++++ b/ansible/roles/kerbside/tasks/config.yml
+@@ -40,8 +40,8 @@
+     service_name: "kerbside_bootstrap"
+   become: true
+   template:
+-    src: "{{ role_path }}/templates/kerbside_config.j2"
+-    dest: "{{ node_config_directory }}/kerbside_bootstrap/kerbside_config"
++    src: "{{ role_path }}/templates/kerbside.ini.j2"
++    dest: "{{ node_config_directory }}/kerbside_bootstrap/kerbside.ini"
+     mode: "0660"
+   when:
+     - inventory_hostname in groups["kerbside-api"]
+@@ -52,8 +52,8 @@
+     service_name: "kerbside_api"
+   become: true
+   template:
+-    src: "{{ role_path }}/templates/kerbside_config.j2"
+-    dest: "{{ node_config_directory }}/kerbside_api/kerbside_config"
++    src: "{{ role_path }}/templates/kerbside.ini.j2"
++    dest: "{{ node_config_directory }}/kerbside_api/kerbside.ini"
+     mode: "0660"
+   when:
+     - inventory_hostname in groups["kerbside-api"]
+@@ -66,8 +66,8 @@
+     service_name: "kerbside_proxy"
+   become: true
+   template:
+-    src: "{{ role_path }}/templates/kerbside_config.j2"
+-    dest: "{{ node_config_directory }}/kerbside_proxy/kerbside_config"
++    src: "{{ role_path }}/templates/kerbside.ini.j2"
++    dest: "{{ node_config_directory }}/kerbside_proxy/kerbside.ini"
+     mode: "0660"
+   when:
+     - inventory_hostname in groups["kerbside-proxy"]
+diff --git a/ansible/roles/kerbside/templates/kerbside.ini.j2 b/ansible/roles/kerbside/templates/kerbside.ini.j2
+new file mode 100644
+index 0000000..2143f46
+--- /dev/null
++++ b/ansible/roles/kerbside/templates/kerbside.ini.j2
+@@ -0,0 +1,31 @@
++[kerbside]
++log_output_path = /var/log/kolla/kerbside/{{ service_name }}.log
++{% if kerbside_json_logging | bool %}
++log_output_json = true
++{% endif %}
++
++public_fqdn = {{ keystone_external_fqdn | put_address_in_context('url') }}
++cacert_path = {{ openstack_cacert }}
++proxy_host_cert_path = /etc/pki/kerbside/servercert.pem
++proxy_host_cert_key_path = /etc/pki/kerbside/serverkey.pem
++proxy_host_subject = 
++sql_url = mysql+pymysql://{{ kerbside_database_user }}:{{ kerbside_database_password }}@{{ kerbside_database_address }}/{{ kerbside_database_name }}
++
++api_port = {{ kerbside_api_listen_port }}
++node_name = {{ inventory_hostname }}
++vdi_address = {{ api_interface_address }}
++vdi_secure_port = {{ kerbside_vdi_secure_listen_port }}
++vdi_insecure_port = {{ kerbside_vdi_insecure_listen_port }}
++sources_path = /etc/kerbside/sources.yaml
++
++auth_secret_seed = {{ kerbside_auth_secret_seed }}
++keystone_auth_url = {{ keystone_internal_url }}
++keystone_service_auth_user = {{ keystone_admin_user }}
++keystone_service_auth_password = {{ keystone_admin_password }}
++keystone_service_auth_project = {{ keystone_admin_project }}
++keystone_service_auth_user_domain_id = {{ default_user_domain_id }}
++keystone_service_auth_project_domain_id = {{ default_project_domain_id }}
++keystone_access_group = kerbside
++
++# this is needed so that keystone can trust the internal certificate
++os_cacert = {{ openstack_cacert }}
+\ No newline at end of file
+diff --git a/ansible/roles/kerbside/templates/kerbside_api.json.j2 b/ansible/roles/kerbside/templates/kerbside_api.json.j2
+index e80f6e1..b9ffb43 100644
+--- a/ansible/roles/kerbside/templates/kerbside_api.json.j2
++++ b/ansible/roles/kerbside/templates/kerbside_api.json.j2
+@@ -2,8 +2,8 @@
+     "command": "uwsgi /etc/kerbside/kerbside-uwsgi.ini",
+     "config_files": [
+         {
+-            "source": "{{ container_config_directory }}/kerbside_config",
+-            "dest": "/etc/kerbside/kerbside_config",
++            "source": "{{ container_config_directory }}/kerbside.ini",
++            "dest": "/etc/kerbside/kerbside.ini",
+             "owner": "kerbside",
+             "perm": "0600"
+         },
+diff --git a/ansible/roles/kerbside/templates/kerbside_bootstrap.json.j2 b/ansible/roles/kerbside/templates/kerbside_bootstrap.json.j2
+index d04bfec..389245c 100644
+--- a/ansible/roles/kerbside/templates/kerbside_bootstrap.json.j2
++++ b/ansible/roles/kerbside/templates/kerbside_bootstrap.json.j2
+@@ -2,8 +2,8 @@
+     "command": "/etc/kerbside/kerbside_alembic_wrapper",
+     "config_files": [
+         {
+-            "source": "{{ container_config_directory }}/kerbside_config",
+-            "dest": "/etc/kerbside/kerbside_config",
++            "source": "{{ container_config_directory }}/kerbside.ini",
++            "dest": "/etc/kerbside/kerbside.ini",
+             "owner": "kerbside",
+             "perm": "0600"
+         },
+diff --git a/ansible/roles/kerbside/templates/kerbside_config.j2 b/ansible/roles/kerbside/templates/kerbside_config.j2
+deleted file mode 100644
+index d5aee51..0000000
+--- a/ansible/roles/kerbside/templates/kerbside_config.j2
++++ /dev/null
+@@ -1,38 +0,0 @@
+-#!/bin/bash -ex
+-
+-# This is a simple start script for Kerbside. Shaken Fist's configuration
+-# engine expects config to be provided in the form of environment variables,
+-# which is easy to do in systemd by providing them as part of the unit file.
+-# However, we don't have such a thing here, so we use a simple wrapper script
+-# instead.
+-
+-export KERBSIDE_LOG_OUTPUT_PATH="/var/log/kolla/kerbside/{{ service_name }}.log"
+-{% if kerbside_json_logging | bool %}
+-export KERBSIDE_LOG_OUTPUT_JSON=true
+-{% endif %}
+-
+-export KERBSIDE_PUBLIC_FQDN={{ keystone_external_fqdn | put_address_in_context('url') }}
+-export KERBSIDE_CACERT_PATH={{ openstack_cacert }}
+-export KERBSIDE_PROXY_HOST_CERT_PATH=/etc/pki/kerbside/servercert.pem
+-export KERBSIDE_PROXY_HOST_CERT_KEY_PATH=/etc/pki/kerbside/serverkey.pem
+-export KERBSIDE_PROXY_HOST_SUBJECT=""
+-export KERBSIDE_SQL_URL=mysql+pymysql://{{ kerbside_database_user }}:{{ kerbside_database_password }}@{{ kerbside_database_address }}/{{ kerbside_database_name }}
+-
+-export KERBSIDE_API_PORT={{ kerbside_api_listen_port }}
+-export KERBSIDE_NODE_NAME={{ inventory_hostname }}
+-export KERBSIDE_VDI_ADDRESS={{ api_interface_address }}
+-export KERBSIDE_VDI_SECURE_PORT={{ kerbside_vdi_secure_listen_port }}
+-export KERBSIDE_VDI_INSECURE_PORT={{ kerbside_vdi_insecure_listen_port }}
+-export KERBSIDE_SOURCES_PATH=/etc/kerbside/sources.yaml
+-
+-export KERBSIDE_AUTH_SECRET_SEED={{ kerbside_auth_secret_seed }}
+-export KERBSIDE_KEYSTONE_AUTH_URL={{ keystone_internal_url }}
+-export KERBSIDE_KEYSTONE_SERVICE_AUTH_USER={{ keystone_admin_user }}
+-export KERBSIDE_KEYSTONE_SERVICE_AUTH_PASSWORD={{ keystone_admin_password }}
+-export KERBSIDE_KEYSTONE_SERVICE_AUTH_PROJECT={{ keystone_admin_project }}
+-export KERBSIDE_KEYSTONE_SERVICE_AUTH_USER_DOMAIN_ID={{ default_user_domain_id }}
+-export KERBSIDE_KEYSTONE_SERVICE_AUTH_PROJECT_DOMAIN_ID={{ default_project_domain_id }}
+-export KERBSIDE_KEYSTONE_ACCESS_GROUP=kerbside
+-
+-# This is needed so that Keystone can trust the internal certificate
+-export OS_CACERT={{ openstack_cacert }}
+\ No newline at end of file
+diff --git a/ansible/roles/kerbside/templates/kerbside_proxy.json.j2 b/ansible/roles/kerbside/templates/kerbside_proxy.json.j2
+index 1e6a74f..da0cd6e 100644
+--- a/ansible/roles/kerbside/templates/kerbside_proxy.json.j2
++++ b/ansible/roles/kerbside/templates/kerbside_proxy.json.j2
+@@ -2,8 +2,8 @@
+     "command": "kerbside daemon run",
+     "config_files": [
+         {
+-            "source": "{{ container_config_directory }}/kerbside_config",
+-            "dest": "/etc/kerbside/kerbside_config",
++            "source": "{{ container_config_directory }}/kerbside.ini",
++            "dest": "/etc/kerbside/kerbside.ini",
+             "owner": "kerbside",
+             "perm": "0600"
+         },

@@ -8,21 +8,45 @@ unique=$(date "+%Y%m%d")
 topdir=$(pwd)
 
 for dir in ${*}; do
-    cd ${dir}
-    if [ -e PREPATCH ]; then
-        for patch in $(cat PREPATCH); do
-            hash=$(sha1sum ${patch} | cut -f 1 -d " " | sed -rn 's/^(........).*/\1/gp')
+    if [ ! -e ${dir} ]; then
+        echo "Hash directory ${dir} does not exist." >&2
+    else
+        cd ${dir}
+        
+        if [ "${dir}" == "src" ]; then
+            # `src` is handled differently. My original idea here was to generate
+            # a tarball on the fly and then use the hash of that, but that doesn't
+            # work because tarballs include file modification times and the sort
+            # order of their entries is interdeterminate. While there are flags to
+            # address those, I could not get it to work reliably. Instead, we
+            # are going to hash the contents of every python file...
+            hash=$(find . -type f -name "*.py" -exec cat {} \; | sort | sha1sum - | cut -f 1 -d " " | sed -rn 's/^(........).*/\1/gp')
             unique="${unique};${hash}"
-        done
-    fi
+        elif [ $(echo "_build etc tools" | grep -c "${dir}" || true) -gt 0 ]; then
+            # These directories are like `src`, but has a simpler structure and
+            # no python files
+            hash=$(find . -type f -exec cat {} \; | sort | sha1sum - | cut -f 1 -d " " | sed -rn 's/^(........).*/\1/gp')
+            unique="${unique};${hash}"
+        else
+            # And the others are assumed to be directories of patches
+            if [ -e PREPATCH ]; then
+                for patch in $(cat PREPATCH); do
+                    hash=$(sha1sum ${patch} | cut -f 1 -d " " | sed -rn 's/^(........).*/\1/gp')
+                    unique="${unique};${hash}"
+                done
+            fi
 
-    if [ -e ORDER ]; then
-        for patch in $(cat ORDER); do
-            hash=$(sha1sum ${patch} | cut -f 1 -d " " | sed -rn 's/^(........).*/\1/gp')
-            unique="${unique};${hash}"
-        done
+            if [ -e ORDER ]; then
+                for patch in $(cat ORDER); do
+                    hash=$(sha1sum ${patch} | cut -f 1 -d " " | sed -rn 's/^(........).*/\1/gp')
+                    unique="${unique};${hash}"
+                done
+            fi
+        fi
+
+        echo "Hash of directory ${dir} is ${hash}." >&2
+        cd ${topdir}
     fi
-    cd ${topdir}
 done
 
-echo "v3-${unique}" | sha1sum | cut -f 1 -d " " | sed -rn 's/^(........).*/\1/gp'
+echo "v12-${unique}" | sha1sum | cut -f 1 -d " " | sed -rn 's/^(........).*/\1/gp'

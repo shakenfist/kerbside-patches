@@ -2,10 +2,10 @@
 ../_patches/patch008-use-routable-ip-for-spice-consoles.patch
 ../_patches/patch009-support-secure-spice.patch
 ../_patches/patch011-allow-concurrent-spice-connections.patch
-../_patches/patch014-deploy-kerbside-container.patch
 ../_patches/patch018-expose-spice-debug-logging.patch
-../_patches/patch021-support-sound-enabled.patch
-../_patches/patch033-docs-rendering-errors.patch
-../_patches/patch041-fix-kolla-ansible-kerbside-url.patch
-../_patches/patch042-move-kerbside-proxy-into-own-role.patch
-../_patches/patch049-kolla-ansible-backport-to-epoxy.patch
+../_patches/patch069-kolla-ansible-epoxy-compressed.patch
+../_patches/patch084-kerbside-wsgi-split-epoxy.patch
+../_patches/patch072-kerbside-bootstrap-container-split.patch
+../_patches/patch085-use-kerbside-ini-epoxy.patch
+../_patches/patch083-kerbside-keystone-tls-verification.patch
+../_patches/patch086-backport-docker-image-url.patch

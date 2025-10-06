@@ -1,5 +1,5 @@
-../_patches/patch013-kerbside-container-build.patch
-../_patches/patch019-disable-upper-constraints-for-kerbside.patch
-../_patches/patch043-kolla-local-clustercheck.patch
-../_patches/patch046-kolla-support-kerbside-bootstrap.patch
+../_patches/patch066-kolla-master-compressed.patch
 ../_patches/patch047-kolla-fluentd-enable-syslog.patch
+../_patches/patch071-kerbside-wsgi-split-images.patch
+../_patches/patch073-remove-bootstrapping-hack.patch
+../_patches/patch076-drop-proxy-extend-start.patch

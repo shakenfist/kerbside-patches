@@ -1,0 +1,239 @@
+commit fd25141412fe49ad3249a86078c16a96d98576c5
+Author: Michael Still <mikal@stillhq.com>
+Date:   Tue Sep 2 07:45:16 2025 +1000
+
+    Use a specialized bootstrap container.
+    
+    Signed-off-by: Michael Still <mikal@stillhq.com>
+
+diff --git a/ansible/roles/kerbside/defaults/main.yml b/ansible/roles/kerbside/defaults/main.yml
+index 136b062..a95196b 100644
+--- a/ansible/roles/kerbside/defaults/main.yml
++++ b/ansible/roles/kerbside/defaults/main.yml
+@@ -75,6 +75,8 @@ kerbside_services:
+ ####################
+ 
+ kerbside_tag: "{{ openstack_tag }}"
++kerbside_base_image: "{{ docker_image_url }}kerbside-base"
++kerbside_base_image_full: "{{ kerbside_api_image }}:{{ kerbside_tag }}"
+ kerbside_api_image: "{{ docker_image_url }}kerbside-api"
+ kerbside_api_image_full: "{{ kerbside_api_image }}:{{ kerbside_tag }}"
+ kerbside_proxy_image: "{{ docker_image_url }}kerbside-proxy"
+@@ -105,6 +107,8 @@ kerbside_healthcheck_proxy:
+   timeout: "{{ kerbside_healthcheck_timeout }}"
+ 
+ kerbside_extra_volumes: "{{ default_extra_volumes }}"
++kerbside_bootstrap_volumes:
++  - "{{ node_config_directory }}/kerbside_bootstrap/:{{ container_config_directory }}/:ro"
+ kerbside_api_volumes:
+   - "{{ node_config_directory }}/kerbside_api/:{{ container_config_directory }}/:ro"
+ kerbside_proxy_volumes:
+diff --git a/ansible/roles/kerbside/files/kerbside_alembic_wrapper b/ansible/roles/kerbside/files/kerbside_alembic_wrapper
+new file mode 100644
+index 0000000..3700589
+--- /dev/null
++++ b/ansible/roles/kerbside/files/kerbside_alembic_wrapper
+@@ -0,0 +1,4 @@
++#!/bin/bash
++
++cd /kerbside
++alembic upgrade head
+\ No newline at end of file
+diff --git a/ansible/roles/kerbside/tasks/bootstrap_service.yml b/ansible/roles/kerbside/tasks/bootstrap_service.yml
+index 66c5220..73a6895 100644
+--- a/ansible/roles/kerbside/tasks/bootstrap_service.yml
++++ b/ansible/roles/kerbside/tasks/bootstrap_service.yml
+@@ -1,8 +1,4 @@
+ ---
+-
+-# NOTE(mikal): yes, we use the proxy container image to bootstrap, but
+-# with the api volumes. This is because the proxy doesn't normally
+-# need the sources.yaml file, but the api container is all wsgi now.
+ - name: Running Kerbside bootstrap container
+   vars:
+     kerbside_api: "{{ kerbside_services['kerbside_api'] }}"
+@@ -13,13 +9,12 @@
+     common_options: "{{ docker_common_options }}"
+     detach: False
+     environment:
+-      KOLLA_BOOTSTRAP:
+       KOLLA_CONFIG_STRATEGY: "{{ config_strategy }}"
+-    image: "{{ kerbside_proxy.image }}"
++    image: "{{ kerbside_base_image_full }}"
+     labels:
+       BOOTSTRAP:
+     name: "bootstrap_kerbside"
+     restart_policy: oneshot
+-    volumes: "{{ kerbside_api.volumes | reject('equalto', '') | list }}"
++    volumes: "{{ kerbside_bootstrap_volumes + kerbside_default_volumes + kerbside_extra_volumes }}"
+   run_once: True
+   delegate_to: "{{ groups['kerbside-api'][0] }}"
+\ No newline at end of file
+diff --git a/ansible/roles/kerbside/tasks/config.yml b/ansible/roles/kerbside/tasks/config.yml
+index 1bca7a3..ec1dcf6 100644
+--- a/ansible/roles/kerbside/tasks/config.yml
++++ b/ansible/roles/kerbside/tasks/config.yml
+@@ -9,6 +9,15 @@
+     mode: "0770"
+   with_dict: "{{ kerbside_services | select_services_enabled_and_mapped_to_host }}"
+ 
++- name: Ensure bootstrap config directory exists
++  become: true
++  file:
++    path: "{{ node_config_directory }}/kerbside_bootstrap"
++    state: "directory"
++    owner: "{{ config_owner_user }}"
++    group: "{{ config_owner_group }}"
++    mode: "0770"
++
+ - name: Ensuring shared config directory exists
+   become: true
+   file:
+@@ -26,6 +35,18 @@
+     - kerbside_services["kerbside_proxy"].enabled | bool
+     - nova_spice_require_secure | bool
+ 
++- name: Copying over kerbside bootstrap configuration
++  vars:
++    service_name: "kerbside_bootstrap"
++  become: true
++  template:
++    src: "{{ role_path }}/templates/kerbside_config.j2"
++    dest: "{{ node_config_directory }}/kerbside_bootstrap/kerbside_config"
++    mode: "0660"
++  when:
++    - inventory_hostname in groups["kerbside-api"]
++    - kerbside_services["kerbside_api"].enabled | bool
++
+ - name: Copying over kerbside API configuration
+   vars:
+     service_name: "kerbside_api"
+@@ -54,7 +75,19 @@
+   notify:
+     - "Restart kerbside_proxy container"
+ 
+-- name: Copying over kerbside sources.yaml
++- name: Copying over kerbside bootstrap alembic wrapper
++  vars:
++    service_name: "kerbside_bootstrap"
++  become: true
++  copy:
++    src: "{{ role_path }}/files/kerbside_alembic_wrapper"
++    dest: "{{ node_config_directory }}/kerbside_bootstrap/kerbside_alembic_wrapper"
++    mode: "0700"
++  when:
++    - inventory_hostname in groups["kerbside-api"]
++    - kerbside_services["kerbside_api"].enabled | bool
++
++- name: Copying over kerbside sources.yaml for API container
+   become: true
+   template:
+     src: "{{ role_path }}/templates/kerbside_sources.yaml.j2"
+@@ -66,8 +99,27 @@
+   notify:
+     - "Restart kerbside_api container"
+ 
++- name: Copying over kerbside sources.yaml for proxy container
++  become: true
++  template:
++    src: "{{ role_path }}/templates/kerbside_sources.yaml.j2"
++    dest: "{{ node_config_directory }}/kerbside_proxy/sources.yaml"
++    mode: "0660"
++  when:
++    - inventory_hostname in groups["kerbside-proxy"]
++    - kerbside_services["kerbside_proxy"].enabled | bool
++  notify:
++    - "Restart kerbside_proxy container"
++
+ - include_tasks: copy-certs.yml
+ 
++- name: Copying over config.json files for bootstrap
++  become: true
++  template:
++    src: "kerbside_bootstrap.json.j2"
++    dest: "{{ node_config_directory }}/kerbside_bootstrap/config.json"
++    mode: "0660"
++
+ - name: Copying over config.json files for services
+   become: true
+   template:
+@@ -99,13 +151,13 @@
+     project_services: "{{ kerbside_services }}"
+     service: "{{ kerbside_services['kerbside_api'] }}"
+     service_name: "kerbside-api"
+-    service_uwsgi_config_file: "{{ node_config_directory }}/kerbside/kerbside-uwsgi.ini"
++    service_uwsgi_config_file: "{{ node_config_directory }}/kerbside_api/kerbside-uwsgi.ini"
+     service_uwsgi_config_http_port: "{{ kerbside_api_listen_port }}"
+     service_uwsgi_config_log_file_chmod: "644"
+     service_uwsgi_config_module: "{{ service.wsgi }}"
+     service_uwsgi_config_tls_backend: "{{ kerbside_enable_tls_backend | bool }}"
+-    service_uwsgi_config_tls_cert: "/etc/kerbside/certs/kerbside-cert.pem"
+-    service_uwsgi_config_tls_key: "/etc/kerbside/certs/kerbside-key.pem"
++    service_uwsgi_config_tls_cert: "/etc/kerbside/kerbside-cert.pem"
++    service_uwsgi_config_tls_key: "/etc/kerbside/kerbside-key.pem"
+     service_uwsgi_config_uid: "kerbside"
+   when:
+     - service | service_enabled_and_mapped_to_host
+diff --git a/ansible/roles/kerbside/templates/kerbside_api.json.j2 b/ansible/roles/kerbside/templates/kerbside_api.json.j2
+index df1e077..e80f6e1 100644
+--- a/ansible/roles/kerbside/templates/kerbside_api.json.j2
++++ b/ansible/roles/kerbside/templates/kerbside_api.json.j2
+@@ -16,24 +16,24 @@
+         {
+             "source": "{{ container_config_directory }}/kerbside-wsgi.conf",
+             "dest": "/etc/kerbside/kerbside-wsgi.conf",
+-            "owner": "root",
++            "owner": "kerbside",
+             "perm": "0600"
+         }{% endif %}{% if kerbside_wsgi_provider == "uwsgi"%},
+         {
+             "source": "{{ container_config_directory }}/kerbside-uwsgi.ini",
+             "dest": "/etc/kerbside/kerbside-uwsgi.ini",
+-            "owner": "root",
++            "owner": "kerbside",
+             "perm": "0600"
+         }{% endif %},
+         {
+             "source": "{{ container_config_directory }}/kerbside-cert.pem",
+-            "dest": "/etc/pki/kerbside/servercert.pem",
++            "dest": "/etc/kerbside/kerbside-cert.pem",
+             "owner": "kerbside",
+             "perm": "0600"
+         },
+         {
+             "source": "{{ container_config_directory }}/kerbside-key.pem",
+-            "dest": "/etc/pki/kerbside/serverkey.pem",
++            "dest": "/etc/kerbside/kerbside-key.pem",
+             "owner": "kerbside",
+             "perm": "0600"
+         }{% if kerbside_copy_certs | bool %},
+diff --git a/ansible/roles/kerbside/templates/kerbside_bootstrap.json.j2 b/ansible/roles/kerbside/templates/kerbside_bootstrap.json.j2
+new file mode 100644
+index 0000000..d04bfec
+--- /dev/null
++++ b/ansible/roles/kerbside/templates/kerbside_bootstrap.json.j2
+@@ -0,0 +1,24 @@
++{
++    "command": "/etc/kerbside/kerbside_alembic_wrapper",
++    "config_files": [
++        {
++            "source": "{{ container_config_directory }}/kerbside_config",
++            "dest": "/etc/kerbside/kerbside_config",
++            "owner": "kerbside",
++            "perm": "0600"
++        },
++        {
++            "source": "{{ container_config_directory }}/kerbside_alembic_wrapper",
++            "dest": "/etc/kerbside/kerbside_alembic_wrapper",
++            "owner": "kerbside",
++            "perm": "0700"
++        }
++    ],
++    "permissions": [
++        {
++            "path": "/var/log/kolla/kerbside",
++            "owner": "kerbside:kerbside",
++            "recurse": true
++        }
++    ]
++}

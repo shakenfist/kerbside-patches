@@ -27,7 +27,7 @@ jobs:
             'topology': 'all-in-one'
           },
         ]
-    runs-on: [self-hosted, vm]
+    runs-on: [self-hosted, vm, 'debian-12', 'xl']
     timeout-minutes: 120
     concurrency:
       group: ${{ github.workflow }}-${{ github.ref }}-${{ matrix.test.name }}
@@ -38,48 +38,56 @@ jobs:
     # variables at https://docs.github.com/en/actions/learn-github-actions/environment-variables
 
     steps:
+      - name: Checkout kerbside-patches
+        uses: actions/checkout@v4
+        with:
+          path: kerbside-patches
+          fetch-depth: 0
+
       - name: Install dependencies on local runner
         run: |
-          sudo apt-get update
-          sudo apt-get dist-upgrade -y
-          sudo apt-get install -y moreutils git
+          . $GITHUB_ENV
+          cd kerbside-patches
 
-      - name: Setup test environment
-        uses: shakenfist/actions/setup-kerbside-environment@main
-        with:
-          base: debian:12
-          base_user: debian
-          openstack_release: master
-          topology: all-in-one
+          ./_build/install-build-dependencies.sh
+          ./_build/setup-local-build-environment.sh
+          ./_build/add-insecure-ci-registry.sh
+
+          # This is terrible, but its easier than reloading groups
+          sudo chmod ugo+rw /var/run/docker.sock
 
       - name: Build patched repositories
         run: |
           . $GITHUB_ENV
-          ssh -i /srv/github/id_ci -o StrictHostKeyChecking=no \
-              -o UserKnownHostsFile=/dev/null \
-              debian@10.0.2.2 \
-              'cd /srv/shakenfist/kerbside-patches; ./_build/assemble-source.sh ${{ matrix.test.release }}'
+          cd kerbside-patches
+          ./_build/assemble-source.sh --use-ci-registry ${{ matrix.test.release }}
 
       - name: Build container images
         run: |
           . $GITHUB_ENV
+          cd kerbside-patches
 
-          script="cd /srv/shakenfist/kerbside-patches;"
-          script="${script} hash=\$(./_build/calculate-container-hash.sh kolla kolla-2* nova nova-2* requirements requirements-2*);"
-          script="${script} ./_build/build-containers.sh --use-ci-registry --build-targets "${{ matrix.test.release }}" --build-images all --image-tag "\$hash-debian-bookworm" --dont-fetch-images;"
+          hash=$(./_build/calculate-container-hash.sh \
+              kolla kolla-2* \
+              nova nova-2* \
+              requirements requirements-2* \
+              etc src _build tools )
 
-          ssh -i /srv/github/id_ci -o StrictHostKeyChecking=no \
-              -o UserKnownHostsFile=/dev/null \
-              debian@10.0.2.2 "${script}"
+          ./_build/build-containers.sh \
+              --use-ci-registry \
+              --build-targets "${{ matrix.test.release }}" \
+              --build-images all \
+              --image-tag "${hash}-debian-bookworm" \
+              --dont-fetch-images
 
       - name: Archive patched source
         if: always()
         run: |
           . $GITHUB_ENV
+          cd kerbside-patches
+
           mkdir /tmp/bundle
-          scp -i /srv/github/id_ci -o StrictHostKeyChecking=no \
-              -o UserKnownHostsFile=/dev/null \
-              debian@10.0.2.2:/srv/shakenfist/kerbside-patches/src/*.tgz /tmp/bundle/
+          mv src/*.tgz /tmp/bundle/
           cd /tmp
           zip -r bundle.zip bundle
 
@@ -103,7 +111,8 @@ jobs:
             'release': '2025.1',
             'base': 'debian:12',
             'baseuser': 'debian',
-            'topology': 'all-in-one'
+            'topology': 'all-in-one',
+            'runs_on': 'debian-11'
           },
           {
             'name': 'master-debian12-aio',
@@ -111,7 +120,8 @@ jobs:
             'release': 'master',
             'base': 'debian:12',
             'baseuser': 'debian',
-            'topology': 'all-in-one'
+            'topology': 'all-in-one',
+            'runs_on': 'debian-11'
           },
           {
             'name': 'master-rocky10-aio',
@@ -119,7 +129,8 @@ jobs:
             'release': 'master',
             'base': 'rocky:10',
             'baseuser': 'cloud-user',
-            'topology': 'all-in-one'
+            'topology': 'all-in-one',
+            'runs_on': 'debian-12'
           },
           {
             'name': 'master-debian12-multi',
@@ -127,10 +138,11 @@ jobs:
             'release': 'master',
             'base': 'debian:12',
             'baseuser': 'debian',
-            'topology': 'multinode'
+            'topology': 'multinode',
+            'runs_on': 'debian-11'
           },
         ]
-    runs-on: [self-hosted, vm]
+    runs-on: [self-hosted, vm, '${{ matrix.test.runs_on }}']
     needs: build_images
     timeout-minutes: 120
     concurrency:
@@ -150,20 +162,24 @@ jobs:
           openstack_release: ${{ matrix.test.release }}
           topology: ${{ matrix.test.topology }}
 
+      - name: Dump CI environment details
+        run: |
+          cat ci-environment.sh
+
       - name: Build patched repositories
         run: |
           . $GITHUB_ENV
           ssh -i /srv/github/id_ci -o StrictHostKeyChecking=no \
               -o UserKnownHostsFile=/dev/null \
               ${{ matrix.test.baseuser }}@10.0.2.2 \
-              'cd /srv/shakenfist/kerbside-patches; ./_build/assemble-source.sh ${{ matrix.test.release }}'
+              'cd /srv/shakenfist/kerbside-patches; ./_build/assemble-source.sh --use-ci-registry ${{ matrix.test.release }}'
 
       - name: Build container images
         run: |
           . $GITHUB_ENV
 
           script="cd /srv/shakenfist/kerbside-patches;"
-          script="${script} hash=\$(./_build/calculate-container-hash.sh kolla kolla-2* nova nova-2* requirements requirements-2*);"
+          script="${script} hash=\$(./_build/calculate-container-hash.sh kolla kolla-2* nova nova-2* requirements requirements-2* etc src _build tools );"
           script="${script} ./_build/build-containers.sh --use-ci-registry --build-targets ${{ matrix.test.release }} --build-images all --image-tag "\$hash-debian-bookworm";"
 
           ssh -i /srv/github/id_ci -o StrictHostKeyChecking=no \
@@ -177,6 +193,15 @@ jobs:
       #         -o UserKnownHostsFile=/dev/null \
       #         ${{ matrix.test.baseuser }}@10.0.2.2 \
       #         'sudo sed -i s"|hosts:      files dns myhostname|hosts:      dns myhostname|" /etc/nsswitch.conf'
+
+      - name: Log getent resolution for kolla
+        if: "contains(matrix.test.topology, 'all-in-one')"
+        run: |
+          . $GITHUB_ENV
+          ssh -i /srv/github/id_ci -o StrictHostKeyChecking=no \
+              -o UserKnownHostsFile=/dev/null \
+              ${{ matrix.test.baseuser }}@10.0.2.2 \
+              'sudo getent ahostsv4 kolla'
 
       - name: Bootstrap Kolla-Ansible
         run: |
@@ -202,23 +227,32 @@ jobs:
               ${{ matrix.test.baseuser }}@10.0.2.2 \
               'cd /srv/shakenfist/kerbside-patches; sudo ./tools/install-openstack-clients'
 
-      - name: Dump haproxy logs
+      - name: Dump list of configured haproxy services
         if: always()
         run: |
           . $GITHUB_ENV
           ssh -i /srv/github/id_ci -o StrictHostKeyChecking=no \
               -o UserKnownHostsFile=/dev/null \
               ${{ matrix.test.baseuser }}@10.0.2.2 \
-              'sudo docker logs haproxy || true'
+              'sudo ls -l /etc/kolla/haproxy/services.d/ || true'
 
-      - name: Dump kerbside proxy logs
+      - name: Dump haproxy kerbside API configuration
         if: always()
         run: |
           . $GITHUB_ENV
           ssh -i /srv/github/id_ci -o StrictHostKeyChecking=no \
               -o UserKnownHostsFile=/dev/null \
               ${{ matrix.test.baseuser }}@10.0.2.2 \
-              'sudo docker logs kerbside_proxy || true'
+              'sudo cat /etc/kolla/haproxy/services.d/kerbside_api.cfg || true'
+
+      - name: Dump haproxy kerbside proxy configuration
+        if: always()
+        run: |
+          . $GITHUB_ENV
+          ssh -i /srv/github/id_ci -o StrictHostKeyChecking=no \
+              -o UserKnownHostsFile=/dev/null \
+              ${{ matrix.test.baseuser }}@10.0.2.2 \
+              'sudo cat /etc/kolla/haproxy/services.d/kerbside_proxy.cfg || true'
 
       - name: Dump internal VIP CA cert details
         if: always()
@@ -246,13 +280,22 @@ jobs:
               ${{ matrix.test.baseuser }}@10.0.2.2 \
               'cd /srv/shakenfist/kerbside-patches; sudo ./tools/postinstall-kolla-ansible --use-ci-registry'
 
-      # - name: Dump kerbside debugging information
-      #   run: |
-      #     . $GITHUB_ENV
-      #     ssh -i /srv/github/id_ci -o StrictHostKeyChecking=no \
-      #         -o UserKnownHostsFile=/dev/null \
-      #         ${{ matrix.test.baseuser }}@10.0.2.2 \
-      #         'cd /srv/shakenfist/kerbside-patches; sudo ./tools/inspect-kerbside'
+      - name: Verify that the haproxy is configured correctly for the Kerbside API
+        run: |
+          . $GITHUB_ENV
+          ssh -i /srv/github/id_ci -o StrictHostKeyChecking=no \
+              -o UserKnownHostsFile=/dev/null \
+              ${{ matrix.test.baseuser }}@10.0.2.2 \
+              'curl -v -k https://10.0.2.3:13002'
+
+      - name: Dump Kerbside API CA cert details
+        if: always()
+        run: |
+          . $GITHUB_ENV
+          ssh -i /srv/github/id_ci -o StrictHostKeyChecking=no \
+              -o UserKnownHostsFile=/dev/null \
+              ${{ matrix.test.baseuser }}@10.0.2.2 \
+              'openssl s_client -showcerts -connect 10.0.2.3:13002'
 
       - name: Attempt to start an instance with a console and connect to it
         run: |
@@ -262,17 +305,97 @@ jobs:
               ${{ matrix.test.baseuser }}@10.0.2.2 \
               'cd /srv/shakenfist/kerbside-patches; sudo ./tools/test-console'
 
-      - name: Collect logs
+      - name: Dump netstat
         if: always()
         run: |
           . $GITHUB_ENV
           ssh -i /srv/github/id_ci -o StrictHostKeyChecking=no \
               -o UserKnownHostsFile=/dev/null \
               ${{ matrix.test.baseuser }}@10.0.2.2 \
-              'cd /srv/shakenfist/kerbside-patches/tools; sudo ./gather-logs'
-          scp -i /srv/github/id_ci -o StrictHostKeyChecking=no \
+              'sudo netstat -plnt || true'
+
+      - name: Dump haproxy docker logs
+        if: always()
+        run: |
+          . $GITHUB_ENV
+          ssh -i /srv/github/id_ci -o StrictHostKeyChecking=no \
               -o UserKnownHostsFile=/dev/null \
-              ${{ matrix.test.baseuser }}@10.0.2.2:/tmp/bundle.zip /tmp/bundle.zip
+              ${{ matrix.test.baseuser }}@10.0.2.2 \
+              'sudo docker logs haproxy || true'
+
+      - name: Dump kerbside API docker logs
+        if: always()
+        run: |
+          . $GITHUB_ENV
+          ssh -i /srv/github/id_ci -o StrictHostKeyChecking=no \
+              -o UserKnownHostsFile=/dev/null \
+              ${{ matrix.test.baseuser }}@10.0.2.2 \
+              'sudo docker logs kerbside_api || true'
+
+      - name: Dump kerbside proxy docker logs
+        if: always()
+        run: |
+          . $GITHUB_ENV
+          ssh -i /srv/github/id_ci -o StrictHostKeyChecking=no \
+              -o UserKnownHostsFile=/dev/null \
+              ${{ matrix.test.baseuser }}@10.0.2.2 \
+              'sudo docker logs kerbside_proxy || true'
+
+      - name: Inspect kerbside API docker container
+        if: always()
+        run: |
+          . $GITHUB_ENV
+          ssh -i /srv/github/id_ci -o StrictHostKeyChecking=no \
+              -o UserKnownHostsFile=/dev/null \
+              ${{ matrix.test.baseuser }}@10.0.2.2 \
+              'sudo docker inspect kerbside_api || true'
+
+      - name: Inspect kerbside proxy docker container
+        if: always()
+        run: |
+          . $GITHUB_ENV
+          ssh -i /srv/github/id_ci -o StrictHostKeyChecking=no \
+              -o UserKnownHostsFile=/dev/null \
+              ${{ matrix.test.baseuser }}@10.0.2.2 \
+              'sudo docker inspect kerbside_proxy || true'
+
+      - name: Collect logs
+        if: always()
+        run: |
+          . $GITHUB_ENV
+          . ci-environment.sh
+
+          mkdir -p /tmp/bundle
+          cp /etc/hosts /tmp/bundle/
+
+          for node in ${nodes}; do
+              echo
+              echo
+              node_address=${!node}
+              echo "${node} is at ${node_address}"
+              echo
+
+              ssh -i /srv/github/id_ci -o StrictHostKeyChecking=no \
+                  -o UserKnownHostsFile=/dev/null \
+                  ${{ matrix.test.baseuser }}@${node_address} \
+                  'cd /srv/shakenfist/kerbside-patches/tools; sudo ./gather-logs'
+              scp -i /srv/github/id_ci -o StrictHostKeyChecking=no \
+                  -o UserKnownHostsFile=/dev/null \
+                  ${{ matrix.test.baseuser }}@${node_address}:/tmp/bundle.zip /tmp/bundle/${node}.zip
+
+              mkdir -p /tmp/bundle/${node}
+              cd /tmp/bundle/${node}
+              unzip ../${node}.zip || true
+              rm ../${node}.zip
+          done
+
+          echo
+          echo
+          echo "Building single bundle"
+          echo
+          cd /tmp/
+          zip -r bundle.zip bundle
+
 
       - uses: actions/upload-artifact@v4
         if: always()
