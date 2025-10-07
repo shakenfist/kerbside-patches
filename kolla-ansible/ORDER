@@ -11,3 +11,4 @@
 ../_patches/patch075-use-kerbside-ini.patch
 ../_patches/patch083-kerbside-keystone-tls-verification.patch
 ../_patches/patch087-correct-certificate-path.patch
+../_patches/patch088-fix-container-confusion.patch

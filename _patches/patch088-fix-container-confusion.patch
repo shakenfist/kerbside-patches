@@ -1,0 +1,168 @@
+commit f91659df22b3bda9ecf8da71d08cb47667e5a973
+Author: Michael Still <mikal@stillhq.com>
+Date:   Tue Oct 7 16:54:41 2025 +1100
+
+    Fix up some confusion around proxy and API containers.
+    
+    Signed-off-by: Michael Still <mikal@stillhq.com>
+
+diff --git a/ansible/roles/fluentd/templates/conf/filter/01-rewrite.conf.j2 b/ansible/roles/fluentd/templates/conf/filter/01-rewrite.conf.j2
+index e8e93a2..bd62efb 100644
+--- a/ansible/roles/fluentd/templates/conf/filter/01-rewrite.conf.j2
++++ b/ansible/roles/fluentd/templates/conf/filter/01-rewrite.conf.j2
+@@ -148,7 +148,7 @@
+   </rule>
+   <rule>
+     key     programname
+-    pattern ^(kerbside-proxy)$
++    pattern ^(kerbside-api|kerbside-proxy)$
+     tag kerbside
+   </rule>
+   <rule>
+diff --git a/ansible/roles/kerbside/tasks/precheck.yml b/ansible/roles/kerbside/tasks/precheck.yml
+index 56917a3..de059fc 100644
+--- a/ansible/roles/kerbside/tasks/precheck.yml
++++ b/ansible/roles/kerbside/tasks/precheck.yml
+@@ -5,19 +5,19 @@
+     service_precheck_services: "{{ kerbside_services }}"
+     service_name: "{{ project_name }}"
+ 
+-- name: Get container facts
++- name: Get API container facts
+   become: true
+   kolla_container_facts:
+     action: get_containers
+     container_engine: "{{ kolla_container_engine }}"
+     name:
+-      - kerbside-proxy
++      - kerbside-api
+   check_mode: false
+-  register: container_facts
++  register: api_container_facts
+ 
+ - name: Checking free port for Kerbside API
+   vars:
+-    service: "{{ kerbside_services['kerbside_proxy'] }}"
++    service: "{{ kerbside_services['kerbside_api'] }}"
+   wait_for:
+     host: "{{ api_interface_address }}"
+     port: "{{ kerbside_port }}"
+@@ -25,10 +25,59 @@
+     timeout: 1
+     state: stopped
+   when:
+-    - container_facts.containers['kerbside_proxy'] is not defined
++    - api_container_facts.containers['kerbside_api'] is not defined
++    - service | service_enabled_and_mapped_to_host
++
++- name: Checking free port for Kerbside API Prometheus
++  vars:
++    service: "{{ kerbside_services['kerbside_api'] }}"
++  wait_for:
++    host: "{{ api_interface_address }}"
++    port: "{{ kerbside_prometheus_port }}"
++    connect_timeout: 1
++    timeout: 1
++    state: stopped
++  when:
++    - api_container_facts.containers['kerbside_api'] is not defined
++    - service | service_enabled_and_mapped_to_host
++
++- name: Checking free port for Kerbside API insecure SPICE port
++  vars:
++    service: "{{ kerbside_services['kerbside_api'] }}"
++  wait_for:
++    host: "{{ api_interface_address }}"
++    port: "{{ kerbside_vdi_insecure_port }}"
++    connect_timeout: 1
++    timeout: 1
++    state: stopped
++  when:
++    - api_container_facts.containers['kerbside_api'] is not defined
++    - service | service_enabled_and_mapped_to_host
++
++- name: Checking free port for Kerbside API secure SPICE port
++  vars:
++    service: "{{ kerbside_services['kerbside_api'] }}"
++  wait_for:
++    host: "{{ api_interface_address }}"
++    port: "{{ kerbside_vdi_secure_port }}"
++    connect_timeout: 1
++    timeout: 1
++    state: stopped
++  when:
++    - api_container_facts.containers['kerbside_api'] is not defined
+     - service | service_enabled_and_mapped_to_host
+ 
+-- name: Checking free port for Kerbside Prometheus
++- name: Get proxy container facts
++  become: true
++  kolla_container_facts:
++    action: get_containers
++    container_engine: "{{ kolla_container_engine }}"
++    name:
++      - kerbside-proxy
++  check_mode: false
++  register: proxy_container_facts
++
++- name: Checking free port for Kerbside Proxy Prometheus
+   vars:
+     service: "{{ kerbside_services['kerbside_proxy'] }}"
+   wait_for:
+@@ -38,10 +87,10 @@
+     timeout: 1
+     state: stopped
+   when:
+-    - container_facts.containers['kerbside_proxy'] is not defined
++    - proxy_container_facts.containers['kerbside_proxy'] is not defined
+     - service | service_enabled_and_mapped_to_host
+ 
+-- name: Checking free port for Kerbside insecure SPICE port
++- name: Checking free port for Kerbside proxy insecure SPICE port
+   vars:
+     service: "{{ kerbside_services['kerbside_proxy'] }}"
+   wait_for:
+@@ -51,10 +100,10 @@
+     timeout: 1
+     state: stopped
+   when:
+-    - container_facts.containers['kerbside_proxy'] is not defined
++    - proxy_container_facts.containers['kerbside_proxy'] is not defined
+     - service | service_enabled_and_mapped_to_host
+ 
+-- name: Checking free port for Kerbside secure SPICE port
++- name: Checking free port for Kerbside proxy secure SPICE port
+   vars:
+     service: "{{ kerbside_services['kerbside_proxy'] }}"
+   wait_for:
+@@ -64,5 +113,5 @@
+     timeout: 1
+     state: stopped
+   when:
+-    - container_facts.containers['kerbside_proxy'] is not defined
++    - proxy_container_facts.containers['kerbside_proxy'] is not defined
+     - service | service_enabled_and_mapped_to_host
+\ No newline at end of file
+diff --git a/ansible/roles/kerbside/tasks/reload.yml b/ansible/roles/kerbside/tasks/reload.yml
+index 1e879e3..70b1188 100644
+--- a/ansible/roles/kerbside/tasks/reload.yml
++++ b/ansible/roles/kerbside/tasks/reload.yml
+@@ -19,4 +19,5 @@
+     - kolla_action == 'upgrade'
+     - service | service_enabled_and_mapped_to_host
+   with_items:
++    - kerbside-api
+     - kerbside-proxy
+diff --git a/ansible/roles/kerbside/templates/kerbside_api.json.j2 b/ansible/roles/kerbside/templates/kerbside_api.json.j2
+index f1844f5..c120afd 100644
+--- a/ansible/roles/kerbside/templates/kerbside_api.json.j2
++++ b/ansible/roles/kerbside/templates/kerbside_api.json.j2
+@@ -36,7 +36,7 @@
+             "dest": "/etc/kerbside/kerbside-key.pem",
+             "owner": "kerbside",
+             "perm": "0600"
+-        }{,
++        },
+         {
+             "source": "{{ container_config_directory }}/ca-certificates",
+             "dest": "/var/lib/kolla/share/ca-certificates",
