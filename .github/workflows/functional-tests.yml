@@ -227,33 +227,6 @@ jobs:
               ${{ matrix.test.baseuser }}@10.0.2.2 \
               'cd /srv/shakenfist/kerbside-patches; sudo ./tools/install-openstack-clients'
 
-      - name: Dump list of configured haproxy services
-        if: always()
-        run: |
-          . $GITHUB_ENV
-          ssh -i /srv/github/id_ci -o StrictHostKeyChecking=no \
-              -o UserKnownHostsFile=/dev/null \
-              ${{ matrix.test.baseuser }}@10.0.2.2 \
-              'sudo ls -l /etc/kolla/haproxy/services.d/ || true'
-
-      - name: Dump haproxy kerbside API configuration
-        if: always()
-        run: |
-          . $GITHUB_ENV
-          ssh -i /srv/github/id_ci -o StrictHostKeyChecking=no \
-              -o UserKnownHostsFile=/dev/null \
-              ${{ matrix.test.baseuser }}@10.0.2.2 \
-              'sudo cat /etc/kolla/haproxy/services.d/kerbside_api.cfg || true'
-
-      - name: Dump haproxy kerbside proxy configuration
-        if: always()
-        run: |
-          . $GITHUB_ENV
-          ssh -i /srv/github/id_ci -o StrictHostKeyChecking=no \
-              -o UserKnownHostsFile=/dev/null \
-              ${{ matrix.test.baseuser }}@10.0.2.2 \
-              'sudo cat /etc/kolla/haproxy/services.d/kerbside_proxy.cfg || true'
-
       - name: Dump internal VIP CA cert details
         if: always()
         run: |
@@ -372,6 +345,20 @@ jobs:
               node_address=${!node}
               echo "${node} is at ${node_address}"
               echo
+
+              if [ "${node_address}" != "10.0.2.2" ]; then
+                  script="sudo mkdir -p /srv/shakenfist/kerbside-patches"
+                  script="${script}; sudo chown -R ${{ matrix.test.baseuser }}:${{ matrix.test.baseuser }} /srv/shakenfist"
+
+                  ssh -i /srv/github/id_ci -o StrictHostKeyChecking=no \
+                          -o UserKnownHostsFile=/dev/null ${{ matrix.test.baseuser }}@${node_address} \
+                          "${script}"
+
+                  scp -rp -i /srv/github/id_ci -o StrictHostKeyChecking=no \
+                      -o UserKnownHostsFile=/dev/null \
+                      ${GITHUB_WORKSPACE}/kerbside-patches/tools \
+                      ${{ matrix.test.baseuser }}@${node_address}:/srv/shakenfist/kerbside-patches
+              fi
 
               ssh -i /srv/github/id_ci -o StrictHostKeyChecking=no \
                   -o UserKnownHostsFile=/dev/null \
