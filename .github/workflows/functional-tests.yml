@@ -366,8 +366,6 @@ jobs:
           . ci-environment.sh
 
           mkdir -p /tmp/bundle
-          cp /etc/hosts /tmp/bundle/
-
           for node in ${nodes}; do
               echo
               echo
