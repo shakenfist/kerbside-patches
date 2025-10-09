@@ -9,3 +9,7 @@
 ../_patches/patch085-use-kerbside-ini-epoxy.patch
 ../_patches/patch083-kerbside-keystone-tls-verification.patch
 ../_patches/patch086-backport-docker-image-url.patch
+../_patches/patch087-correct-certificate-path.patch
+../_patches/patch090-fix-container-confusion-epoxy.patch
+../_patches/patch089-more-prechecks.patch
+../_patches/patch091-configure-kerbside-loadbalancer-ports.patch

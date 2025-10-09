@@ -1,5 +1,15 @@
 #!/bin/bash
 
+clingwrap_path=$(which clingwrap)
+if [ -z ${clingwrap_path} ]; then
+    sudo apt-get install -y python3 python3-wheel python3-venv python3-setuptools git
+    git clone https://github.com/shakenfist/clingwrap /srv/shakenfist/clingwrap
+    python3 -mvenv /srv/shakenfist/clingwrap-venv
+    . /srv/shakenfist/clingwrap-venv/bin/activate
+
+    pip install -e /srv/shakenfist/clingwrap
+fi
+
 clingwrap gather \
     --target openstack-kolla-ansible \
     --output /tmp/bundle.zip

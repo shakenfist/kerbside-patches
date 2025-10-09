@@ -78,14 +78,14 @@ echo
 
 if [ "${topology}" == "all-in-one" ]; then
 echo -e "${H2}Tweak /etc/hosts${Color_Off}"
-    sed -i "1s/^/10.0.2.2 kolla\n\n/" /etc/hosts
+    # sed -i "1s/^/10.0.2.2 kolla\n\n/" /etc/hosts
     echo
 
-    if [ -e /etc/cloud/templates/hosts.redhat.tmpl ]; then
-        echo -e "${H2}Tweak /etc/hosts template for cloud-init${Color_Off}"
-        sed -i "1s/^/10.0.2.2 kolla\n\n/" /etc/cloud/templates/hosts.redhat.tmpl
-        echo
-    fi
+    # if [ -e /etc/cloud/templates/hosts.redhat.tmpl ]; then
+    #     echo -e "${H2}Tweak /etc/hosts template for cloud-init${Color_Off}"
+    #     sed -i "1s/^/10.0.2.2 kolla\n\n/" /etc/cloud/templates/hosts.redhat.tmpl
+    #     echo
+    # fi
 else
     sed -i "1s/^/10.0.2.2 deploy\n\n/" /etc/hosts
     sed -i "1s/^/10.0.2.10 control-1\n\n/" /etc/hosts
@@ -108,10 +108,6 @@ else
         echo
     fi
 fi
-
-echo -e "${H2}Dump /etc/hosts${Color_Off}"
-cat /etc/hosts
-echo
 
 echo -e "${H2}Generate passwords${Color_Off}"
 kolla-genpwd

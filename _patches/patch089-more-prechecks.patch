@@ -1,0 +1,70 @@
+commit ebfc330d742d9ba16e085a237c08b45552128465
+Author: Michael Still <mikal@stillhq.com>
+Date:   Wed Oct 8 08:35:07 2025 +1100
+
+    Fail prechecks for empty kerbside groups.
+
+diff --git a/ansible/nova.yml b/ansible/nova.yml
+index d714c31..659e104 100644
+--- a/ansible/nova.yml
++++ b/ansible/nova.yml
+@@ -21,7 +21,7 @@
+ # * nova-spicehtml5proxy
+ # * nova-ssh
+ #
+-# Additionally there is now a kerbside-proxy role which deploys the SPICE native
++# Additionally there is now a kerbside role which deploys the SPICE native
+ # proxy for spice-direct Nova consoles if enable_kerbside is true.
+ 
+ # We need to perform database bootstrapping before deploying or upgrading any
+@@ -178,7 +178,7 @@
+ - name: Apply role kerbside
+   gather_facts: false
+   hosts:
+-    - kerbside-proxy
++    - kerbside-api kerbside-proxy
+     - '&enable_kerbside_True'
+   tags:
+     - kerbside
+@@ -272,13 +272,13 @@
+         - enable_nova | bool
+         - kolla_action == 'upgrade'
+ 
+-- name: Reload kerbside-proxy services
++- name: Reload kerbside services
+   gather_facts: false
+   hosts:
+-    - kerbside-proxy
++    - kerbside-api kerbside-proxy
+     - '&enable_kerbside_True'
+   tags:
+-    - kerbside-proxy
++    - kerbside
+   serial: '{{ kolla_serial|default("0") }}'
+   max_fail_percentage: >-
+     {{ nova_max_fail_percentage |
+diff --git a/ansible/roles/kerbside/tasks/precheck.yml b/ansible/roles/kerbside/tasks/precheck.yml
+index de059fc..47032ad 100644
+--- a/ansible/roles/kerbside/tasks/precheck.yml
++++ b/ansible/roles/kerbside/tasks/precheck.yml
+@@ -5,6 +5,20 @@
+     service_precheck_services: "{{ kerbside_services }}"
+     service_name: "{{ project_name }}"
+ 
++- name: Ensure there are hosts in the kerbside-api group
++  fail:
++    msg: There are no nodes in the kerbside-api group
++  when: 
++    - enable_kerbside | bool
++    - groups['kerbside-api'] | length == 0
++
++- name: Ensure there are hosts in the kerbside-proxy group
++  fail:
++    msg: There are no nodes in the kerbside-proxy group
++  when: 
++    - enable_kerbside | bool
++    - groups['kerbside-proxy'] | length == 0
++
+ - name: Get API container facts
+   become: true
+   kolla_container_facts:

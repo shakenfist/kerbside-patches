@@ -10,3 +10,7 @@
 ../_patches/patch072-kerbside-bootstrap-container-split.patch
 ../_patches/patch075-use-kerbside-ini.patch
 ../_patches/patch083-kerbside-keystone-tls-verification.patch
+../_patches/patch087-correct-certificate-path.patch
+../_patches/patch088-fix-container-confusion.patch
+../_patches/patch089-more-prechecks.patch
+../_patches/patch091-configure-kerbside-loadbalancer-ports.patch

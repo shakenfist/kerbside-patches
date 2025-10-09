@@ -71,6 +71,10 @@ if __name__ == '__main__':
     assert server_magic == b'REDQ'
     assert server_major == 2
     assert server_minor == 2
-    assert server_error == 0
+    
+    # NOTE(mikal): this check is commented out because Kerbside returns an
+    # error on the insecure port that indicates a reconnection on the
+    # secure port is required.
+    # assert server_error == 0
 
     print('OK')
