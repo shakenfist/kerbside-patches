@@ -28,7 +28,7 @@ jobs:
           },
         ]
     runs-on: [self-hosted, vm, 'debian-12', 'xl']
-    timeout-minutes: 120
+    timeout-minutes: 180
     concurrency:
       group: ${{ github.workflow }}-${{ github.ref }}-${{ matrix.test.name }}
       cancel-in-progress: true
@@ -338,7 +338,12 @@ jobs:
           . $GITHUB_ENV
           . ci-environment.sh
 
-          mkdir -p /tmp/bundle
+          mkdir -p /tmp/bundle/consoledata
+
+          for instance_name in $(sf-client --simple instance list | cut -f 2 -d "," | grep -v name); do
+              sf-client instance consoledata ${instance_name} 100000000 > /tmp/bundle/consoledata/${instance_name}
+          done
+
           for node in ${nodes}; do
               echo
               echo
