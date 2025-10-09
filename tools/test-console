@@ -219,9 +219,9 @@ echo -e "${H1}==================================================${Color_Off}"
 echo -e "${H1}Attempt a proxied connection to the hypervisor${Color_Off}"
 echo -e "${H1}==================================================${Color_Off}"
 
-# NOTE(mikal): this is really only checking the _proxy_ answers right now,
-# because I need to add support to passwords to spice-connect.py before we
-# can actually check the entire way through to the instance.
+# NOTE(mikal): this is really only checking the _proxy_ insecure port answers
+# right now, because I need to add support to passwords to spice-connect.py
+# before we can actually check the entire way through to the instance.
 proxyconnhost=$(egrep "^host=" /tmp/console.vv | cut -f 2 -d "=")
 proxyconnport=$(egrep "^port=" /tmp/console.vv | cut -f 2 -d "=")
 
