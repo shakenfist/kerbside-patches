@@ -12,3 +12,4 @@
 ../_patches/patch087-correct-certificate-path.patch
 ../_patches/patch090-fix-container-confusion-epoxy.patch
 ../_patches/patch089-more-prechecks.patch
+../_patches/patch091-configure-kerbside-loadbalancer-ports.patch

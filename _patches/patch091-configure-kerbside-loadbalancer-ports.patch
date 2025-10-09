@@ -1,0 +1,19 @@
+commit 44a20a8cff4e08658ab9451733250d444b8e9d72
+Author: Michael Still <mikal@stillhq.com>
+Date:   Thu Oct 9 14:57:26 2025 +1100
+
+    Configure kerbside loadbalancer ports.
+
+diff --git a/ansible/roles/kerbside/templates/kerbside.ini.j2 b/ansible/roles/kerbside/templates/kerbside.ini.j2
+index 012e857..62b080b 100644
+--- a/ansible/roles/kerbside/templates/kerbside.ini.j2
++++ b/ansible/roles/kerbside/templates/kerbside.ini.j2
+@@ -5,6 +5,8 @@ log_output_json = true
+ {% endif %}
+ 
+ public_fqdn = {{ keystone_external_fqdn | put_address_in_context('url') }}
++public_secure_port = {{ kerbside_vdi_secure_port }}
++public_insecure_port = {{ kerbside_vdi_insecure_port }}
+ cacert_path = /var/lib/kolla/share/ca-certificates/root.crt
+ proxy_host_cert_path = /etc/pki/kerbside/servercert.pem
+ proxy_host_cert_key_path = /etc/pki/kerbside/serverkey.pem
