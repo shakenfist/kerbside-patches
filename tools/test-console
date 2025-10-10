@@ -67,7 +67,8 @@ instancename="test-$$"
 start=$(date +"%s")
 now=$(date +"%s")
 while [ $(( ${now} - ${start} )) -lt 300 ]; do
-    status=$(/usr/local/bin/openstack server show ${instancename} -f json | jq -e -r ".status")
+    status=$(/usr/local/bin/openstack server show ${instancename} -f json | \
+             jq -e -r ".status")
     if [ ${status} == 'ACTIVE' ]; then
         break
     fi
@@ -93,24 +94,47 @@ fi
 
 echo
 echo -e "${H1}==================================================${Color_Off}"
+echo -e "${H1}Dump instance information${Color_Off}"
+echo -e "${H1}==================================================${Color_Off}"
+
+/usr/local/bin/openstack server show ${instancename} -f json | jq . -e -r 2> /dev/null
+
+echo
+echo -e "${H1}==================================================${Color_Off}"
+echo -e "${H1}Determine location of the compute node${Color_Off}"
+echo -e "${H1}==================================================${Color_Off}"
+
+/usr/local/bin/openstack server show ${instancename} -f json \
+    | jq -e -r '."OS-EXT-SRV-ATTR:hypervisor_hostname"'
+
+hypervisor=$(/usr/local/bin/openstack server show ${instancename} -f json \
+             | jq -e -r '."OS-EXT-SRV-ATTR:hypervisor_hostname"')
+echo "Instance is on ${hypervisor}"
+if [ "${hypervisor}" == "kolla" ]; then
+    echo "Hypervisors named kolla are assumed to be local"
+    hypervisor="localhost"
+fi
+
+echo
+echo -e "${H1}==================================================${Color_Off}"
 echo -e "${H1}List libvirt domains${Color_Off}"
 echo -e "${H1}==================================================${Color_Off}"
 
-docker exec nova_libvirt virsh list
+/srv/actions/tools/run_remote ${hypervisor} docker exec nova_libvirt virsh list
 
 echo
 echo -e "${H1}==================================================${Color_Off}"
 echo -e "${H1}Dump libvirt domain XML for instance${Color_Off}"
 echo -e "${H1}==================================================${Color_Off}"
 
-docker exec nova_libvirt virsh dumpxml 1
+/srv/actions/tools/run_remote ${hypervisor} docker exec nova_libvirt virsh dumpxml 1
 
 echo
 echo -e "${H1}==================================================${Color_Off}"
 echo -e "${H1}Make assertions about the domain XML${Color_Off}"
 echo -e "${H1}==================================================${Color_Off}"
 
-docker exec nova_libvirt virsh dumpxml 1 > /tmp/domain.xml
+/srv/actions/tools/run_remote ${hypervisor} docker exec nova_libvirt virsh dumpxml 1 > /tmp/domain.xml
 if [ $(grep -c "graphics type='spice'" /tmp/domain.xml || true) -lt 1 ]; then
     echo "...graphics type='spice' missing from domain XML"
     exit 1
