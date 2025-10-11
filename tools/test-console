@@ -104,9 +104,6 @@ echo -e "${H1}==================================================${Color_Off}"
 echo -e "${H1}Determine location of the compute node${Color_Off}"
 echo -e "${H1}==================================================${Color_Off}"
 
-/usr/local/bin/openstack server show ${instancename} -f json \
-    | jq -e -r '."OS-EXT-SRV-ATTR:hypervisor_hostname"'
-
 hypervisor=$(/usr/local/bin/openstack server show ${instancename} -f json \
              | jq -e -r '."OS-EXT-SRV-ATTR:hypervisor_hostname"')
 echo "Instance is on ${hypervisor}"
