@@ -117,21 +117,21 @@ echo -e "${H1}==================================================${Color_Off}"
 echo -e "${H1}List libvirt domains${Color_Off}"
 echo -e "${H1}==================================================${Color_Off}"
 
-/srv/actions/tools/run_remote ${hypervisor} docker exec nova_libvirt virsh list
+/srv/shakenfist/actions/tools/run_remote ${hypervisor} sudo docker exec nova_libvirt virsh list
 
 echo
 echo -e "${H1}==================================================${Color_Off}"
 echo -e "${H1}Dump libvirt domain XML for instance${Color_Off}"
 echo -e "${H1}==================================================${Color_Off}"
 
-/srv/actions/tools/run_remote ${hypervisor} docker exec nova_libvirt virsh dumpxml 1
+/srv/shakenfist/actions/tools/run_remote ${hypervisor} sudo docker exec nova_libvirt virsh dumpxml 1
 
 echo
 echo -e "${H1}==================================================${Color_Off}"
 echo -e "${H1}Make assertions about the domain XML${Color_Off}"
 echo -e "${H1}==================================================${Color_Off}"
 
-/srv/actions/tools/run_remote ${hypervisor} docker exec nova_libvirt virsh dumpxml 1 > /tmp/domain.xml
+/srv/shakenfist/actions/tools/run_remote ${hypervisor} sudo docker exec nova_libvirt virsh dumpxml 1 > /tmp/domain.xml
 if [ $(grep -c "graphics type='spice'" /tmp/domain.xml || true) -lt 1 ]; then
     echo "...graphics type='spice' missing from domain XML"
     exit 1
