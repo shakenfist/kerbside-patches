@@ -1,0 +1,30 @@
+commit 764d16c334df4d8019af91b7dd7e84965984204f
+Author: Michael Still <mikal@stillhq.com>
+Date:   Sun Oct 12 14:26:14 2025 +1100
+
+    The proxy needs a log directory too.
+    
+    Signed-off-by: Michael Still <mikal@stillhq.com>
+
+diff --git a/docker/kerbside/kerbside-proxy/Dockerfile.j2 b/docker/kerbside/kerbside-proxy/Dockerfile.j2
+index 5b72e99..4e5e1f7 100644
+--- a/docker/kerbside/kerbside-proxy/Dockerfile.j2
++++ b/docker/kerbside/kerbside-proxy/Dockerfile.j2
+@@ -3,4 +3,7 @@ FROM {{ namespace }}/{{ image_prefix }}kerbside-base:{{ tag }}
+ LABEL maintainer="{{ maintainer }}" name="{{ image_name }}" build-date="{{ build_date }}"
+ {% endblock %}
+ 
++COPY extend_start.sh /usr/local/bin/kolla_extend_start
++RUN chmod 644 /usr/local/bin/kolla_extend_start
++
+ USER kerbside
+diff --git a/docker/kerbside/kerbside-proxy/extend_start.sh b/docker/kerbside/kerbside-proxy/extend_start.sh
+new file mode 100644
+index 0000000..92ef80a
+--- /dev/null
++++ b/docker/kerbside/kerbside-proxy/extend_start.sh
+@@ -0,0 +1,4 @@
++#!/bin/bash
++
++# Make the log directory
++mkdir -p /var/log/kolla/kerbside
