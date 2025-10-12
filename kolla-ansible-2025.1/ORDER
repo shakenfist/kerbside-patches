@@ -3,13 +3,4 @@
 ../_patches/patch009-support-secure-spice.patch
 ../_patches/patch011-allow-concurrent-spice-connections.patch
 ../_patches/patch018-expose-spice-debug-logging.patch
-../_patches/patch069-kolla-ansible-epoxy-compressed.patch
-../_patches/patch084-kerbside-wsgi-split-epoxy.patch
-../_patches/patch072-kerbside-bootstrap-container-split.patch
-../_patches/patch085-use-kerbside-ini-epoxy.patch
-../_patches/patch083-kerbside-keystone-tls-verification.patch
-../_patches/patch086-backport-docker-image-url.patch
-../_patches/patch087-correct-certificate-path.patch
-../_patches/patch090-fix-container-confusion-epoxy.patch
-../_patches/patch089-more-prechecks.patch
-../_patches/patch091-configure-kerbside-loadbalancer-ports.patch
+../_patches/patch096-kolla-ansible-epoxy-compressed.patch

@@ -1,5 +1,1 @@
-../_patches/patch067-kolla-epoxy-compressed.patch
-../_patches/patch071-kerbside-wsgi-split-images.patch
-../_patches/patch073-remove-bootstrapping-hack.patch
-../_patches/patch076-drop-proxy-extend-start.patch
-../_patches/patch092-logdir-for-proxy-too.patch
+../_patches/patch094-kolla-epoxy-compressed.patch

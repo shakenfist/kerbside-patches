@@ -1,0 +1,161 @@
+commit 316f08dd1088d3e65b03dcf35a85da238e2b74e9
+Author: Michael Still <mikal@stillhq.com>
+Date:   Mon Oct 13 08:59:04 2025 +1100
+
+    Implement container image build for kerbside.
+    
+    I am fairly sure this will need improvement, but its a starting
+    point at least.
+    
+    Signed-off-by: Michael Still <mikal@stillhq.com>
+
+diff --git a/docker/kerbside/kerbside-api/Dockerfile.j2 b/docker/kerbside/kerbside-api/Dockerfile.j2
+new file mode 100644
+index 0000000..4e5e1f7
+--- /dev/null
++++ b/docker/kerbside/kerbside-api/Dockerfile.j2
+@@ -0,0 +1,9 @@
++FROM {{ namespace }}/{{ image_prefix }}kerbside-base:{{ tag }}
++{% block labels %}
++LABEL maintainer="{{ maintainer }}" name="{{ image_name }}" build-date="{{ build_date }}"
++{% endblock %}
++
++COPY extend_start.sh /usr/local/bin/kolla_extend_start
++RUN chmod 644 /usr/local/bin/kolla_extend_start
++
++USER kerbside
+diff --git a/docker/kerbside/kerbside-api/extend_start.sh b/docker/kerbside/kerbside-api/extend_start.sh
+new file mode 100644
+index 0000000..9b917b3
+--- /dev/null
++++ b/docker/kerbside/kerbside-api/extend_start.sh
+@@ -0,0 +1,6 @@
++#!/bin/bash
++
++# Make the log directory
++mkdir -p /var/log/kolla/kerbside
++
++. /usr/local/bin/kolla_httpd_setup
+diff --git a/docker/kerbside/kerbside-base/Dockerfile.j2 b/docker/kerbside/kerbside-base/Dockerfile.j2
+new file mode 100644
+index 0000000..6ede949
+--- /dev/null
++++ b/docker/kerbside/kerbside-base/Dockerfile.j2
+@@ -0,0 +1,51 @@
++FROM {{ namespace }}/{{ image_prefix }}openstack-base:{{ tag }}
++{% block labels %}
++LABEL maintainer="{{ maintainer }}" name="{{ image_name }}" build-date="{{ build_date }}"
++{% endblock %}
++
++{% block kerbside_header %}{% endblock %}
++
++{% import "macros.j2" as macros with context %}
++{{ macros.configure_user(name='kerbside', groups='kerbside') }}
++
++{{ macros.configure_user(name='kerbside', groups='kerbside') }}
++
++{% if base_package_type == 'rpm' %}
++    {% set kerbside_packages = [
++        'mariadb-devel',
++        'pkgconfig'
++    ] %}
++{% elif base_package_type == 'deb' %}
++    {% set kerbside_packages = [
++        'libmariadb-dev-compat',
++        'pkg-config'
++    ] %}
++{% endif %}
++{{ macros.install_packages(kerbside_packages | customizable("packages")) }}
++
++# We currently carry a customized version of openstacksdk until our changes are
++# merged upstream. This is handled as a plugin for now. This is also how you
++# would add support to kerbside for other clouds like Shaken Fist or oVirt.
++ADD plugins-archive /
++
++{% set kerbside_pip_packages = [
++    '/kerbside'
++] %}
++
++{% set kerbside_plugins_pip_packages = [
++    '/plugins/*'
++] %}
++
++# Note that we disable upper-constraints for kerbside, because it comes from an
++# alternate universe which requires more modern dependencies that you get with
++# 2025.1. This should change as OpenStack releases newer versions.
++ADD kerbside-base-archive /kerbside-source
++RUN ln -s kerbside-source/* kerbside \
++    && if [ "$(ls /plugins)" ]; then \
++           {{ macros.install_pip(kerbside_plugins_pip_packages) }}; \
++       fi \
++    && {{ macros.install_pip(kerbside_pip_packages | customizable("pip_packages"), false) }} \
++    && rm -f /etc/machine-id
++
++{% block kerbside_footer %}{% endblock %}
++{% block footer %}{% endblock %}
+diff --git a/docker/kerbside/kerbside-proxy/Dockerfile.j2 b/docker/kerbside/kerbside-proxy/Dockerfile.j2
+new file mode 100644
+index 0000000..4e5e1f7
+--- /dev/null
++++ b/docker/kerbside/kerbside-proxy/Dockerfile.j2
+@@ -0,0 +1,9 @@
++FROM {{ namespace }}/{{ image_prefix }}kerbside-base:{{ tag }}
++{% block labels %}
++LABEL maintainer="{{ maintainer }}" name="{{ image_name }}" build-date="{{ build_date }}"
++{% endblock %}
++
++COPY extend_start.sh /usr/local/bin/kolla_extend_start
++RUN chmod 644 /usr/local/bin/kolla_extend_start
++
++USER kerbside
+diff --git a/docker/kerbside/kerbside-proxy/extend_start.sh b/docker/kerbside/kerbside-proxy/extend_start.sh
+new file mode 100644
+index 0000000..92ef80a
+--- /dev/null
++++ b/docker/kerbside/kerbside-proxy/extend_start.sh
+@@ -0,0 +1,4 @@
++#!/bin/bash
++
++# Make the log directory
++mkdir -p /var/log/kolla/kerbside
+diff --git a/kolla/common/config.py b/kolla/common/config.py
+index 2ec2194..90f97fc 100644
+--- a/kolla/common/config.py
++++ b/kolla/common/config.py
+@@ -93,6 +93,7 @@ _PROFILE_OPTS = [
+                     'influxdb',
+                     'ironic',
+                     'kafka',
++                    'kerbside',
+                     'kuryr',
+                     'magnum',
+                     'manila',
+diff --git a/kolla/common/sources.py b/kolla/common/sources.py
+index ea8df7c..d57e11e 100644
+--- a/kolla/common/sources.py
++++ b/kolla/common/sources.py
+@@ -160,6 +160,10 @@ SOURCES = {
+         'type': 'url',
+         'location': ('$tarballs_base/openstack/keystone/'
+                      'keystone-${openstack_branch}.tar.gz')},
++    'kerbside-base': {
++        'type': 'url',
++        'location': ('https://shakenfist.com/kerbside/releases/'
++                     'kerbside-${openstack_branch}.tar.gz')},
+     'kuryr-base': {
+         'type': 'url',
+         'location': ('$tarballs_base/openstack/kuryr/'
+diff --git a/kolla/common/users.py b/kolla/common/users.py
+index 95aefa4..64560d9 100644
+--- a/kolla/common/users.py
++++ b/kolla/common/users.py
+@@ -345,5 +345,9 @@ USERS = {
+     'hsmusers-user': {
+         'uid': 42493,  # This is not used, but the group ID is required.
+         'gid': 42493,
++    },
++    'kerbside-user': {
++        'uid': 42494,
++        'gid': 42494,
+     }
+ }
