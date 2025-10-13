@@ -18,7 +18,8 @@ echo -e "${H1}==================================================${Color_Off}"
 
 echo -e "${H2}Make venv for '${ID}' distro${Color_Off}"
 if [ "${ID}" == "rocky" ]; then
-    dnf install python3-libselinux libselinux-python3
+    echo "Install missing Rocky dependencies."
+    dnf install -y python3-libselinux libselinux-python3 wget curl
 fi
 
 python3 -mvenv --system-site-packages /srv/kolla-ansible/venv
@@ -76,17 +77,11 @@ echo -e "${H2}Copy globals.yml${Color_Off}"
 cp etc/globals-${target_release}.yml /etc/kolla/globals.yml
 echo
 
-if [ "${topology}" == "all-in-one" ]; then
-echo -e "${H2}Tweak /etc/hosts${Color_Off}"
-    # sed -i "1s/^/10.0.2.2 kolla\n\n/" /etc/hosts
-    echo
+sed -i "s/127.0.0.1 kolla.local kolla//" /etc/hosts
+sed -i "s/127.0.0.1 localhost.localdomain localhost//" /etc/hosts
+sed -i "s/::1 kolla.local kolla//" /etc/hosts
 
-    # if [ -e /etc/cloud/templates/hosts.redhat.tmpl ]; then
-    #     echo -e "${H2}Tweak /etc/hosts template for cloud-init${Color_Off}"
-    #     sed -i "1s/^/10.0.2.2 kolla\n\n/" /etc/cloud/templates/hosts.redhat.tmpl
-    #     echo
-    # fi
-else
+if [ "${topology}" != "all-in-one" ]; then
     sed -i "1s/^/10.0.2.2 deploy\n\n/" /etc/hosts
     sed -i "1s/^/10.0.2.10 control-1\n\n/" /etc/hosts
     sed -i "1s/^/10.0.2.11 control-2\n\n/" /etc/hosts
@@ -94,19 +89,37 @@ else
     sed -i "1s/^/10.0.2.21 compute-2\n\n/" /etc/hosts
     sed -i "1s/^/10.0.2.30 kerbside-1\n\n/" /etc/hosts
     sed -i "1s/^/10.0.2.31 kerbside-2\n\n/" /etc/hosts
-    echo
+fi
+echo
 
-    if [ -e /etc/cloud/templates/hosts.redhat.tmpl ]; then
-        echo -e "${H2}Tweak /etc/hosts template for cloud-init${Color_Off}"
-        sed -i "1s/^/10.0.2.2 deploy\n\n/" /etc/cloud/templates/hosts.redhat.tmpl
-        sed -i "1s/^/10.0.2.10 control-1\n\n/" /etc/cloud/templates/hosts.redhat.tmpl
-        sed -i "1s/^/10.0.2.11 control-2\n\n/" /etc/cloud/templates/hosts.redhat.tmpl
-        sed -i "1s/^/10.0.2.20 compute-1\n\n/" /etc/cloud/templates/hosts.redhat.tmpl
-        sed -i "1s/^/10.0.2.21 compute-2\n\n/" /etc/cloud/templates/hosts.redhat.tmpl
-        sed -i "1s/^/10.0.2.30 kerbside-1\n\n/" /etc/cloud/templates/hosts.redhat.tmpl
-        sed -i "1s/^/10.0.2.31 kerbside-2\n\n/" /etc/cloud/templates/hosts.redhat.tmpl
-        echo
+cloud_init_template=""
+if [ -e /etc/cloud/templates/hosts.debian.tmpl ]; then
+    cloud_init_template="/etc/cloud/templates/hosts.debian.tmpl"
+fi
+if [ -e /etc/cloud/templates/hosts.redhat.tmpl ]; then
+    cloud_init_template="/etc/cloud/templates/hosts.redhat.tmpl"
+fi
+
+if [ ! -z "${cloud_init_template}"]; then
+    echo -e "${H2}Tweak /etc/hosts template for cloud-init${Color_Off}"
+    sed -i "s/127.0.0.1 kolla.local kolla//" ${cloud_init_template}
+    sed -i "s/127.0.0.1 localhost.localdomain localhost//" ${cloud_init_template}
+
+    if [ "${topology}" != "all-in-one" ]; then
+        sed -i "1s/^/10.0.2.2 deploy\n\n/" ${cloud_init_template}
+        sed -i "1s/^/10.0.2.10 control-1\n\n/" ${cloud_init_template}
+        sed -i "1s/^/10.0.2.11 control-2\n\n/" ${cloud_init_template}
+        sed -i "1s/^/10.0.2.20 compute-1\n\n/" ${cloud_init_template}
+        sed -i "1s/^/10.0.2.21 compute-2\n\n/" ${cloud_init_template}
+        sed -i "1s/^/10.0.2.30 kerbside-1\n\n/" ${cloud_init_template}
+        sed -i "1s/^/10.0.2.31 kerbside-2\n\n/" ${cloud_init_template}
     fi
+    echo
+fi
+
+echo -e "${H2}Tweak hostname for single node deployments${Color_Off}"
+if [ "${topology}" == "all-in-one" ]; then
+    hostnamectl set-hostname kolla
 fi
 
 echo -e "${H2}Generate passwords${Color_Off}"
