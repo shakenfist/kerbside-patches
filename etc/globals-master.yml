@@ -595,7 +595,6 @@ nova_spice_debug_logging: "no"
 nova_spice_allow_concurrent: "yes"
 enable_kerbside: "yes"
 kerbside_json_logging: "no"
-kerbside_vdi_flavors: ["vdi", "othervdi"]
 
 # Because we're on a single node, we need to tweak these to not clash
 # with haproxy
