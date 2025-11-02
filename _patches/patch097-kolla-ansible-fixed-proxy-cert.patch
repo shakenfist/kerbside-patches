@@ -1,0 +1,90 @@
+commit 78bc879fce0093e09ddcab7d83d77a2f0d404726
+Author: Michael Still <mikal@stillhq.com>
+Date:   Sun Nov 2 16:58:48 2025 +1100
+
+    Fix kerbside proxy certificate.
+
+diff --git a/ansible/roles/certificates/tasks/generate-kerbside.yml b/ansible/roles/certificates/tasks/generate-kerbside.yml
+new file mode 100644
+index 0000000..dafd605
+--- /dev/null
++++ b/ansible/roles/certificates/tasks/generate-kerbside.yml
+@@ -0,0 +1,64 @@
++---
++- name: Ensuring private backend directory exist
++  file:
++    path: "{{ backend_dir }}"
++    state: "directory"
++    mode: "0770"
++
++- name: Creating kerbside SSL configuration file
++  template:
++    src: "openssl-kolla-kerbside.cnf.j2"
++    dest: "{{ kolla_certificates_dir }}/openssl-kolla-kerbside.cnf"
++    mode: "0660"
++
++- name: Creating kerbside Server Certificate key
++  command: >
++    openssl genrsa
++    -out "{{ backend_dir }}/kerbside.key" 2048
++  args:
++    creates: "{{ backend_dir }}/kerbside.key"
++
++- name: Creating kerbside Server Certificate signing request
++  command: >
++    openssl req
++    -new
++    -key "{{ backend_dir }}/kerbside.key"
++    -out "{{ backend_dir }}/kerbside.csr"
++    -config "{{ kolla_certificates_dir }}/openssl-kolla-kerbside.cnf"
++    -sha256
++  args:
++    creates: "{{ backend_dir }}/kerbside.csr"
++
++- name: Creating kerbside Server Certificate
++  command: >
++    openssl x509
++    -req
++    -in "{{ backend_dir }}/kerbside.csr"
++    -CA "{{ root_dir }}/root.crt"
++    -CAkey "{{ root_dir }}/root.key"
++    -CAcreateserial
++    -extensions v3_req
++    -extfile "{{ kolla_certificates_dir }}/openssl-kolla-kerbside.cnf"
++    -out "{{ backend_dir }}/kerbside.crt"
++    -days 500
++    -sha256
++  args:
++    creates: "{{ backend_dir }}/kerbside.crt"
++
++- name: Setting permissions on kerbside key
++  file:
++    path: "{{ backend_dir }}/kerbside.key"
++    mode: "0660"
++    state: file
++
++- name: Copy kerbside cert to kerbside-cert.pem
++  copy:
++    src: "{{ backend_dir }}/kerbside.crt"
++    dest: "{{ kolla_certificates_dir }}/kerbside-cert.pem"
++    mode: "0660"
++
++- name: Copy kerbside key to kerbside-key.pem
++  copy:
++    src: "{{ backend_dir }}/kerbside.key"
++    dest: "{{ kolla_certificates_dir }}/kerbside-key.pem"
++    mode: "0660"
+diff --git a/ansible/roles/certificates/tasks/main.yml b/ansible/roles/certificates/tasks/main.yml
+index a79282a..7196b81 100644
+--- a/ansible/roles/certificates/tasks/main.yml
++++ b/ansible/roles/certificates/tasks/main.yml
+@@ -4,5 +4,8 @@
+ - include_tasks: generate-backend.yml
+   when:
+     - kolla_enable_tls_backend | bool or rabbitmq_enable_tls | bool or database_enable_tls_backend | bool or enable_kerbside | bool
++- include_tasks: generate-kerbside.yml
++  when:
++    - enable_kerbside | bool
+ - include_tasks: generate-libvirt.yml
+   when: certificates_generate_libvirt | bool
+\ No newline at end of file
