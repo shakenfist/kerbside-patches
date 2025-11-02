@@ -6,3 +6,4 @@
 ../_patches/patch061-allow-disabling-fluentd.patch
 ../_patches/patch064-allow-rocky-10-builds.patch
 ../_patches/patch095-kolla-ansible-master-compressed.patch
+../_patches/patch097-kolla-ansible-fixed-proxy-cert.patch
