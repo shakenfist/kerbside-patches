@@ -1,0 +1,92 @@
+commit 7da8329368e7c5a452a93a3fee9848adf3ad61cc
+Author: Michael Still <mikal@stillhq.com>
+Date:   Thu Nov 27 18:10:52 2025 +1100
+
+    Add missing kerbside role config.
+    
+    Change-Id: I0750dabe750c386eeab0c8b62d0e2328e9fee36d
+
+diff --git a/ansible/roles/common/templates/cron-logrotate-kerbside.conf.j2 b/ansible/roles/cron/templates/cron-logrotate-kerbside.conf.j2
+new file mode 100644
+index 000000000..3f4530a13
+--- /dev/null
++++ b/ansible/roles/common/templates/cron-logrotate-kerbside.conf.j2
+@@ -0,0 +1,3 @@
++"/var/log/kolla/kerbside/*.log"
++{
++}
+diff --git a/ansible/roles/common/tasks/config.yml b/ansible/roles/common/tasks/config.yml
+index 789d9b759..584214ee7 100644
+--- a/ansible/roles/common/tasks/config.yml
++++ b/ansible/roles/common/tasks/config.yml
+@@ -185,6 +185,7 @@
+       - { name: "influxdb", enabled: "{{ enable_influxdb | bool }}" }
+       - { name: "ironic", enabled: "{{ enable_ironic | bool }}" }
+       - { name: "ironic-inspector", enabled: "{{ enable_ironic | bool }}" }
++      - { name: "kerbside", enabled: "{{ enable_kerbside | bool }}" }
+       - { name: "keystone", enabled: "{{ enable_keystone | bool }}" }
+       - { name: "kuryr", enabled: "{{ enable_kuryr | bool }}" }
+       - { name: "magnum", enabled: "{{ enable_magnum | bool }}" }
+diff --git a/ansible/roles/common/defaults/main.yml b/ansible/roles/common/defaults/main.yml
+index 830e5c3ad..9759432da 100644
+--- a/ansible/roles/common/defaults/main.yml
++++ b/ansible/roles/common/defaults/main.yml
+@@ -172,6 +172,8 @@ fluentd_input_openstack_services:
+     enabled: "{{ enable_ironic | bool }}"
+   - name: ironic-inspector
+     enabled: "{{ enable_ironic | bool }}"
++  - name: kerbside
++    enabled: "{{ enable_kerbside | bool }}"
+   - name: keystone
+     enabled: "{{ enable_keystone | bool }}"
+   - name: kuryr
+diff --git a/ansible/roles/loadbalancer/tasks/precheck.yml b/ansible/roles/loadbalancer/tasks/precheck.yml
+index 8a2966d7c..201de5ed9 100644
+--- a/ansible/roles/loadbalancer/tasks/precheck.yml
++++ b/ansible/roles/loadbalancer/tasks/precheck.yml
+@@ -448,6 +448,45 @@
+     - haproxy_stat.find('ironic_inspector') == -1
+     - haproxy_vip_prechecks
+ 
++- name: Checking free port for Kerbside API HAProxy
++  wait_for:
++    host: "{{ kolla_internal_vip_address }}"
++    port: "{{ kerbside_api_port }}"
++    connect_timeout: 1
++    timeout: 1
++    state: stopped
++  when:
++    - enable_kerbside | bool
++    - inventory_hostname in groups['loadbalancer']
++    - haproxy_stat.find('kerbside_api') == -1
++    - haproxy_vip_prechecks
++
++- name: Checking free port for Kerbside Proxy insecure HAProxy
++  wait_for:
++    host: "{{ kolla_internal_vip_address }}"
++    port: "{{ kerbside_vdi_insecure_port }}"
++    connect_timeout: 1
++    timeout: 1
++    state: stopped
++  when:
++    - enable_kerbside | bool
++    - inventory_hostname in groups['loadbalancer']
++    - haproxy_stat.find('kerbside_proxy') == -1
++    - haproxy_vip_prechecks
++
++- name: Checking free port for Kerbside Proxy secure HAProxy
++  wait_for:
++    host: "{{ kolla_internal_vip_address }}"
++    port: "{{ kerbside_vdi_secure_port }}"
++    connect_timeout: 1
++    timeout: 1
++    state: stopped
++  when:
++    - enable_kerbside | bool
++    - inventory_hostname in groups['loadbalancer']
++    - haproxy_stat.find('kerbside_proxy') == -1
++    - haproxy_vip_prechecks
++
+ - name: Checking free port for Keystone Internal HAProxy
+   wait_for:
+     host: "{{ kolla_internal_vip_address }}"

@@ -1,0 +1,7 @@
+Implement container image build for kerbside.
+
+I am fairly sure this will need improvement, but its a starting
+point at least.
+
+Signed-off-by: Michael Still <mikal@stillhq.com>
+Partially-Implements: #2131793 (spice-direct consoles)
