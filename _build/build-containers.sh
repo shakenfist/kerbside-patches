@@ -9,13 +9,14 @@ if [ ! -z ${registry_username} ]; then
     echo
     echo -e "${H1}==================================================${Color_Off}"
     echo -e "${H1}Registry configuration${Color_Off}"
+    echo -e "${H1}    CI gitlab: ${ci_gitlab}"
     echo -e "${H1}    Use CI registry: ${use_ci_registry}"
     echo -e "${H1}    CI registry: ${ci_registry}"
     echo -e "${H1}    Registry username: ${registry_username}"
-    echo -e "${H1}    Registry password: ${registry_pasword}"
+    echo -e "${H1}    Registry token: ${registry_token}"
     echo -e "${H1}==================================================${Color_Off}"
 
-    echo ${registry_password} | docker login \
+    echo ${registry_token} | docker login \
         ${ci_registry} --username ${registry_username} --password-stdin
 fi
 
@@ -36,12 +37,11 @@ for target in ${build_targets}; do
 
         if [ ! -z ${registry_username} ]; then
             images=$(/srv/kerbside/venv-tools/bin/python3 ${topdir}/tools/find_images \
-                --registry http://${ci_registry} \
-                --username ${registry_username} --password ${registry_password} \
+                --gitlab_url ${ci_gitlab} --username ${registry_username} --token ${registry_token} \
                 find ${complete_image_tag} || true)
         else
             images=$(/srv/kerbside/venv-tools/bin/python3 ${topdir}/tools/find_images \
-                --registry http://${ci_registry} find ${complete_image_tag} || true)
+                --gitlab_url ${ci_gitlab} find ${complete_image_tag} || true)
         fi
 
         if [ $(echo ${images} | grep -c kolla || true) -gt 0 ]; then
@@ -79,16 +79,16 @@ for target in ${build_targets}; do
             echo -e "${H2}Pushing to the CI registry${Color_Off}"
             for image in $(docker image list --format json | \
                 jq --slurp -r ".[] | select(.Tag == \"${target}-${CI_COMMIT_SHORT_SHA}\") | .Repository"); do
-                echo -e "    ${image}:${target}-${CI_COMMIT_SHORT_SHA} ${Arrow} ${ci_registry}/${registry_project}.${image}:${target}-debian-bookworm"
+                echo -e "    ${image}:${target}-${CI_COMMIT_SHORT_SHA} ${Arrow} ${ci_registry}/${registry_project}/${image}:${target}-debian-bookworm"
                 docker image tag ${image}:${target}-${CI_COMMIT_SHORT_SHA} \
-                    ${ci_registry}/${registry_project}${image}:${target}-debian-bookworm
+                    ${ci_registry}/${registry_project}/${image}:${target}-debian-bookworm
                 docker image push \
-                    ${ci_registry}/${registry_project}${image}:${target}-debian-bookworm
+                    ${ci_registry}/${registry_project}/${image}:${target}-debian-bookworm
 
-                echo -e "    ${image}:${target}-${CI_COMMIT_SHORT_SHA} ${Arrow} ${ci_registry}/${registry_project}.${image}:${complete_image_tag}"
+                echo -e "    ${image}:${target}-${CI_COMMIT_SHORT_SHA} ${Arrow} ${ci_registry}/${registry_project}/${image}:${complete_image_tag}"
                 docker image tag ${image}:${target}-${CI_COMMIT_SHORT_SHA} \
-                    ${ci_registry}/${registry_project}${image}:${complete_image_tag}
-                docker image push ${ci_registry}/${registry_project}${image}:${complete_image_tag}
+                    ${ci_registry}/${registry_project}/${image}:${complete_image_tag}
+                docker image push ${ci_registry}/${registry_project}/${image}:${complete_image_tag}
             done
         fi
     fi

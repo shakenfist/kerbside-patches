@@ -1,19 +1,20 @@
 #!/bin/bash -e
 
-# $1: is an OpenStack release version -- for example 2024.1
-# $2: is the target topology (all-in-one or multinode)
-target_release="${1}"
-topology="${2}"
-
 . ./_build/common.sh
 . /etc/os-release
+
+target_release=${build_targets[0]}
 
 echo
 echo -e "${H1}==================================================${Color_Off}"
 echo -e "${H1}Bootstrap Kolla-Ansible into a venv${Color_Off}"
 echo
+echo -e "${H1}Arguments: ${*}${Color_Off}"
 echo -e "${H1}python3: "$(which python3)"${Color_Off}"
 echo -e "${H1}pip3: "$(which pip3)"${Color_Off}"
+echo -e "${H1}Target release: ${target_release}${Color_Off}"
+echo -e "${H1}Topology: ${topology}${Color_Off}"
+echo -e "${H1}Registry token: ${registry_token}${Color_Off}"
 echo -e "${H1}==================================================${Color_Off}"
 
 echo -e "${H2}Make venv for '${ID}' distro${Color_Off}"
@@ -74,7 +75,7 @@ cat etc/inventory-${topology}-${target_release} | \
 echo
 
 echo -e "${H2}Copy globals.yml${Color_Off}"
-cp etc/globals-${target_release}.yml /etc/kolla/globals.yml
+cat etc/globals-${target_release}.yml | sed "s/DOCKER_REGISTRY_TOKEN/${registry_token}/" > /etc/kolla/globals.yml
 echo
 
 sed -i "s/127.0.0.1 kolla.local kolla//" /etc/hosts

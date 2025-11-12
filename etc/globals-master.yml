@@ -91,11 +91,13 @@ kolla_internal_vip_address: "10.0.2.3"
 ################
 
 # Custom docker registry settings:
-docker_registry: gitlab.home.stillhq.com:4000
+docker_registry: 192.168.1.12:4000
 docker_registry_insecure: yes
+docker_registry_username: kolla-imgs
+docker_registry_password: DOCKER_REGISTRY_TOKEN
 
 # Namespace of images:
-docker_namespace: "openstackkolla"
+docker_namespace: "openstack/kolla-images"
 
 # Docker client timeout in seconds.
 #docker_client_timeout: 120

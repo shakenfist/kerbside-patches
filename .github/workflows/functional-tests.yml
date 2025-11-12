@@ -56,6 +56,21 @@ jobs:
           # This is terrible, but its easier than reloading groups
           sudo chmod ugo+rw /var/run/docker.sock
 
+      - name: Ensure CI OCI registry works
+        env:
+          CI_REGISTRY_TOKEN: ${{ secrets.CI_REGISTRY_TOKEN }}
+        run: |
+          . $GITHUB_ENV
+
+          identifier=$(hostname | sed 's/\..*//')
+
+          echo ${CI_REGISTRY_TOKEN} | docker login \
+              192.168.1.12:4000 --username kolla-imgs --password-stdin
+
+          docker image pull quay.io/lib/python:latest
+          docker image tag quay.io/lib/python:latest 192.168.1.12:4000/openstack/kolla-images/ci_heartbeat:${identifier}
+          docker image push 192.168.1.12:4000/openstack/kolla-images/ci_heartbeat:${identifier}
+
       - name: Build patched repositories
         run: |
           . $GITHUB_ENV
@@ -64,7 +79,7 @@ jobs:
 
       - name: Build container images
         env:
-          REGISTRY_PASSWORD: ${{ secrets.REGISTRY_PASSWORD }}
+          CI_REGISTRY_TOKEN: ${{ secrets.CI_REGISTRY_TOKEN }}
         run: |
           . $GITHUB_ENV
           cd kerbside-patches
@@ -78,7 +93,7 @@ jobs:
           ./_build/build-containers.sh \
               --use-ci-registry \
               --registry-username kolla-imgs \
-              --registry-password "${REGISTRY_PASSWORD}" \
+              --registry-token "${CI_REGISTRY_TOKEN}" \
               --build-targets "${{ matrix.test.release }}" \
               --build-images all \
               --image-tag "${hash}-debian-bookworm" \
@@ -180,13 +195,13 @@ jobs:
 
       - name: Build container images
         env:
-          REGISTRY_PASSWORD: ${{ secrets.REGISTRY_PASSWORD }}
+          CI_REGISTRY_TOKEN: ${{ secrets.CI_REGISTRY_TOKEN }}
         run: |
           . $GITHUB_ENV
 
           script="cd /srv/shakenfist/kerbside-patches;"
           script="${script} hash=\$(./_build/calculate-container-hash.sh kolla kolla-2* nova nova-2* requirements requirements-2* etc src _build tools );"
-          script="${script} ./_build/build-containers.sh --use-ci-registry --registry-username kolla-imgs --registry-password "${REGISTRY_PASSWORD}" --build-targets ${{ matrix.test.release }} --build-images all --image-tag "\$hash-debian-bookworm";"
+          script="${script} ./_build/build-containers.sh --use-ci-registry --registry-username kolla-imgs --registry-token ${CI_REGISTRY_TOKEN} --build-targets ${{ matrix.test.release }} --build-images all --image-tag "\$hash-debian-bookworm";"
 
           ssh -i /srv/github/id_ci -o StrictHostKeyChecking=no \
               -o UserKnownHostsFile=/dev/null \
@@ -202,20 +217,62 @@ jobs:
               'sudo getent ahostsv4 kolla'
 
       - name: Bootstrap Kolla-Ansible
+        env:
+          CI_REGISTRY_TOKEN: ${{ secrets.CI_REGISTRY_TOKEN }}
         run: |
           . $GITHUB_ENV
-          ssh -i /srv/github/id_ci -o StrictHostKeyChecking=no \
-              -o UserKnownHostsFile=/dev/null \
-              ${{ matrix.test.baseuser }}@10.0.2.2 \
-              'cd /srv/shakenfist/kerbside-patches; sudo ./tools/bootstrap-kolla-ansible ${{ matrix.test.release }} ${{ matrix.test.topology }}'
 
-      - name: Install Kolla-Ansible
+          script="cd /srv/shakenfist/kerbside-patches;"
+          script="${script} sudo ./tools/bootstrap-kolla-ansible"
+              script="${script} --registry-token  ${CI_REGISTRY_TOKEN}"
+              script="${script} --build-targets ${{ matrix.test.release }}"
+              script="${script} --topology ${{ matrix.test.topology }};"
+          
+          ssh -i /srv/github/id_ci -o StrictHostKeyChecking=no \
+              -o UserKnownHostsFile=/dev/null \
+              ${{ matrix.test.baseuser }}@10.0.2.2 "${script}"
+
+      - name: Log into the docker registry on every node
+        env:
+          CI_REGISTRY_TOKEN: ${{ secrets.CI_REGISTRY_TOKEN }}
+        run: |
+          . $GITHUB_ENV
+          . ci-environment.sh
+
+          for node in ${nodes}; do
+              node_address=${!node}
+              echo "${node} is at ${node_address}"
+              echo
+              ssh -i /srv/github/id_ci -o StrictHostKeyChecking=no \
+                  -o UserKnownHostsFile=/dev/null \
+                  ${{ matrix.test.baseuser }}@${node_address} \
+                  "echo ${CI_REGISTRY_TOKEN} | docker login 192.168.1.12:4000 --username kolla-imgs --password-stdin"
+              echo
+          done
+
+      - name: Pull images
         run: |
           . $GITHUB_ENV
           ssh -i /srv/github/id_ci -o StrictHostKeyChecking=no \
               -o UserKnownHostsFile=/dev/null \
               ${{ matrix.test.baseuser }}@10.0.2.2 \
-              'cd /srv/shakenfist/kerbside-patches; sudo ./tools/install-kolla-ansible'
+              'cd /srv/shakenfist/kerbside-patches; sudo ./tools/ka pull -i /etc/kolla/inventory'
+
+      - name: Run pre-checks
+        run: |
+          . $GITHUB_ENV
+          ssh -i /srv/github/id_ci -o StrictHostKeyChecking=no \
+              -o UserKnownHostsFile=/dev/null \
+              ${{ matrix.test.baseuser }}@10.0.2.2 \
+              'cd /srv/shakenfist/kerbside-patches; sudo ./tools/ka prechecks -i /etc/kolla/inventory'
+
+      - name: Deploy
+        run: |
+          . $GITHUB_ENV
+          ssh -i /srv/github/id_ci -o StrictHostKeyChecking=no \
+              -o UserKnownHostsFile=/dev/null \
+              ${{ matrix.test.baseuser }}@10.0.2.2 \
+              'cd /srv/shakenfist/kerbside-patches; sudo ./tools/ka deploy -i /etc/kolla/inventory'
 
       - name: Install patched OpenStack clients
         run: |

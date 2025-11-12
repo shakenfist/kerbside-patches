@@ -256,8 +256,8 @@ def _get_repository_tags(repository_info, gl_instance=None, debug=False):
 
 
 @click.group()
-@click.option('--gitlab-url', default='http://gitlab.home.stillhq.com',
-              help='GitLab URL (default: http://gitlab.home.stillhq.com)')
+@click.option('--gitlab-url', default='http://192.168.1.12',
+              help='GitLab URL (default: http://192.168.1.12)')
 @click.option('--username', required=True,
               help='GitLab username')
 @click.option('--password', default=None,

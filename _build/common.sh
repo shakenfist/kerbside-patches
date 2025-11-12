@@ -34,10 +34,11 @@ skip_tests="false"
 
 # Should we use the CI environment's OCI registry to avoid rebuilding images?
 use_ci_registry="false"
-ci_registry="gitlab.home.stillhq.com:4000"
+ci_gitlab="http://192.168.1.12"
+ci_registry="192.168.1.12:4000"
 registry_project="openstack/kolla-images"
 registry_username=""
-registry_password=""
+registry_token=""
 
 # Should we build a compact archive using occystrap?
 compact_archive="false"
@@ -45,6 +46,9 @@ compact_archive="false"
 # Sometimes we're only building images and don't want to fetch them just
 # to ignore them
 dont_fetch_images="false"
+
+# If we are building a cloud, what inventory should we use?
+topology="all-in-one"
 
 # Ensure we have a git commit sha
 if [ -z ${CI_COMMIT_SHORT_SHA} ]; then
@@ -98,6 +102,12 @@ while [[ ${found_arg} -gt 0 ]]; do
             shift
             found_arg=1
             ;;
+        --ci_gitlab)
+            export ci_gitlab="$2"
+            echo "Set CI gitlab to ${ci_gitlab}"
+            shift; shift
+            found_arg=1
+            ;;
         --use-ci-registry)
             export use_ci_registry="true"
             echo "Will use the CI environment's OCI registry."
@@ -116,9 +126,15 @@ while [[ ${found_arg} -gt 0 ]]; do
             shift; shift
             found_arg=1
 	        ;;
-       --registry-password)
-            export registry_password="$2"
+       --registry-token)
+            export registry_token="$2"
             echo "Set CI registry password."
+            shift; shift
+            found_arg=1
+	        ;;
+       --topology)
+            export topology="$2"
+            echo "Set topology to ${topology}."
             shift; shift
             found_arg=1
 	        ;;
