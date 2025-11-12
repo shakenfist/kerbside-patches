@@ -5,6 +5,7 @@
 import requests
 import sys
 from requests.auth import HTTPBasicAuth
+import json
 
 import click
 
@@ -16,11 +17,22 @@ import click
               help='Username for registry authentication')
 @click.option('--password', default=None,
               help='Password for registry authentication')
+@click.option('--debug', is_flag=True, default=False,
+              help='Enable debug logging to show HTTP requests and responses')
 @click.pass_context
-def cli(ctx, registry, username, password):
+def cli(ctx, registry, username, password, debug):
     if not ctx.obj:
         ctx.obj = {}
     ctx.obj['registry'] = registry
+    ctx.obj['debug'] = debug
+
+    if debug:
+        click.echo(f'Debug: Registry URL: {registry}', err=True)
+        if username:
+            click.echo(f'Debug: Username provided: {username}', err=True)
+            click.echo('Debug: Password provided: [REDACTED]', err=True)
+        else:
+            click.echo('Debug: No authentication credentials provided', err=True)
 
     # Create HTTP session with authentication if credentials provided
     session = requests.Session()
@@ -29,21 +41,46 @@ def cli(ctx, registry, username, password):
     ctx.obj['session'] = session
 
 
-def _get_images(registry, session):
+def _get_images(registry, session, debug=False):
     images = []
 
     next_link = '/v2/_catalog'
     while next_link:
+        url = f'{registry}{next_link}'
+
+        if debug:
+            click.echo(f'Debug: Making request to: {url}', err=True)
+            click.echo(f'Debug: Request headers: {dict(session.headers)}', err=True)
+            if hasattr(session, 'auth') and session.auth:
+                click.echo(f'Debug: Using authentication: {type(session.auth).__name__}', err=True)
+        
         try:
-            r = session.get(f'{registry}{next_link}')
+            r = session.get(url)
+            
+            if debug:
+                click.echo(f'Debug: Response status: {r.status_code} {r.reason}', err=True)
+                click.echo(f'Debug: Response headers: {dict(r.headers)}', err=True)
+                if r.headers.get('content-type', '').startswith('application/json'):
+                    try:
+                        response_json = r.json()
+                        click.echo(f'Debug: Response body: {json.dumps(response_json, indent=2)}', err=True)
+                    except json.JSONDecodeError:
+                        click.echo(f'Debug: Response body (non-JSON): {r.text[:500]}...', err=True)
+                else:
+                    click.echo(f'Debug: Response body: {r.text[:500]}...', err=True)
+            
             r.raise_for_status()
         except requests.exceptions.HTTPError as e:
             if r.status_code in (401, 403):
                 click.echo(f'Authentication failed: {r.status_code} {r.reason}', err=True)
+                if debug:
+                    click.echo(f'Debug: Full response: {r.text}', err=True)
                 click.echo('Please check your username and password.', err=True)
                 sys.exit(1)
             else:
                 click.echo(f'HTTP error: {r.status_code} {r.reason}', err=True)
+                if debug:
+                    click.echo(f'Debug: Full response: {r.text}', err=True)
                 sys.exit(1)
         except requests.exceptions.RequestException as e:
             click.echo(f'Request failed: {e}', err=True)
@@ -60,21 +97,46 @@ def _get_images(registry, session):
     return images
 
 
-def _get_image_tags(registry, image, session):
+def _get_image_tags(registry, image, session, debug=False):
     tags = []
 
     next_link = f'/v2/{image}/tags/list'
     while next_link:
+        url = f'{registry}{next_link}'
+
+        if debug:
+            click.echo(f'Debug: Making request to: {url}', err=True)
+            click.echo(f'Debug: Request headers: {dict(session.headers)}', err=True)
+            if hasattr(session, 'auth') and session.auth:
+                click.echo(f'Debug: Using authentication: {type(session.auth).__name__}', err=True)
+        
         try:
-            r = session.get(f'{registry}{next_link}')
+            r = session.get(url)
+            
+            if debug:
+                click.echo(f'Debug: Response status: {r.status_code} {r.reason}', err=True)
+                click.echo(f'Debug: Response headers: {dict(r.headers)}', err=True)
+                if r.headers.get('content-type', '').startswith('application/json'):
+                    try:
+                        response_json = r.json()
+                        click.echo(f'Debug: Response body: {json.dumps(response_json, indent=2)}', err=True)
+                    except json.JSONDecodeError:
+                        click.echo(f'Debug: Response body (non-JSON): {r.text[:500]}...', err=True)
+                else:
+                    click.echo(f'Debug: Response body: {r.text[:500]}...', err=True)
+            
             r.raise_for_status()
         except requests.exceptions.HTTPError as e:
             if r.status_code in (401, 403):
                 click.echo(f'Authentication failed: {r.status_code} {r.reason}', err=True)
+                if debug:
+                    click.echo(f'Debug: Full response: {r.text}', err=True)
                 click.echo('Please check your username and password.', err=True)
                 sys.exit(1)
             else:
                 click.echo(f'HTTP error: {r.status_code} {r.reason}', err=True)
+                if debug:
+                    click.echo(f'Debug: Full response: {r.text}', err=True)
                 sys.exit(1)
         except requests.exceptions.RequestException as e:
             click.echo(f'Request failed: {e}', err=True)
@@ -96,9 +158,13 @@ def _get_image_tags(registry, image, session):
 @click.pass_context
 def find(ctx, search):
     found = False
+    debug = ctx.obj.get('debug', False)
 
-    for image in _get_images(ctx.obj['registry'], ctx.obj['session']):
-        for tag in _get_image_tags(ctx.obj['registry'], image, ctx.obj['session']):
+    if debug:
+        click.echo(f'Debug: Searching for tag: {search}', err=True)
+
+    for image in _get_images(ctx.obj['registry'], ctx.obj['session'], debug):
+        for tag in _get_image_tags(ctx.obj['registry'], image, ctx.obj['session'], debug):
             if tag == search:
                 print(image)
                 found = True
