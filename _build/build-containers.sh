@@ -5,6 +5,20 @@
 
 banner "Building container images"
 
+if [ ! -z ${registry_username} ]; then
+    echo
+    echo -e "${H1}==================================================${Color_Off}"
+    echo -e "${H1}Registry configuration${Color_Off}"
+    echo -e "${H1}    Use CI registry: ${use_ci_registry}"
+    echo -e "${H1}    CI registry: ${ci_registry}"
+    echo -e "${H1}    Registry username: ${registry_username}"
+    echo -e "${H1}    Registry password: ${registry_pasword}"
+    echo -e "${H1}==================================================${Color_Off}"
+
+    echo ${registry_password} | docker login \
+        ${ci_registry} --username ${registry_username} --password-stdin
+fi
+
 for target in ${build_targets}; do
     complete_image_tag="${target}-${image_tag}"
     echo
@@ -14,19 +28,21 @@ for target in ${build_targets}; do
     echo -e "${H1}    Images: ${build_images}${Color_Off}"
     echo -e "${H1}    CI SHA: ${CI_COMMIT_SHORT_SHA}${Color_Off}"
     echo -e "${H1}    Image tag: ${complete_image_tag}${Color_Off}"
-    echo -e "${H1}    Use CI registry: ${use_ci_registry}"
-    echo -e "${H1}    CI registry: ${ci_registry}"
     echo -e "${H1}==================================================${Color_Off}"
-
-    if [ ! -z ${ci_username} ]; then
-        docker login ${ci_registry} --username ${registry_username} --password ${registry_password}
-    fi
 
     have_images="false"
     if [ ${use_ci_registry} == "true" ]; then
         echo -e "${H2}Check if we already have built images${Color_Off}"
-        images=$(/srv/kerbside/venv-tools/bin/python3 ${topdir}/tools/find_images \
-            --registry http://${ci_registry} find ${complete_image_tag} || true)
+
+        if [ ! -z ${registry_username} ]; then
+            images=$(/srv/kerbside/venv-tools/bin/python3 ${topdir}/tools/find_images \
+                --registry http://${ci_registry} \
+                --username ${registry_username} --password ${registry_password} \
+                find ${complete_image_tag} || true)
+        else
+            images=$(/srv/kerbside/venv-tools/bin/python3 ${topdir}/tools/find_images \
+                --registry http://${ci_registry} find ${complete_image_tag} || true)
+        fi
 
         if [ $(echo ${images} | grep -c kolla || true) -gt 0 ]; then
             if [ ${dont_fetch_images} == "true" ]; then
