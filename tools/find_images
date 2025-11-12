@@ -6,8 +6,78 @@ import requests
 import sys
 from requests.auth import HTTPBasicAuth
 import json
+import base64
+from urllib.parse import urlparse
 
 import click
+
+
+def _get_gitlab_token(auth_url, username, password, service, scope, debug=False):
+    """Get JWT token from GitLab registry authentication endpoint."""
+    if debug:
+        click.echo(f'Debug: Requesting JWT token from: {auth_url}', err=True)
+        click.echo(f'Debug: Service: {service}, Scope: {scope}', err=True)
+    
+    # Create basic auth header for token request
+    auth_str = f'{username}:{password}'
+    auth_bytes = auth_str.encode('ascii')
+    auth_b64 = base64.b64encode(auth_bytes).decode('ascii')
+    
+    headers = {
+        'Authorization': f'Basic {auth_b64}',
+        'Accept': 'application/json'
+    }
+    
+    params = {
+        'service': service,
+        'scope': scope
+    }
+    
+    try:
+        if debug:
+            click.echo(f'Debug: Token request headers: {headers}', err=True)
+            click.echo(f'Debug: Token request params: {params}', err=True)
+        
+        response = requests.get(auth_url, headers=headers, params=params)
+        
+        if debug:
+            click.echo(f'Debug: Token response status: {response.status_code}', err=True)
+            click.echo(f'Debug: Token response headers: {dict(response.headers)}', err=True)
+            click.echo(f'Debug: Token response body: {response.text}', err=True)
+        
+        response.raise_for_status()
+        token_data = response.json()
+        return token_data.get('token') or token_data.get('access_token')
+    
+    except requests.exceptions.RequestException as e:
+        if debug:
+            click.echo(f'Debug: Token request failed: {e}', err=True)
+        return None
+
+
+def _parse_www_authenticate_header(header_value):
+    """Parse WWW-Authenticate header to extract realm, service, and scope."""
+    # Example: Bearer realm="http://gitlab.com/jwt/auth",service="container_registry",scope="registry:catalog:*"
+    realm = None
+    service = None
+    scope = None
+    
+    if not header_value.startswith('Bearer '):
+        return realm, service, scope
+        
+    # Remove 'Bearer ' prefix and split by comma
+    params = header_value[7:].split(',')
+    
+    for param in params:
+        param = param.strip()
+        if param.startswith('realm='):
+            realm = param[6:].strip('"')
+        elif param.startswith('service='):
+            service = param[8:].strip('"')
+        elif param.startswith('scope='):
+            scope = param[6:].strip('"')
+    
+    return realm, service, scope
 
 
 @click.group()
@@ -25,6 +95,8 @@ def cli(ctx, registry, username, password, debug):
         ctx.obj = {}
     ctx.obj['registry'] = registry
     ctx.obj['debug'] = debug
+    ctx.obj['username'] = username
+    ctx.obj['password'] = password
 
     if debug:
         click.echo(f'Debug: Registry URL: {registry}', err=True)
@@ -34,29 +106,42 @@ def cli(ctx, registry, username, password, debug):
         else:
             click.echo('Debug: No authentication credentials provided', err=True)
 
-    # Create HTTP session with authentication if credentials provided
+    # Create HTTP session - authentication will be handled per-request
     session = requests.Session()
-    if username and password:
-        session.auth = HTTPBasicAuth(username, password)
     ctx.obj['session'] = session
+    ctx.obj['token'] = None  # Will be populated if JWT auth is needed
 
 
-def _get_images(registry, session, debug=False):
+def _get_images(registry, session, username, password, token, debug=False):
     images = []
 
     next_link = '/v2/_catalog'
     while next_link:
         url = f'{registry}{next_link}'
 
+        # Prepare headers with authentication
+        headers = {}
+        if token:
+            headers['Authorization'] = f'Bearer {token}'
+            if debug:
+                click.echo(f'Debug: Using Bearer token authentication', err=True)
+        elif username and password:
+            # Try basic auth first for non-GitLab registries
+            session.auth = HTTPBasicAuth(username, password)
+            if debug:
+                click.echo(f'Debug: Using Basic authentication', err=True)
+
         if debug:
             click.echo(f'Debug: Making request to: {url}', err=True)
-            click.echo(f'Debug: Request headers: {dict(session.headers)}', err=True)
-            if hasattr(session, 'auth') and session.auth:
-                click.echo(f'Debug: Using authentication: {type(session.auth).__name__}', err=True)
-        
+            debug_headers = dict(session.headers)
+            debug_headers.update(headers)
+            if 'Authorization' in debug_headers and debug_headers['Authorization'].startswith('Bearer'):
+                debug_headers['Authorization'] = 'Bearer [TOKEN_REDACTED]'
+            click.echo(f'Debug: Request headers: {debug_headers}', err=True)
+
         try:
-            r = session.get(url)
-            
+            r = session.get(url, headers=headers)
+
             if debug:
                 click.echo(f'Debug: Response status: {r.status_code} {r.reason}', err=True)
                 click.echo(f'Debug: Response headers: {dict(r.headers)}', err=True)
@@ -68,15 +153,51 @@ def _get_images(registry, session, debug=False):
                         click.echo(f'Debug: Response body (non-JSON): {r.text[:500]}...', err=True)
                 else:
                     click.echo(f'Debug: Response body: {r.text[:500]}...', err=True)
-            
+
             r.raise_for_status()
         except requests.exceptions.HTTPError as e:
             if r.status_code in (401, 403):
-                click.echo(f'Authentication failed: {r.status_code} {r.reason}', err=True)
-                if debug:
-                    click.echo(f'Debug: Full response: {r.text}', err=True)
-                click.echo('Please check your username and password.', err=True)
-                sys.exit(1)
+                # Check if this is a Bearer token challenge
+                www_auth = r.headers.get('WWW-Authenticate', '')
+                if www_auth.startswith('Bearer') and username and password and not token:
+                    if debug:
+                        click.echo(f'Debug: Detected Bearer token challenge: {www_auth}', err=True)
+                    
+                    # Parse WWW-Authenticate header to get auth URL and parameters
+                    realm, service, scope = _parse_www_authenticate_header(www_auth)
+                    if realm:
+                        if debug:
+                            click.echo(f'Debug: Attempting JWT token authentication', err=True)
+                        
+                        # Get JWT token
+                        token = _get_gitlab_token(realm, username, password, service, scope, debug)
+                        if token:
+                            if debug:
+                                click.echo(f'Debug: Successfully obtained JWT token', err=True)
+                            # Retry the request with the token
+                            headers['Authorization'] = f'Bearer {token}'
+                            try:
+                                r = session.get(url, headers=headers)
+                                r.raise_for_status()
+                            except requests.exceptions.HTTPError:
+                                click.echo(f'Authentication failed even with JWT token: {r.status_code} {r.reason}', err=True)
+                                if debug:
+                                    click.echo(f'Debug: Full response: {r.text}', err=True)
+                                sys.exit(1)
+                        else:
+                            click.echo(f'Failed to obtain JWT token from {realm}', err=True)
+                            sys.exit(1)
+                    else:
+                        click.echo(f'Authentication failed: {r.status_code} {r.reason}', err=True)
+                        if debug:
+                            click.echo(f'Debug: Could not parse WWW-Authenticate header: {www_auth}', err=True)
+                        sys.exit(1)
+                else:
+                    click.echo(f'Authentication failed: {r.status_code} {r.reason}', err=True)
+                    if debug:
+                        click.echo(f'Debug: Full response: {r.text}', err=True)
+                    click.echo('Please check your username and password.', err=True)
+                    sys.exit(1)
             else:
                 click.echo(f'HTTP error: {r.status_code} {r.reason}', err=True)
                 if debug:
@@ -85,7 +206,7 @@ def _get_images(registry, session, debug=False):
         except requests.exceptions.RequestException as e:
             click.echo(f'Request failed: {e}', err=True)
             sys.exit(1)
-            
+
         if 'next' in r.links:
             next_link = r.links['next']['url']
         else:
@@ -94,25 +215,32 @@ def _get_images(registry, session, debug=False):
         for image in r.json().get('repositories', []):
             images.append(image)
 
-    return images
+    return images, token
 
 
-def _get_image_tags(registry, image, session, debug=False):
+def _get_image_tags(registry, image, session, token, debug=False):
     tags = []
 
     next_link = f'/v2/{image}/tags/list'
     while next_link:
         url = f'{registry}{next_link}'
 
+        # Prepare headers with authentication
+        headers = {}
+        if token:
+            headers['Authorization'] = f'Bearer {token}'
+
         if debug:
             click.echo(f'Debug: Making request to: {url}', err=True)
-            click.echo(f'Debug: Request headers: {dict(session.headers)}', err=True)
-            if hasattr(session, 'auth') and session.auth:
-                click.echo(f'Debug: Using authentication: {type(session.auth).__name__}', err=True)
-        
+            debug_headers = dict(session.headers)
+            debug_headers.update(headers)
+            if 'Authorization' in debug_headers and debug_headers['Authorization'].startswith('Bearer'):
+                debug_headers['Authorization'] = 'Bearer [TOKEN_REDACTED]'
+            click.echo(f'Debug: Request headers: {debug_headers}', err=True)
+
         try:
-            r = session.get(url)
-            
+            r = session.get(url, headers=headers)
+
             if debug:
                 click.echo(f'Debug: Response status: {r.status_code} {r.reason}', err=True)
                 click.echo(f'Debug: Response headers: {dict(r.headers)}', err=True)
@@ -124,7 +252,7 @@ def _get_image_tags(registry, image, session, debug=False):
                         click.echo(f'Debug: Response body (non-JSON): {r.text[:500]}...', err=True)
                 else:
                     click.echo(f'Debug: Response body: {r.text[:500]}...', err=True)
-            
+
             r.raise_for_status()
         except requests.exceptions.HTTPError as e:
             if r.status_code in (401, 403):
@@ -141,7 +269,7 @@ def _get_image_tags(registry, image, session, debug=False):
         except requests.exceptions.RequestException as e:
             click.echo(f'Request failed: {e}', err=True)
             sys.exit(1)
-            
+
         if 'next' in r.links:
             next_link = r.links['next']['url']
         else:
@@ -159,12 +287,22 @@ def _get_image_tags(registry, image, session, debug=False):
 def find(ctx, search):
     found = False
     debug = ctx.obj.get('debug', False)
+    username = ctx.obj.get('username')
+    password = ctx.obj.get('password')
+    session = ctx.obj['session']
+    token = ctx.obj.get('token')
 
     if debug:
         click.echo(f'Debug: Searching for tag: {search}', err=True)
 
-    for image in _get_images(ctx.obj['registry'], ctx.obj['session'], debug):
-        for tag in _get_image_tags(ctx.obj['registry'], image, ctx.obj['session'], debug):
+    # Get images and potentially obtain JWT token
+    images, token = _get_images(ctx.obj['registry'], session, username, password, token, debug)
+    
+    # Store token for subsequent requests
+    ctx.obj['token'] = token
+
+    for image in images:
+        for tag in _get_image_tags(ctx.obj['registry'], image, session, token, debug):
             if tag == search:
                 print(image)
                 found = True
