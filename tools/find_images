@@ -4,61 +4,101 @@
 
 import requests
 import sys
+from requests.auth import HTTPBasicAuth
 
 import click
 
 
 @click.group()
-@click.option('--registry', default='http://gitlab.home.stillhq.com:4000')
+@click.option('--registry', default='http://gitlab.home.stillhq.com:4000',
+              help='Registry URL (default: http://gitlab.home.stillhq.com:4000)')
+@click.option('--username', default=None,
+              help='Username for registry authentication')
+@click.option('--password', default=None,
+              help='Password for registry authentication')
 @click.pass_context
-def cli(ctx, registry):
+def cli(ctx, registry, username, password):
     if not ctx.obj:
         ctx.obj = {}
     ctx.obj['registry'] = registry
 
+    # Create HTTP session with authentication if credentials provided
+    session = requests.Session()
+    if username and password:
+        session.auth = HTTPBasicAuth(username, password)
+    ctx.obj['session'] = session
 
-def _get_images(registry):
+
+def _get_images(registry, session):
     images = []
 
     next_link = '/v2/_catalog'
     while next_link:
-        r = requests.get(f'{registry}{next_link}')
+        try:
+            r = session.get(f'{registry}{next_link}')
+            r.raise_for_status()
+        except requests.exceptions.HTTPError as e:
+            if r.status_code in (401, 403):
+                click.echo(f'Authentication failed: {r.status_code} {r.reason}', err=True)
+                click.echo('Please check your username and password.', err=True)
+                sys.exit(1)
+            else:
+                click.echo(f'HTTP error: {r.status_code} {r.reason}', err=True)
+                sys.exit(1)
+        except requests.exceptions.RequestException as e:
+            click.echo(f'Request failed: {e}', err=True)
+            sys.exit(1)
+            
         if 'next' in r.links:
             next_link = r.links['next']['url']
         else:
             next_link = None
 
-        for image in r.json().get('repositories'):
+        for image in r.json().get('repositories', []):
             images.append(image)
 
     return images
 
 
-def _get_image_tags(registry, image):
+def _get_image_tags(registry, image, session):
     tags = []
 
     next_link = f'/v2/{image}/tags/list'
     while next_link:
-        r = requests.get(f'{registry}{next_link}')
+        try:
+            r = session.get(f'{registry}{next_link}')
+            r.raise_for_status()
+        except requests.exceptions.HTTPError as e:
+            if r.status_code in (401, 403):
+                click.echo(f'Authentication failed: {r.status_code} {r.reason}', err=True)
+                click.echo('Please check your username and password.', err=True)
+                sys.exit(1)
+            else:
+                click.echo(f'HTTP error: {r.status_code} {r.reason}', err=True)
+                sys.exit(1)
+        except requests.exceptions.RequestException as e:
+            click.echo(f'Request failed: {e}', err=True)
+            sys.exit(1)
+            
         if 'next' in r.links:
             next_link = r.links['next']['url']
         else:
             next_link = None
 
-        for tag in r.json().get('tags'):
+        for tag in r.json().get('tags', []):
             tags.append(tag)
 
     return tags
 
 
-@cli.command(name='find', help='Find images')
+@cli.command(name='find', help='Find images with matching tags')
 @click.argument('search')
 @click.pass_context
 def find(ctx, search):
     found = False
 
-    for image in _get_images(ctx.obj['registry']):
-        for tag in _get_image_tags(ctx.obj['registry'], image):
+    for image in _get_images(ctx.obj['registry'], ctx.obj['session']):
+        for tag in _get_image_tags(ctx.obj['registry'], image, ctx.obj['session']):
             if tag == search:
                 print(image)
                 found = True
