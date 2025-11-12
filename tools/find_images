@@ -9,7 +9,7 @@ import click
 
 
 @click.group()
-@click.option('--registry', default='http://192.168.1.5:4000')
+@click.option('--registry', default='http://gitlab.home.stillhq.com:4000')
 @click.pass_context
 def cli(ctx, registry):
     if not ctx.obj:

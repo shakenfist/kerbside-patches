@@ -34,7 +34,10 @@ skip_tests="false"
 
 # Should we use the CI environment's OCI registry to avoid rebuilding images?
 use_ci_registry="false"
-ci_registry="192.168.1.5:4000"
+ci_registry="gitlab.home.stillhq.com:4000"
+registry_project="openstack/kolla-images"
+registry_username=""
+registry_password=""
 
 # Should we build a compact archive using occystrap?
 compact_archive="false"
@@ -106,7 +109,19 @@ while [[ ${found_arg} -gt 0 ]]; do
             echo "Set CI registry to ${ci_registry}."
             shift; shift
             found_arg=1
-	   ;;
+	        ;;
+       --registry-username)
+            export registry_username="$2"
+            echo "Set CI registry username to ${registry_username}."
+            shift; shift
+            found_arg=1
+	        ;;
+       --registry-password)
+            export registry_password="$2"
+            echo "Set CI registry password."
+            shift; shift
+            found_arg=1
+	        ;;
         -*|--*)
             echo "Unknown option $1"
             exit 1

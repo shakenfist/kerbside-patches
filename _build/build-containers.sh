@@ -14,7 +14,13 @@ for target in ${build_targets}; do
     echo -e "${H1}    Images: ${build_images}${Color_Off}"
     echo -e "${H1}    CI SHA: ${CI_COMMIT_SHORT_SHA}${Color_Off}"
     echo -e "${H1}    Image tag: ${complete_image_tag}${Color_Off}"
+    echo -e "${H1}    Use CI registry: ${use_ci_registry}"
+    echo -e "${H1}    CI registry: ${ci_registry}"
     echo -e "${H1}==================================================${Color_Off}"
+
+    if [ ! -z ${ci_username} ]; then
+        docker login ${ci_registry} --username ${registry_username} --password ${registry_password}
+    fi
 
     have_images="false"
     if [ ${use_ci_registry} == "true" ]; then
@@ -57,16 +63,16 @@ for target in ${build_targets}; do
             echo -e "${H2}Pushing to the CI registry${Color_Off}"
             for image in $(docker image list --format json | \
                 jq --slurp -r ".[] | select(.Tag == \"${target}-${CI_COMMIT_SHORT_SHA}\") | .Repository"); do
-                echo -e "    ${image}:${target}-${CI_COMMIT_SHORT_SHA} ${Arrow} ${ci_registry}/openstack.${image}:${target}-debian-bookworm"
+                echo -e "    ${image}:${target}-${CI_COMMIT_SHORT_SHA} ${Arrow} ${ci_registry}/${registry_project}.${image}:${target}-debian-bookworm"
                 docker image tag ${image}:${target}-${CI_COMMIT_SHORT_SHA} \
-                    ${ci_registry}/openstack${image}:${target}-debian-bookworm
+                    ${ci_registry}/${registry_project}${image}:${target}-debian-bookworm
                 docker image push \
-                    ${ci_registry}/openstack${image}:${target}-debian-bookworm
+                    ${ci_registry}/${registry_project}${image}:${target}-debian-bookworm
 
-                echo -e "    ${image}:${target}-${CI_COMMIT_SHORT_SHA} ${Arrow} ${ci_registry}/openstack.${image}:${complete_image_tag}"
+                echo -e "    ${image}:${target}-${CI_COMMIT_SHORT_SHA} ${Arrow} ${ci_registry}/${registry_project}.${image}:${complete_image_tag}"
                 docker image tag ${image}:${target}-${CI_COMMIT_SHORT_SHA} \
-                    ${ci_registry}/openstack${image}:${complete_image_tag}
-                docker image push ${ci_registry}/openstack${image}:${complete_image_tag}
+                    ${ci_registry}/${registry_project}${image}:${complete_image_tag}
+                docker image push ${ci_registry}/${registry_project}${image}:${complete_image_tag}
             done
         fi
     fi

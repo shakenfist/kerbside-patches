@@ -63,6 +63,8 @@ jobs:
           ./_build/assemble-source.sh --use-ci-registry ${{ matrix.test.release }}
 
       - name: Build container images
+        env:
+          REGISTRY_PASSWORD: ${{ secrets.REGISTRY_PASSWORD }}
         run: |
           . $GITHUB_ENV
           cd kerbside-patches
@@ -75,6 +77,8 @@ jobs:
 
           ./_build/build-containers.sh \
               --use-ci-registry \
+              --registry-username kolla-imgs \
+              --registry-password "${REGISTRY_PASSWORD}" \
               --build-targets "${{ matrix.test.release }}" \
               --build-images all \
               --image-tag "${hash}-debian-bookworm" \
@@ -175,12 +179,14 @@ jobs:
               'cd /srv/shakenfist/kerbside-patches; ./_build/assemble-source.sh --use-ci-registry ${{ matrix.test.release }}'
 
       - name: Build container images
+        env:
+          REGISTRY_PASSWORD: ${{ secrets.REGISTRY_PASSWORD }}
         run: |
           . $GITHUB_ENV
 
           script="cd /srv/shakenfist/kerbside-patches;"
           script="${script} hash=\$(./_build/calculate-container-hash.sh kolla kolla-2* nova nova-2* requirements requirements-2* etc src _build tools );"
-          script="${script} ./_build/build-containers.sh --use-ci-registry --build-targets ${{ matrix.test.release }} --build-images all --image-tag "\$hash-debian-bookworm";"
+          script="${script} ./_build/build-containers.sh --use-ci-registry --registry-username kolla-imgs --registry-password "${REGISTRY_PASSWORD}" --build-targets ${{ matrix.test.release }} --build-images all --image-tag "\$hash-debian-bookworm";"
 
           ssh -i /srv/github/id_ci -o StrictHostKeyChecking=no \
               -o UserKnownHostsFile=/dev/null \
