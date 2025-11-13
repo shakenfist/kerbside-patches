@@ -174,7 +174,7 @@ for target in ${build_targets}; do
     fi
 
     # Extract the list of build images and save it for later
-    tail -1 ${topdir}/archive/build.log | jq -r ".built | .[] | .name" > ${topdir}/archive/images
+    tail -1 ${topdir}/archive/build.log | jq -r ".built | .[] | .name" >> ${topdir}/archive/images
 
     cd ${topdir}
 done

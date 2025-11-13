@@ -68,7 +68,18 @@ for target in ${build_targets}; do
         echo "No existing images found. Building them."
 
         mkdir -p ${topdir}/archive/
-        ./_build/imagebuild.sh --build-targets "${target}" --build-images "${build_images}"
+        rm ${topdir}/archive/images
+
+        if [ $(./_build/imagebuild.sh --build-targets "${target}" --build-images "${build_images}" || true | \
+                    grep -c "kolla-build failed!" || true) -gt 0 ]; then
+            echo
+            echo
+            echo -e "${H2}Retry build once.${Color_off}"
+            ./_build/imagebuild.sh --build-targets "${target}" --build-images "${build_images}"
+        fi
+
+        cat ${topdir}/archive/images | sort | uniq > ${topdir}/archive/images.uniq
+        mv ${topdir}/archive/images.uniq ${topdir}/archive/images
 
         echo
         echo -e "${H2}Built images${Color_Off}"
