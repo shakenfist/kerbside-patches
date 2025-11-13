@@ -20,15 +20,18 @@ for dir in ${*}; do
             # order of their entries is interdeterminate. While there are flags to
             # address those, I could not get it to work reliably. Instead, we
             # are going to hash the contents of every python file...
+            echo "Using src hashing for ${dir}..." >&2
             hash=$(find . -type f -name "*.py" -exec cat {} \; | sort | sha1sum - | cut -f 1 -d " " | sed -rn 's/^(........).*/\1/gp')
             unique="${unique};${hash}"
         elif [ $(echo "_build etc tools" | grep -c "${dir}" || true) -gt 0 ]; then
             # These directories are like `src`, but has a simpler structure and
             # no python files
+            echo "Using config hashing for ${dir}..." >&2
             hash=$(find . -type f -exec cat {} \; | sort | sha1sum - | cut -f 1 -d " " | sed -rn 's/^(........).*/\1/gp')
             unique="${unique};${hash}"
         else
             # And the others are assumed to be directories of patches
+            echo "Using patch hashing for ${dir}..." >&2
             if [ -e PREPATCH ]; then
                 for patch in $(cat PREPATCH); do
                     hash=$(sha1sum ${patch} | cut -f 1 -d " " | sed -rn 's/^(........).*/\1/gp')
