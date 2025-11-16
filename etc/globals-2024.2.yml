@@ -45,7 +45,7 @@ kolla_base_distro: "debian"
 openstack_release: "2024.2"
 
 # Docker image tag used by default.
-#openstack_tag: "{{ openstack_release ~ openstack_tag_suffix }}"
+openstack_tag: IMAGE_TAG
 
 # Suffix applied to openstack_release to generate openstack_tag.
 #openstack_tag_suffix: ""
