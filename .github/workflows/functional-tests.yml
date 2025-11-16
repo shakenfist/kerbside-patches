@@ -1,4 +1,4 @@
-name: Ensure the cloud is still installable
+name: Build images for test installs
 
 on:
   workflow_dispatch:
@@ -17,14 +17,16 @@ jobs:
             'name': 'build-2025.1',
             'release': '2025.1',
             'base': 'debian:12',
-            'baseuser': 'debian'
+            'baseuser': 'debian',
+            'dispatched_event_name': 'install_cloud_2025_1'
           },
           {
             'name': 'build-master',
             'release': 'master',
             'base': 'debian:12',
             'baseuser': 'debian',
-            'topology': 'all-in-one'
+            'topology': 'all-in-one',
+            'dispatched_event_name': 'install_cloud_master'
           },
         ]
     runs-on: [self-hosted, vm, 'debian-12', 'xl']
@@ -78,6 +80,7 @@ jobs:
           ./_build/assemble-source.sh --use-ci-registry ${{ matrix.test.release }}
 
       - name: Build container images
+        id: build_images
         env:
           CI_REGISTRY_TOKEN: ${{ secrets.CI_REGISTRY_TOKEN }}
         run: |
@@ -99,8 +102,10 @@ jobs:
               --image-tag "${hash}-debian-bookworm" \
               --dont-fetch-images
 
+          echo "image_tag=${{ matrix.test.release }}-${hash}-debian-bookworm" >> ${GITHUB_OUTPUT}
+
       - name: Archive patched source
-        if: always()
+        if: success()
         run: |
           . $GITHUB_ENV
           cd kerbside-patches
@@ -111,14 +116,56 @@ jobs:
           zip -r bundle.zip bundle
 
       - uses: actions/upload-artifact@v4
-        if: always()
+        id: upload_source
+        if: success()
         with:
           name: source-${{ matrix.test.release }}
           retention-days: 90
           if-no-files-found: error
           path: /tmp/bundle.zip
 
-  functional_matrix:
+      # This works around the limited support in Github Actions for outputs from matrices
+      - name: Write outputs to a temporary file
+        if: success()
+        run: |
+          echo "{" \
+              "\"release\": \"${{ matrix.test.release }}\"," \
+              "\"image_tag\": \"${{ steps.build_images.outputs.image_tag }}\"," \
+              "\"source_artifact\": \"${{ steps.upload_source.outputs.artifact-url }}\"" \
+              }" >> /tmp/result.json
+
+      - uses: actions/upload-artifact@v4
+        if: success()
+        with:
+          name: result-${{ matrix.test.release }}
+          retention-days: 14
+          if-no-files-found: error
+          path: /tmp/result.json
+
+  aggregate_results:
+    needs: build_images
+    runs-on: ubuntu-latest
+    outputs:
+      all_results: ${{ steps.combine.outputs.results }}
+    steps:
+      - name: Download artifacts
+        uses: actions/download-artifact@v4
+
+      - name: Combine results and expose as an output
+        id: combine
+        run: |
+          # Collect all results into a JSON array
+          results="["
+          for dir in result-*/; do
+            value=$(cat "${dir}result.json")
+            results="${results}${value},"
+          done
+
+          # Terminate array and remove trailing comma
+          results="${results%,}]"
+          echo "results=${results}" >> $GITHUB_OUTPUT
+          
+  test_installs:
     name: "Build a test cloud for ${{ matrix.test.description }}"
     strategy:
       fail-fast: false
@@ -162,7 +209,7 @@ jobs:
           },
         ]
     runs-on: [self-hosted, vm, '${{ matrix.test.runs_on }}']
-    needs: build_images
+    needs: [build_images, aggregate_results]
     timeout-minutes: 120
     concurrency:
       group: ${{ github.workflow }}-${{ github.ref }}-${{ matrix.test.name }}
@@ -173,6 +220,23 @@ jobs:
     # variables at https://docs.github.com/en/actions/learn-github-actions/environment-variables
 
     steps:
+      - name: Download artifacts
+        uses: actions/download-artifact@v4
+        
+      - name: Log incoming results
+        id: incoming
+        run: |
+          echo "State of workspace:"
+          ls -lrt
+
+          echo
+          echo "Results from image build step:"
+          echo '${{ needs.aggregate_results.outputs.all_results }}' | python3 -m json.tool
+
+          echo "Export results specific to this job..."
+          image_tag=$(cat results-${{ matrix.test.release }}/result.json | tr -r .image_tag)
+          echo "image_tag=${image_tag}" >> $GITHUB_OUTPUT
+
       - name: Setup test environment
         uses: shakenfist/actions/setup-kerbside-environment@main
         with:
@@ -185,28 +249,6 @@ jobs:
         run: |
           cat ci-environment.sh
 
-      - name: Build patched repositories
-        run: |
-          . $GITHUB_ENV
-          ssh -i /srv/github/id_ci -o StrictHostKeyChecking=no \
-              -o UserKnownHostsFile=/dev/null \
-              ${{ matrix.test.baseuser }}@10.0.2.2 \
-              'cd /srv/shakenfist/kerbside-patches; ./_build/assemble-source.sh --use-ci-registry ${{ matrix.test.release }}'
-
-      - name: Build container images
-        env:
-          CI_REGISTRY_TOKEN: ${{ secrets.CI_REGISTRY_TOKEN }}
-        run: |
-          . $GITHUB_ENV
-
-          script="cd /srv/shakenfist/kerbside-patches;"
-          script="${script} hash=\$(./_build/calculate-container-hash.sh kolla kolla-2* nova nova-2* requirements requirements-2* etc src _build tools );"
-          script="${script} ./_build/build-containers.sh --use-ci-registry --registry-username kolla-imgs --registry-token ${CI_REGISTRY_TOKEN} --build-targets ${{ matrix.test.release }} --build-images all --image-tag "\$hash-debian-bookworm";"
-
-          ssh -i /srv/github/id_ci -o StrictHostKeyChecking=no \
-              -o UserKnownHostsFile=/dev/null \
-              ${{ matrix.test.baseuser }}@10.0.2.2 "${script}"
-
       - name: Log getent resolution for kolla
         if: "contains(matrix.test.topology, 'all-in-one')"
         run: |
@@ -215,6 +257,21 @@ jobs:
               -o UserKnownHostsFile=/dev/null \
               ${{ matrix.test.baseuser }}@10.0.2.2 \
               'sudo getent ahostsv4 kolla'
+
+      - name: Extract source from image build step
+        run: |
+          . $GITHUB_ENV
+
+          echo "Extracting source from build step..."
+          ${GITHUB_WORKSPACE}/kerbside-patches
+          mkdir -p src
+          for item in ${GITHUB_WORKSPACE}/source-${{ matrix.test.release }}/*.tgz; do
+              tar xzf ${item}
+          done
+
+          echo
+          echo "State of source:"
+          ls -lrt
 
       - name: Bootstrap Kolla-Ansible
         env:
@@ -225,6 +282,7 @@ jobs:
           script="cd /srv/shakenfist/kerbside-patches;"
           script="${script} sudo ./tools/bootstrap-kolla-ansible"
               script="${script} --registry-token  ${CI_REGISTRY_TOKEN}"
+              script="${script} --image-tag  ${{ steps.incoming.image_tag }}"
               script="${script} --build-targets ${{ matrix.test.release }}"
               script="${script} --topology ${{ matrix.test.topology }};"
           

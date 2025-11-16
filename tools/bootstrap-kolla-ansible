@@ -75,7 +75,10 @@ cat etc/inventory-${topology}-${target_release} | \
 echo
 
 echo -e "${H2}Copy globals.yml${Color_Off}"
-cat etc/globals-${target_release}.yml | sed "s/DOCKER_REGISTRY_TOKEN/${registry_token}/" > /etc/kolla/globals.yml
+cat etc/globals-${target_release}.yml | \
+    sed "s/DOCKER_REGISTRY_TOKEN/${registry_token}/" | \
+    sed "s/IMAGE_TAG/${image_tag}/"
+    > /etc/kolla/globals.yml
 echo
 
 sed -i "s/127.0.0.1 kolla.local kolla//" /etc/hosts
