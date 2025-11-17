@@ -37,11 +37,11 @@ for target in ${build_targets}; do
 
         if [ ! -z ${registry_username} ]; then
             images=$(/srv/kerbside/venv-tools/bin/python3 ${topdir}/tools/find_images \
-                --gitlab_url ${ci_gitlab} --username ${registry_username} --token ${registry_token} \
+                --gitlab-url ${ci_gitlab} --username ${registry_username} --token ${registry_token} \
                 find ${complete_image_tag} || true)
         else
             images=$(/srv/kerbside/venv-tools/bin/python3 ${topdir}/tools/find_images \
-                --gitlab_url ${ci_gitlab} find ${complete_image_tag} || true)
+                --gitlab-url ${ci_gitlab} find ${complete_image_tag} || true)
         fi
 
         if [ $(echo ${images} | grep -c kolla || true) -gt 0 ]; then
@@ -68,7 +68,7 @@ for target in ${build_targets}; do
         echo "No existing images found. Building them."
 
         mkdir -p ${topdir}/archive/
-        rm ${topdir}/archive/images
+        rm -f ${topdir}/archive/images
 
         if [ $(./_build/imagebuild.sh --build-targets "${target}" --build-images "${build_images}" || true | \
                     grep -c "kolla-build failed!" || true) -gt 0 ]; then
