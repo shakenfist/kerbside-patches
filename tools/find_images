@@ -128,13 +128,13 @@ def _get_gitlab_repositories(gitlab_url, username, password, token, debug=False)
         if token:
             if debug:
                 click.echo('Debug: Using Personal Access Token authentication', err=True)
-            gl = gitlab.Gitlab(gitlab_url, private_token=token)
+            gl = gitlab.Gitlab(gitlab_url, private_token=token, keep_base_url=True)
         else:
             if debug:
                 click.echo('Debug: Using username/password authentication', err=True)
                 click.echo('Debug: Note: Many GitLab instances disable password auth in favor of tokens', err=True)
             # For username/password, use http_username and http_password for Basic Auth
-            gl = gitlab.Gitlab(gitlab_url, http_username=username, http_password=password)
+            gl = gitlab.Gitlab(gitlab_url, http_username=username, http_password=password, keep_base_url=True)
 
         # Test authentication
         try:
