@@ -1,0 +1,50 @@
+Transition to the new rabbitmq Debian package archives.
+
+RabbitMQ announced some time ago that the package archives were moving:
+https://www.rabbitmq.com/blog/2025/07/16/debian-apt-repositories-are-moving
+
+The old location is no longer working, so this patch transitions to
+the new one.
+
+Signed-off-by: Michael Still <mikal@stillhq.com>
+
+iff --git a/kolla/template/repos.yaml b/kolla/template/repos.yaml
+index efeedd5..07eae8e 100644
+--- a/kolla/template/repos.yaml
++++ b/kolla/template/repos.yaml
+@@ -93,7 +93,7 @@ debian:
+ component: ""
+ gpg_key: "proxysql.asc"
+   rabbitmq:
+-    url: "https://ppa1.rabbitmq.com/rabbitmq/rabbitmq-server/deb/debian"
++    url: "https://deb1.rabbitmq.com/rabbitmq-server/deb/debian"
+ suite: "bookworm"
+ component: "main"
+ gpg_key: "rabbitmq.gpg"
+@@ -150,7 +150,7 @@ debian-aarch64:
+ component: ""
+ gpg_key: "proxysql.asc"
+   rabbitmq:
+-    url: "https://ppa1.rabbitmq.com/rabbitmq/rabbitmq-server/deb/debian"
++    url: "https://deb1.rabbitmq.com/rabbitmq-server/deb/debian"
+ suite: "bookworm"
+ component: "main"
+ # NOTE(mnasiadka): Since rabbitmq is really noarch and community mirror is not
+@@ -250,7 +250,7 @@ ubuntu:
+ component: ""
+ gpg_key: "proxysql.asc"
+   rabbitmq:
+-    url: "https://ppa1.rabbitmq.com/rabbitmq/rabbitmq-server/deb/ubuntu"
++    url: "https://deb1.rabbitmq.com/rabbitmq-server/deb/ubuntu"
+ suite: "noble"
+ component: "main"
+ gpg_key: "rabbitmq.gpg"
+@@ -308,7 +308,7 @@ ubuntu-aarch64:
+ component: ""
+ gpg_key: "proxysql.asc"
+   rabbitmq:
+-    url: "https://ppa1.rabbitmq.com/rabbitmq/rabbitmq-server/deb/ubuntu"
++    url: "https://deb1.rabbitmq.com/rabbitmq-server/deb/ubuntu"
+ suite: "noble"
+ component: "main"
+ arch: "amd64"

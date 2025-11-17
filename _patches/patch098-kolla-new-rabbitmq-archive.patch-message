@@ -1,0 +1,9 @@
+Transition to the new rabbitmq Debian package archives.
+
+RabbitMQ announced some time ago that the package archives were moving:
+https://www.rabbitmq.com/blog/2025/07/16/debian-apt-repositories-are-moving
+
+The old location is no longer working, so this patch transitions to
+the new one.
+
+Signed-off-by: Michael Still <mikal@stillhq.com>
