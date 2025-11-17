@@ -132,7 +132,7 @@ jobs:
               "\"release\": \"${{ matrix.test.release }}\"," \
               "\"image_tag\": \"${{ steps.build_images.outputs.image_tag }}\"," \
               "\"source_artifact\": \"${{ steps.upload_source.outputs.artifact-url }}\"" \
-              }" >> /tmp/result.json
+              "}" >> /tmp/result.json
 
       - uses: actions/upload-artifact@v4
         if: success()
