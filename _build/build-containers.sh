@@ -70,8 +70,8 @@ for target in ${build_targets}; do
         mkdir -p ${topdir}/archive/
         rm -f ${topdir}/archive/images
 
-        if [ $(./_build/imagebuild.sh --build-targets "${target}" --build-images "${build_images}" || true | \
-                    grep -c "kolla-build failed!" || true) -gt 0 ]; then
+        ./_build/imagebuild.sh --build-targets "${target}" --build-images "${build_images}" || true
+        if [ $(grep -c "kolla-build failed!" ${topdir}/archive/build.log || true) -gt 0 ]; then
             echo
             echo
             echo -e "${H2}Retry build once.${Color_off}"
