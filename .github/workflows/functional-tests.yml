@@ -234,7 +234,7 @@ jobs:
           echo '${{ needs.aggregate_results.outputs.all_results }}' | python3 -m json.tool
 
           echo "Export results specific to this job..."
-          image_tag=$(cat results-${{ matrix.test.release }}/result.json | jq -r .image_tag)
+          image_tag=$(cat result-${{ matrix.test.release }}/result.json | jq -r .image_tag)
           echo "image_tag=${image_tag}" >> $GITHUB_OUTPUT
 
       - name: Setup test environment
