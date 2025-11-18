@@ -8,25 +8,36 @@ on:
 
 jobs:
   build_images:
-    name: "Build docker images for ${{ matrix.test.release }}"
+    name: "Build images for ${{ matrix.test.release }} on ${{ matrix.test.container_distro }}"
     strategy:
       fail-fast: false
       matrix:
         test: [
           {
-            'name': 'build-2025.1',
+            'name': 'build-debian-2025.1',
             'release': '2025.1',
             'base': 'debian:12',
             'baseuser': 'debian',
-            'dispatched_event_name': 'install_cloud_2025_1'
+            'container_distro': 'debian',
+            'container_distro_version': 'bookworm'
           },
           {
-            'name': 'build-master',
+            'name': 'build-debian-master',
             'release': 'master',
             'base': 'debian:12',
             'baseuser': 'debian',
             'topology': 'all-in-one',
-            'dispatched_event_name': 'install_cloud_master'
+            'container_distro': 'debian',
+            'container_distro_version': 'bookworm'
+          },
+          {
+            'name': 'build-ubuntu-master',
+            'release': 'master',
+            'base': 'debian:12',
+            'baseuser': 'debian',
+            'topology': 'all-in-one',
+            'container_distro': 'ubuntu',
+            'container_distro_version': 'noble'
           },
         ]
     runs-on: [self-hosted, vm, 'debian-12', 'xl']
@@ -93,16 +104,17 @@ jobs:
               requirements requirements-2* \
               etc src _build tools )
 
+          image_tag="${hash}-${{ matrix.test.container_distro }}-${{ matrix.test.container_distro_version }}"
           ./_build/build-containers.sh \
               --use-ci-registry \
               --registry-username kolla-imgs \
               --registry-token "${CI_REGISTRY_TOKEN}" \
               --build-targets "${{ matrix.test.release }}" \
               --build-images all \
-              --image-tag "${hash}-debian-bookworm" \
+              --image-tag ${image_tag} \
               --dont-fetch-images
 
-          echo "image_tag=${{ matrix.test.release }}-${hash}-debian-bookworm" >> ${GITHUB_OUTPUT}
+          echo "image_tag=${{ matrix.test.release }}-${image_tag}" >> ${GITHUB_OUTPUT}
 
       - name: Archive patched source
         if: success()
@@ -119,7 +131,7 @@ jobs:
         id: upload_source
         if: success()
         with:
-          name: source-${{ matrix.test.release }}
+          name: source-${{ matrix.test.release }}-${{ matrix.test.container_distro }}
           retention-days: 90
           if-no-files-found: error
           path: /tmp/bundle.zip
@@ -137,7 +149,7 @@ jobs:
       - uses: actions/upload-artifact@v4
         if: success()
         with:
-          name: result-${{ matrix.test.release }}
+          name: result-${{ matrix.test.release }}-${{ matrix.test.container_distro }}
           retention-days: 14
           if-no-files-found: error
           path: /tmp/result.json
@@ -167,7 +179,7 @@ jobs:
           echo "results=${results}" >> $GITHUB_OUTPUT
           
   test_installs:
-    name: "Build a test cloud for ${{ matrix.test.description }}"
+    name: "Build a test cloud for ${{ matrix.test.description }} using ${{ matrix.test.container_distro }}"
     strategy:
       fail-fast: false
       matrix:
@@ -179,7 +191,8 @@ jobs:
             'base': 'debian:12',
             'baseuser': 'debian',
             'topology': 'all-in-one',
-            'runs_on': 'debian-11'
+            'runs_on': 'debian-12',
+            'container_distro': 'debian'
           },
           {
             'name': 'master-debian12-aio',
@@ -188,7 +201,8 @@ jobs:
             'base': 'debian:12',
             'baseuser': 'debian',
             'topology': 'all-in-one',
-            'runs_on': 'debian-11'
+            'runs_on': 'debian-12',
+            'container_distro': 'debian'
           },
           {
             'name': 'master-rocky10-aio',
@@ -197,7 +211,8 @@ jobs:
             'base': 'rocky:10',
             'baseuser': 'cloud-user',
             'topology': 'all-in-one',
-            'runs_on': 'debian-12'
+            'runs_on': 'debian-12',
+            'container_distro': 'debian'
           },
           {
             'name': 'master-debian12-multi',
@@ -206,7 +221,8 @@ jobs:
             'base': 'debian:12',
             'baseuser': 'debian',
             'topology': 'multinode',
-            'runs_on': 'debian-11'
+            'runs_on': 'debian-12',
+            'container_distro': 'debian'
           },
         ]
     runs-on: [self-hosted, vm, '${{ matrix.test.runs_on }}']
@@ -235,7 +251,7 @@ jobs:
           echo '${{ needs.aggregate_results.outputs.all_results }}' | python3 -m json.tool
 
           echo "Export results specific to this job..."
-          image_tag=$(cat result-${{ matrix.test.release }}/result.json | jq -r .image_tag)
+          image_tag=$(cat result-${{ matrix.test.release }}-${{ matrix.test.container_distro }}/result.json | jq -r .image_tag)
           echo "image_tag=${image_tag}" >> $GITHUB_OUTPUT
 
       - name: Setup test environment
@@ -264,7 +280,7 @@ jobs:
           . $GITHUB_ENV
 
           echo "Extracting source from build step..."
-          cd ${GITHUB_WORKSPACE}/source-${{ matrix.test.release }}
+          cd ${GITHUB_WORKSPACE}/source-${{ matrix.test.release }}-${{ matrix.test.container_distro }}
           unzip bundle.zip
           cd bundle
           ls -lrt
@@ -273,7 +289,8 @@ jobs:
           echo "Using that source to bootstrap kerbside-patches src directory..."
           cd ${GITHUB_WORKSPACE}/kerbside-patches
           mkdir -p src
-          for item in ${GITHUB_WORKSPACE}/source-${{ matrix.test.release }}/bundle/*.tgz; do
+          for item in ${GITHUB_WORKSPACE}/source-${{ matrix.test.release }}-${{ matrix.test.container_distro }}/bundle/*.tgz; do
+              echo "Extracting ${item}."
               tar xzf ${item}
           done
 

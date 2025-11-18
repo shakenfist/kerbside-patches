@@ -21,7 +21,17 @@ if [ ! -z ${registry_username} ]; then
 fi
 
 for target in ${build_targets}; do
-    complete_image_tag="${target}-${image_tag}"
+    complete_image_tag="${target}-${distro}-${image_tag}"
+
+    if [ ${distro} == "debian" ]; then
+        distro_version="bookworm"
+    elif [ ${distro} == "ubuntu" ]; then
+        distro_version="noble"
+    else
+        echo "Unknown distro: ${distro}!"
+        exit 1
+    fi
+
     echo
     echo -e "${H1}==================================================${Color_Off}"
     echo -e "${H1}Build configuration${Color_Off}"
@@ -55,9 +65,9 @@ for target in ${build_targets}; do
                     echo -e "    ${image}..."
                     docker pull ${ci_registry}/${image}:${complete_image_tag}
 
-                    echo -e "    ${image}:${complete_image_tag} ${Arrow} ${image}:${target}-debian-bookworm"
+                    echo -e "    ${image}:${complete_image_tag} ${Arrow} ${image}:${target}-${distro}-${distro_version}"
                     docker image tag ${ci_registry}/${image}:${complete_image_tag} \
-                        ${image}:${target}-debian-bookworm
+                        ${image}:${target}-${distro}-${distro_version}
                 done
                 have_images="true"
             fi
@@ -89,15 +99,15 @@ for target in ${build_targets}; do
             echo
             echo -e "${H2}Pushing to the CI registry${Color_Off}"
             for image in $(docker image list --format json | \
-                jq --slurp -r ".[] | select(.Tag == \"${target}-${CI_COMMIT_SHORT_SHA}\") | .Repository"); do
-                echo -e "    ${image}:${target}-${CI_COMMIT_SHORT_SHA} ${Arrow} ${ci_registry}/${registry_project}/${image}:${target}-debian-bookworm"
-                docker image tag ${image}:${target}-${CI_COMMIT_SHORT_SHA} \
-                    ${ci_registry}/${registry_project}/${image}:${target}-debian-bookworm
+                jq --slurp -r ".[] | select(.Tag == \"${target}-${distro}-${CI_COMMIT_SHORT_SHA}\") | .Repository"); do
+                echo -e "    ${image}:${target}-${distro}-${CI_COMMIT_SHORT_SHA} ${Arrow} ${ci_registry}/${registry_project}/${image}:${target}-${distro}-${distro_version}"
+                docker image tag ${image}:${target}-${distro}-${CI_COMMIT_SHORT_SHA} \
+                    ${ci_registry}/${registry_project}/${image}:${target}-${distro}-${distro_version}
                 docker image push \
-                    ${ci_registry}/${registry_project}/${image}:${target}-debian-bookworm
+                    ${ci_registry}/${registry_project}/${image}:${target}-${distro}-${distro_version}
 
-                echo -e "    ${image}:${target}-${CI_COMMIT_SHORT_SHA} ${Arrow} ${ci_registry}/${registry_project}/${image}:${complete_image_tag}"
-                docker image tag ${image}:${target}-${CI_COMMIT_SHORT_SHA} \
+                echo -e "    ${image}:${target}-${distro}-${CI_COMMIT_SHORT_SHA} ${Arrow} ${ci_registry}/${registry_project}/${image}:${complete_image_tag}"
+                docker image tag ${image}:${target}-${distro}-${CI_COMMIT_SHORT_SHA} \
                     ${ci_registry}/${registry_project}/${image}:${complete_image_tag}
                 docker image push ${ci_registry}/${registry_project}/${image}:${complete_image_tag}
             done

@@ -15,6 +15,9 @@ fi
 # Which OpenStack releases to build images for.
 build_targets="2023.1 2023.2 2024.1 master"
 
+# Which base distribution to use for container images.
+distro="debian"
+
 # Which images to build. Kerbside only requires customized nova-compute,
 # nova-libvirt, nova-api, and kerbside container images but it can make sense
 # to build all the container images at the same time to keep them consistent.
@@ -81,6 +84,12 @@ while [[ ${found_arg} -gt 0 ]]; do
         --build-targets)
             export build_targets="$2"
             echo "Setting build targets to ${build_targets}."
+            shift; shift
+            found_arg=1
+            ;;
+        --distro)
+            export distro="$2"
+            echo "Setting base distribution to ${distro}."
             shift; shift
             found_arg=1
             ;;
