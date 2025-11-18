@@ -143,6 +143,7 @@ jobs:
           path: /tmp/result.json
 
   aggregate_results:
+    name: "Aggregate results"
     needs: build_images
     runs-on: ubuntu-latest
     outputs:
