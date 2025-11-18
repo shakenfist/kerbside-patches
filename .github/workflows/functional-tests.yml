@@ -111,6 +111,7 @@ jobs:
               --registry-token "${CI_REGISTRY_TOKEN}" \
               --build-targets "${{ matrix.test.release }}" \
               --build-images all \
+              --distro ${{ matrix.test.container_distro}} \
               --image-tag ${image_tag} \
               --dont-fetch-images
 
