@@ -104,7 +104,7 @@ jobs:
               requirements requirements-2* \
               etc src _build tools )
 
-          image_tag="${hash}-${{ matrix.test.container_distro }}-${{ matrix.test.container_distro_version }}"
+          image_tag="${hash}-${{ matrix.test.container_distro_version }}"
           ./_build/build-containers.sh \
               --use-ci-registry \
               --registry-username kolla-imgs \
