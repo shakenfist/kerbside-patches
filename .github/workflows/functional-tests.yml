@@ -263,7 +263,7 @@ jobs:
           . $GITHUB_ENV
 
           echo "Extracting source from build step..."
-          ${GITHUB_WORKSPACE}/kerbside-patches
+          cd ${GITHUB_WORKSPACE}/kerbside-patches
           mkdir -p src
           for item in ${GITHUB_WORKSPACE}/source-${{ matrix.test.release }}/*.tgz; do
               tar xzf ${item}
