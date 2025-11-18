@@ -73,8 +73,8 @@ def _get_container_registry_repos_http(gl, project, debug=False):
         return []
 
 
-def _get_repository_tags_http(gl, repository_data, debug=False):
-    """Get tags for a repository via direct HTTP API calls."""
+def _check_for_tag(gl, repository_data, tag, debug=False):
+    """Check for existance of a given tag via direct HTTP API calls."""
     try:
         # Get the base GitLab URL from the gitlab instance
         base_url = gl._url.rstrip('/')
@@ -82,9 +82,9 @@ def _get_repository_tags_http(gl, repository_data, debug=False):
         # Construct Container Registry tags API URL - handle case where _url already includes /api/v4
         repo_id = repository_data['id']
         if base_url.endswith('/api/v4'):
-            api_url = f"{base_url}/projects/{repository_data['project_id']}/registry/repositories/{repo_id}/tags"
+            api_url = f"{base_url}/projects/{repository_data['project_id']}/registry/repositories/{repo_id}/tags/{tag}"
         else:
-            api_url = f"{base_url}/api/v4/projects/{repository_data['project_id']}/registry/repositories/{repo_id}/tags"
+            api_url = f"{base_url}/api/v4/projects/{repository_data['project_id']}/registry/repositories/{repo_id}/tags/{tag}"
 
         if debug:
             click.echo(f'Debug: Requesting tags from: {api_url}', err=True)
@@ -98,18 +98,7 @@ def _get_repository_tags_http(gl, repository_data, debug=False):
 
         response = session.get(api_url)
 
-        if response.status_code == 200:
-            tags = response.json()
-            tag_names = [tag.get('name', '') for tag in tags]
-
-            if debug:
-                click.echo(f'Debug: Repository \"{repository_data["path"]}\" has {len(tag_names)} tags: {tag_names}', err=True)
-
-            return tag_names
-        else:
-            if debug:
-                click.echo(f'Debug: Tags API request failed with status {response.status_code}: {response.text}', err=True)
-            return []
+        return response.status_code == 200
 
     except Exception as e:
         if debug:
@@ -225,36 +214,6 @@ def _get_gitlab_repositories(gitlab_url, username, password, token, debug=False)
         return None, None
 
 
-def _get_repository_tags(repository_info, gl_instance=None, debug=False):
-    """Get tags for a specific repository."""
-    try:
-        repo_path = repository_info['path']
-
-        if debug:
-            click.echo(f'Debug: Getting tags for repository: {repo_path}', err=True)
-
-        # Try GitLab API first, then fallback to HTTP calls
-        if 'repository' in repository_info:
-            # Using GitLab API
-            repository = repository_info['repository']
-            tags = repository.tags.list()
-            tag_names = [tag.name for tag in tags]
-        else:
-            # Using HTTP API
-            repository_data = repository_info['repository_data']
-            tag_names = _get_repository_tags_http(gl_instance, repository_data, debug)
-
-        if debug:
-            click.echo(f'Debug: Repository "{repo_path}" has {len(tag_names)} tags: {tag_names}', err=True)
-
-        return tag_names
-
-    except Exception as e:
-        if debug:
-            click.echo(f'Debug: Error getting tags for {repository_info["path"]}: {e}', err=True)
-        return []
-
-
 @click.group()
 @click.option('--gitlab-url', default='http://192.168.1.12',
               help='GitLab URL (default: http://192.168.1.12)')
@@ -335,19 +294,19 @@ def find(ctx, search_tag):
     found = False
 
     # Search through all repositories
-    for repo_info in repositories:
-        tags = _get_repository_tags(repo_info, gl_instance, debug)
+    for repository_info in repositories:
+        repo_path = repository_info['path']
 
-        if search_tag in tags:
-            print(repo_info['path'])
-            found = True
-
-    if found:
-        sys.exit(0)
-    else:
         if debug:
-            click.echo(f'Debug: Tag "{search_tag}" not found in any repository', err=True)
-        sys.exit(1)
+            click.echo(f'Debug: Getting tags for repository: {repo_path}', err=True)
+
+        repository_data = repository_info['repository_data']
+        if _check_for_tag(gl_instance, repository_data, search_tag, debug):
+            sys.exit(0)
+
+    if debug:
+        click.echo(f'Debug: Tag "{search_tag}" not found in any repository', err=True)
+    sys.exit(1)
 
 
 @cli.command(name='list', help='List all available repositories')
