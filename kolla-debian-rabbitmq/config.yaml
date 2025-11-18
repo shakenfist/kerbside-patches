@@ -1,0 +1,7 @@
+repo: https://github.com/openstack/kolla
+source_branch: master
+destination_branch: update-debian-package-source
+shallow_clone: false
+directory: kolla
+release: master
+depends_on: ''

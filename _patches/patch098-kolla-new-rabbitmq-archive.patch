@@ -1,6 +1,6 @@
-commit 9064705662bbd9fb2bc036838c2c4190625830c0
+commit edc396d39f35817ca6cc807c0cd1f6f9da5e8966
 Author: Michael Still <mikal@stillhq.com>
-Date:   Tue Nov 18 11:53:11 2025 +1100
+Date:   Tue Nov 18 16:00:10 2025 +1100
 
     Transition to the new rabbitmq Debian package archives.
     
@@ -10,10 +10,11 @@ Date:   Tue Nov 18 11:53:11 2025 +1100
     The old location is no longer working, so this patch transitions to
     the new one.
     
+    Change-Id: I6ef0ed9cc40be42a0d98c6a4c83c5c5c26d9cdbf
     Signed-off-by: Michael Still <mikal@stillhq.com>
 
 diff --git a/docker/base/Dockerfile.j2 b/docker/base/Dockerfile.j2
-index 45e7f9c..33df5a7 100644
+index 45e7f9c03..33df5a7b5 100644
 --- a/docker/base/Dockerfile.j2
 +++ b/docker/base/Dockerfile.j2
 @@ -243,7 +243,7 @@ COPY apt_preferences /etc/apt/preferences.d/kolla-custom
@@ -26,7 +27,7 @@ index 45e7f9c..33df5a7 100644
  ] %}
  
 diff --git a/kolla/template/repos.yaml b/kolla/template/repos.yaml
-index 6739c9b..8201dd4 100644
+index 6739c9bd1..7d9d7ec71 100644
 --- a/kolla/template/repos.yaml
 +++ b/kolla/template/repos.yaml
 @@ -51,14 +51,14 @@ debian:
@@ -64,7 +65,7 @@ index 6739c9b..8201dd4 100644
      component: "main"
      # NOTE(mnasiadka): Since rabbitmq is really noarch and community mirror is not
 diff --git a/kolla/tests/test_methods.py b/kolla/tests/test_methods.py
-index 6559c5d..7c7bf43 100644
+index 6559c5d4d..2d2fdd3ed 100644
 --- a/kolla/tests/test_methods.py
 +++ b/kolla/tests/test_methods.py
 @@ -191,7 +191,7 @@ class MethodsTest(base.TestCase):
