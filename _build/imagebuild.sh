@@ -109,7 +109,7 @@ for target in ${build_targets}; do
     cat etc/kolla-build-${target}.conf.in | \
         sed "s|TOPSRCDIR|${topsrcdir}|g" | \
         sed "s|DISTRO|${distro}|g"
-        > kolla-build.conf
+        > ${topdir}/archive/kolla-build.conf
 
     # Clear build cache
     echo -e "${H2}Clear build cache${Color_Off}"
@@ -126,18 +126,18 @@ for target in ${build_targets}; do
     fi
 
     echo -e "${H3}${venvdir}/bin/kolla-build \\"
-    echo -e "    --config-file \"${topdir}/kolla-build.conf\" \\"
+    echo -e "    --config-file \"${topdir}/archive/kolla-build.conf\" \\"
     echo -e "    --tag ${target}-${distro}-${CI_COMMIT_SHORT_SHA} \\"
     echo -e "    --namespace kolla ${kolla_build_args} 2>&1 | \\"
-    echo -e "    tee ${topdir}/archive/build.log | \\"
+    echo -e "    tee --append ${topdir}/archive/build.log | \\"
     echo -e "    ts \"%b %d %H:%M:%S ${target}\""
     echo -e "${Color_Off}"
 
     ${venvdir}/bin/kolla-build \
-        --config-file "${topdir}/kolla-build.conf" \
+        --config-file "${topdir}/archive/kolla-build.conf" \
         --tag ${target}-${distro}-${CI_COMMIT_SHORT_SHA} \
         --namespace kolla ${kolla_build_args} 2>&1 | \
-        tee ${topdir}/archive/build.log | \
+        tee --append ${topdir}/archive/build.log | \
         ts "%b %d %H:%M:%S ${target}"
 
     echo

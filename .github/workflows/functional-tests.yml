@@ -116,6 +116,25 @@ jobs:
 
           echo "image_tag=${{ matrix.test.release }}-${image_tag}" >> ${GITHUB_OUTPUT}
 
+      # We have the output of the build job and its config, regardless of success or failure
+      - name: Archive build config and logs
+        if: always()
+        run: |
+          . $GITHUB_ENV
+
+          archive_path="/tmp/build-${{ matrix.test.release}}-${{ matrix.test.container_distro }}"
+          mkdir ${archive_path}
+          cp kerbside-patches/archive/build.log ${archive_path}/
+          cp kerbside-patches/archive/kolla-build.conf ${archive_path}/
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: build-${{ matrix.test.release }}-${{ matrix.test.container_distro }}
+          retention-days: 14
+          if-no-files-found: error
+          path: /tmp/build-${{ matrix.test.release}}-${{ matrix.test.container_distro }}
+
       - name: Archive patched source
         if: success()
         run: |
