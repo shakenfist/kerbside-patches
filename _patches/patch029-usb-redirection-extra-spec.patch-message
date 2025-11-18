@@ -1,8 +1,0 @@
-libvirt: Add extra specs for USB redirection.
-
-This patch adds an extra spec to configure a USB controller inside
-the guest and another which specifies how many USB redirection
-devices to create. This is useful for SPICE consoles using the native
-protocol.
-
-Change-Id: I791b16c5bf0e860a188783c863e95dc423998b0a

@@ -1,8 +1,0 @@
-Protect older compute managers from sound model requests.
-
-This is broken out into a separate patch for now to make it easier
-to review if this is itself a complete change. I am open to merging
-it back into the sound model change if that is considered
-desirable.
-
-Change-Id: I33b8fc0136b4c1783b5c493e8ca9a15110767f6c

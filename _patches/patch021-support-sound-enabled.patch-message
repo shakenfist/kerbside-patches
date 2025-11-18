@@ -1,5 +1,0 @@
-Allow enablement of sound devices with SPICE consoles.
-
-The nova_spice_sound_enabled configuration option will instruct
-nova to create sound devices for instances. This improves the VDI
-experience when using SPICE direct consoles with nova.

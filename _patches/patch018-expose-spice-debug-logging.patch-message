@@ -1,4 +1,0 @@
-Allow setting of the new SPICE debug_logging option.
-
-This emits debug logs to the libvirt qemu log if enabled, which
-can be helpful when debugging connnectivity issues.

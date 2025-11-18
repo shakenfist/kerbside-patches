@@ -8,6 +8,7 @@ Date:   Mon Oct 13 08:59:04 2025 +1100
     point at least.
     
     Signed-off-by: Michael Still <mikal@stillhq.com>
+    Partially-Implements: #2131793 (spice-direct consoles)
 
 diff --git a/docker/kerbside/kerbside-api/Dockerfile.j2 b/docker/kerbside/kerbside-api/Dockerfile.j2
 new file mode 100644
