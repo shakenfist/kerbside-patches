@@ -1,4 +1,4 @@
-commit cac1bc5d9b93b79cbf0f195f27d84177d2b0aed1
+commit 7a8e43b55ad9b60ef5100d9a186d419ce2b29918
 Author: Michael Still <mikal@stillhq.com>
 Date:   Tue Nov 18 19:45:29 2025 +1100
 
@@ -88,13 +88,14 @@ index 6559c5d4d..2d2fdd3ed 100644
          expectCmd += ">>/etc/apt/sources.list.d/rabbitmq.sources && "
 diff --git a/releasenotes/notes/handle-deprecated-rabbitmq-package-archive-47548e7a41baa68b.yaml b/releasenotes/notes/handle-deprecated-rabbitmq-package-archive-47548e7a41baa68b.yaml
 new file mode 100644
-index 000000000..f46ff25c0
+index 000000000..b24cc3cdc
 --- /dev/null
 +++ b/releasenotes/notes/handle-deprecated-rabbitmq-package-archive-47548e7a41baa68b.yaml
-@@ -0,0 +1,6 @@
+@@ -0,0 +1,7 @@
 +---
 +fixes:
 +  - |
 +    `As announced in July 2025 <https://www.rabbitmq.com/blog/2025/07/16/debian-apt-repositories-are-moving>`__,
 +    the RabbitMQ project has changed the location and signing key for their Debian and
 +    Ubuntu packages. The repository configuration has been updated accordingly.
++    `LP#2131736 <https://launchpad.net/bugs/2131736>`__
