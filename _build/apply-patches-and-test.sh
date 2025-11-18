@@ -161,7 +161,7 @@ do
     popd > /dev/null
 done
 
-if [ ${use_ci_registry} == "true" ]; then
+if [ ${use_ci_patches} == "true" ]; then
     if [ -e ${project}/ADDITIONAL_FOR_CI ]; then
         for patch in $(cat ${project}/ADDITIONAL_FOR_CI)
         do

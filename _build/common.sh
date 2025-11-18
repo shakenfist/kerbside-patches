@@ -36,6 +36,7 @@ skip_unit_tests="false"
 skip_tests="false"
 
 # Should we use the CI environment's OCI registry to avoid rebuilding images?
+use_ci_patches="false"
 use_ci_registry="false"
 ci_gitlab="http://192.168.1.12"
 ci_registry="192.168.1.12:4000"
@@ -111,10 +112,16 @@ while [[ ${found_arg} -gt 0 ]]; do
             shift
             found_arg=1
             ;;
-        --ci_gitlab)
+        --ci-gitlab)
             export ci_gitlab="$2"
             echo "Set CI gitlab to ${ci_gitlab}"
             shift; shift
+            found_arg=1
+            ;;
+        --use-ci-patches)
+            export use_ci_patches="true"
+            echo "Will use additonal patches for CI."
+            shift
             found_arg=1
             ;;
         --use-ci-registry)
