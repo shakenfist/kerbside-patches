@@ -264,14 +264,21 @@ jobs:
           . $GITHUB_ENV
 
           echo "Extracting source from build step..."
+          cd ${GITHUB_WORKSPACE}/source-${{ matrix.test.release }}
+          unzip bundle.zip
+          cd bundle
+          ls -lrt
+
+          echo
+          echo "Using that source to bootstrap kerbside-patches src directory..."
           cd ${GITHUB_WORKSPACE}/kerbside-patches
           mkdir -p src
-          for item in ${GITHUB_WORKSPACE}/source-${{ matrix.test.release }}/*.tgz; do
+          for item in ${GITHUB_WORKSPACE}/source-${{ matrix.test.release }}/bundle/*.tgz; do
               tar xzf ${item}
           done
 
           echo
-          echo "State of source:"
+          echo "State of source..."
           ls -lrt
 
       - name: Bootstrap Kolla-Ansible
