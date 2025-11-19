@@ -104,7 +104,6 @@ jobs:
               requirements requirements-2* \
               etc src _build tools )
 
-          image_tag="${hash}-${{ matrix.test.container_distro_version }}"
           ./_build/build-containers.sh \
               --use-ci-registry \
               --registry-username kolla-imgs \
@@ -112,10 +111,10 @@ jobs:
               --build-targets "${{ matrix.test.release }}" \
               --build-images all \
               --distro ${{ matrix.test.container_distro}} \
-              --image-tag ${image_tag} \
+              --image-tag ${hash} \
               --dont-fetch-images
 
-          echo "image_tag=${{ matrix.test.release }}-${image_tag}" >> ${GITHUB_OUTPUT}
+          echo "image_tag=${{ matrix.test.release }}-${{ matrix.test.container_distro }}-${{ matrix.test.container_distro_version }}-${hash}" >> ${GITHUB_OUTPUT}
 
       # We have the output of the build job and its config, regardless of success or failure
       - name: Archive build config and logs

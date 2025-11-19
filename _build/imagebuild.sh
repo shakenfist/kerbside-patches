@@ -131,7 +131,7 @@ for target in ${build_targets}; do
 
     echo -e "${H3}${venvdir}/bin/kolla-build \\"
     echo -e "    --config-file \"${topdir}/archive/kolla-build.conf\" \\"
-    echo -e "    --tag ${target}-${distro}-${CI_COMMIT_SHORT_SHA} \\"
+    echo -e "    --tag ${image_tag} \\"
     echo -e "    --namespace kolla ${kolla_build_args} 2>&1 | \\"
     echo -e "    tee --append ${topdir}/archive/build.log | \\"
     echo -e "    ts \"%b %d %H:%M:%S ${target}\""
@@ -139,7 +139,7 @@ for target in ${build_targets}; do
 
     ${venvdir}/bin/kolla-build \
         --config-file "${topdir}/archive/kolla-build.conf" \
-        --tag ${target}-${distro}-${CI_COMMIT_SHORT_SHA} \
+        --tag ${image_tag} \
         --namespace kolla ${kolla_build_args} 2>&1 | \
         tee --append ${topdir}/archive/build.log | \
         ts "%b %d %H:%M:%S ${target}"
