@@ -310,20 +310,18 @@ jobs:
           . $GITHUB_ENV
 
           echo "Extracting source from build step..."
-          cd ${GITHUB_WORKSPACE}/source-${{ matrix.test.release }}-${{ matrix.test.container_distro }}
+          artifact_dir="${GITHUB_WORKSPACE}/source-${{ matrix.test.release }}-${{ matrix.test.container_distro }}"
+          cd ${artifact_dir}
           unzip bundle.zip
           cd bundle
           ls -lrth
 
           echo
           echo "Using that source to bootstrap kerbside-patches src directory..."
-          mkdir -p ${GITHUB_WORKSPACE}/kerbside-patches/src
-          cd ${GITHUB_WORKSPACE}/kerbside-patches/src
-
-          for item in ${GITHUB_WORKSPACE}/source-${{ matrix.test.release }}-${{ matrix.test.container_distro }}/bundle/*.tgz; do
-              echo "Extracting ${item}."
-              tar -xzf ${item}
-          done
+          sudo mkdir -p /srv/shakenfist/kerbside-patches/src
+          sudo chown -R ${{ matrix.test.baseuser }}:${{ matrix.test.baseuser }} /srv/shakenfist
+          cd /srv/shakenfist/kerbside-patches/src
+          find ${artifact_dir}/bundle/*.tgz -name "*.tgz" -print -exec tar xzf {} \; -exec echo \;
 
           echo
           echo "State of source..."

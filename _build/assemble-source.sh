@@ -18,7 +18,7 @@ echo -e "${H2}Cloning kerbside${Color_Off}"
 mkdir src
 cd src
 git clone https://github.com/shakenfist/kerbside
-tar cf kerbside.tgz kerbside
+tar czf kerbside.tgz kerbside
 cd ..
 echo
 echo
@@ -27,7 +27,7 @@ echo
 echo -e "${H2}Cloning Shaken Fist utilities${Color_Off}"
 cd src
 git clone https://github.com/shakenfist/library-utilities
-tar cf library-utilities.tgz library-utilities
+tar czf library-utilities.tgz library-utilities
 cd ..
 echo
 echo
