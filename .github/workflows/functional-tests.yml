@@ -302,15 +302,16 @@ jobs:
           cd ${GITHUB_WORKSPACE}/source-${{ matrix.test.release }}-${{ matrix.test.container_distro }}
           unzip bundle.zip
           cd bundle
-          ls -lrt
+          ls -lrth
 
           echo
           echo "Using that source to bootstrap kerbside-patches src directory..."
-          cd ${GITHUB_WORKSPACE}/kerbside-patches
-          mkdir -p src
+          mkdir -p ${GITHUB_WORKSPACE}/kerbside-patches/src
+          cd ${GITHUB_WORKSPACE}/kerbside-patches/src
+
           for item in ${GITHUB_WORKSPACE}/source-${{ matrix.test.release }}-${{ matrix.test.container_distro }}/bundle/*.tgz; do
               echo "Extracting ${item}."
-              tar xzf ${item}
+              tar -xzf ${item}
           done
 
           echo
