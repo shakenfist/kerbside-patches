@@ -56,6 +56,14 @@ if [ ! -e ${topsrcdir}/${directory} ]; then
         echo -e "${H2}Full depth cloning ${repo} branch ${source_branch}${Color_Off}"
         git clone --branch ${source_branch} ${repo} ${topsrcdir}/${directory}
     fi
+
+    # Sprinkle in the git review changeid hook
+    echo
+    echo -e "${H2}${Arrow}Install commit hook to ${topsrcdir}/${directory}/.git/hooks/commit-msg${Color_Off}"
+    echo
+    cp ${topdir}/tools/commit-msg.hook ${topsrcdir}/${directory}/.git/hooks/commit-msg
+    ls -lrth ${topsrcdir}/${directory}/.git/hooks/commit-msg
+    echo
 else
     echo -e "${H2}${Arrow}Reusing existing repo${Color_Off}"
     if [ "${shallow_clone}" == "true" ]; then
@@ -69,6 +77,13 @@ else
         cd ${topsrcdir}/${directory}
         git checkout ${source_branch}
     fi
+fi
+
+if [ ! -e ${topsrcdir}/${directory}/.git/hooks/commit-msg ]; then
+    echo "Commit message hook missing!"
+    exit 1
+else
+    echo "Commit message hook is at ${topsrcdir}/${directory}/.git/hooks/commit-msg..."
 fi
 
 cd "${topsrcdir}/${directory}"

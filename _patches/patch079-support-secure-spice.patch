@@ -12,8 +12,8 @@ Author: Michael Still <mikal@stillhq.com>
     to support TLS, and that TLS certificates have been configured in
     the nova_libvirt container.
 
-    Signed-off-by: Michael Still <mikal@stillhq.com>
     Partially-Implements: #2131793 (spice-direct consoles)
+    Change-Id: I4306725fb8433860baec8e01c51e9eae2beb3cc9
 
 diff --git a/ansible/group_vars/all/nova.yml b/ansible/group_vars/all/nova.yml
 index 3be5ee7..17131a1 100644
