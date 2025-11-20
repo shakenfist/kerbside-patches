@@ -280,9 +280,15 @@ jobs:
           echo "Results from image build step:"
           echo '${{ needs.aggregate_results.outputs.all_results }}' | python3 -m json.tool
 
+          echo
+          echo "Results specific to this job:"
+          cat result-${{ matrix.test.release }}-${{ matrix.test.container_distro }}/result.json | python3 -m json.tool
+
+          echo
           echo "Export results specific to this job..."
           image_tag=$(cat result-${{ matrix.test.release }}-${{ matrix.test.container_distro }}/result.json | jq -r .image_tag)
           echo "image_tag=${image_tag}" >> $GITHUB_OUTPUT
+          echo "    image_tag is ${image_tag}"
 
       - name: Setup test environment
         uses: shakenfist/actions/setup-kerbside-environment@main
@@ -329,10 +335,13 @@ jobs:
 
           echo
           echo "Copy source to target node..."
-          scp -rp -i /srv/github/id_ci -o StrictHostKeyChecking=no \
+          # I use tar here because some of the entries are symlinks
+          cd /srv/shakenfist/kerbside-patches
+          tar czf - src | ssh -i /srv/github/id_ci \
+              -o StrictHostKeyChecking=no \
               -o UserKnownHostsFile=/dev/null \
-              /srv/shakenfist/kerbside-patches/src \
-              ${{ matrix.test.baseuser }}@10.0.2.2:/srv/shakenfist/kerbside-patches/
+              ${{ matrix.test.baseuser }}@10.0.2.2 \
+              "cd /srv/shakenfist/kerbside-patches && tar xzf -"
 
       - name: Bootstrap Kolla-Ansible
         env:
@@ -343,7 +352,7 @@ jobs:
           script="cd /srv/shakenfist/kerbside-patches;"
           script="${script} sudo ./tools/bootstrap-kolla-ansible"
               script="${script} --registry-token ${CI_REGISTRY_TOKEN}"
-              script="${script} --image-tag ${{ steps.incoming.image_tag }}"
+              script="${script} --image-tag ${{ steps.incoming.outputs.image_tag }}"
               script="${script} --build-targets ${{ matrix.test.release }}"
               script="${script} --topology ${{ matrix.test.topology }};"
           

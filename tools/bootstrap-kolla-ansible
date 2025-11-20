@@ -75,7 +75,7 @@ export PATH=$PATH:/usr/local/bin
 kolla-ansible install-deps
 echo
 
-echo -e "${H2}Bootstrap inventory${Color_Off}"
+echo -e "${H2}Bootstrap inventory for ${topology} {$target_release}${Color_Off}"
 mkdir -p /etc/kolla
 cp -r etc/kolla /etc/
 cd "${topdir}"
