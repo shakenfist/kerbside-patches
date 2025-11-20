@@ -281,6 +281,17 @@ function run_tests {
             fi
         fi
 
+        # Kolla-Ansible also has additional linters as well as a pep8
+        if [ $(tox -a | grep -c linters) -gt 0 ]
+        then
+            echo -e "${H3}tox -elinters -vv --skip-missing-interpreters=false${Color_Off}"
+            tox -elinters | ts "%b %d %H:%M:%S ${2} ${3} linters"
+            if [ $? -gt 0 ]; then
+                echo -e "${H3}tox -elinters failed!${Color_Off}"
+                exit 1
+            fi
+        fi
+
         # Try building docs too
         # if [ "${skip_unit_tests}" == "false" ]; then
         #     if [ $(tox -a | grep -c docs) -gt 0 ]
