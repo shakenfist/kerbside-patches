@@ -1,11 +1,14 @@
-commit 8af15c3b1390356a12e2a1609fbed15b111744ad
+commit 97ad260b021dc907c25e3570950ba8c20a240ff5
 Author: Michael Still <mikal@stillhq.com>
-Date:   Mon Aug 18 18:34:11 2025 +1000
+Date:   Fri Nov 21 10:43:02 2025 +1100
 
     Allow Rocky 10 installs.
+    
+    Change-Id: I37bbf1f368d0708fcc3ec2e054cc7ba3da922c7f
+    Signed-off-by: Michael Still <mikal@stillhq.com>
 
 diff --git a/ansible/roles/prechecks/defaults/main.yml b/ansible/roles/prechecks/defaults/main.yml
-index f05d111..14bd492 100644
+index f05d1116c..14bd49214 100644
 --- a/ansible/roles/prechecks/defaults/main.yml
 +++ b/ansible/roles/prechecks/defaults/main.yml
 @@ -1,6 +1,6 @@

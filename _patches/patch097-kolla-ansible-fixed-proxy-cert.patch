@@ -1,12 +1,15 @@
-commit 78bc879fce0093e09ddcab7d83d77a2f0d404726
+commit 0d110831f4d3f2115d922399bf419414c34ab7c1
 Author: Michael Still <mikal@stillhq.com>
-Date:   Sun Nov 2 16:58:48 2025 +1100
+Date:   Fri Nov 21 10:43:02 2025 +1100
 
     Fix kerbside proxy certificate.
+    
+    Change-Id: I3fbd738e7eb955782d9aba5a7f1d5850b2024b2f
+    Signed-off-by: Michael Still <mikal@stillhq.com>
 
 diff --git a/ansible/roles/certificates/tasks/generate-kerbside.yml b/ansible/roles/certificates/tasks/generate-kerbside.yml
 new file mode 100644
-index 0000000..dafd605
+index 000000000..dafd60540
 --- /dev/null
 +++ b/ansible/roles/certificates/tasks/generate-kerbside.yml
 @@ -0,0 +1,64 @@
@@ -75,7 +78,7 @@ index 0000000..dafd605
 +    dest: "{{ kolla_certificates_dir }}/kerbside-key.pem"
 +    mode: "0660"
 diff --git a/ansible/roles/certificates/tasks/main.yml b/ansible/roles/certificates/tasks/main.yml
-index a79282a..7196b81 100644
+index a79282ac7..7196b81fe 100644
 --- a/ansible/roles/certificates/tasks/main.yml
 +++ b/ansible/roles/certificates/tasks/main.yml
 @@ -4,5 +4,8 @@

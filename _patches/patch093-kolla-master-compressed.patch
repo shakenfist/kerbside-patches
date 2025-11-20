@@ -1,14 +1,16 @@
-commit 316f08dd1088d3e65b03dcf35a85da238e2b74e9
+commit c296f7cd3697d6ece5ea2e6f8abccdf419948a35
 Author: Michael Still <mikal@stillhq.com>
-Date:   Mon Oct 13 08:59:04 2025 +1100
+Date:   Fri Nov 21 10:43:18 2025 +1100
 
     Implement container image build for kerbside.
     
     I am fairly sure this will need improvement, but its a starting
     point at least.
     
+    Change-Id: If60a70745462e1360cfadaab1a5a8d75b7fdeb21
     Signed-off-by: Michael Still <mikal@stillhq.com>
     Partially-Implements: #2131793 (spice-direct consoles)
+    Signed-off-by: Michael Still <mikal@stillhq.com>
 
 diff --git a/docker/kerbside/kerbside-api/Dockerfile.j2 b/docker/kerbside/kerbside-api/Dockerfile.j2
 new file mode 100644
@@ -131,8 +133,8 @@ index 2ec2194..90f97fc 100644
                      'kuryr',
                      'magnum',
                      'manila',
-iff --git a/kolla/common/sources.py b/kolla/common/sources.py
-index 4073ae1..eb5efd2 100644
+diff --git a/kolla/common/sources.py b/kolla/common/sources.py
+index d999335..5c4c607 100644
 --- a/kolla/common/sources.py
 +++ b/kolla/common/sources.py
 @@ -156,6 +156,10 @@ SOURCES = {

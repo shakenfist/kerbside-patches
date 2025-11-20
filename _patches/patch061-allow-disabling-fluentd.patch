@@ -1,6 +1,6 @@
-commit 4dde5e5e5fcfdf610e42a8de5bb90e6f9d78f117
+commit db877aaa9311e37cc0b9fd6865a5e16d36c98f74
 Author: Michael Still <mikal@stillhq.com>
-Date:   Wed Aug 13 08:14:47 2025 +1000
+Date:   Fri Nov 21 10:43:02 2025 +1100
 
     Make fluentd optional.
     
@@ -8,13 +8,14 @@ Date:   Wed Aug 13 08:14:47 2025 +1000
     role appears to have missed supporting enable_fluentd being set
     to "no".
     
+    Change-Id: I4b71af89775569e871d18ef60e5200f22c9699a9
     Signed-off-by: Michael Still <mikal@stillhq.com>
 
 diff --git a/ansible/site.yml b/ansible/site.yml
-index b3e06de..40e956a 100644
+index ae5f281cb..ad963e513 100644
 --- a/ansible/site.yml
 +++ b/ansible/site.yml
-@@ -110,10 +110,11 @@
+@@ -121,10 +121,11 @@
      {{ fluentd_max_fail_percentage |
         default(kolla_max_fail_percentage) |
         default(100) }}

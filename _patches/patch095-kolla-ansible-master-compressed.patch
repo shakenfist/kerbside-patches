@@ -1,13 +1,14 @@
-commit 6e54f2c8a251724199c53913253fb4bec2f20175
+commit 953c7140fb32a1e48a064e3138260be8e6614aa3
 Author: Michael Still <mikal@stillhq.com>
-Date:   Mon Oct 13 09:03:20 2025 +1100
+Date:   Fri Nov 21 10:43:02 2025 +1100
 
     Deploy Kerbside with Kolla-Ansible.
     
+    Change-Id: I73a7a0b521085fd4023b08ab6f8a137d53a8712a
     Signed-off-by: Michael Still <mikal@stillhq.com>
 
 diff --git a/ansible/certificates.yml b/ansible/certificates.yml
-index 772aa2f..04cbc87 100644
+index 772aa2f5c..04cbc8759 100644
 --- a/ansible/certificates.yml
 +++ b/ansible/certificates.yml
 @@ -3,7 +3,8 @@
@@ -22,7 +23,7 @@ index 772aa2f..04cbc87 100644
    hosts: localhost
 diff --git a/ansible/group_vars/all/kerbside.yml b/ansible/group_vars/all/kerbside.yml
 new file mode 100644
-index 0000000..f83365f
+index 000000000..f83365f2b
 --- /dev/null
 +++ b/ansible/group_vars/all/kerbside.yml
 @@ -0,0 +1,16 @@
@@ -43,7 +44,7 @@ index 0000000..f83365f
 +kerbside_safety_upgrade: "no"
 +kerbside_enable_tls_backend: "yes"
 diff --git a/ansible/inventory/all-in-one b/ansible/inventory/all-in-one
-index 1d47ec7..29043a3 100644
+index fbd2664ec..f392739a3 100644
 --- a/ansible/inventory/all-in-one
 +++ b/ansible/inventory/all-in-one
 @@ -18,6 +18,9 @@ localhost       ansible_connection=local
@@ -72,7 +73,7 @@ index 1d47ec7..29043a3 100644
  
  [hacluster:children]
  control
-@@ -230,6 +235,16 @@ nova
+@@ -226,6 +231,16 @@ nova
  [nova-serialproxy:children]
  nova
  
@@ -90,7 +91,7 @@ index 1d47ec7..29043a3 100644
  [ironic-neutron-agent:children]
  neutron
 diff --git a/ansible/inventory/multinode b/ansible/inventory/multinode
-index 9c35be0..49b2abd 100644
+index f22d27072..d5fd051e8 100644
 --- a/ansible/inventory/multinode
 +++ b/ansible/inventory/multinode
 @@ -29,6 +29,10 @@ monitoring01
@@ -128,7 +129,7 @@ index 9c35be0..49b2abd 100644
  
  [hacluster:children]
  control
-@@ -248,6 +255,16 @@ nova
+@@ -244,6 +251,16 @@ nova
  [nova-serialproxy:children]
  nova
  
@@ -146,7 +147,7 @@ index 9c35be0..49b2abd 100644
  [ironic-neutron-agent:children]
  neutron
 diff --git a/ansible/nova.yml b/ansible/nova.yml
-index c41d854..659e104 100644
+index c41d85407..659e104dd 100644
 --- a/ansible/nova.yml
 +++ b/ansible/nova.yml
 @@ -20,6 +20,9 @@
@@ -211,7 +212,7 @@ index c41d854..659e104 100644
  # database.  This should be done once all cells have been upgraded.
  
 diff --git a/ansible/roles/certificates/defaults/main.yml b/ansible/roles/certificates/defaults/main.yml
-index 473bbb4..828729b 100644
+index 473bbb40d..828729b09 100644
 --- a/ansible/roles/certificates/defaults/main.yml
 +++ b/ansible/roles/certificates/defaults/main.yml
 @@ -4,8 +4,9 @@ external_dir: "{{ kolla_certificates_dir }}/private/external"
@@ -227,7 +228,7 @@ index 473bbb4..828729b 100644
 +certificates_libvirt_output_dir: "{{ node_custom_config }}/nova/nova-libvirt"
 \ No newline at end of file
 diff --git a/ansible/roles/certificates/tasks/main.yml b/ansible/roles/certificates/tasks/main.yml
-index e0aa890..a79282a 100644
+index e0aa89098..a79282ac7 100644
 --- a/ansible/roles/certificates/tasks/main.yml
 +++ b/ansible/roles/certificates/tasks/main.yml
 @@ -3,6 +3,6 @@
@@ -242,7 +243,7 @@ index e0aa890..a79282a 100644
 \ No newline at end of file
 diff --git a/ansible/roles/certificates/templates/openssl-kolla-kerbside.cnf.j2 b/ansible/roles/certificates/templates/openssl-kolla-kerbside.cnf.j2
 new file mode 100644
-index 0000000..ab2aed9
+index 000000000..ab2aed98b
 --- /dev/null
 +++ b/ansible/roles/certificates/templates/openssl-kolla-kerbside.cnf.j2
 @@ -0,0 +1,19 @@
@@ -267,7 +268,7 @@ index 0000000..ab2aed9
 +IP.2 = {{ kolla_external_vip_address }}
 \ No newline at end of file
 diff --git a/ansible/roles/common/templates/admin-openrc.sh.j2 b/ansible/roles/common/templates/admin-openrc.sh.j2
-index 3672106..5d31baa 100644
+index 367210639..5d31baaa0 100644
 --- a/ansible/roles/common/templates/admin-openrc.sh.j2
 +++ b/ansible/roles/common/templates/admin-openrc.sh.j2
 @@ -23,3 +23,6 @@ export OS_AUTH_PLUGIN='password'
@@ -279,10 +280,10 @@ index 3672106..5d31baa 100644
 +{% endif %}
 \ No newline at end of file
 diff --git a/ansible/roles/fluentd/templates/conf/filter/01-rewrite.conf.j2 b/ansible/roles/fluentd/templates/conf/filter/01-rewrite.conf.j2
-index c8e35c8..bd62efb 100644
+index 66a1897a2..9d1897309 100644
 --- a/ansible/roles/fluentd/templates/conf/filter/01-rewrite.conf.j2
 +++ b/ansible/roles/fluentd/templates/conf/filter/01-rewrite.conf.j2
-@@ -146,6 +146,11 @@
+@@ -141,6 +141,11 @@
      pattern ^(skyline)$
      tag openstack_python
    </rule>
@@ -296,7 +297,7 @@ index c8e35c8..bd62efb 100644
      pattern .+
 diff --git a/ansible/roles/kerbside/defaults/main.yml b/ansible/roles/kerbside/defaults/main.yml
 new file mode 100644
-index 0000000..5d32a74
+index 000000000..5d32a74fa
 --- /dev/null
 +++ b/ansible/roles/kerbside/defaults/main.yml
 @@ -0,0 +1,157 @@
@@ -459,7 +460,7 @@ index 0000000..5d32a74
 +kerbside_wsgi_provider: "uwsgi"
 diff --git a/ansible/roles/kerbside/files/kerbside_alembic_wrapper b/ansible/roles/kerbside/files/kerbside_alembic_wrapper
 new file mode 100644
-index 0000000..3700589
+index 000000000..370058959
 --- /dev/null
 +++ b/ansible/roles/kerbside/files/kerbside_alembic_wrapper
 @@ -0,0 +1,4 @@
@@ -470,7 +471,7 @@ index 0000000..3700589
 \ No newline at end of file
 diff --git a/ansible/roles/kerbside/handlers/main.yml b/ansible/roles/kerbside/handlers/main.yml
 new file mode 100644
-index 0000000..4fba79d
+index 000000000..4fba79d9f
 --- /dev/null
 +++ b/ansible/roles/kerbside/handlers/main.yml
 @@ -0,0 +1,36 @@
@@ -512,7 +513,7 @@ index 0000000..4fba79d
 +    - kolla_action != "upgrade" or not kerbside_safety_upgrade | bool
 diff --git a/ansible/roles/kerbside/tasks/bootstrap.yml b/ansible/roles/kerbside/tasks/bootstrap.yml
 new file mode 100644
-index 0000000..e952e48
+index 000000000..e952e484a
 --- /dev/null
 +++ b/ansible/roles/kerbside/tasks/bootstrap.yml
 @@ -0,0 +1,54 @@
@@ -573,7 +574,7 @@ index 0000000..e952e48
 \ No newline at end of file
 diff --git a/ansible/roles/kerbside/tasks/bootstrap_service.yml b/ansible/roles/kerbside/tasks/bootstrap_service.yml
 new file mode 100644
-index 0000000..73a6895
+index 000000000..73a689539
 --- /dev/null
 +++ b/ansible/roles/kerbside/tasks/bootstrap_service.yml
 @@ -0,0 +1,20 @@
@@ -600,7 +601,7 @@ index 0000000..73a6895
 \ No newline at end of file
 diff --git a/ansible/roles/kerbside/tasks/check-containers.yml b/ansible/roles/kerbside/tasks/check-containers.yml
 new file mode 100644
-index 0000000..b7e2f7c
+index 000000000..b7e2f7c29
 --- /dev/null
 +++ b/ansible/roles/kerbside/tasks/check-containers.yml
 @@ -0,0 +1,3 @@
@@ -609,7 +610,7 @@ index 0000000..b7e2f7c
 +    name: service-check-containers
 diff --git a/ansible/roles/kerbside/tasks/config.yml b/ansible/roles/kerbside/tasks/config.yml
 new file mode 100644
-index 0000000..a3c4d5d
+index 000000000..a3c4d5ddb
 --- /dev/null
 +++ b/ansible/roles/kerbside/tasks/config.yml
 @@ -0,0 +1,164 @@
@@ -780,7 +781,7 @@ index 0000000..a3c4d5d
 \ No newline at end of file
 diff --git a/ansible/roles/kerbside/tasks/copy-certs.yml b/ansible/roles/kerbside/tasks/copy-certs.yml
 new file mode 100644
-index 0000000..6b731cd
+index 000000000..6b731cde8
 --- /dev/null
 +++ b/ansible/roles/kerbside/tasks/copy-certs.yml
 @@ -0,0 +1,6 @@
@@ -793,7 +794,7 @@ index 0000000..6b731cd
 \ No newline at end of file
 diff --git a/ansible/roles/kerbside/tasks/deploy.yml b/ansible/roles/kerbside/tasks/deploy.yml
 new file mode 100644
-index 0000000..ca3509a
+index 000000000..ca3509aff
 --- /dev/null
 +++ b/ansible/roles/kerbside/tasks/deploy.yml
 @@ -0,0 +1,7 @@
@@ -806,7 +807,7 @@ index 0000000..ca3509a
 +  meta: flush_handlers
 diff --git a/ansible/roles/kerbside/tasks/loadbalancer.yml b/ansible/roles/kerbside/tasks/loadbalancer.yml
 new file mode 100644
-index 0000000..0699d89
+index 000000000..0699d8962
 --- /dev/null
 +++ b/ansible/roles/kerbside/tasks/loadbalancer.yml
 @@ -0,0 +1,7 @@
@@ -819,7 +820,7 @@ index 0000000..0699d89
 +  tags: always
 diff --git a/ansible/roles/kerbside/tasks/main.yml b/ansible/roles/kerbside/tasks/main.yml
 new file mode 100644
-index 0000000..37171d5
+index 000000000..37171d53b
 --- /dev/null
 +++ b/ansible/roles/kerbside/tasks/main.yml
 @@ -0,0 +1,2 @@
@@ -828,7 +829,7 @@ index 0000000..37171d5
 \ No newline at end of file
 diff --git a/ansible/roles/kerbside/tasks/precheck.yml b/ansible/roles/kerbside/tasks/precheck.yml
 new file mode 100644
-index 0000000..47032ad
+index 000000000..47032adf8
 --- /dev/null
 +++ b/ansible/roles/kerbside/tasks/precheck.yml
 @@ -0,0 +1,131 @@
@@ -966,7 +967,7 @@ index 0000000..47032ad
 \ No newline at end of file
 diff --git a/ansible/roles/kerbside/tasks/pull.yml b/ansible/roles/kerbside/tasks/pull.yml
 new file mode 100644
-index 0000000..53f9c5f
+index 000000000..53f9c5fda
 --- /dev/null
 +++ b/ansible/roles/kerbside/tasks/pull.yml
 @@ -0,0 +1,3 @@
@@ -975,7 +976,7 @@ index 0000000..53f9c5f
 +    role: service-images-pull
 diff --git a/ansible/roles/kerbside/tasks/reload.yml b/ansible/roles/kerbside/tasks/reload.yml
 new file mode 100644
-index 0000000..70b1188
+index 000000000..70b118827
 --- /dev/null
 +++ b/ansible/roles/kerbside/tasks/reload.yml
 @@ -0,0 +1,23 @@
@@ -1004,7 +1005,7 @@ index 0000000..70b1188
 +    - kerbside-proxy
 diff --git a/ansible/roles/kerbside/tasks/upgrade.yml b/ansible/roles/kerbside/tasks/upgrade.yml
 new file mode 100644
-index 0000000..a742b40
+index 000000000..a742b4055
 --- /dev/null
 +++ b/ansible/roles/kerbside/tasks/upgrade.yml
 @@ -0,0 +1,2 @@
@@ -1013,7 +1014,7 @@ index 0000000..a742b40
 \ No newline at end of file
 diff --git a/ansible/roles/kerbside/templates/kerbside-wsgi.conf.j2 b/ansible/roles/kerbside/templates/kerbside-wsgi.conf.j2
 new file mode 100644
-index 0000000..d63e2f2
+index 000000000..d63e2f216
 --- /dev/null
 +++ b/ansible/roles/kerbside/templates/kerbside-wsgi.conf.j2
 @@ -0,0 +1,37 @@
@@ -1056,7 +1057,7 @@ index 0000000..d63e2f2
 +</VirtualHost>
 diff --git a/ansible/roles/kerbside/templates/kerbside.ini.j2 b/ansible/roles/kerbside/templates/kerbside.ini.j2
 new file mode 100644
-index 0000000..62b080b
+index 000000000..62b080b34
 --- /dev/null
 +++ b/ansible/roles/kerbside/templates/kerbside.ini.j2
 @@ -0,0 +1,34 @@
@@ -1097,7 +1098,7 @@ index 0000000..62b080b
 \ No newline at end of file
 diff --git a/ansible/roles/kerbside/templates/kerbside_api.json.j2 b/ansible/roles/kerbside/templates/kerbside_api.json.j2
 new file mode 100644
-index 0000000..c120afd
+index 000000000..c120afde1
 --- /dev/null
 +++ b/ansible/roles/kerbside/templates/kerbside_api.json.j2
 @@ -0,0 +1,54 @@
@@ -1157,7 +1158,7 @@ index 0000000..c120afd
 +}
 diff --git a/ansible/roles/kerbside/templates/kerbside_bootstrap.json.j2 b/ansible/roles/kerbside/templates/kerbside_bootstrap.json.j2
 new file mode 100644
-index 0000000..389245c
+index 000000000..389245c32
 --- /dev/null
 +++ b/ansible/roles/kerbside/templates/kerbside_bootstrap.json.j2
 @@ -0,0 +1,24 @@
@@ -1187,7 +1188,7 @@ index 0000000..389245c
 +}
 diff --git a/ansible/roles/kerbside/templates/kerbside_proxy.json.j2 b/ansible/roles/kerbside/templates/kerbside_proxy.json.j2
 new file mode 100644
-index 0000000..f3b9167
+index 000000000..f3b9167d8
 --- /dev/null
 +++ b/ansible/roles/kerbside/templates/kerbside_proxy.json.j2
 @@ -0,0 +1,42 @@
@@ -1235,7 +1236,7 @@ index 0000000..f3b9167
 +}
 diff --git a/ansible/roles/kerbside/templates/kerbside_sources.yaml.j2 b/ansible/roles/kerbside/templates/kerbside_sources.yaml.j2
 new file mode 100644
-index 0000000..225bb0b
+index 000000000..225bb0bef
 --- /dev/null
 +++ b/ansible/roles/kerbside/templates/kerbside_sources.yaml.j2
 @@ -0,0 +1,21 @@
@@ -1263,14 +1264,14 @@ index 0000000..225bb0b
 \ No newline at end of file
 diff --git a/ansible/roles/kerbside/vars/main.yml b/ansible/roles/kerbside/vars/main.yml
 new file mode 100644
-index 0000000..fce52d4
+index 000000000..fce52d4de
 --- /dev/null
 +++ b/ansible/roles/kerbside/vars/main.yml
 @@ -0,0 +1,2 @@
 +---
 +project_name: "kerbside"
 diff --git a/ansible/roles/nova-cell/templates/nova.conf.j2 b/ansible/roles/nova-cell/templates/nova.conf.j2
-index 8da5e6b..2e9992a 100644
+index 8da5e6b66..2e9992a3b 100644
 --- a/ansible/roles/nova-cell/templates/nova.conf.j2
 +++ b/ansible/roles/nova-cell/templates/nova.conf.j2
 @@ -71,6 +71,7 @@ zlib_compression = {{ nova_spice_zlib_compression }}
@@ -1282,7 +1283,7 @@ index 8da5e6b..2e9992a 100644
  {% if inventory_hostname in groups[nova_cell_compute_group] %}
  html5proxy_base_url = {{ nova_spicehtml5proxy_fqdn | kolla_url(public_protocol, nova_spicehtml5proxy_public_port, '/spice_auto.html') }}
 diff --git a/ansible/roles/nova/defaults/main.yml b/ansible/roles/nova/defaults/main.yml
-index dec9d06..cb7feb1 100644
+index dec9d0614..cb7feb11f 100644
 --- a/ansible/roles/nova/defaults/main.yml
 +++ b/ansible/roles/nova/defaults/main.yml
 @@ -224,7 +224,6 @@ nova_super_conductor_extra_volumes: "{{ nova_extra_volumes }}"
@@ -1301,7 +1302,7 @@ index dec9d06..cb7feb1 100644
 +nova_wsgi_provider: "uwsgi"
 \ No newline at end of file
 diff --git a/ansible/roles/nova/handlers/main.yml b/ansible/roles/nova/handlers/main.yml
-index 917113c..59a7bdc 100644
+index 917113c2d..59a7bdc49 100644
 --- a/ansible/roles/nova/handlers/main.yml
 +++ b/ansible/roles/nova/handlers/main.yml
 @@ -65,4 +65,4 @@
@@ -1312,7 +1313,7 @@ index 917113c..59a7bdc 100644
 +    - kolla_action != "upgrade" or not nova_safety_upgrade | bool
 \ No newline at end of file
 diff --git a/ansible/site.yml b/ansible/site.yml
-index 411d938..b44cbec 100644
+index ad963e513..f5a14d4ac 100644
 --- a/ansible/site.yml
 +++ b/ansible/site.yml
 @@ -42,6 +42,7 @@
@@ -1323,7 +1324,7 @@ index 411d938..b44cbec 100644
          - enable_keystone_{{ enable_keystone | bool }}
          - enable_kuryr_{{ enable_kuryr | bool }}
          - enable_letsencrypt_{{ enable_letsencrypt | bool }}
-@@ -231,6 +232,11 @@
+@@ -230,6 +231,11 @@
              tasks_from: loadbalancer
            tags: keystone
            when: enable_keystone | bool
@@ -1336,7 +1337,7 @@ index 411d938..b44cbec 100644
              name: letsencrypt
              tasks_from: loadbalancer
 diff --git a/etc/kolla/passwords.yml b/etc/kolla/passwords.yml
-index 8647dd9..0f2ba30 100644
+index 1120754a8..c42395908 100644
 --- a/etc/kolla/passwords.yml
 +++ b/etc/kolla/passwords.yml
 @@ -60,6 +60,10 @@ glance_keystone_password:
@@ -1351,10 +1352,10 @@ index 8647dd9..0f2ba30 100644
  
  nova_database_password:
 diff --git a/tests/templates/inventory.j2 b/tests/templates/inventory.j2
-index ca98719..1b75a9b 100644
+index 8441d825e..c8c496709 100644
 --- a/tests/templates/inventory.j2
 +++ b/tests/templates/inventory.j2
-@@ -299,6 +299,9 @@ nova
+@@ -300,6 +300,9 @@ nova
  [nova-serialproxy:children]
  nova
  

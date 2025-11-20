@@ -11,3 +11,4 @@ the nova_libvirt container.
 
 Partially-Implements: #2131793 (spice-direct consoles)
 Change-Id: I4306725fb8433860baec8e01c51e9eae2beb3cc9
+Signed-off-by: Michael Still <mikal@stillhq.com>
