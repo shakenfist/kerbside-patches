@@ -5,13 +5,15 @@ Author: Michael Still <mikal@stillhq.com>
 
     The nova_spice_require_secure configuration option requires clients
     to connect to SPICE consoles using channels secured by TLS. The
-    default is no to match the previous behaviour of allowing insecure
-    channels. This configuration option depends on a not yet contributed
-    patch to OpenStack Compute.
+    default is `no` to match the previous behaviour of allowing insecure
+    channels.
 
     Note that nova_spice_require_secure implies that qemu is configured
     to support TLS, and that TLS certificates have been configured in
     the nova_libvirt container.
+
+    Signed-off-by: Michael Still <mikal@stillhq.com>
+    Partially-Implements: #2131793 (spice-direct consoles)
 
 diff --git a/ansible/group_vars/all/nova.yml b/ansible/group_vars/all/nova.yml
 index 3be5ee7..17131a1 100644

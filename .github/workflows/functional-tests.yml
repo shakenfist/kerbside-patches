@@ -327,6 +327,13 @@ jobs:
           echo "State of source..."
           ls -lrt
 
+          echo
+          echo "Copy source to target node..."
+          scp -rp -i /srv/github/id_ci -o StrictHostKeyChecking=no \
+              -o UserKnownHostsFile=/dev/null \
+              /srv/shakenfist/kerbside-patches/src \
+              ${{ matrix.test.baseuser }}@10.0.2.2:/srv/shakenfist/kerbside-patches/
+
       - name: Bootstrap Kolla-Ansible
         env:
           CI_REGISTRY_TOKEN: ${{ secrets.CI_REGISTRY_TOKEN }}
@@ -335,8 +342,8 @@ jobs:
 
           script="cd /srv/shakenfist/kerbside-patches;"
           script="${script} sudo ./tools/bootstrap-kolla-ansible"
-              script="${script} --registry-token  ${CI_REGISTRY_TOKEN}"
-              script="${script} --image-tag  ${{ steps.incoming.image_tag }}"
+              script="${script} --registry-token ${CI_REGISTRY_TOKEN}"
+              script="${script} --image-tag ${{ steps.incoming.image_tag }}"
               script="${script} --build-targets ${{ matrix.test.release }}"
               script="${script} --topology ${{ matrix.test.topology }};"
           

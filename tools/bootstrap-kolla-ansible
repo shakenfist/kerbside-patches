@@ -17,6 +17,11 @@ echo -e "${H1}Topology: ${topology}${Color_Off}"
 echo -e "${H1}Registry token: ${registry_token}${Color_Off}"
 echo -e "${H1}==================================================${Color_Off}"
 
+echo -e "${H2}Log state of source${Color_Off}"
+cd ${topsrcdir}
+ls -lrth
+echo
+
 echo -e "${H2}Make venv for '${ID}' distro${Color_Off}"
 if [ "${ID}" == "rocky" ]; then
     echo "Install missing Rocky dependencies."
@@ -53,6 +58,11 @@ echo
 
 echo -e "${H2}Install docker python libraries${Color_Off}"
 pip3 install docker
+echo
+
+echo -e "${H2}Log state of source${Color_Off}"
+cd ${topsrcdir}
+ls -lrth
 echo
 
 echo -e "${H2}Install patched Kolla-Ansible${Color_Off}"
