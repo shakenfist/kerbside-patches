@@ -1,27 +1,28 @@
-commit 58390a932f8508f7f24a934ceb766ec7d7271d80
+commit 494e88a6ea8ce2e5be7acba7ad7cbb544024d9ec
 Author: Michael Still <mikal@stillhq.com>
+Date:   Fri Nov 21 10:41:32 2025 +1100
 
     Use a routable IP for qemu SPICE consoles.
-
+    
     We currently do this is the SPICE HTML5 transcoding
     proxy, but spice-direct consoles need it as well. We
     should therefore simply always configure it.
-
+    
     Partially-Implements: #2131793 (spice-direct consoles)
     Change-Id: Ic88a58d974b71e38bc91fd7dee9eef38a0bacb87
+    Signed-off-by: Michael Still <mikal@stillhq.com>
 
 diff --git a/ansible/roles/nova-cell/templates/nova.conf.j2 b/ansible/roles/nova-cell/templates/nova.conf.j2
-index 2dec39c9d..b23bbe23b 100644
+index 1f1d7aacc..991f9ed1f 100644
 --- a/ansible/roles/nova-cell/templates/nova.conf.j2
 +++ b/ansible/roles/nova-cell/templates/nova.conf.j2
-@@ -69,8 +69,8 @@ jpeg_compression = {{ nova_spice_jpeg_compression }}
+@@ -67,8 +67,8 @@ jpeg_compression = {{ nova_spice_jpeg_compression }}
  zlib_compression = {{ nova_spice_zlib_compression }}
  playback_compression = {{ nova_spice_playback_compression | bool | lower }}
  streaming_mode = {{ nova_spice_streaming_mode }}
--{% if nova_spice_html5 == 'yes' %}
--server_proxyclient_address = {{ api_interface_address }}
 +server_proxyclient_address = "{{ 'api' | kolla_address }}"
-+{% if nova_spice_html5 == 'yes' %}
+ {% if nova_spice_html5 == 'yes' %}
+-server_proxyclient_address = {{ api_interface_address }}
  {% if inventory_hostname in groups[nova_cell_compute_group] %}
  html5proxy_base_url = {{ nova_spicehtml5proxy_fqdn | kolla_url(public_protocol, nova_spicehtml5proxy_public_port, '/spice_auto.html') }}
  {% endif %}

@@ -35,6 +35,9 @@ skip_unit_tests="false"
 # Should we skip tests entirely?
 skip_tests="false"
 
+# Should we rewrite the patch file to match what was applied?
+update_patches="false"
+
 # Should we use the CI environment's OCI registry to avoid rebuilding images?
 use_ci_patches="false"
 use_ci_registry="false"
@@ -154,6 +157,12 @@ while [[ ${found_arg} -gt 0 ]]; do
             shift; shift
             found_arg=1
 	        ;;
+        --update-patches)
+            export update_patches="true"
+            echo "Will update patches to match what was applied."
+            shift
+            found_arg=1
+            ;;
         -*|--*)
             echo "Unknown option $1"
             exit 1

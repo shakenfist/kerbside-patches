@@ -127,6 +127,11 @@ if [ -e ${project}/PREPATCH ]; then
         git commit -s -a --file ${topdir}/${project}/${patch}-message
         echo
 
+        if [ "${update_patches}" == "true" ]; then
+            echo -e "${H3}Update patch with what was applied${Color_Off}"
+            git show > ${topdir}/${project}/${patch}
+        fi
+
         popd > /dev/null
     done
 fi
@@ -161,16 +166,19 @@ do
         exit 1
     fi
 
-    if [ ! -e ${topdir}/${project}/${patch}-message ]; then
-        echo -e "${H3}Extracting commit message from ${topdir}/${project}/${patch}${Color_Off}"
-        python3 ${topdir}/tools/extract-commit-message ${topdir}/${project}/${patch}
-    fi
+    echo -e "${H3}Extracting commit message from ${topdir}/${project}/${patch}${Color_Off}"
+    python3 ${topdir}/tools/extract-commit-message ${topdir}/${project}/${patch}
 
     git commit -s -a --file ${topdir}/${project}/${patch}-message
     echo
 
     if [ "${defer_tests}" != "true" ]; then
         run_tests ${repo} ${source_branch} ${shortpatch}
+    fi
+
+    if [ "${update_patches}" == "true" ]; then
+        echo -e "${H3}Update patch with what was applied${Color_Off}"
+        git show > ${topdir}/${project}/${patch}
     fi
 
     popd > /dev/null
@@ -199,16 +207,19 @@ if [ ${use_ci_patches} == "true" ]; then
                 exit 1
             fi
 
-            if [ ! -e ${topdir}/${project}/${patch}-message ]; then
-                echo -e "${H3}Extracting commit message from ${topdir}/${project}/${patch}${Color_Off}"
-                python3 ${topdir}/tools/extract-commit-message ${topdir}/${project}/${patch}
-            fi
+            echo -e "${H3}Extracting commit message from ${topdir}/${project}/${patch}${Color_Off}"
+            python3 ${topdir}/tools/extract-commit-message ${topdir}/${project}/${patch}
 
             git commit -s -a --file ${topdir}/${project}/${patch}-message
             echo
 
             if [ "${defer_tests}" != "true" ]; then
                 run_tests ${repo} ${source_branch} ${shortpatch}
+            fi
+
+            if [ "${update_patches}" == "true" ]; then
+                echo -e "${H3}Update patch with what was applied${Color_Off}"
+                git show > ${topdir}/${project}/${patch}
             fi
 
             popd > /dev/null

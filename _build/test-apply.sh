@@ -15,6 +15,9 @@ fi
 if [ ${use_ci_registry} == "true" ]; then
     extra="${extra} --use-ci-registry"
 fi
+if [ ${update_patches} == "true" ]; then
+    extra="${extra} --update-patches"
+fi
 
 for project in ${@}; do
     ./_build/apply-patches-and-test.sh ${extra} ${project}
