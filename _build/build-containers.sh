@@ -104,16 +104,11 @@ for target in ${build_targets}; do
             echo -e "${H2}Pushing to the CI registry${Color_Off}"
             for image in $(docker image list --format json | \
                 jq --slurp -r ".[] | select(.Tag == \"${complete_image_tag}\") | .Repository"); do
+                registry_image=$(echo ${image} | sed 's/^kolla\///')
                 echo -e "    ${image}:${complete_image_tag} ${Arrow} ${ci_registry}/${registry_project}/${image}:${complete_image_tag}"
                 docker image tag ${image}:${complete_image_tag} \
-                    ${ci_registry}/${registry_project}/${image}:${complete_image_tag}
-                docker image push \
-                    ${ci_registry}/${registry_project}/${image}:${complete_image_tag}
-
-                echo -e "    ${image}:${complete_image_tag} ${Arrow} ${ci_registry}/${registry_project}/${image}:${complete_image_tag}"
-                docker image tag ${image}:${complete_image_tag} \
-                    ${ci_registry}/${registry_project}/${image}:${complete_image_tag}
-                docker image push ${ci_registry}/${registry_project}/${image}:${complete_image_tag}
+                    ${ci_registry}/${registry_project}/${registry_image}:${complete_image_tag}
+                docker image push ${ci_registry}/${registry_project}/${registry_image}:${complete_image_tag}
             done
         fi
     fi
