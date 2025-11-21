@@ -325,7 +325,7 @@ jobs:
           echo
           echo "Using that source to bootstrap kerbside-patches src directory..."
           sudo mkdir -p /srv/shakenfist/kerbside-patches/src
-          sudo chown -R ${{ matrix.test.baseuser }}:${{ matrix.test.baseuser }} /srv/shakenfist
+          sudo chown -R debian:debian /srv/shakenfist
           cd /srv/shakenfist/kerbside-patches/src
           find ${artifact_dir}/bundle/*.tgz -name "*.tgz" -print -exec tar xzf {} \; -exec echo \;
 
