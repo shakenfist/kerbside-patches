@@ -378,14 +378,6 @@ jobs:
               echo
           done
 
-      - name: Pull images
-        run: |
-          . $GITHUB_ENV
-          ssh -i /srv/github/id_ci -o StrictHostKeyChecking=no \
-              -o UserKnownHostsFile=/dev/null \
-              ${{ matrix.test.baseuser }}@10.0.2.2 \
-              'cd /srv/shakenfist/kerbside-patches; sudo ./tools/ka pull -i /etc/kolla/inventory'
-
       - name: Run pre-checks
         run: |
           . $GITHUB_ENV
@@ -393,6 +385,14 @@ jobs:
               -o UserKnownHostsFile=/dev/null \
               ${{ matrix.test.baseuser }}@10.0.2.2 \
               'cd /srv/shakenfist/kerbside-patches; sudo ./tools/ka prechecks -i /etc/kolla/inventory'
+
+      - name: Pull images
+        run: |
+          . $GITHUB_ENV
+          ssh -i /srv/github/id_ci -o StrictHostKeyChecking=no \
+              -o UserKnownHostsFile=/dev/null \
+              ${{ matrix.test.baseuser }}@10.0.2.2 \
+              'cd /srv/shakenfist/kerbside-patches; sudo ./tools/ka pull -i /etc/kolla/inventory'
 
       - name: Deploy
         run: |
