@@ -1,6 +1,6 @@
-commit db877aaa9311e37cc0b9fd6865a5e16d36c98f74
+commit 5a9973c383f4b94d56b3b51ceb90166c97615809
 Author: Michael Still <mikal@stillhq.com>
-Date:   Fri Nov 21 10:43:02 2025 +1100
+Date:   Fri Nov 21 12:46:44 2025 +1100
 
     Make fluentd optional.
     

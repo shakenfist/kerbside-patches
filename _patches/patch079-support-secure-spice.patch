@@ -1,6 +1,6 @@
-commit 28e87502988de738c8863cb180dc453c21c20cfb
+commit 2d98616142d0632b3898896724969b577e829a40
 Author: Michael Still <mikal@stillhq.com>
-Date:   Fri Nov 21 10:43:09 2025 +1100
+Date:   Fri Nov 21 12:42:22 2025 +1100
 
     Allow requiring secure channels with SPICE.
     

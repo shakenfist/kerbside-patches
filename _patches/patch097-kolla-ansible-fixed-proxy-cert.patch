@@ -1,6 +1,6 @@
-commit 0d110831f4d3f2115d922399bf419414c34ab7c1
+commit 8e4f9b8ce559f20caa7ae00a1e5bf2be7881576a
 Author: Michael Still <mikal@stillhq.com>
-Date:   Fri Nov 21 10:43:02 2025 +1100
+Date:   Fri Nov 21 17:35:00 2025 +1100
 
     Fix kerbside proxy certificate.
     
@@ -78,7 +78,7 @@ index 000000000..dafd60540
 +    dest: "{{ kolla_certificates_dir }}/kerbside-key.pem"
 +    mode: "0660"
 diff --git a/ansible/roles/certificates/tasks/main.yml b/ansible/roles/certificates/tasks/main.yml
-index a79282ac7..7196b81fe 100644
+index fc755bbe6..465e5ee02 100644
 --- a/ansible/roles/certificates/tasks/main.yml
 +++ b/ansible/roles/certificates/tasks/main.yml
 @@ -4,5 +4,8 @@
@@ -90,4 +90,3 @@ index a79282ac7..7196b81fe 100644
 +    - enable_kerbside | bool
  - include_tasks: generate-libvirt.yml
    when: certificates_generate_libvirt | bool
-\ No newline at end of file
