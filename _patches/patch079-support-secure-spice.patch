@@ -1,6 +1,6 @@
-commit 2d98616142d0632b3898896724969b577e829a40
+commit 3224834b491a5fa4b2455aaf028d527bcd31e242
 Author: Michael Still <mikal@stillhq.com>
-Date:   Fri Nov 21 12:42:22 2025 +1100
+Date:   Sat Nov 22 06:48:50 2025 +1100
 
     Allow requiring secure channels with SPICE.
     
@@ -68,7 +68,7 @@ index 991f9ed1f..a4cccee29 100644
  image_compression = {{ nova_spice_image_compression }}
  jpeg_compression = {{ nova_spice_jpeg_compression }}
 diff --git a/ansible/roles/nova-cell/templates/qemu.conf.j2 b/ansible/roles/nova-cell/templates/qemu.conf.j2
-index 82ecd7f23..e65785391 100644
+index 82ecd7f23..e6a1d912b 100644
 --- a/ansible/roles/nova-cell/templates/qemu.conf.j2
 +++ b/ansible/roles/nova-cell/templates/qemu.conf.j2
 @@ -5,3 +5,8 @@ group = "nova"
@@ -76,7 +76,7 @@ index 82ecd7f23..e65785391 100644
  max_files =  {{ qemu_max_files }}
  max_processes =  {{ qemu_max_processes }}
 +
-+{% if nova_spice_require_secure == 'yes' %}
++{% if nova_spice_require_secure | bool %}
 +spice_tls = 1
 +spice_tls_x509_cert_dir = "/etc/pki/libvirt-spice"
 +{% endif %}

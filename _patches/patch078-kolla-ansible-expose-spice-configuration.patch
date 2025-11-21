@@ -1,6 +1,6 @@
-commit 7286faf46b5e96928c843f3c105db5766242d871
+commit 11366a977c4ece452cfe15e541f332a6ce00af52
 Author: Michael Still <mikal@stillhq.com>
-Date:   Fri Nov 21 12:39:25 2025 +1100
+Date:   Sat Nov 22 06:48:50 2025 +1100
 
     Add additional SPICE configuration options.
     
@@ -63,7 +63,7 @@ index 48811be62..3be5ee73b 100644
 +nova_spice_playback_compression: "yes"
 +nova_spice_streaming_mode: "filter"
 diff --git a/ansible/roles/loadbalancer/tasks/precheck.yml b/ansible/roles/loadbalancer/tasks/precheck.yml
-index 7d4fc4bbf..8680c33b5 100644
+index cdb211f32..20f6e36e6 100644
 --- a/ansible/roles/loadbalancer/tasks/precheck.yml
 +++ b/ansible/roles/loadbalancer/tasks/precheck.yml
 @@ -604,6 +604,7 @@

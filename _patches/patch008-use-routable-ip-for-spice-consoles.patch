@@ -1,6 +1,6 @@
-commit 5412f911822dd5b1990118e79ae0839ae6b24447
+commit 0ce87d599c63f75e66c7cb97e937ccefa4596294
 Author: Michael Still <mikal@stillhq.com>
-Date:   Fri Nov 21 12:40:55 2025 +1100
+Date:   Sat Nov 22 06:48:50 2025 +1100
 
     Use a routable IP for qemu SPICE consoles.
     
