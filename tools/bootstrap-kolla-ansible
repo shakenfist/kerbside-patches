@@ -75,10 +75,16 @@ export PATH=$PATH:/usr/local/bin
 kolla-ansible install-deps
 echo
 
-echo -e "${H2}Bootstrap inventory for ${topology} {$target_release}${Color_Off}"
+echo -e "${H2}Bootstrap inventory for topology ${topology} running ${target_release}${Color_Off}"
 mkdir -p /etc/kolla
 cp -r etc/kolla /etc/
 cd "${topdir}"
+if [ ! -e etc/inventory-${topology}-${target_release} ]; then
+    echo "Looked for inventory etc/inventory-${topology}-${target_release}"
+    echo "Inventory file missing!"
+    exit 1
+fi
+
 cat etc/inventory-${topology}-${target_release} | \
         sed "s|USER|${SUDO_USER}|g" \
         > /etc/kolla/inventory
@@ -87,7 +93,7 @@ echo
 echo -e "${H2}Copy globals.yml${Color_Off}"
 cat etc/globals-${target_release}.yml | \
     sed "s/DOCKER_REGISTRY_TOKEN/${registry_token}/" | \
-    sed "s/IMAGE_TAG/${image_tag}/"
+    sed "s/IMAGE_TAG/${image_tag}/" \
     > /etc/kolla/globals.yml
 echo
 

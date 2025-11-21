@@ -179,7 +179,7 @@ jobs:
       - uses: actions/upload-artifact@v4
         if: success()
         with:
-          name: result-${{ matrix.test.release }}-${{ matrix.test.container_distro }}
+          name: buildresult-${{ matrix.test.release }}-${{ matrix.test.container_distro }}
           retention-days: 14
           if-no-files-found: error
           path: /tmp/result.json
@@ -199,7 +199,7 @@ jobs:
         run: |
           # Collect all results into a JSON array
           results="["
-          for dir in result-*/; do
+          for dir in buildresult-*/; do
             value=$(cat "${dir}result.json")
             results="${results}${value},"
           done
@@ -282,11 +282,11 @@ jobs:
 
           echo
           echo "Results specific to this job:"
-          cat result-${{ matrix.test.release }}-${{ matrix.test.container_distro }}/result.json | python3 -m json.tool
+          cat buildresult-${{ matrix.test.release }}-${{ matrix.test.container_distro }}/result.json | python3 -m json.tool
 
           echo
           echo "Export results specific to this job..."
-          image_tag=$(cat result-${{ matrix.test.release }}-${{ matrix.test.container_distro }}/result.json | jq -r .image_tag)
+          image_tag=$(cat buildresult-${{ matrix.test.release }}-${{ matrix.test.container_distro }}/result.json | jq -r .image_tag)
           echo "image_tag=${image_tag}" >> $GITHUB_OUTPUT
           echo "    image_tag is ${image_tag}"
 
