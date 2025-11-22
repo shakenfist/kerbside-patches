@@ -395,7 +395,7 @@ jobs:
               ssh -i /srv/github/id_ci -o StrictHostKeyChecking=no \
                   -o UserKnownHostsFile=/dev/null \
                   ${{ matrix.test.baseuser }}@${node_address} \
-                  "echo  | docker login 192.168.1.12:4000 --username kolla-imgs --password-stdin"
+                  "docker login 192.168.1.12:4000 --username kolla-imgs --password ${{ secrets.CI_REGISTRY_TOKEN }}"
               echo
           done
 
