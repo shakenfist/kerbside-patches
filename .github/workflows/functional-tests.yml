@@ -367,14 +367,22 @@ jobs:
           . $GITHUB_ENV
           . ci-environment.sh
 
+          # Required by run_remote
+          export baseuser=${{ matrix.test.baseuser }}
+          export copyscript="true"
+
           for node in ${nodes}; do
               node_address=${!node}
               echo "${node} is at ${node_address}"
               echo
+
+              /srv/shakenfist/actions/tools/run_remote ${node_address} \
+                  ./_build/add-insecure-ci-registry.sh
+
               ssh -i /srv/github/id_ci -o StrictHostKeyChecking=no \
                   -o UserKnownHostsFile=/dev/null \
                   ${{ matrix.test.baseuser }}@${node_address} \
-                  "echo ${CI_REGISTRY_TOKEN} | docker login 192.168.1.12:4000 --username kolla-imgs --password-stdin"
+                  "echo  | docker login 192.168.1.12:4000 --username kolla-imgs --password-stdin"
               echo
           done
 
