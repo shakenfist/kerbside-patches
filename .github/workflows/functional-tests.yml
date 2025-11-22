@@ -267,6 +267,18 @@ jobs:
     # variables at https://docs.github.com/en/actions/learn-github-actions/environment-variables
 
     steps:
+      - name: Make /srv/shakenfist
+        run: |
+          sudo mkdir /srv/shakenfist
+          sudo chown debian:debian /srv/shakenfist
+
+      - name: Checkout the actions repository
+        uses: actions/checkout@v4
+        with:
+          repository: shakenfist/actions
+          path: actions
+          fetch-depth: 0
+
       - name: Download artifacts
         uses: actions/download-artifact@v4
 
@@ -366,6 +378,7 @@ jobs:
         run: |
           . $GITHUB_ENV
           . ci-environment.sh
+          cd ${GITHUB_WORKSPACE}/kerbside-patches
 
           # Required by run_remote
           export baseuser=${{ matrix.test.baseuser }}
@@ -376,7 +389,7 @@ jobs:
               echo "${node} is at ${node_address}"
               echo
 
-              /srv/shakenfist/actions/tools/run_remote ${node_address} \
+              ${GITHUB_WORKSPACE}/actions/tools/run_remote ${node_address} \
                   ./_build/add-insecure-ci-registry.sh
 
               ssh -i /srv/github/id_ci -o StrictHostKeyChecking=no \
