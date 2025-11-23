@@ -38,6 +38,7 @@ cat - <<EOF | sudo tee /etc/docker/daemon.json
 }
 EOF
 sudo systemctl restart docker
+sleep 10
 
 trap - EXIT
 

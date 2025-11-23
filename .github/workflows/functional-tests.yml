@@ -386,16 +386,17 @@ jobs:
 
           for node in ${nodes}; do
               node_address=${!node}
+              echo "===================================================================="
               echo "${node} is at ${node_address}"
               echo
 
               ${GITHUB_WORKSPACE}/actions/tools/run_remote ${node_address} \
                   ./_build/add-insecure-ci-registry.sh
 
-              ssh -i /srv/github/id_ci -o StrictHostKeyChecking=no \
+              echo ${CI_REGISTRY_TOKEN} | ssh -i /srv/github/id_ci -o StrictHostKeyChecking=no \
                   -o UserKnownHostsFile=/dev/null \
                   ${{ matrix.test.baseuser }}@${node_address} \
-                  "docker login 192.168.1.12:4000 --username kolla-imgs --password ${{ secrets.CI_REGISTRY_TOKEN }}"
+                  "docker login 192.168.1.12:4000 --username kolla-imgs --password-stdin"
               echo
           done
 
