@@ -1,0 +1,132 @@
+commit 3e4a2eff80451425af5e179cc2228bead7e94184
+Author: Michael Still <mikal@stillhq.com>
+Date:   Tue Nov 18 11:56:15 2025 +1100
+
+    Transition to the new rabbitmq Debian package archives.
+    
+    RabbitMQ announced some time ago that the package archives were moving:
+    https://www.rabbitmq.com/blog/2025/07/16/debian-apt-repositories-are-moving
+    
+    The old location is no longer working, so this patch transitions to
+    the new one.
+    
+    Signed-off-by: Michael Still <mikal@stillhq.com>
+    
+    iff --git a/kolla/template/repos.yaml b/kolla/template/repos.yaml
+    index efeedd5..07eae8e 100644
+    --- a/kolla/template/repos.yaml
+    +++ b/kolla/template/repos.yaml
+    @@ -93,7 +93,7 @@ debian:
+     component: ""
+     gpg_key: "proxysql.asc"
+       rabbitmq:
+    -    url: "https://ppa1.rabbitmq.com/rabbitmq/rabbitmq-server/deb/debian"
+    +    url: "https://deb1.rabbitmq.com/rabbitmq-server/debian/bookworm"
+     suite: "bookworm"
+     component: "main"
+     gpg_key: "rabbitmq.gpg"
+    @@ -150,7 +150,7 @@ debian-aarch64:
+     component: ""
+     gpg_key: "proxysql.asc"
+       rabbitmq:
+    -    url: "https://ppa1.rabbitmq.com/rabbitmq/rabbitmq-server/deb/debian"
+    +    url: "https://deb1.rabbitmq.com/rabbitmq-server/debian/bookworm"
+     suite: "bookworm"
+     component: "main"
+     # NOTE(mnasiadka): Since rabbitmq is really noarch and community mirror is not
+    @@ -250,7 +250,7 @@ ubuntu:
+     component: ""
+     gpg_key: "proxysql.asc"
+       rabbitmq:
+    -    url: "https://ppa1.rabbitmq.com/rabbitmq/rabbitmq-server/deb/ubuntu"
+    +    url: "https://deb1.rabbitmq.com/rabbitmq-server/deb/ubuntu"
+     suite: "noble"
+     component: "main"
+     gpg_key: "rabbitmq.gpg"
+    @@ -308,7 +308,7 @@ ubuntu-aarch64:
+     component: ""
+     gpg_key: "proxysql.asc"
+       rabbitmq:
+    -    url: "https://ppa1.rabbitmq.com/rabbitmq/rabbitmq-server/deb/ubuntu"
+    +    url: "https://deb1.rabbitmq.com/rabbitmq-server/deb/ubuntu"
+     suite: "noble"
+     component: "main"
+     arch: "amd64"
+    
+    Signed-off-by: Michael Still <mikal@stillhq.com>
+
+diff --git a/docker/base/Dockerfile.j2 b/docker/base/Dockerfile.j2
+index 5aec1d2..6ac28ba 100644
+--- a/docker/base/Dockerfile.j2
++++ b/docker/base/Dockerfile.j2
+@@ -288,7 +288,7 @@ COPY apt_preferences /etc/apt/preferences.d/kolla-custom
+ 
+ {% set base_apt_keys = [
+    {'name': 'erlang-ppa', 'keyid': 'F77F1EDA57EBB1CC'},
+-   {'name': 'rabbitmq',   'keyid': '9F4587F226208342'},
++   {'name': 'rabbitmq',   'keyid': '6B73A36E6026DFCA'},
+    {'name': 'haproxy',    'keyid': 'CFFB779AADC995E4F350A060505D97A41C61B9CD'},
+ ] %}
+ 
+diff --git a/kolla/template/repos.yaml b/kolla/template/repos.yaml
+index efeedd5..07eae8e 100644
+--- a/kolla/template/repos.yaml
++++ b/kolla/template/repos.yaml
+@@ -93,7 +93,7 @@ debian:
+     component: ""
+     gpg_key: "proxysql.asc"
+   rabbitmq:
+-    url: "https://ppa1.rabbitmq.com/rabbitmq/rabbitmq-server/deb/debian"
++    url: "https://deb1.rabbitmq.com/rabbitmq-server/debian/bookworm"
+     suite: "bookworm"
+     component: "main"
+     gpg_key: "rabbitmq.gpg"
+@@ -150,7 +150,7 @@ debian-aarch64:
+     component: ""
+     gpg_key: "proxysql.asc"
+   rabbitmq:
+-    url: "https://ppa1.rabbitmq.com/rabbitmq/rabbitmq-server/deb/debian"
++    url: "https://deb1.rabbitmq.com/rabbitmq-server/debian/bookworm"
+     suite: "bookworm"
+     component: "main"
+     # NOTE(mnasiadka): Since rabbitmq is really noarch and community mirror is not
+@@ -250,7 +250,7 @@ ubuntu:
+     component: ""
+     gpg_key: "proxysql.asc"
+   rabbitmq:
+-    url: "https://ppa1.rabbitmq.com/rabbitmq/rabbitmq-server/deb/ubuntu"
++    url: "https://deb1.rabbitmq.com/rabbitmq-server/ubuntu/noble"
+     suite: "noble"
+     component: "main"
+     gpg_key: "rabbitmq.gpg"
+@@ -308,7 +308,7 @@ ubuntu-aarch64:
+     component: ""
+     gpg_key: "proxysql.asc"
+   rabbitmq:
+-    url: "https://ppa1.rabbitmq.com/rabbitmq/rabbitmq-server/deb/ubuntu"
++    url: "https://deb1.rabbitmq.com/rabbitmq-server/ubuntu/noble"
+     suite: "noble"
+     component: "main"
+     arch: "amd64"
+diff --git a/kolla/tests/test_methods.py b/kolla/tests/test_methods.py
+index afa21e2..1d47dac 100644
+--- a/kolla/tests/test_methods.py
++++ b/kolla/tests/test_methods.py
+@@ -86,7 +86,7 @@ class MethodsTest(base.TestCase):
+         }
+ 
+         result = methods.handle_repos(template_vars, ['rabbitmq'], 'enable')
+-        expectCmd = "RUN echo 'Uris: https://ppa1.rabbitmq.com/rabbitmq/rabbitmq-server/deb/debian' "  # noqa: E501
++        expectCmd = "RUN echo 'Uris: https://deb1.rabbitmq.com/rabbitmq-server/debian/bookworm' "  # noqa: E501
+         expectCmd += ">/etc/apt/sources.list.d/rabbitmq.sources && "
+         expectCmd += "echo 'Components: main' "
+         expectCmd += ">>/etc/apt/sources.list.d/rabbitmq.sources && "
+@@ -133,7 +133,7 @@ class MethodsTest(base.TestCase):
+         expectCmd += ">>/etc/apt/sources.list.d/grafana.sources && "
+ 
+         expectCmd += "echo 'Uris: "
+-        expectCmd += "https://ppa1.rabbitmq.com/rabbitmq/rabbitmq-server/deb/debian' "  # noqa: E501
++        expectCmd += "https://deb1.rabbitmq.com/rabbitmq-server/debian/bookworm' "  # noqa: E501
+         expectCmd += ">/etc/apt/sources.list.d/rabbitmq.sources && "
+         expectCmd += "echo 'Components: main' "
+         expectCmd += ">>/etc/apt/sources.list.d/rabbitmq.sources && "

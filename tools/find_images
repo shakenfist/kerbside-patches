@@ -1,74 +1,383 @@
 #!/usr/bin/python3
 
-# Find all images in a docker registry with a label matching $1
+# Find all images in a GitLab Container Registry with a tag matching the search term
 
-import requests
 import sys
-
+import gitlab
 import click
+import requests
+import json
+
+
+def _get_container_registry_repos_http(gl, project, debug=False):
+    """Get container registry repositories via direct HTTP API calls."""
+    try:
+        # Get the base GitLab URL from the gitlab instance
+        base_url = gl._url.rstrip('/')
+
+        # Construct Container Registry API URL - handle case where _url already includes /api/v4
+        if base_url.endswith('/api/v4'):
+            api_url = f"{base_url}/projects/{project.id}/registry/repositories"
+        else:
+            api_url = f"{base_url}/api/v4/projects/{project.id}/registry/repositories"
+
+        if debug:
+            click.echo(f'Debug: Requesting Container Registry repos from: {api_url}', err=True)
+
+        # Create authenticated requests session
+        session = requests.Session()
+        if hasattr(gl, 'private_token') and gl.private_token:
+            session.headers.update({'Private-Token': gl.private_token})
+        elif hasattr(gl, 'http_username') and hasattr(gl, 'http_password'):
+            session.auth = (gl.http_username, gl.http_password)
+
+        response = session.get(api_url)
+
+        if debug:
+            click.echo(f'Debug: HTTP response status: {response.status_code}', err=True)
+            click.echo(f'Debug: HTTP response headers: {dict(response.headers)}', err=True)
+            click.echo(f'Debug: HTTP response content: {response.text}', err=True)
+
+        if response.status_code == 200:
+            try:
+                repositories = response.json()
+                if debug:
+                    click.echo(f'Debug: HTTP API returned {len(repositories)} repositories', err=True)
+                    if repositories:
+                        click.echo(f'Debug: Repository data: {repositories}', err=True)
+
+                # Convert to our format
+                repo_list = []
+                for repo in repositories:
+                    repo_list.append({
+                        'path': repo.get('path', ''),
+                        'id': repo.get('id'),
+                        'name': repo.get('name', ''),
+                        'location': repo.get('location', ''),
+                        'project_id': project.id
+                    })
+
+                return repo_list
+            except json.JSONDecodeError as e:
+                if debug:
+                    click.echo(f'Debug: Failed to parse JSON response: {e}', err=True)
+                return []
+        else:
+            if debug:
+                click.echo(f'Debug: HTTP API request failed with status {response.status_code}: {response.text}', err=True)
+            return []
+
+    except Exception as e:
+        if debug:
+            click.echo(f'Debug: HTTP API request failed: {e}', err=True)
+        return []
+
+
+def _check_for_tag(gl, repository_data, tag, debug=False):
+    """Check for existance of a given tag via direct HTTP API calls."""
+    try:
+        # Get the base GitLab URL from the gitlab instance
+        base_url = gl._url.rstrip('/')
+
+        # Construct Container Registry tags API URL - handle case where _url already includes /api/v4
+        repo_id = repository_data['id']
+        if base_url.endswith('/api/v4'):
+            api_url = f"{base_url}/projects/{repository_data['project_id']}/registry/repositories/{repo_id}/tags/{tag}"
+        else:
+            api_url = f"{base_url}/api/v4/projects/{repository_data['project_id']}/registry/repositories/{repo_id}/tags/{tag}"
+
+        if debug:
+            click.echo(f'Debug: Requesting tags from: {api_url}', err=True)
+
+        # Create authenticated requests session
+        session = requests.Session()
+        if hasattr(gl, 'private_token') and gl.private_token:
+            session.headers.update({'Private-Token': gl.private_token})
+        elif hasattr(gl, 'http_username') and hasattr(gl, 'http_password'):
+            session.auth = (gl.http_username, gl.http_password)
+
+        response = session.get(api_url)
+
+        return response.status_code == 200
+
+    except Exception as e:
+        if debug:
+            click.echo(f'Debug: Tags HTTP API request failed: {e}', err=True)
+        return []
+
+
+def _get_gitlab_repositories(gitlab_url, username, password, token, debug=False):
+    """Get all container registry repositories using python-gitlab library."""
+    try:
+        if debug:
+            click.echo(f'Debug: Connecting to GitLab at: {gitlab_url}', err=True)
+            click.echo(f'Debug: Using username: {username}', err=True)
+
+        # Connect to GitLab using either Personal Access Token or username/password
+        if token:
+            if debug:
+                click.echo('Debug: Using Personal Access Token authentication', err=True)
+            gl = gitlab.Gitlab(gitlab_url, private_token=token, keep_base_url=True)
+        else:
+            if debug:
+                click.echo('Debug: Using username/password authentication', err=True)
+                click.echo('Debug: Note: Many GitLab instances disable password auth in favor of tokens', err=True)
+            # For username/password, use http_username and http_password for Basic Auth
+            gl = gitlab.Gitlab(gitlab_url, http_username=username, http_password=password, keep_base_url=True)
+
+        # Test authentication
+        try:
+            current_user = gl.auth()
+            if debug:
+                user_name = current_user.username if current_user else 'Unknown'
+                click.echo(f'Debug: Successfully authenticated as: {user_name}', err=True)
+        except Exception as e:
+            if debug:
+                click.echo(f'Debug: GitLab authentication failed: {e}', err=True)
+            if token:
+                click.echo('ERROR: GitLab authentication failed. Check your Personal Access Token.', err=True)
+                click.echo('Ensure your token has read_registry scope and is not expired.', err=True)
+            else:
+                click.echo('ERROR: GitLab authentication failed with username/password.', err=True)
+                click.echo('Many GitLab instances disable password authentication for security.', err=True)
+                click.echo('Consider using a Personal Access Token with --token instead.', err=True)
+                click.echo('Create one at: GitLab > User Settings > Access Tokens > read_registry scope', err=True)
+            return None, None
+
+        # Get all projects accessible to the user
+        projects = gl.projects.list(all=True, membership=True)
+        if debug:
+            click.echo(f'Debug: Found {len(projects)} accessible projects', err=True)
+
+        all_repositories = []
+
+        for project in projects:
+            try:
+                # Get full project data to access container_registry
+                if debug:
+                    click.echo(f'Debug: Fetching full data for project "{project.name}" (ID: {project.id})', err=True)
+                full_project = gl.projects.get(project.id)
+
+                if debug:
+                    # Show container registry status
+                    registry_enabled = getattr(full_project, 'container_registry_enabled', False)
+                    click.echo(f'Debug: Container Registry enabled for project: {registry_enabled}', err=True)
+
+                # Try to access container registry via API first, then fallback to HTTP calls
+                if hasattr(full_project, 'container_registry'):
+                    repositories = full_project.container_registry.repositories.list()
+                    if repositories:
+                        if debug:
+                            click.echo(f'Debug: Project "{project.name}" has {len(repositories)} repositories via GitLab API', err=True)
+
+                        for repo in repositories:
+                            all_repositories.append({
+                                'path': repo.path,
+                                'project': full_project,
+                                'repository': repo
+                            })
+                else:
+                    # Fallback to direct HTTP API calls for Container Registry
+                    if debug:
+                        click.echo(f'Debug: python-gitlab library does not support Container Registry API', err=True)
+                        click.echo(f'Debug: Attempting direct HTTP API access to Container Registry', err=True)
+
+                    # Try to get container registry repositories via HTTP API
+                    registry_repos = _get_container_registry_repos_http(gl, full_project, debug)
+                    if registry_repos:
+                        if debug:
+                            click.echo(f'Debug: Project "{project.name}" has {len(registry_repos)} repositories via HTTP API', err=True)
+
+                        for repo_data in registry_repos:
+                            all_repositories.append({
+                                'path': repo_data['path'],
+                                'project': full_project,
+                                'repository_data': repo_data
+                            })
+                    elif debug:
+                        click.echo(f'Debug: No Container Registry repositories found for project "{project.name}"', err=True)
+
+            except Exception as e:
+                if debug:
+                    click.echo(f'Debug: Could not access container registry for project "{project.name}": {e}', err=True)
+                continue
+
+        if debug:
+            click.echo(f'Debug: Total repositories found: {len(all_repositories)}', err=True)
+
+        return all_repositories, gl
+
+    except Exception as e:
+        if debug:
+            click.echo(f'Debug: GitLab connection failed: {e}', err=True)
+        click.echo(f'ERROR: Failed to connect to GitLab: {e}', err=True)
+        return None, None
 
 
 @click.group()
-@click.option('--registry', default='http://192.168.1.5:4000')
+@click.option('--gitlab-url', default='http://192.168.1.12',
+              help='GitLab URL (default: http://192.168.1.12)')
+@click.option('--username', required=True,
+              help='GitLab username')
+@click.option('--password', default=None,
+              help='GitLab password (alternative to --token)')
+@click.option('--token', default=None,
+              help='GitLab Personal Access Token with read_registry scope (alternative to --password)')
+@click.option('--debug', is_flag=True, default=False,
+              help='Enable debug logging')
 @click.pass_context
-def cli(ctx, registry):
+def cli(ctx, gitlab_url, username, password, token, debug):
+    """GitLab Container Registry image finder.
+
+    This tool searches for images with specific tags in GitLab Container Registry
+    using the GitLab API.
+
+    AUTHENTICATION: Personal Access Token (--token) is recommended as many GitLab
+    instances disable username/password authentication for security. Create a token
+    at GitLab > User Settings > Access Tokens with 'read_registry' scope.
+    """
     if not ctx.obj:
         ctx.obj = {}
-    ctx.obj['registry'] = registry
+
+    # Validate authentication options
+    if not password and not token:
+        click.echo('ERROR: Must provide either --password or --token', err=True)
+        sys.exit(1)
+
+    if password and token:
+        click.echo('ERROR: Cannot use both --password and --token, choose one', err=True)
+        sys.exit(1)
+
+    ctx.obj['gitlab_url'] = gitlab_url
+    ctx.obj['username'] = username
+    ctx.obj['password'] = password
+    ctx.obj['token'] = token
+    ctx.obj['debug'] = debug
+
+    if debug:
+        click.echo(f'Debug: GitLab URL: {gitlab_url}', err=True)
+        click.echo(f'Debug: Username: {username}', err=True)
+        if password:
+            click.echo('Debug: Using password authentication: [REDACTED]', err=True)
+        if token:
+            click.echo('Debug: Using token authentication: [REDACTED]', err=True)
 
 
-def _get_images(registry):
-    images = []
-
-    next_link = '/v2/_catalog'
-    while next_link:
-        r = requests.get(f'{registry}{next_link}')
-        if 'next' in r.links:
-            next_link = r.links['next']['url']
-        else:
-            next_link = None
-
-        for image in r.json().get('repositories'):
-            images.append(image)
-
-    return images
-
-
-def _get_image_tags(registry, image):
-    tags = []
-
-    next_link = f'/v2/{image}/tags/list'
-    while next_link:
-        r = requests.get(f'{registry}{next_link}')
-        if 'next' in r.links:
-            next_link = r.links['next']['url']
-        else:
-            next_link = None
-
-        for tag in r.json().get('tags'):
-            tags.append(tag)
-
-    return tags
-
-
-@cli.command(name='find', help='Find images')
-@click.argument('search')
+@cli.command(name='find', help='Find repositories with matching tags')
+@click.argument('search_tag')
 @click.pass_context
-def find(ctx, search):
+def find(ctx, search_tag):
+    """Find repositories that contain images with the specified tag.
+
+    SEARCH_TAG: Tag name to search for
+    """
+    debug = ctx.obj.get('debug', False)
+    username = ctx.obj.get('username')
+    password = ctx.obj.get('password')
+    token = ctx.obj.get('token')
+    gitlab_url = ctx.obj.get('gitlab_url')
+
+    if debug:
+        click.echo(f'Debug: Searching for tag: {search_tag}', err=True)
+
+    # Get all repositories
+    repositories, gl_instance = _get_gitlab_repositories(gitlab_url, username, password, token, debug)
+
+    if repositories is None:
+        click.echo('ERROR: Failed to connect to GitLab or get repositories', err=True)
+        sys.exit(1)
+
+    if not repositories:
+        click.echo('No container registry repositories found', err=True)
+        sys.exit(1)
+
     found = False
 
-    for image in _get_images(ctx.obj['registry']):
-        for tag in _get_image_tags(ctx.obj['registry'], image):
-            if tag == search:
-                print(image)
-                found = True
-                continue
+    # Search through all repositories
+    for repository_info in repositories:
+        repo_path = repository_info['path']
 
-    if found:
-        sys.exit(0)
+        if debug:
+            click.echo(f'Debug: Getting tags for repository: {repo_path}', err=True)
+
+        repository_data = repository_info['repository_data']
+        if _check_for_tag(gl_instance, repository_data, search_tag, debug):
+            sys.exit(0)
+
+    if debug:
+        click.echo(f'Debug: Tag "{search_tag}" not found in any repository', err=True)
     sys.exit(1)
 
+
+@cli.command(name='list', help='List all available repositories')
+@click.pass_context
+def list_repos(ctx):
+    """List all available container registry repositories."""
+    debug = ctx.obj.get('debug', False)
+    username = ctx.obj.get('username')
+    password = ctx.obj.get('password')
+    token = ctx.obj.get('token')
+    gitlab_url = ctx.obj.get('gitlab_url')
+
+    # Get all repositories
+    repositories, gl_instance = _get_gitlab_repositories(gitlab_url, username, password, token, debug)
+
+    if repositories is None:
+        click.echo('ERROR: Failed to connect to GitLab or get repositories', err=True)
+        sys.exit(1)
+
+    if not repositories:
+        click.echo('No container registry repositories found', err=True)
+        sys.exit(0)
+
+    for repo_info in repositories:
+        print(repo_info['path'])
+
+
+@cli.command(name='tags', help='List tags for a specific repository')
+@click.argument('repository_path')
+@click.pass_context
+def list_tags(ctx, repository_path):
+    """List all tags for a specific repository.
+
+    REPOSITORY_PATH: Repository path (e.g., project/repo-name)
+    """
+    debug = ctx.obj.get('debug', False)
+    username = ctx.obj.get('username')
+    password = ctx.obj.get('password')
+    token = ctx.obj.get('token')
+    gitlab_url = ctx.obj.get('gitlab_url')
+
+    # Get all repositories
+    repositories, gl_instance = _get_gitlab_repositories(gitlab_url, username, password, token, debug)
+
+    if repositories is None:
+        click.echo('ERROR: Failed to connect to GitLab or get repositories', err=True)
+        sys.exit(1)
+
+    # Find the specific repository
+    target_repo = None
+    for repo_info in repositories:
+        if repo_info['path'] == repository_path:
+            target_repo = repo_info
+            break
+
+    if target_repo is None:
+        click.echo(f'ERROR: Repository "{repository_path}" not found or not accessible', err=True)
+        sys.exit(1)
+
+    tags = _get_repository_tags(target_repo, gl_instance, debug)
+
+    if tags:
+        for tag in tags:
+            print(tag)
+    else:
+        click.echo(f'No tags found for repository: {repository_path}', err=True)
+
+
 cli.add_command(find)
+cli.add_command(list_repos)
+cli.add_command(list_tags)
 
 
 if __name__ == '__main__':

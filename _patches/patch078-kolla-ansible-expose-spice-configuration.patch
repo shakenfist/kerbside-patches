@@ -29,6 +29,9 @@ Author: Michael Still <mikal@stillhq.com>
     All configuration options and their various values are documented
     by OpenStack Compute in their documentation.
 
+    Signed-off-by: Michael Still <mikal@stillhq.com>
+    Partially-Implements: #2131793 (spice-direct consoles)
+
 diff --git a/ansible/group_vars/all/nova.yml b/ansible/group_vars/all/nova.yml
 index 48811be..598d53b 100644
 --- a/ansible/group_vars/all/nova.yml

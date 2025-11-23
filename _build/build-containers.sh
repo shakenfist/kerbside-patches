@@ -5,8 +5,32 @@
 
 banner "Building container images"
 
+if [ ! -z ${registry_username} ]; then
+    echo
+    echo -e "${H1}==================================================${Color_Off}"
+    echo -e "${H1}Registry configuration${Color_Off}"
+    echo -e "${H1}    CI gitlab: ${ci_gitlab}"
+    echo -e "${H1}    Use CI registry: ${use_ci_registry}"
+    echo -e "${H1}    CI registry: ${ci_registry}"
+    echo -e "${H1}    Registry username: ${registry_username}"
+    echo -e "${H1}    Registry token: ${registry_token}"
+    echo -e "${H1}==================================================${Color_Off}"
+
+    echo ${registry_token} | docker login \
+        ${ci_registry} --username ${registry_username} --password-stdin
+fi
+
 for target in ${build_targets}; do
-    complete_image_tag="${target}-${image_tag}"
+    if [ ${distro} == "debian" ]; then
+        distro_version="bookworm"
+    elif [ ${distro} == "ubuntu" ]; then
+        distro_version="noble"
+    else
+        echo "Unknown distro: ${distro}!"
+        exit 1
+    fi
+    complete_image_tag="${target}-${distro}-${distro_version}-${image_tag}"
+
     echo
     echo -e "${H1}==================================================${Color_Off}"
     echo -e "${H1}Build configuration${Color_Off}"
@@ -19,8 +43,15 @@ for target in ${build_targets}; do
     have_images="false"
     if [ ${use_ci_registry} == "true" ]; then
         echo -e "${H2}Check if we already have built images${Color_Off}"
-        images=$(/srv/kerbside/venv-tools/bin/python3 ${topdir}/tools/find_images \
-            --registry http://${ci_registry} find ${complete_image_tag} || true)
+
+        if [ ! -z ${registry_username} ]; then
+            images=$(/srv/kerbside/venv-tools/bin/python3 ${topdir}/tools/find_images \
+                --gitlab-url ${ci_gitlab} --username ${registry_username} --token ${registry_token} \
+                find ${complete_image_tag} || true)
+        else
+            images=$(/srv/kerbside/venv-tools/bin/python3 ${topdir}/tools/find_images \
+                --gitlab-url ${ci_gitlab} find ${complete_image_tag} || true)
+        fi
 
         if [ $(echo ${images} | grep -c kolla || true) -gt 0 ]; then
             if [ ${dont_fetch_images} == "true" ]; then
@@ -33,9 +64,9 @@ for target in ${build_targets}; do
                     echo -e "    ${image}..."
                     docker pull ${ci_registry}/${image}:${complete_image_tag}
 
-                    echo -e "    ${image}:${complete_image_tag} ${Arrow} ${image}:${target}-debian-bookworm"
+                    echo -e "    ${image}:${complete_image_tag} ${Arrow} ${image}:${complete_image_tag}"
                     docker image tag ${ci_registry}/${image}:${complete_image_tag} \
-                        ${image}:${target}-debian-bookworm
+                        ${image}:${complete_image_tag}
                 done
                 have_images="true"
             fi
@@ -46,7 +77,23 @@ for target in ${build_targets}; do
         echo "No existing images found. Building them."
 
         mkdir -p ${topdir}/archive/
-        ./_build/imagebuild.sh --build-targets "${target}" --build-images "${build_images}"
+        rm -f ${topdir}/archive/images
+
+        ./_build/imagebuild.sh --build-targets "${target}" \
+                --build-images "${build_images}" \
+                --image-tag "${complete_image_tag}" || true
+
+        if [ $(grep -c "kolla-build failed!" ${topdir}/archive/build.log || true) -gt 0 ]; then
+            echo
+            echo
+            echo -e "${H2}Retry build once.${Color_off}"
+            ./_build/imagebuild.sh --build-targets "${target}" \
+                --build-images "${build_images}" \
+                --image-tag "${complete_image_tag}"
+        fi
+
+        cat ${topdir}/archive/images | sort | uniq > ${topdir}/archive/images.uniq
+        mv ${topdir}/archive/images.uniq ${topdir}/archive/images
 
         echo
         echo -e "${H2}Built images${Color_Off}"
@@ -56,17 +103,12 @@ for target in ${build_targets}; do
             echo
             echo -e "${H2}Pushing to the CI registry${Color_Off}"
             for image in $(docker image list --format json | \
-                jq --slurp -r ".[] | select(.Tag == \"${target}-${CI_COMMIT_SHORT_SHA}\") | .Repository"); do
-                echo -e "    ${image}:${target}-${CI_COMMIT_SHORT_SHA} ${Arrow} ${ci_registry}/openstack.${image}:${target}-debian-bookworm"
-                docker image tag ${image}:${target}-${CI_COMMIT_SHORT_SHA} \
-                    ${ci_registry}/openstack${image}:${target}-debian-bookworm
-                docker image push \
-                    ${ci_registry}/openstack${image}:${target}-debian-bookworm
-
-                echo -e "    ${image}:${target}-${CI_COMMIT_SHORT_SHA} ${Arrow} ${ci_registry}/openstack.${image}:${complete_image_tag}"
-                docker image tag ${image}:${target}-${CI_COMMIT_SHORT_SHA} \
-                    ${ci_registry}/openstack${image}:${complete_image_tag}
-                docker image push ${ci_registry}/openstack${image}:${complete_image_tag}
+                jq --slurp -r ".[] | select(.Tag == \"${complete_image_tag}\") | .Repository"); do
+                registry_image=$(echo ${image} | sed 's/^kolla\///')
+                echo -e "    ${image}:${complete_image_tag} ${Arrow} ${ci_registry}/${registry_project}/${image}:${complete_image_tag}"
+                docker image tag ${image}:${complete_image_tag} \
+                    ${ci_registry}/${registry_project}/${registry_image}:${complete_image_tag}
+                docker image push ${ci_registry}/${registry_project}/${registry_image}:${complete_image_tag}
             done
         fi
     fi

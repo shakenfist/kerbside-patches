@@ -1,8 +1,0 @@
-libvirt: Add objects and notifications for sound model.
-
-This patch adds just the objects and notifications required to
-support an extra spec to configure a sound device inside
-the guest. This is useful for SPICE consoles using the native
-protocol.
-
-Change-Id: I2faeda0fd0fb9c8894d69558a1ccaab8da9f6a1b

@@ -1,5 +1,5 @@
 [DEFAULT]
-base = debian
+base = DISTRO
 debug = true
 push = false
 

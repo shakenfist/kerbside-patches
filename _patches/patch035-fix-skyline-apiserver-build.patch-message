@@ -1,8 +1,0 @@
-Remove temporary fix for skyline-apiserver.
-
-skyline-apiserver's Dockerfile has a comment around removing a line when
-I2dababab7c79e7c37983c1702178419c88e014a5 merges. Given the
-referenced change has now merged, remove the TODO and the temporary
-fix.
-
-Change-Id: If2b9aff8f1900fb98e038972e775c3eddaad373f

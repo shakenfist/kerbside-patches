@@ -1,0 +1,101 @@
+commit 7a8e43b55ad9b60ef5100d9a186d419ce2b29918
+Author: Michael Still <mikal@stillhq.com>
+Date:   Tue Nov 18 19:45:29 2025 +1100
+
+    Transition to the new rabbitmq Debian package archives.
+    
+    RabbitMQ announced some time ago that the package archives were moving:
+    https://www.rabbitmq.com/blog/2025/07/16/debian-apt-repositories-are-moving
+    
+    The old location is no longer working, so this patch transitions to
+    the new one.
+    
+    Change-Id: I6ef0ed9cc40be42a0d98c6a4c83c5c5c26d9cdbf
+    Signed-off-by: Michael Still <mikal@stillhq.com>
+
+diff --git a/docker/base/Dockerfile.j2 b/docker/base/Dockerfile.j2
+index 45e7f9c03..33df5a7b5 100644
+--- a/docker/base/Dockerfile.j2
++++ b/docker/base/Dockerfile.j2
+@@ -243,7 +243,7 @@ COPY apt_preferences /etc/apt/preferences.d/kolla-custom
+ 
+ {% set base_apt_keys = [
+    {'name': 'erlang-ppa', 'keyid': 'F77F1EDA57EBB1CC'},
+-   {'name': 'rabbitmq',   'keyid': '9F4587F226208342'},
++   {'name': 'rabbitmq',   'keyid': '6B73A36E6026DFCA'},
+    {'name': 'haproxy',    'keyid': 'CFFB779AADC995E4F350A060505D97A41C61B9CD'},
+ ] %}
+ 
+diff --git a/kolla/template/repos.yaml b/kolla/template/repos.yaml
+index 6739c9bd1..7d9d7ec71 100644
+--- a/kolla/template/repos.yaml
++++ b/kolla/template/repos.yaml
+@@ -51,14 +51,14 @@ debian:
+     component: ""
+     gpg_key: "proxysql.asc"
+   rabbitmq:
+-    url: "https://ppa1.rabbitmq.com/rabbitmq/rabbitmq-server/deb/debian"
++    url: "https://deb1.rabbitmq.com/rabbitmq-server/debian/bookworm"
+     suite: "bookworm"
+     component: "main"
+     gpg_key: "rabbitmq.gpg"
+ 
+ debian-aarch64:
+   rabbitmq:
+-    url: "https://ppa1.rabbitmq.com/rabbitmq/rabbitmq-server/deb/debian"
++    url: "https://deb1.rabbitmq.com/rabbitmq-server/debian/bookworm"
+     suite: "bookworm"
+     component: "main"
+     # NOTE(mnasiadka): Since rabbitmq is really noarch and community mirror is not
+@@ -93,14 +93,14 @@ ubuntu:
+     component: ""
+     gpg_key: "proxysql.asc"
+   rabbitmq:
+-    url: "https://ppa1.rabbitmq.com/rabbitmq/rabbitmq-server/deb/ubuntu"
++    url: "https://deb1.rabbitmq.com/rabbitmq-server/ubuntu/noble"
+     suite: "noble"
+     component: "main"
+     gpg_key: "rabbitmq.gpg"
+ 
+ ubuntu-aarch64:
+   rabbitmq:
+-    url: "https://ppa1.rabbitmq.com/rabbitmq/rabbitmq-server/deb/ubuntu"
++    url: "https://deb1.rabbitmq.com/rabbitmq-server/ubuntu/noble"
+     suite: "noble"
+     component: "main"
+     # NOTE(mnasiadka): Since rabbitmq is really noarch and community mirror is not
+diff --git a/kolla/tests/test_methods.py b/kolla/tests/test_methods.py
+index 6559c5d4d..2d2fdd3ed 100644
+--- a/kolla/tests/test_methods.py
++++ b/kolla/tests/test_methods.py
+@@ -191,7 +191,7 @@ class MethodsTest(base.TestCase):
+         }
+ 
+         result = methods.handle_repos(template_vars, ["rabbitmq"], "enable")
+-        expectCmd = "RUN echo 'Uris: https://ppa1.rabbitmq.com/rabbitmq/rabbitmq-server/deb/debian' "  # noqa: E501
++        expectCmd = "RUN echo 'Uris: https://deb1.rabbitmq.com/rabbitmq-server/debian/bookworm' "  # noqa: E501
+         expectCmd += ">/etc/apt/sources.list.d/rabbitmq.sources && "
+         expectCmd += "echo 'Components: main' "
+         expectCmd += ">>/etc/apt/sources.list.d/rabbitmq.sources && "
+@@ -236,7 +236,7 @@ class MethodsTest(base.TestCase):
+         expectCmd += ">>/etc/apt/sources.list.d/grafana.sources && "
+ 
+         expectCmd += "echo 'Uris: "
+-        expectCmd += "https://ppa1.rabbitmq.com/rabbitmq/rabbitmq-server/deb/debian' "  # noqa: E501
++        expectCmd += "https://deb1.rabbitmq.com/rabbitmq-server/debian/bookworm' "  # noqa: E501
+         expectCmd += ">/etc/apt/sources.list.d/rabbitmq.sources && "
+         expectCmd += "echo 'Components: main' "
+         expectCmd += ">>/etc/apt/sources.list.d/rabbitmq.sources && "
+diff --git a/releasenotes/notes/handle-deprecated-rabbitmq-package-archive-47548e7a41baa68b.yaml b/releasenotes/notes/handle-deprecated-rabbitmq-package-archive-47548e7a41baa68b.yaml
+new file mode 100644
+index 000000000..b24cc3cdc
+--- /dev/null
++++ b/releasenotes/notes/handle-deprecated-rabbitmq-package-archive-47548e7a41baa68b.yaml
+@@ -0,0 +1,7 @@
++---
++fixes:
++  - |
++    `As announced in July 2025 <https://www.rabbitmq.com/blog/2025/07/16/debian-apt-repositories-are-moving>`__,
++    the RabbitMQ project has changed the location and signing key for their Debian and
++    Ubuntu packages. The repository configuration has been updated accordingly.
++    `LP#2131736 <https://launchpad.net/bugs/2131736>`__

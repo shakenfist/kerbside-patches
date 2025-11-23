@@ -1,0 +1,4 @@
+#!/bin/bash
+
+. /srv/kolla-ansible/venv/bin/activate
+kolla-ansible $*

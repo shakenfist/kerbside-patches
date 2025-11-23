@@ -1,4 +1,4 @@
-name: Ensure the cloud is still installable
+name: Build images for test installs
 
 on:
   workflow_dispatch:
@@ -8,23 +8,36 @@ on:
 
 jobs:
   build_images:
-    name: "Build docker images for ${{ matrix.test.release }}"
+    name: "Build images for ${{ matrix.test.release }} on ${{ matrix.test.container_distro }}"
     strategy:
       fail-fast: false
       matrix:
         test: [
           {
-            'name': 'build-2025.1',
+            'name': 'build-debian-2025.1',
             'release': '2025.1',
             'base': 'debian:12',
-            'baseuser': 'debian'
+            'baseuser': 'debian',
+            'container_distro': 'debian',
+            'container_distro_version': 'bookworm'
           },
           {
-            'name': 'build-master',
+            'name': 'build-debian-master',
             'release': 'master',
             'base': 'debian:12',
             'baseuser': 'debian',
-            'topology': 'all-in-one'
+            'topology': 'all-in-one',
+            'container_distro': 'debian',
+            'container_distro_version': 'bookworm'
+          },
+          {
+            'name': 'build-ubuntu-master',
+            'release': 'master',
+            'base': 'debian:12',
+            'baseuser': 'debian',
+            'topology': 'all-in-one',
+            'container_distro': 'ubuntu',
+            'container_distro_version': 'noble'
           },
         ]
     runs-on: [self-hosted, vm, 'debian-12', 'xl']
@@ -56,13 +69,42 @@ jobs:
           # This is terrible, but its easier than reloading groups
           sudo chmod ugo+rw /var/run/docker.sock
 
+      - name: Ensure CI OCI registry works
+        env:
+          CI_REGISTRY_TOKEN: ${{ secrets.CI_REGISTRY_TOKEN }}
+        run: |
+          . $GITHUB_ENV
+
+          echo "Make test image..."
+          identifier=$(hostname | sed 's/\..*//')
+
+          echo ${identifier} > identifier
+          cat - > Dockerfile <<EOF
+          FROM scratch
+          COPY identifier identifier
+          EOF
+          docker build -t heartbeat:latest .
+
+          echo
+          echo "Log into regisry..."
+          echo ${CI_REGISTRY_TOKEN} | docker login \
+              192.168.1.12:4000 --username kolla-imgs --password-stdin
+
+          echo
+          echo "Push to registry..."
+          docker image tag heartbeat:latest 192.168.1.12:4000/openstack/kolla-images/ci_heartbeat:${identifier}
+          docker image push 192.168.1.12:4000/openstack/kolla-images/ci_heartbeat:${identifier}
+
       - name: Build patched repositories
         run: |
           . $GITHUB_ENV
           cd kerbside-patches
-          ./_build/assemble-source.sh --use-ci-registry ${{ matrix.test.release }}
+          ./_build/assemble-source.sh --use-ci-patches ${{ matrix.test.release }}
 
       - name: Build container images
+        id: build_images
+        env:
+          CI_REGISTRY_TOKEN: ${{ secrets.CI_REGISTRY_TOKEN }}
         run: |
           . $GITHUB_ENV
           cd kerbside-patches
@@ -75,13 +117,37 @@ jobs:
 
           ./_build/build-containers.sh \
               --use-ci-registry \
+              --registry-username kolla-imgs \
+              --registry-token "${CI_REGISTRY_TOKEN}" \
               --build-targets "${{ matrix.test.release }}" \
               --build-images all \
-              --image-tag "${hash}-debian-bookworm" \
+              --distro ${{ matrix.test.container_distro}} \
+              --image-tag ${hash} \
               --dont-fetch-images
 
-      - name: Archive patched source
+          echo "image_tag=${{ matrix.test.release }}-${{ matrix.test.container_distro }}-${{ matrix.test.container_distro_version }}-${hash}" >> ${GITHUB_OUTPUT}
+
+      # We have the output of the build job and its config, regardless of success or failure
+      - name: Archive build config and logs
         if: always()
+        run: |
+          . $GITHUB_ENV
+
+          archive_path="/tmp/build-${{ matrix.test.release}}-${{ matrix.test.container_distro }}"
+          mkdir ${archive_path}
+          cp kerbside-patches/archive/build.log ${archive_path}/
+          cp kerbside-patches/archive/kolla-build.conf ${archive_path}/
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: build-${{ matrix.test.release }}-${{ matrix.test.container_distro }}
+          retention-days: 14
+          if-no-files-found: error
+          path: /tmp/build-${{ matrix.test.release}}-${{ matrix.test.container_distro }}
+
+      - name: Archive patched source
+        if: success()
         run: |
           . $GITHUB_ENV
           cd kerbside-patches
@@ -92,15 +158,58 @@ jobs:
           zip -r bundle.zip bundle
 
       - uses: actions/upload-artifact@v4
-        if: always()
+        id: upload_source
+        if: success()
         with:
-          name: source-${{ matrix.test.release }}
+          name: source-${{ matrix.test.release }}-${{ matrix.test.container_distro }}
           retention-days: 90
           if-no-files-found: error
           path: /tmp/bundle.zip
 
-  functional_matrix:
-    name: "Build a test cloud for ${{ matrix.test.description }}"
+      # This works around the limited support in Github Actions for outputs from matrices
+      - name: Write outputs to a temporary file
+        if: success()
+        run: |
+          echo "{" \
+              "\"release\": \"${{ matrix.test.release }}\"," \
+              "\"image_tag\": \"${{ steps.build_images.outputs.image_tag }}\"," \
+              "\"source_artifact\": \"${{ steps.upload_source.outputs.artifact-url }}\"" \
+              "}" >> /tmp/result.json
+
+      - uses: actions/upload-artifact@v4
+        if: success()
+        with:
+          name: buildresult-${{ matrix.test.release }}-${{ matrix.test.container_distro }}
+          retention-days: 14
+          if-no-files-found: error
+          path: /tmp/result.json
+
+  aggregate_results:
+    name: "Aggregate results"
+    needs: build_images
+    runs-on: ubuntu-latest
+    outputs:
+      all_results: ${{ steps.combine.outputs.results }}
+    steps:
+      - name: Download artifacts
+        uses: actions/download-artifact@v4
+
+      - name: Combine results and expose as an output
+        id: combine
+        run: |
+          # Collect all results into a JSON array
+          results="["
+          for dir in buildresult-*/; do
+            value=$(cat "${dir}result.json")
+            results="${results}${value},"
+          done
+
+          # Terminate array and remove trailing comma
+          results="${results%,}]"
+          echo "results=${results}" >> $GITHUB_OUTPUT
+          
+  test_installs:
+    name: "Build a test cloud for ${{ matrix.test.description }} using ${{ matrix.test.container_distro }}"
     strategy:
       fail-fast: false
       matrix:
@@ -112,7 +221,8 @@ jobs:
             'base': 'debian:12',
             'baseuser': 'debian',
             'topology': 'all-in-one',
-            'runs_on': 'debian-11'
+            'runs_on': 'debian-12',
+            'container_distro': 'debian'
           },
           {
             'name': 'master-debian12-aio',
@@ -121,7 +231,8 @@ jobs:
             'base': 'debian:12',
             'baseuser': 'debian',
             'topology': 'all-in-one',
-            'runs_on': 'debian-11'
+            'runs_on': 'debian-12',
+            'container_distro': 'debian'
           },
           {
             'name': 'master-rocky10-aio',
@@ -130,7 +241,8 @@ jobs:
             'base': 'rocky:10',
             'baseuser': 'cloud-user',
             'topology': 'all-in-one',
-            'runs_on': 'debian-12'
+            'runs_on': 'debian-12',
+            'container_distro': 'debian'
           },
           {
             'name': 'master-debian12-multi',
@@ -139,11 +251,12 @@ jobs:
             'base': 'debian:12',
             'baseuser': 'debian',
             'topology': 'multinode',
-            'runs_on': 'debian-11'
+            'runs_on': 'debian-12',
+            'container_distro': 'debian'
           },
         ]
     runs-on: [self-hosted, vm, '${{ matrix.test.runs_on }}']
-    needs: build_images
+    needs: [build_images, aggregate_results]
     timeout-minutes: 120
     concurrency:
       group: ${{ github.workflow }}-${{ github.ref }}-${{ matrix.test.name }}
@@ -154,6 +267,41 @@ jobs:
     # variables at https://docs.github.com/en/actions/learn-github-actions/environment-variables
 
     steps:
+      - name: Make /srv/shakenfist
+        run: |
+          sudo mkdir /srv/shakenfist
+          sudo chown debian:debian /srv/shakenfist
+
+      - name: Checkout the actions repository
+        uses: actions/checkout@v4
+        with:
+          repository: shakenfist/actions
+          path: actions
+          fetch-depth: 0
+
+      - name: Download artifacts
+        uses: actions/download-artifact@v4
+
+      - name: Log incoming results
+        id: incoming
+        run: |
+          echo "State of workspace:"
+          ls -lrt
+
+          echo
+          echo "Results from image build step:"
+          echo '${{ needs.aggregate_results.outputs.all_results }}' | python3 -m json.tool
+
+          echo
+          echo "Results specific to this job:"
+          cat buildresult-${{ matrix.test.release }}-${{ matrix.test.container_distro }}/result.json | python3 -m json.tool
+
+          echo
+          echo "Export results specific to this job..."
+          image_tag=$(cat buildresult-${{ matrix.test.release }}-${{ matrix.test.container_distro }}/result.json | jq -r .image_tag)
+          echo "image_tag=${image_tag}" >> $GITHUB_OUTPUT
+          echo "    image_tag is ${image_tag}"
+
       - name: Setup test environment
         uses: shakenfist/actions/setup-kerbside-environment@main
         with:
@@ -166,26 +314,6 @@ jobs:
         run: |
           cat ci-environment.sh
 
-      - name: Build patched repositories
-        run: |
-          . $GITHUB_ENV
-          ssh -i /srv/github/id_ci -o StrictHostKeyChecking=no \
-              -o UserKnownHostsFile=/dev/null \
-              ${{ matrix.test.baseuser }}@10.0.2.2 \
-              'cd /srv/shakenfist/kerbside-patches; ./_build/assemble-source.sh --use-ci-registry ${{ matrix.test.release }}'
-
-      - name: Build container images
-        run: |
-          . $GITHUB_ENV
-
-          script="cd /srv/shakenfist/kerbside-patches;"
-          script="${script} hash=\$(./_build/calculate-container-hash.sh kolla kolla-2* nova nova-2* requirements requirements-2* etc src _build tools );"
-          script="${script} ./_build/build-containers.sh --use-ci-registry --build-targets ${{ matrix.test.release }} --build-images all --image-tag "\$hash-debian-bookworm";"
-
-          ssh -i /srv/github/id_ci -o StrictHostKeyChecking=no \
-              -o UserKnownHostsFile=/dev/null \
-              ${{ matrix.test.baseuser }}@10.0.2.2 "${script}"
-
       - name: Log getent resolution for kolla
         if: "contains(matrix.test.topology, 'all-in-one')"
         run: |
@@ -195,21 +323,106 @@ jobs:
               ${{ matrix.test.baseuser }}@10.0.2.2 \
               'sudo getent ahostsv4 kolla'
 
-      - name: Bootstrap Kolla-Ansible
+      - name: Extract source from image build step
         run: |
           . $GITHUB_ENV
-          ssh -i /srv/github/id_ci -o StrictHostKeyChecking=no \
-              -o UserKnownHostsFile=/dev/null \
-              ${{ matrix.test.baseuser }}@10.0.2.2 \
-              'cd /srv/shakenfist/kerbside-patches; sudo ./tools/bootstrap-kolla-ansible ${{ matrix.test.release }} ${{ matrix.test.topology }}'
 
-      - name: Install Kolla-Ansible
+          echo "Extracting source from build step..."
+          artifact_dir="${GITHUB_WORKSPACE}/source-${{ matrix.test.release }}-${{ matrix.test.container_distro }}"
+          cd ${artifact_dir}
+          unzip bundle.zip
+          cd bundle
+          ls -lrth
+
+          echo
+          echo "Using that source to bootstrap kerbside-patches src directory..."
+          sudo mkdir -p /srv/shakenfist/kerbside-patches/src
+          sudo chown -R debian:debian /srv/shakenfist
+          cd /srv/shakenfist/kerbside-patches/src
+          find ${artifact_dir}/bundle/*.tgz -name "*.tgz" -print -exec tar xzf {} \; -exec echo \;
+
+          echo
+          echo "State of source..."
+          ls -lrt
+
+          echo
+          echo "Copy source to target node..."
+          # I use tar here because some of the entries are symlinks
+          cd /srv/shakenfist/kerbside-patches
+          tar czf - src | ssh -i /srv/github/id_ci \
+              -o StrictHostKeyChecking=no \
+              -o UserKnownHostsFile=/dev/null \
+              ${{ matrix.test.baseuser }}@10.0.2.2 \
+              "cd /srv/shakenfist/kerbside-patches && tar xzf -"
+
+      - name: Bootstrap Kolla-Ansible
+        env:
+          CI_REGISTRY_TOKEN: ${{ secrets.CI_REGISTRY_TOKEN }}
+        run: |
+          . $GITHUB_ENV
+
+          script="cd /srv/shakenfist/kerbside-patches;"
+          script="${script} sudo ./tools/bootstrap-kolla-ansible"
+              script="${script} --registry-token ${CI_REGISTRY_TOKEN}"
+              script="${script} --image-tag ${{ steps.incoming.outputs.image_tag }}"
+              script="${script} --build-targets ${{ matrix.test.release }}"
+              script="${script} --topology ${{ matrix.test.topology }};"
+          
+          ssh -i /srv/github/id_ci -o StrictHostKeyChecking=no \
+              -o UserKnownHostsFile=/dev/null \
+              ${{ matrix.test.baseuser }}@10.0.2.2 "${script}"
+
+      - name: Log into the docker registry on every node
+        env:
+          CI_REGISTRY_TOKEN: ${{ secrets.CI_REGISTRY_TOKEN }}
+        run: |
+          . $GITHUB_ENV
+          . ci-environment.sh
+          cd ${GITHUB_WORKSPACE}/kerbside-patches
+
+          # Required by run_remote
+          export baseuser=${{ matrix.test.baseuser }}
+          export copyscript="true"
+
+          for node in ${nodes}; do
+              node_address=${!node}
+              echo "===================================================================="
+              echo "${node} is at ${node_address}"
+              echo
+
+              ${GITHUB_WORKSPACE}/actions/tools/run_remote ${node_address} \
+                  ./_build/add-insecure-ci-registry.sh
+
+              echo ${CI_REGISTRY_TOKEN} | ssh -i /srv/github/id_ci -o StrictHostKeyChecking=no \
+                  -o UserKnownHostsFile=/dev/null \
+                  ${{ matrix.test.baseuser }}@${node_address} \
+                  "docker login 192.168.1.12:4000 --username kolla-imgs --password-stdin"
+              echo
+          done
+
+      - name: Run pre-checks
         run: |
           . $GITHUB_ENV
           ssh -i /srv/github/id_ci -o StrictHostKeyChecking=no \
               -o UserKnownHostsFile=/dev/null \
               ${{ matrix.test.baseuser }}@10.0.2.2 \
-              'cd /srv/shakenfist/kerbside-patches; sudo ./tools/install-kolla-ansible'
+              'cd /srv/shakenfist/kerbside-patches; sudo ./tools/ka prechecks -i /etc/kolla/inventory'
+
+      - name: Pull images
+        run: |
+          . $GITHUB_ENV
+          ssh -i /srv/github/id_ci -o StrictHostKeyChecking=no \
+              -o UserKnownHostsFile=/dev/null \
+              ${{ matrix.test.baseuser }}@10.0.2.2 \
+              'cd /srv/shakenfist/kerbside-patches; sudo ./tools/ka pull -i /etc/kolla/inventory'
+
+      - name: Deploy
+        run: |
+          . $GITHUB_ENV
+          ssh -i /srv/github/id_ci -o StrictHostKeyChecking=no \
+              -o UserKnownHostsFile=/dev/null \
+              ${{ matrix.test.baseuser }}@10.0.2.2 \
+              'cd /srv/shakenfist/kerbside-patches; sudo ./tools/ka deploy -i /etc/kolla/inventory'
 
       - name: Install patched OpenStack clients
         run: |
