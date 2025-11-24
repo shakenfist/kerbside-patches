@@ -35,6 +35,9 @@ skip_unit_tests="false"
 # Should we skip tests entirely?
 skip_tests="false"
 
+# Should we rewrite the patch file to match what was applied?
+update_patches="false"
+
 # Should we use the CI environment's OCI registry to avoid rebuilding images?
 use_ci_patches="false"
 use_ci_registry="false"
@@ -154,6 +157,12 @@ while [[ ${found_arg} -gt 0 ]]; do
             shift; shift
             found_arg=1
 	        ;;
+        --update-patches)
+            export update_patches="true"
+            echo "Will update patches to match what was applied."
+            shift
+            found_arg=1
+            ;;
         -*|--*)
             echo "Unknown option $1"
             exit 1
@@ -278,6 +287,17 @@ function run_tests {
                     echo -e "${H3}tox -efunctional failed!${Color_Off}"
                     exit 1
                 fi
+            fi
+        fi
+
+        # Kolla-Ansible also has additional linters as well as a pep8
+        if [ $(tox -a | grep -c linters) -gt 0 ]
+        then
+            echo -e "${H3}tox -elinters -vv --skip-missing-interpreters=false${Color_Off}"
+            tox -elinters | ts "%b %d %H:%M:%S ${2} ${3} linters"
+            if [ $? -gt 0 ]; then
+                echo -e "${H3}tox -elinters failed!${Color_Off}"
+                exit 1
             fi
         fi
 

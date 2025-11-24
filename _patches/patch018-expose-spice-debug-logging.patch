@@ -1,28 +1,32 @@
-commit ac2798043899d5418139873cadd4c9f2ef49ecb3
+commit ac1b7b1af49e0b0826e4c98c130b151e431bda89
 Author: Michael Still <mikal@stillhq.com>
+Date:   Fri Nov 21 10:42:39 2025 +1100
 
     Allow setting of the new SPICE debug_logging option.
-
+    
     This emits debug logs to the libvirt qemu log if enabled, which
     can be helpful when debugging connnectivity issues.
+    
+    Change-Id: I0a19e9e18bba014f12ec97d5fd44f3b624a3f8aa
+    Signed-off-by: Michael Still <mikal@stillhq.com>
 
 diff --git a/ansible/group_vars/all.yml b/ansible/group_vars/all.yml
-index e753899..80f1f0d 100644
+index 49efb9f42..2303dd0af 100644
 --- a/ansible/group_vars/all.yml
 +++ b/ansible/group_vars/all.yml
-@@ -1052,6 +1052,7 @@ nova_spice_playback_compression: "yes"
+@@ -1216,6 +1216,7 @@ nova_spice_playback_compression: "yes"
  nova_spice_streaming_mode: "filter"
  nova_spice_require_secure: "no"
  nova_spice_allow_concurrent: "yes"
 +nova_spice_debug_logging: "no"
-
-
+ 
+ 
  #######################
 diff --git a/ansible/roles/nova-cell/templates/nova.conf.j2 b/ansible/roles/nova-cell/templates/nova.conf.j2
-index 7c1fcfc..c01c06c 100644
+index 100beca19..7eaa1dc42 100644
 --- a/ansible/roles/nova-cell/templates/nova.conf.j2
 +++ b/ansible/roles/nova-cell/templates/nova.conf.j2
-@@ -60,6 +60,7 @@ enabled = false
+@@ -65,6 +65,7 @@ enabled = false
  enabled = true
  require_secure = {{ nova_spice_require_secure | bool | lower }}
  allow_concurrent = {{ nova_spice_allow_concurrent | bool | lower }}
@@ -31,7 +35,7 @@ index 7c1fcfc..c01c06c 100644
  image_compression = {{ nova_spice_image_compression }}
  jpeg_compression = {{ nova_spice_jpeg_compression }}
 diff --git a/doc/source/reference/compute/nova-guide.rst b/doc/source/reference/compute/nova-guide.rst
-index d229336..cc6c8a2 100644
+index d22933600..cc6c8a283 100644
 --- a/doc/source/reference/compute/nova-guide.rst
 +++ b/doc/source/reference/compute/nova-guide.rst
 @@ -75,6 +75,8 @@ through to ``nova``:
@@ -40,6 +44,6 @@ index d229336..cc6c8a2 100644
    Defaults to ``filter``.
 +* nova_spice_debug_logging: whether to emit debug logs from SPICE sessions to
 +  the libvirt qemu log. Defaults to ``no``.
-
+ 
  Cells
  =====

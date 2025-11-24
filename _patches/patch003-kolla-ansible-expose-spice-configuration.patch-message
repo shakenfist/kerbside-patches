@@ -26,6 +26,5 @@ in 2023.1, and they are exposed as well:
 All configuration options and their various values are documented
 by OpenStack Compute in their documentation.
 
-Partially-Implements: #2131793 (spice-direct consoles)
-Change-Id: I07f6890f1c7c4e543667d3cbd7b3e82bd9ec83e3
+Change-Id: Ie8ed1fadaa783438a7425ed69d255402faf51247
 Signed-off-by: Michael Still <mikal@stillhq.com>

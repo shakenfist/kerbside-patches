@@ -1,7 +1,7 @@
 repo: https://github.com/openstack/kolla-ansible
-source_branch: stable/2025.1
-destination_branch: stable/2025.1-patches
+source_branch: master
+destination_branch: spice-direct-consoles
 shallow_clone: false
 directory: kolla-ansible
-release: 2025.1
+release: master
 depends_on: ''

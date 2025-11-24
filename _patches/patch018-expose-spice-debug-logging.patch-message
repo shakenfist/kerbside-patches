@@ -3,5 +3,5 @@ Allow setting of the new SPICE debug_logging option.
 This emits debug logs to the libvirt qemu log if enabled, which
 can be helpful when debugging connnectivity issues.
 
-Change-Id: Ia3686538952ec4b88877c2ae4f5c1699416ec851
+Change-Id: I0a19e9e18bba014f12ec97d5fd44f3b624a3f8aa
 Signed-off-by: Michael Still <mikal@stillhq.com>

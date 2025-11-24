@@ -56,6 +56,14 @@ if [ ! -e ${topsrcdir}/${directory} ]; then
         echo -e "${H2}Full depth cloning ${repo} branch ${source_branch}${Color_Off}"
         git clone --branch ${source_branch} ${repo} ${topsrcdir}/${directory}
     fi
+
+    # Sprinkle in the git review changeid hook
+    echo
+    echo -e "${H2}${Arrow}Install commit hook to ${topsrcdir}/${directory}/.git/hooks/commit-msg${Color_Off}"
+    echo
+    cp ${topdir}/tools/commit-msg.hook ${topsrcdir}/${directory}/.git/hooks/commit-msg
+    ls -lrth ${topsrcdir}/${directory}/.git/hooks/commit-msg
+    echo
 else
     echo -e "${H2}${Arrow}Reusing existing repo${Color_Off}"
     if [ "${shallow_clone}" == "true" ]; then
@@ -69,6 +77,13 @@ else
         cd ${topsrcdir}/${directory}
         git checkout ${source_branch}
     fi
+fi
+
+if [ ! -e ${topsrcdir}/${directory}/.git/hooks/commit-msg ]; then
+    echo "Commit message hook missing!"
+    exit 1
+else
+    echo "Commit message hook is at ${topsrcdir}/${directory}/.git/hooks/commit-msg..."
 fi
 
 cd "${topsrcdir}/${directory}"
@@ -112,6 +127,11 @@ if [ -e ${project}/PREPATCH ]; then
         git commit -s -a --file ${topdir}/${project}/${patch}-message
         echo
 
+        if [ "${update_patches}" == "true" ]; then
+            echo -e "${H3}Update patch with what was applied${Color_Off}"
+            git show > ${topdir}/${project}/${patch}
+        fi
+
         popd > /dev/null
     done
 fi
@@ -146,16 +166,19 @@ do
         exit 1
     fi
 
-    if [ ! -e ${topdir}/${project}/${patch}-message ]; then
-        echo -e "${H3}Extracting commit message from ${topdir}/${project}/${patch}${Color_Off}"
-        python3 ${topdir}/tools/extract-commit-message ${topdir}/${project}/${patch}
-    fi
+    echo -e "${H3}Extracting commit message from ${topdir}/${project}/${patch}${Color_Off}"
+    python3 ${topdir}/tools/extract-commit-message ${topdir}/${project}/${patch}
 
     git commit -s -a --file ${topdir}/${project}/${patch}-message
     echo
 
     if [ "${defer_tests}" != "true" ]; then
         run_tests ${repo} ${source_branch} ${shortpatch}
+    fi
+
+    if [ "${update_patches}" == "true" ]; then
+        echo -e "${H3}Update patch with what was applied${Color_Off}"
+        git show > ${topdir}/${project}/${patch}
     fi
 
     popd > /dev/null
@@ -184,16 +207,19 @@ if [ ${use_ci_patches} == "true" ]; then
                 exit 1
             fi
 
-            if [ ! -e ${topdir}/${project}/${patch}-message ]; then
-                echo -e "${H3}Extracting commit message from ${topdir}/${project}/${patch}${Color_Off}"
-                python3 ${topdir}/tools/extract-commit-message ${topdir}/${project}/${patch}
-            fi
+            echo -e "${H3}Extracting commit message from ${topdir}/${project}/${patch}${Color_Off}"
+            python3 ${topdir}/tools/extract-commit-message ${topdir}/${project}/${patch}
 
             git commit -s -a --file ${topdir}/${project}/${patch}-message
             echo
 
             if [ "${defer_tests}" != "true" ]; then
                 run_tests ${repo} ${source_branch} ${shortpatch}
+            fi
+
+            if [ "${update_patches}" == "true" ]; then
+                echo -e "${H3}Update patch with what was applied${Color_Off}"
+                git show > ${topdir}/${project}/${patch}
             fi
 
             popd > /dev/null

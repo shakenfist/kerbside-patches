@@ -4,4 +4,4 @@
 ../_patches/patch011-allow-concurrent-spice-connections.patch
 ../_patches/patch018-expose-spice-debug-logging.patch
 ../_patches/patch096-kolla-ansible-epoxy-compressed.patch
-../_patches/patch097-kolla-ansible-fixed-proxy-cert.patch
+../_patches/patch100-kolla-ansible-epoxy-fixed-proxy-cert.patch
