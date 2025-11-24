@@ -1,0 +1,48 @@
+commit 4ba3e28922f4c9d64feb554f4aab455b1697202a
+Author: Michael Still <mikal@stillhq.com>
+Date:   Mon Nov 24 12:37:30 2025 +1100
+
+    Revert "ansible-lint: Fix yaml[truthy] in fluentd role"
+    
+    This reverts commit a3872b19d3eb042a12b9639580e58b387317aaf7.
+
+diff --git a/ansible/roles/fluentd/tasks/config.yml b/ansible/roles/fluentd/tasks/config.yml
+index 1f33b4852..d6c8cb649 100644
+--- a/ansible/roles/fluentd/tasks/config.yml
++++ b/ansible/roles/fluentd/tasks/config.yml
+@@ -38,7 +38,7 @@
+   find:
+     path: "{{ node_custom_config }}/fluentd/input"
+     pattern: "*.conf"
+-  run_once: true
++  run_once: True
+   register: find_custom_fluentd_inputs
+   delegate_to: localhost
+ 
+@@ -46,7 +46,7 @@
+   find:
+     path: "{{ node_custom_config }}/fluentd/filter"
+     pattern: "*.conf"
+-  run_once: true
++  run_once: True
+   register: find_custom_fluentd_filters
+   delegate_to: localhost
+ 
+@@ -54,7 +54,7 @@
+   find:
+     path: "{{ node_custom_config }}/fluentd/format"
+     pattern: "*.conf"
+-  run_once: true
++  run_once: True
+   register: find_custom_fluentd_formats
+   delegate_to: localhost
+ 
+@@ -62,7 +62,7 @@
+   find:
+     path: "{{ node_custom_config }}/fluentd/output"
+     pattern: "*.conf"
+-  run_once: true
++  run_once: True
+   register: find_custom_fluentd_outputs
+   delegate_to: localhost
+ 

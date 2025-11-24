@@ -1,0 +1,3 @@
+Revert "ansible-lint: Fix yaml[truthy] in fluentd role"
+
+This reverts commit a3872b19d3eb042a12b9639580e58b387317aaf7.
