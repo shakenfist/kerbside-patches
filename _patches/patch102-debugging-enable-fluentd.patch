@@ -1,0 +1,23 @@
+commit 770d409618708850c46168eaf13a0465ae5d88a4
+Author: Michael Still <mikal@stillhq.com>
+Date:   Mon Nov 24 19:27:36 2025 +1100
+
+    Debug.
+
+diff --git a/ansible/site.yml b/ansible/site.yml
+index df332dd..2ca2a20 100644
+--- a/ansible/site.yml
++++ b/ansible/site.yml
+@@ -113,6 +113,12 @@
+   roles:
+     - role: cron
+ 
++- name: Debug enable_fluentd
++  debug:
++    msg:
++      - "enable_fluentd: {{ enable_fluentd }}"
++      - "enable_fluentd | bool: {{ enable_fluentd | bool }}"
++
+ - name: Apply role fluentd
+   gather_facts: false
+   hosts:
