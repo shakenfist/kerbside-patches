@@ -392,12 +392,6 @@ jobs:
 
               ${GITHUB_WORKSPACE}/actions/tools/run_remote ${node_address} \
                   ./_build/add-insecure-ci-registry.sh
-
-              echo ${CI_REGISTRY_TOKEN} | ssh -i /srv/github/id_ci -o StrictHostKeyChecking=no \
-                  -o UserKnownHostsFile=/dev/null \
-                  ${{ matrix.test.baseuser }}@${node_address} \
-                  "docker login 192.168.1.12:4000 --username kolla-imgs --password-stdin"
-              echo
           done
 
       - name: Run pre-checks
