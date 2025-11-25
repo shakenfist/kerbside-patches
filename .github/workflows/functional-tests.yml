@@ -390,28 +390,6 @@ jobs:
               -o UserKnownHostsFile=/dev/null \
               ${{ matrix.test.baseuser }}@10.0.2.2 "${script}"
 
-      - name: Log into the docker registry on every node
-        env:
-          CI_REGISTRY_TOKEN: ${{ secrets.CI_REGISTRY_TOKEN }}
-        run: |
-          . $GITHUB_ENV
-          . ci-environment.sh
-          cd ${GITHUB_WORKSPACE}/kerbside-patches
-
-          # Required by run_remote
-          export baseuser=${{ matrix.test.baseuser }}
-          export copyscript="true"
-
-          for node in ${nodes}; do
-              node_address=${!node}
-              echo "===================================================================="
-              echo "${node} is at ${node_address}"
-              echo
-
-              ${GITHUB_WORKSPACE}/actions/tools/run_remote ${node_address} \
-                  ./_build/add-insecure-ci-registry.sh
-          done
-
       - name: Run pre-checks
         run: |
           . $GITHUB_ENV
