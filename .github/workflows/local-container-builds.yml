@@ -65,6 +65,11 @@ jobs:
           cd kerbside-patches
           ./_build/setup-local-build-environment.sh
 
+          # Now that we're building on the runner, we must also do terrible
+          # crimes to allow access to docker because we cannot reliably
+          # reload our group membership.
+          sudo chmod ugo+rw /var/run/docker.sock
+
       - name: Assemble source code
         run: |
           . $GITHUB_ENV
