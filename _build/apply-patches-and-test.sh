@@ -13,6 +13,7 @@ banner ${project}
 
 repo=$(yq -r .repo ${project}/config.yaml)
 source_branch=$(yq -r .source_branch ${project}/config.yaml)
+source_sha=$(yq -r .source_sha ${project}/config.yaml)
 destination_branch=$(yq -r .destination_branch ${project}/config.yaml)
 shallow_clone=$(yq -r .shallow_clone ${project}/config.yaml)
 directory=$(yq -r .directory ${project}/config.yaml)
@@ -49,17 +50,15 @@ mkdir -p "${topsrcdir}"
 
 if [ ! -e ${topsrcdir}/${directory} ]; then
     echo -e "${H2}${Arrow}Cloning repo${Color_Off}"
-    if [[ ${source_branch} == sha:* ]]; then
+    if [[ ${source_sha} != "null" ]]; then
         # Using source SHAs requires special casing because git lacks a fast path.
         # Shallow cloning is also not possible, so that flag is ignored in this case.
         echo -e "${H2}Full depth cloning ${repo}...${Color_Off}"
         git clone ${repo} ${topsrcdir}/${directory}
 
-        sha=$(echo ${source_branch} | cut -f 2 -d ":")
-
-        echo -e "${H2}Checking out ${sha}...${Color_Off}"
+        echo -e "${H2}Checking out ${source_sha}...${Color_Off}"
         cd ${topsrcdir}/${directory}
-        git checkout ${sha}
+        git checkout ${source_sha}
     elif [ "${shallow_clone}" == "true" ]; then
         echo -e "${H2}Shallow cloning ${repo} branch ${source_branch}${Color_Off}"
         git clone --depth 1 --branch ${source_branch} ${repo} ${topsrcdir}/${directory}
@@ -77,13 +76,13 @@ if [ ! -e ${topsrcdir}/${directory} ]; then
     echo
 else
     echo -e "${H2}${Arrow}Reusing existing repo${Color_Off}"
-    if [[ ${source_branch} == sha:* ]]; then
+    if [[ ${source_sha} != "null" ]]; then
         # Using source SHAs requires special casing because git lacks a fast path.
         # Shallow cloning is also not possible, so that flag is ignored in this case.
-        echo -e "${H2}Checking out ${sha}...${Color_Off}"
+        echo -e "${H2}Checking out ${source_sha}...${Color_Off}"
         cd ${topsrcdir}/${directory}
-        git fetch --unshallow
-        git checkout ${sha}
+        git fetch --unshallow || true
+        git checkout ${source_sha}
     elif [ "${shallow_clone}" == "true" ]; then
         echo -e "${H2}Adding remote ${source_branch} to a pre-existing shallow clone${Color_Off}"
         cd ${topsrcdir}/${directory}
