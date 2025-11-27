@@ -49,7 +49,18 @@ mkdir -p "${topsrcdir}"
 
 if [ ! -e ${topsrcdir}/${directory} ]; then
     echo -e "${H2}${Arrow}Cloning repo${Color_Off}"
-    if [ "${shallow_clone}" == "true" ]; then
+    if [[ ${source_branch} == sha:* ]]; then
+        # Using source SHAs requires special casing because git lacks a fast path.
+        # Shallow cloning is also not possible, so that flag is ignored in this case.
+        echo -e "${H2}Full depth cloning ${repo}...${Color_Off}"
+        git clone ${repo} ${topsrcdir}/${directory}
+
+        sha=$(echo ${source_branch} | cut -f 2 -d ":")
+
+        echo -e "${H2}Checking out ${sha}...${Color_Off}"
+        cd ${topsrcdir}/${directory}
+        git checkout ${sha}
+    elif [ "${shallow_clone}" == "true" ]; then
         echo -e "${H2}Shallow cloning ${repo} branch ${source_branch}${Color_Off}"
         git clone --depth 1 --branch ${source_branch} ${repo} ${topsrcdir}/${directory}
     else
@@ -66,7 +77,14 @@ if [ ! -e ${topsrcdir}/${directory} ]; then
     echo
 else
     echo -e "${H2}${Arrow}Reusing existing repo${Color_Off}"
-    if [ "${shallow_clone}" == "true" ]; then
+    if [[ ${source_branch} == sha:* ]]; then
+        # Using source SHAs requires special casing because git lacks a fast path.
+        # Shallow cloning is also not possible, so that flag is ignored in this case.
+        echo -e "${H2}Checking out ${sha}...${Color_Off}"
+        cd ${topsrcdir}/${directory}
+        git fetch --unshallow
+        git checkout ${sha}
+    elif [ "${shallow_clone}" == "true" ]; then
         echo -e "${H2}Adding remote ${source_branch} to a pre-existing shallow clone${Color_Off}"
         cd ${topsrcdir}/${directory}
         git remote set-branches origin '*'
