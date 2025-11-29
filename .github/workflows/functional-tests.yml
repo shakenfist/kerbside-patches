@@ -22,6 +22,14 @@ jobs:
             'container_distro_version': 'bookworm'
           },
           {
+            'name': 'build-debian-2025.2',
+            'release': '2025.2',
+            'base': 'debian:12',
+            'baseuser': 'debian',
+            'container_distro': 'debian',
+            'container_distro_version': 'bookworm'
+          },
+          {
             'name': 'build-debian-master',
             'release': 'master',
             'base': 'debian:12',
@@ -225,6 +233,16 @@ jobs:
             'container_distro': 'debian'
           },
           {
+            'name': '2025.2-debian12-aio',
+            'description': 'OpenStack 2025.2 on Debian 12 all-in-one',
+            'release': '2025.2',
+            'base': 'debian:12',
+            'baseuser': 'debian',
+            'topology': 'all-in-one',
+            'runs_on': 'debian-12',
+            'container_distro': 'debian'
+          },
+          {
             'name': 'master-debian12-aio',
             'description': 'OpenStack master on Debian 12 all-in-one',
             'release': 'master',
@@ -371,28 +389,6 @@ jobs:
           ssh -i /srv/github/id_ci -o StrictHostKeyChecking=no \
               -o UserKnownHostsFile=/dev/null \
               ${{ matrix.test.baseuser }}@10.0.2.2 "${script}"
-
-      - name: Log into the docker registry on every node
-        env:
-          CI_REGISTRY_TOKEN: ${{ secrets.CI_REGISTRY_TOKEN }}
-        run: |
-          . $GITHUB_ENV
-          . ci-environment.sh
-          cd ${GITHUB_WORKSPACE}/kerbside-patches
-
-          # Required by run_remote
-          export baseuser=${{ matrix.test.baseuser }}
-          export copyscript="true"
-
-          for node in ${nodes}; do
-              node_address=${!node}
-              echo "===================================================================="
-              echo "${node} is at ${node_address}"
-              echo
-
-              ${GITHUB_WORKSPACE}/actions/tools/run_remote ${node_address} \
-                  ./_build/add-insecure-ci-registry.sh
-          done
 
       - name: Run pre-checks
         run: |

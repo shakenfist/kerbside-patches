@@ -1,0 +1,7 @@
+repo: https://github.com/openstack/kolla-ansible
+source_branch: stable/2025.2
+destination_branch: stable/2025.2-patches
+shallow_clone: true
+directory: kolla-ansible
+release: 2025.2
+depends_on: ''
