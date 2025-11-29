@@ -5,3 +5,5 @@ shallow_clone: false
 directory: openstacksdk
 release: 2025.1
 depends_on: ''
+source_sha: 8cadd9d3267e1950d1e0089dd1c4dc15b652b598
+previous_source_sha: 8cadd9d3267e1950d1e0089dd1c4dc15b652b598
