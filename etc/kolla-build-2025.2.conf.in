@@ -1,0 +1,12 @@
+[DEFAULT]
+base = DISTRO
+debug = true
+push = false
+
+[kerbside-base]
+type = local
+location = TOPSRCDIR/kerbside
+
+[nova-base]
+type = local
+location = TOPSRCDIR/nova

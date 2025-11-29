@@ -22,6 +22,14 @@ jobs:
             'container_distro_version': 'bookworm'
           },
           {
+            'name': 'build-debian-2025.2',
+            'release': '2025.2',
+            'base': 'debian:12',
+            'baseuser': 'debian',
+            'container_distro': 'debian',
+            'container_distro_version': 'bookworm'
+          },
+          {
             'name': 'build-debian-master',
             'release': 'master',
             'base': 'debian:12',
@@ -218,6 +226,16 @@ jobs:
             'name': '2025.1-debian12-aio',
             'description': 'OpenStack 2025.1 on Debian 12 all-in-one',
             'release': '2025.1',
+            'base': 'debian:12',
+            'baseuser': 'debian',
+            'topology': 'all-in-one',
+            'runs_on': 'debian-12',
+            'container_distro': 'debian'
+          },
+          {
+            'name': '2025.2-debian12-aio',
+            'description': 'OpenStack 2025.2 on Debian 12 all-in-one',
+            'release': '2025.2',
             'base': 'debian:12',
             'baseuser': 'debian',
             'topology': 'all-in-one',
