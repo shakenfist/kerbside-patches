@@ -1,0 +1,109 @@
+#!/bin/bash -e
+
+# Add a CA certificate to the system trust store
+# Works on both Debian-based and RHEL-based (Rocky Linux) distributions
+
+# Check if certificate file is provided
+if [ -z "$1" ]; then
+    echo "Usage: $0 <certificate-file>"
+    echo "  certificate-file: Path to the CA certificate (PEM format)"
+    exit 1
+fi
+
+CERT_FILE="$1"
+
+# Validate certificate file exists
+if [ ! -f "${CERT_FILE}" ]; then
+    echo "Error: Certificate file '${CERT_FILE}' not found"
+    exit 1
+fi
+
+# Validate it's a valid certificate
+if ! openssl x509 -in "${CERT_FILE}" -noout 2>/dev/null; then
+    echo "Error: '${CERT_FILE}' does not appear to be a valid X.509 certificate"
+    exit 1
+fi
+
+# Detect the OS
+. /etc/os-release
+
+# Generate a certificate name based on the subject
+CERT_SUBJECT=$(openssl x509 -in "${CERT_FILE}" -noout -subject | sed 's/subject=//' | sed 's/[^a-zA-Z0-9]/_/g')
+CERT_NAME="${CERT_SUBJECT}.crt"
+
+# Get the certificate fingerprint for verification
+CERT_FINGERPRINT=$(openssl x509 -in "${CERT_FILE}" -noout -fingerprint -sha256 | cut -d= -f2)
+
+echo "Adding CA certificate to system trust store..."
+echo "Certificate: ${CERT_FILE}"
+echo "Fingerprint: ${CERT_FINGERPRINT}"
+echo "OS: ${ID}"
+
+if [ "${ID}" == "debian" ] || [ "${ID}" == "ubuntu" ]; then
+    # Debian/Ubuntu
+    TARGET_DIR="/usr/local/share/ca-certificates"
+    TARGET_FILE="${TARGET_DIR}/${CERT_NAME}"
+    BUNDLE_PATH="/etc/ssl/certs/ca-certificates.crt"
+
+    echo "Installing to ${TARGET_FILE}"
+    sudo mkdir -p "${TARGET_DIR}"
+    sudo cp "${CERT_FILE}" "${TARGET_FILE}"
+    sudo chmod 644 "${TARGET_FILE}"
+
+    echo "Updating CA certificates..."
+    sudo update-ca-certificates
+
+    echo "✓ Certificate added successfully"
+    echo "System bundle: ${BUNDLE_PATH}"
+
+elif [ "${ID}" == "rocky" ] || [ "${ID}" == "rhel" ] || [ "${ID}" == "centos" ] || [ "${ID}" == "fedora" ]; then
+    # RHEL-based (Rocky Linux, CentOS, Fedora)
+    TARGET_DIR="/etc/pki/ca-trust/source/anchors"
+    TARGET_FILE="${TARGET_DIR}/${CERT_NAME}"
+    BUNDLE_PATH="/etc/pki/tls/certs/ca-bundle.crt"
+
+    echo "Installing to ${TARGET_FILE}"
+    sudo mkdir -p "${TARGET_DIR}"
+    sudo cp "${CERT_FILE}" "${TARGET_FILE}"
+    sudo chmod 644 "${TARGET_FILE}"
+
+    echo "Updating CA trust..."
+    sudo update-ca-trust extract
+
+    echo "✓ Certificate added successfully"
+    echo "System bundle: ${BUNDLE_PATH}"
+
+else
+    echo "Error: Unsupported distribution: ${ID}"
+    echo "Supported: debian, ubuntu, rocky, rhel, centos, fedora"
+    exit 1
+fi
+
+# Verify the certificate was added by checking if our fingerprint is in the bundle
+echo ""
+echo "Verifying installation..."
+
+# Extract all certificates from the bundle and check fingerprints
+TEMP_BUNDLE="/tmp/bundle_verify_$$"
+csplit -s -z -f "${TEMP_BUNDLE}_" -b "%04d.crt" "${BUNDLE_PATH}" '/-----BEGIN CERTIFICATE-----/' '{*}'
+
+FOUND=0
+for cert in ${TEMP_BUNDLE}_*.crt; do
+    if [ -f "${cert}" ]; then
+        BUNDLE_FINGERPRINT=$(openssl x509 -in "${cert}" -noout -fingerprint -sha256 2>/dev/null | cut -d= -f2)
+        if [ "${BUNDLE_FINGERPRINT}" == "${CERT_FINGERPRINT}" ]; then
+            FOUND=1
+            break
+        fi
+    fi
+done
+
+# Cleanup temp files
+rm -f ${TEMP_BUNDLE}_*.crt
+
+if [ ${FOUND} -eq 1 ]; then
+    echo "✓ Verification passed - certificate found in system bundle"
+else
+    echo "⚠ Warning: Certificate not found in system bundle"
+    exit 1
+fi
