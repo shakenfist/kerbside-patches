@@ -20,8 +20,11 @@ for dir in ${*}; do
             # order of their entries is interdeterminate. While there are flags to
             # address those, I could not get it to work reliably. Instead, we
             # are going to hash the contents of every python file...
+	    #
+	    # Additionally, I exclude kolla-ansible here because its code does not
+	    # change the content of images.
             echo "Using src hashing for ${dir}..." >&2
-            hash=$(find . -type f -name "*.py" -exec cat {} \; | sort | sha1sum - | cut -f 1 -d " " | sed -rn 's/^(........).*/\1/gp')
+            hash=$(find . -type f -name "*.py" -path "./kolla-ansible" -prune -exec cat {} \; | sort | sha1sum - | cut -f 1 -d " " | sed -rn 's/^(........).*/\1/gp')
             unique="${unique};${hash}"
         elif [ $(echo "_build etc tools" | grep -c "${dir}" || true) -gt 0 ]; then
             # These directories are like `src`, but has a simpler structure and
