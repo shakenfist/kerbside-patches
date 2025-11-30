@@ -13,7 +13,10 @@ The remainder of the patches are ancillary changes -- support for new Nova API
 microversions in clients, things which helped me debug along the way, and that
 sort of thing.
 
-These patches last successfully applied via CI on 28 November 2025.
+These patches last successfully applied via CI on 30 November 2025. When this occurs,
+the SHAs the patches were applied to for each project are recorded in the
+relevant config.yaml file, and will be used for patch applications until
+updated.
 
 # Not for production use
 
