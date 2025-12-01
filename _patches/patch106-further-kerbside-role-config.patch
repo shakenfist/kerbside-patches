@@ -6,15 +6,6 @@ Date:   Thu Nov 27 18:10:52 2025 +1100
     
     Change-Id: I0750dabe750c386eeab0c8b62d0e2328e9fee36d
 
-diff --git a/ansible/roles/cron/templates/cron-logrotate-kerbside.conf.j2 b/ansible/roles/cron/templates/cron-logrotate-kerbside.conf.j2
-new file mode 100644
-index 000000000..3f4530a13
---- /dev/null
-+++ b/ansible/roles/cron/templates/cron-logrotate-kerbside.conf.j2
-@@ -0,0 +1,3 @@
-+"/var/log/kolla/kerbside/*.log"
-+{
-+}
 diff --git a/ansible/roles/cron/tasks/config.yml b/ansible/roles/cron/tasks/config.yml
 index caebee58c..83ce78bfc 100644
 --- a/ansible/roles/cron/tasks/config.yml

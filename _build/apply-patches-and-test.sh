@@ -264,6 +264,11 @@ pushd ${topsrcdir} > /dev/null
 tar czf ${directory}.tgz ${directory}
 ls -lrth ${topsrcdir}/${directory}.tgz
 
+# Drop a CLAUDE.md into the local directory for development, if one exists
+if [ -e ${topdir}/${directory}/_CLAUDE.md ]; then
+    cp ${topdir}/${directory}/_CLAUDE.md ${topsrcdir}/${directory}/CLAUDE.md
+fi
+
 echo -e "${H2}Success for branch ${source_branch}!${Color_Off}"
 echo ""
 popd > /dev/null

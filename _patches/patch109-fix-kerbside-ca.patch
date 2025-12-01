@@ -1,0 +1,95 @@
+commit 1acdce2fb4e5c48d5749918b225cc08777a29099
+Author: Michael Still <mikal@stillhq.com>
+Date:   Tue Dec 2 06:06:24 2025 +1100
+
+    Fix kerbside CA location and PEM filenames.
+    
+    Change-Id: Iabcf46ba0876a5bef10b934ab39f4227602b3097
+
+diff --git a/ansible/roles/kerbside/tasks/copy-certs.yml b/ansible/roles/kerbside/tasks/copy-certs.yml
+index ef2e28584..713904d33 100644
+--- a/ansible/roles/kerbside/tasks/copy-certs.yml
++++ b/ansible/roles/kerbside/tasks/copy-certs.yml
+@@ -15,9 +15,10 @@
+     kerbside_ca_cert: "{{ lookup('first_found', certs) }}"
+   copy:
+     src: "{{ kerbside_ca_cert }}"
+-    dest: "{{ node_config_directory }}/{{ project_name }}-ca.pem"
++    dest: "{{ node_config_directory }}/{{ item.key }}/{{ project_name }}-ca.pem"
+     mode: "0644"
+   become: true
+   when: >
+     (inventory_hostname is in groups["kerbside-api"] or
+      inventory_hostname is in groups["kerbside-proxy"])
++  with_dict: "{{ kerbside_services | select_services_enabled_and_mapped_to_host }}"
+diff --git a/ansible/roles/kerbside/templates/kerbside.ini.j2 b/ansible/roles/kerbside/templates/kerbside.ini.j2
+index b892bb3a3..aa88c2da5 100644
+--- a/ansible/roles/kerbside/templates/kerbside.ini.j2
++++ b/ansible/roles/kerbside/templates/kerbside.ini.j2
+@@ -7,9 +7,9 @@ log_output_json = true
+ public_fqdn = {{ keystone_external_fqdn | put_address_in_context('url') }}
+ public_secure_port = {{ kerbside_vdi_secure_port }}
+ public_insecure_port = {{ kerbside_vdi_insecure_port }}
+-cacert_path = /etc/pki/kerbside/serverca.pem
+-proxy_host_cert_path = /etc/pki/kerbside/servercert.pem
+-proxy_host_cert_key_path = /etc/pki/kerbside/serverkey.pem
++cacert_path = /etc/pki/kerbside/kerbside-ca.pem
++proxy_host_cert_path = /etc/pki/kerbside/kerbside-cert.pem
++proxy_host_cert_key_path = /etc/pki/kerbside/kerbside-key.pem
+ proxy_host_subject = 
+ sql_url = mysql+pymysql://{{ kerbside_database_user }}:{{ kerbside_database_password }}@{{ kerbside_database_address }}/{{ kerbside_database_name }}
+ 
+diff --git a/ansible/roles/kerbside/templates/kerbside_api.json.j2 b/ansible/roles/kerbside/templates/kerbside_api.json.j2
+index 5a55f3bed..b3e3fcce5 100644
+--- a/ansible/roles/kerbside/templates/kerbside_api.json.j2
++++ b/ansible/roles/kerbside/templates/kerbside_api.json.j2
+@@ -27,19 +27,19 @@
+         }{% endif %},
+         {
+             "source": "{{ container_config_directory }}/kerbside-ca.pem",
+-            "dest": "/etc/pki/kerbside/serverca.pem",
++            "dest": "/etc/pki/kerbside/kerbside-ca.pem",
+             "owner": "kerbside",
+             "perm": "0600"
+         },
+         {
+             "source": "{{ container_config_directory }}/kerbside-cert.pem",
+-            "dest": "/etc/pki/kerbside/servercert.pem",
++            "dest": "/etc/pki/kerbside/kerbside-cert.pem",
+             "owner": "kerbside",
+             "perm": "0600"
+         },
+         {
+             "source": "{{ container_config_directory }}/kerbside-key.pem",
+-            "dest": "/etc/pki/kerbside/serverkey.pem",
++            "dest": "/etc/pki/kerbside/kerbside-key.pem",
+             "owner": "kerbside",
+             "perm": "0600"
+         },
+diff --git a/ansible/roles/kerbside/templates/kerbside_proxy.json.j2 b/ansible/roles/kerbside/templates/kerbside_proxy.json.j2
+index db765dfd1..d2ef225f8 100644
+--- a/ansible/roles/kerbside/templates/kerbside_proxy.json.j2
++++ b/ansible/roles/kerbside/templates/kerbside_proxy.json.j2
+@@ -15,19 +15,19 @@
+         },
+         {
+             "source": "{{ container_config_directory }}/kerbside-ca.pem",
+-            "dest": "/etc/pki/kerbside/serverca.pem",
++            "dest": "/etc/pki/kerbside/kerbside-ca.pem",
+             "owner": "kerbside",
+             "perm": "0600"
+         },
+         {
+             "source": "{{ container_config_directory }}/kerbside-cert.pem",
+-            "dest": "/etc/pki/kerbside/servercert.pem",
++            "dest": "/etc/pki/kerbside/kerbside-cer.pem",
+             "owner": "kerbside",
+             "perm": "0600"
+         },
+         {
+             "source": "{{ container_config_directory }}/kerbside-key.pem",
+-            "dest": "/etc/pki/kerbside/serverkey.pem",
++            "dest": "/etc/pki/kerbside/kerbside-key.pem",
+             "owner": "kerbside",
+             "perm": "0600"
+         },
