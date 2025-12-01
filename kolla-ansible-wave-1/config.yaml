@@ -3,7 +3,7 @@ source_branch: master
 destination_branch: spice-direct-consoles
 shallow_clone: false
 directory: kolla-ansible
-release: master
+release: master-wave1
 depends_on: ''
 source_sha: 3bd221a98819d271f3629b6a95f16da89b1ba303
 previous_source_sha: 0311c0bed06b872bb19516904f9887eedaad5d7f
