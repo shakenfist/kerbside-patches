@@ -1,0 +1,6 @@
+{% extends parent_template %}
+
+# Remove git history to reduce image size
+{% block remove_git_object_store %}
+RUN find / -type d -name .git -exec rm -rf {} \;
+{% endblock %}

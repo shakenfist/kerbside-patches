@@ -132,6 +132,7 @@ for target in ${build_targets}; do
     echo -e "${H3}${venvdir}/bin/kolla-build \\"
     echo -e "    --config-file \"${topdir}/archive/kolla-build.conf\" \\"
     echo -e "    --tag ${image_tag} \\"
+    echo -e "    --template-override "${topdir}/etc/kolla_template_overrides.j2" \\"
     echo -e "    --namespace kolla ${kolla_build_args} 2>&1 | \\"
     echo -e "    tee --append ${topdir}/archive/build.log | \\"
     echo -e "    ts \"%b %d %H:%M:%S ${target}\""
@@ -140,6 +141,7 @@ for target in ${build_targets}; do
     ${venvdir}/bin/kolla-build \
         --config-file "${topdir}/archive/kolla-build.conf" \
         --tag ${image_tag} \
+        --template-override "${topdir}/etc/kolla_template_overrides.j2" \
         --namespace kolla ${kolla_build_args} 2>&1 | \
         tee --append ${topdir}/archive/build.log | \
         ts "%b %d %H:%M:%S ${target}"
