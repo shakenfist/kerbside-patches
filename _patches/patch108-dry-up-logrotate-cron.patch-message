@@ -1,0 +1,8 @@
+Simplify cron jobs for log rotate.
+
+There was a lot of repetitive code for the cron templates for
+logrotate, but they were also fairly infrequently overriden from
+the default. Let's DRY up this code by having a default template
+and only overriding it when required.
+
+Change-Id: I23c3dd66e71a6729a42ea7988931a46ce20d4fc6
