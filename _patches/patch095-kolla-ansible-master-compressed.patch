@@ -521,7 +521,7 @@ index 000000000..1029278fd
 +      login_user: "{{ kerbside_database_shard_root_user }}"
 +      login_password: "{{ database_password }}"
 +      name: "{{ kerbside_database_name }}"
-+  run_once: True
++  run_once: true
 +  delegate_to: "{{ groups['kerbside-proxy'][0] }}"
 +  when:
 +    - not use_preconfigured_databases | bool
@@ -541,7 +541,7 @@ index 000000000..1029278fd
 +      host: "%"
 +      priv: "{{ kerbside_database_name }}.*:ALL"
 +      append_privs: "yes"
-+  run_once: True
++  run_once: true
 +  delegate_to: "{{ groups['kerbside-proxy'][0] }}"
 +  when:
 +    - not use_preconfigured_databases | bool
@@ -557,7 +557,7 @@ index 000000000..1029278fd
 +      description: "Kerbside administrative access group"
 +      auth: "{{ openstack_auth }}"
 +      endpoint_type: "{{ openstack_interface }}"
-+  run_once: True
++  run_once: true
 +  when:
 +    - enable_kerbside | bool
 +
@@ -578,7 +578,7 @@ index 000000000..cb5a79d40
 +  kolla_container:
 +    action: "start_container"
 +    common_options: "{{ docker_common_options }}"
-+    detach: False
++    detach: false
 +    environment:
 +      KOLLA_CONFIG_STRATEGY: "{{ config_strategy }}"
 +    image: "{{ kerbside_base_image_full }}"
@@ -587,7 +587,7 @@ index 000000000..cb5a79d40
 +    name: "bootstrap_kerbside"
 +    restart_policy: oneshot
 +    volumes: "{{ kerbside_bootstrap_volumes + kerbside_default_volumes + kerbside_extra_volumes }}"
-+  run_once: True
++  run_once: true
 +  delegate_to: "{{ groups['kerbside-api'][0] }}"
 diff --git a/ansible/roles/kerbside/tasks/check-containers.yml b/ansible/roles/kerbside/tasks/check-containers.yml
 new file mode 100644
