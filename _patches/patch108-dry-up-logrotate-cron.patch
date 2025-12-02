@@ -1,10 +1,10 @@
-commit d12707aa48bf5c949ee0986e4ab703888956e30c
+commit af1f2110079405ee1c48f76087e8b5278cf32873
 Author: Michael Still <mikal@stillhq.com>
-Date:   Mon Dec 1 17:58:58 2025 +1100
+Date:   Wed Dec 3 06:00:05 2025 +1100
 
     Simplify cron jobs for log rotate.
     
-    There was a lot of repetitive code for the cron templates for
+    There was a lot of repetitive jinja for the cron templates for
     logrotate, but they were also fairly infrequently overriden from
     the default. Let's DRY up this code by having a default template
     and only overriding it when required.

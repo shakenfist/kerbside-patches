@@ -1,6 +1,6 @@
-commit 81abcb95ef1555b7fccee4828f64bdbc80105904
+commit f253e5fb736cd052ea07725578f4ae268f12c930
 Author: Michael Still <mikal@stillhq.com>
-Date:   Mon Dec 1 17:58:57 2025 +1100
+Date:   Wed Dec 3 06:00:05 2025 +1100
 
     Add additional SPICE configuration options.
     
@@ -35,7 +35,7 @@ Date:   Mon Dec 1 17:58:57 2025 +1100
     Signed-off-by: Michael Still <mikal@stillhq.com>
 
 diff --git a/ansible/group_vars/all/nova.yml b/ansible/group_vars/all/nova.yml
-index 48811be62..3be5ee73b 100644
+index f1996cd73..0b334b317 100644
 --- a/ansible/group_vars/all/nova.yml
 +++ b/ansible/group_vars/all/nova.yml
 @@ -58,12 +58,19 @@ nova_novncproxy_fqdn: "{{ kolla_external_fqdn }}"
