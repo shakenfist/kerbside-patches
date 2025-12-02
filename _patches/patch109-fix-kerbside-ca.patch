@@ -82,7 +82,7 @@ index db765dfd1..d2ef225f8 100644
          {
              "source": "{{ container_config_directory }}/kerbside-cert.pem",
 -            "dest": "/etc/pki/kerbside/servercert.pem",
-+            "dest": "/etc/pki/kerbside/kerbside-cer.pem",
++            "dest": "/etc/pki/kerbside/kerbside-cert.pem",
              "owner": "kerbside",
              "perm": "0600"
          },
