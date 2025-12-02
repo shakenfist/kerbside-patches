@@ -1,6 +1,6 @@
-commit e2fffba4409ed81cdc6dbf9665c93575067f1151
+commit a9d497baeac09f2e12bd8975e9c1f382994de82c
 Author: Michael Still <mikal@stillhq.com>
-Date:   Mon Dec 1 17:58:57 2025 +1100
+Date:   Wed Dec 3 06:00:05 2025 +1100
 
     Allow requiring secure channels with SPICE.
     
@@ -18,7 +18,7 @@ Date:   Mon Dec 1 17:58:57 2025 +1100
     Signed-off-by: Michael Still <mikal@stillhq.com>
 
 diff --git a/ansible/group_vars/all/nova.yml b/ansible/group_vars/all/nova.yml
-index 3be5ee73b..17131a166 100644
+index 0b334b317..be9ceedb5 100644
 --- a/ansible/group_vars/all/nova.yml
 +++ b/ansible/group_vars/all/nova.yml
 @@ -74,3 +74,4 @@ nova_spice_jpeg_compression: "auto"
