@@ -8,3 +8,4 @@
 ../_patches/patch105-kerbside-epoxy-server-ca.patch
 ../_patches/patch107-further-kerbside-role-config-epoxy.patch
 ../_patches/patch109-fix-kerbside-ca.patch
+../_patches/patch110-fix-kerbside-cert-path.patch

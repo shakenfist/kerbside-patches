@@ -10,3 +10,4 @@
 ../_patches/patch103-kerbside-server-ca.patch
 ../_patches/patch106-further-kerbside-role-config.patch
 ../_patches/patch109-fix-kerbside-ca.patch
+../_patches/patch110-fix-kerbside-cert-path.patch

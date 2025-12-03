@@ -3,7 +3,10 @@ Author: Michael Still <mikal@stillhq.com>
 Date:   Tue Dec 2 06:06:24 2025 +1100
 
     Fix kerbside CA location and PEM filenames.
-    
+
+    Also fix the uWSGI configuration to use the correct certificate paths
+    at /etc/pki/kerbside/ instead of /etc/kerbside/.
+
     Change-Id: Iabcf46ba0876a5bef10b934ab39f4227602b3097
 
 diff --git a/ansible/roles/kerbside/tasks/copy-certs.yml b/ansible/roles/kerbside/tasks/copy-certs.yml
