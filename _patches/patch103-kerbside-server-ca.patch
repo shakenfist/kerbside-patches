@@ -53,20 +53,6 @@ index c80990f8c..cf3ce8ca3 100644
 +  when: >
 +    (inventory_hostname is in groups["kerbside-api"] or
 +     inventory_hostname is in groups["kerbside-proxy"])
-diff --git a/ansible/roles/kerbside/templates/kerbside-wsgi.conf.j2 b/ansible/roles/kerbside/templates/kerbside-wsgi.conf.j2
-index d63e2f216..4afd74b82 100644
---- a/ansible/roles/kerbside/templates/kerbside-wsgi.conf.j2
-+++ b/ansible/roles/kerbside/templates/kerbside-wsgi.conf.j2
-@@ -31,7 +31,7 @@ LogLevel info
-     CustomLog /var/log/kolla/kerbside/kerbside-api-access.log logformat
- {% if kerbside_enable_tls_backend | bool %}
-     SSLEngine On
--    SSLCertificateFile /etc/kerbside/certs/kerbside-cert.pem
--    SSLCertificateKeyFile /etc/kerbside/certs/kerbside-key.pem
-+    SSLCertificateFile /etc/pki/kerbside/servercert.pem
-+    SSLCertificateKeyFile /etc/pki/kerbside/serverkey.pem
- {% endif %}
- </VirtualHost>
 diff --git a/ansible/roles/kerbside/templates/kerbside.ini.j2 b/ansible/roles/kerbside/templates/kerbside.ini.j2
 index ff0bbe4c7..b892bb3a3 100644
 --- a/ansible/roles/kerbside/templates/kerbside.ini.j2
