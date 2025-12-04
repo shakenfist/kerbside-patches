@@ -1,4 +1,4 @@
-name: Build images for test installs
+name: Build test clouds
 
 on:
   workflow_dispatch:
@@ -8,7 +8,7 @@ on:
 
 jobs:
   build_images:
-    name: "Build images for ${{ matrix.test.release }} on ${{ matrix.test.container_distro }}"
+    name: "Images for ${{ matrix.test.release }} on ${{ matrix.test.container_distro }}"
     strategy:
       fail-fast: false
       matrix:
@@ -223,7 +223,7 @@ jobs:
           echo "results=${results}" >> $GITHUB_OUTPUT
 
   test_installs:
-    name: "Build a test cloud for ${{ matrix.test.description }} using ${{ matrix.test.container_distro }}"
+    name: "${{ matrix.test.description }} using ${{ matrix.test.container_distro }} containers"
     strategy:
       fail-fast: false
       matrix:
