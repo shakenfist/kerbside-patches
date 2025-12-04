@@ -1,0 +1,23 @@
+commit 6952c1615a5bc38893970a55a1fb1fd91f7cca84
+Author: Michael Still <mikal@stillhq.com>
+Date:   Thu Dec 4 10:53:25 2025 +1100
+
+    Fix kerbside cert paths.
+    
+    Change-Id: Ie823da2d814bddd4e9785c4154802c6546157199
+
+diff --git a/ansible/roles/kerbside/tasks/config.yml b/ansible/roles/kerbside/tasks/config.yml
+index 75dc8f8f7..ac03c2337 100644
+--- a/ansible/roles/kerbside/tasks/config.yml
++++ b/ansible/roles/kerbside/tasks/config.yml
+@@ -156,8 +156,8 @@
+     service_uwsgi_config_log_file_chmod: "644"
+     service_uwsgi_config_module: "{{ service.wsgi }}"
+     service_uwsgi_config_tls_backend: "{{ kerbside_enable_tls_backend | bool }}"
+-    service_uwsgi_config_tls_cert: "/etc/kerbside/kerbside-cert.pem"
+-    service_uwsgi_config_tls_key: "/etc/kerbside/kerbside-key.pem"
++    service_uwsgi_config_tls_cert: "/etc/pki/kerbside/kerbside-cert.pem"
++    service_uwsgi_config_tls_key: "/etc/pki/kerbside/kerbside-key.pem"
+     service_uwsgi_config_uid: "kerbside"
+   when:
+     - service | service_enabled_and_mapped_to_host

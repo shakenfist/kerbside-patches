@@ -1,0 +1,29 @@
+#!/bin/bash -e
+
+# This needs to be here because this is invoked with sudo, which clobbers
+# the environment variables by default.
+#
+# $1 is the path to ci-environment.sh
+. ${1}
+
+echo
+echo -e "${H1}==================================================${Color_Off}"
+echo -e "${H1}Adding hosts to /etc/hosts${Color_Off}"
+echo -e "${H1}==================================================${Color_Off}"
+echo
+
+echo "Nodes: ${nodes}"
+for node in ${nodes}; do
+    node_address=${!node}
+    echo "${node} is at ${node_address}"
+    echo "${node_address} ${node}" >> /etc/hosts
+done
+
+echo "10.0.2.3 testcloud" >> /etc/hosts
+
+echo
+echo -e "${H1}==================================================${Color_Off}"
+echo -e "${H1}State of /etc/hosts${Color_Off}"
+echo -e "${H1}==================================================${Color_Off}"
+echo
+cat /etc/hosts

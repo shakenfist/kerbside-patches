@@ -1,0 +1,83 @@
+commit 7da8329368e7c5a452a93a3fee9848adf3ad61cc
+Author: Michael Still <mikal@stillhq.com>
+Date:   Thu Nov 27 18:10:52 2025 +1100
+
+    Add missing kerbside role config.
+    
+    Change-Id: I0750dabe750c386eeab0c8b62d0e2328e9fee36d
+
+diff --git a/ansible/roles/cron/tasks/config.yml b/ansible/roles/cron/tasks/config.yml
+index caebee58c..83ce78bfc 100644
+--- a/ansible/roles/cron/tasks/config.yml
++++ b/ansible/roles/cron/tasks/config.yml
+@@ -54,6 +54,7 @@
+       - { name: "horizon", enabled: "{{ enable_horizon | bool }}" }
+       - { name: "influxdb", enabled: "{{ enable_influxdb | bool }}" }
+       - { name: "ironic", enabled: "{{ enable_ironic | bool }}" }
++      - { name: "kerbside", enabled: "{{ enable_kerbside | bool }}" }
+       - { name: "keystone", enabled: "{{ enable_keystone | bool }}" }
+       - { name: "kuryr", enabled: "{{ enable_kuryr | bool }}" }
+       - { name: "magnum", enabled: "{{ enable_magnum | bool }}" }
+diff --git a/ansible/roles/fluentd/defaults/main.yml b/ansible/roles/fluentd/defaults/main.yml
+index dfbe2d635..f066f707a 100644
+--- a/ansible/roles/fluentd/defaults/main.yml
++++ b/ansible/roles/fluentd/defaults/main.yml
+@@ -106,6 +106,8 @@ fluentd_input_openstack_services:
+     enabled: "{{ enable_horizon | bool }}"
+   - name: ironic
+     enabled: "{{ enable_ironic | bool }}"
++  - name: kerbside
++    enabled: "{{ enable_kerbside | bool }}"
+   - name: keystone
+     enabled: "{{ enable_keystone | bool }}"
+   - name: kuryr
+diff --git a/ansible/roles/loadbalancer/tasks/precheck.yml b/ansible/roles/loadbalancer/tasks/precheck.yml
+index 20f6e36e6..24595c123 100644
+--- a/ansible/roles/loadbalancer/tasks/precheck.yml
++++ b/ansible/roles/loadbalancer/tasks/precheck.yml
+@@ -435,6 +435,45 @@
+     - haproxy_stat.find('ironic_api') == -1
+     - haproxy_vip_prechecks
+ 
++- name: Checking free port for Kerbside API HAProxy
++  wait_for:
++    host: "{{ kolla_internal_vip_address }}"
++    port: "{{ kerbside_api_port }}"
++    connect_timeout: 1
++    timeout: 1
++    state: stopped
++  when:
++    - enable_kerbside | bool
++    - inventory_hostname in groups['loadbalancer']
++    - haproxy_stat.find('kerbside_api') == -1
++    - haproxy_vip_prechecks
++
++- name: Checking free port for Kerbside Proxy insecure HAProxy
++  wait_for:
++    host: "{{ kolla_internal_vip_address }}"
++    port: "{{ kerbside_vdi_insecure_port }}"
++    connect_timeout: 1
++    timeout: 1
++    state: stopped
++  when:
++    - enable_kerbside | bool
++    - inventory_hostname in groups['loadbalancer']
++    - haproxy_stat.find('kerbside_proxy') == -1
++    - haproxy_vip_prechecks
++
++- name: Checking free port for Kerbside Proxy secure HAProxy
++  wait_for:
++    host: "{{ kolla_internal_vip_address }}"
++    port: "{{ kerbside_vdi_secure_port }}"
++    connect_timeout: 1
++    timeout: 1
++    state: stopped
++  when:
++    - enable_kerbside | bool
++    - inventory_hostname in groups['loadbalancer']
++    - haproxy_stat.find('kerbside_proxy') == -1
++    - haproxy_vip_prechecks
++
+ - name: Checking free port for Keystone Internal HAProxy
+   wait_for:
+     host: "{{ kolla_internal_vip_address }}"

@@ -1,37 +1,40 @@
 #!/bin/bash -e
 
 . ./_build/common.sh
-. /srv/kolla-ansible/venv/bin/activate
-
-# We must set the CA path _after_ we load the admin openrc
-. /etc/kolla/admin-openrc.sh
-# . tools/set-ca-path
 
 echo
 echo -e "${H1}==================================================${Color_Off}"
 echo -e "${H1}List compute services${Color_Off}"
 echo -e "${H1}==================================================${Color_Off}"
-/usr/local/bin/openstack compute service list --long
+openstack compute service list --long
 
 echo
 echo -e "${H1}==================================================${Color_Off}"
 echo -e "${H1}Download test image and setup glance${Color_Off}"
 echo -e "${H1}==================================================${Color_Off}"
 
-if [ ! -e /srv/shakenfist/uefi-latency-guest.qcow2 ]; then\
+if [ ! -e /srv/shakenfist/uefi-latency-guest.qcow2 ]; then
     echo
     echo "Downloading test image..."
+    mkdir -p /srv/shakenfist
     wget -q https://images.shakenfist.com/testimages/uefi-latency-guest.qcow2 \
         -O /srv/shakenfist/uefi-latency-guest.qcow2
+else
+    echo
+    echo "Image already present"
+fi
 
+if [ $(openstack image list | grep -c uefi-latency-guest || true) -lt 1 ]; then
     echo "Pushing test image to glance..."
-    /usr/local/bin/openstack image create --public --disk-format qcow2 \
+    openstack image create --public --disk-format qcow2 \
         --container-format bare \
         --file /srv/shakenfist/uefi-latency-guest.qcow2 uefi-latency-guest
+else
+    echo "Image already in glance"
 fi
 
 echo
-imageid=$(/usr/local/bin/openstack image list -f json | \
+imageid=$(openstack image list -f json | \
     jq -e -r ".[] | select(.Name == \"uefi-latency-guest\") | .ID")
 echo "... image id is ${imageid}"
 
@@ -40,19 +43,19 @@ echo -e "${H1}==================================================${Color_Off}"
 echo -e "${H1}Setup image${Color_Off}"
 echo -e "${H1}==================================================${Color_Off}"
 
-/usr/local/bin/openstack image set --property hw_video_ram=64 ${imageid}
-/usr/local/bin/openstack image set --property hw_firmware_type=uefi ${imageid}
-/usr/local/bin/openstack image set --property hw_sound_model=usb ${imageid}
-/usr/local/bin/openstack image set --property hw_usb_model=qemu-xhci ${imageid}
+openstack image set --property hw_video_ram=64 ${imageid}
+openstack image set --property hw_firmware_type=uefi ${imageid}
+openstack image set --property hw_sound_model=usb ${imageid}
+openstack image set --property hw_usb_model=qemu-xhci ${imageid}
 
-/usr/local/bin/openstack image show ${imageid}
+openstack image show ${imageid}
 
 echo
 echo -e "${H1}==================================================${Color_Off}"
 echo -e "${H1}Setup flavor${Color_Off}"
 echo -e "${H1}==================================================${Color_Off}"
 
-/usr/local/bin/openstack flavor create vdi --ram 4096 --disk 200 --vcpus 4 \
+openstack flavor create vdi --ram 4096 --disk 200 --vcpus 4 \
     --property hw_video:ram_max_mb=64
 
 echo
@@ -61,13 +64,13 @@ echo -e "${H1}Start test instance${Color_Off}"
 echo -e "${H1}==================================================${Color_Off}"
 
 instancename="test-$$"
-/usr/local/bin/openstack server create --flavor vdi --image ${imageid} \
+openstack server create --flavor vdi --image ${imageid} \
     --network public1 ${instancename}
 
 start=$(date +"%s")
 now=$(date +"%s")
 while [ $(( ${now} - ${start} )) -lt 300 ]; do
-    status=$(/usr/local/bin/openstack server show ${instancename} -f json | \
+    status=$(openstack server show ${instancename} -f json | \
              jq -e -r ".status")
     if [ ${status} == 'ACTIVE' ]; then
         break
@@ -75,7 +78,7 @@ while [ $(( ${now} - ${start} )) -lt 300 ]; do
     if [ ${status} == 'ERROR' ]; then
         echo "... instance is in error status"
         echo
-        /usr/local/bin/openstack server show ${instancename}
+        openstack server show ${instancename}
         exit 1
     fi
     echo "... instance status is ${status}"
@@ -97,20 +100,16 @@ echo -e "${H1}==================================================${Color_Off}"
 echo -e "${H1}Dump instance information${Color_Off}"
 echo -e "${H1}==================================================${Color_Off}"
 
-/usr/local/bin/openstack server show ${instancename} -f json | jq . -e -r 2> /dev/null
+openstack server show ${instancename} -f json | jq . -e -r 2> /dev/null
 
 echo
 echo -e "${H1}==================================================${Color_Off}"
 echo -e "${H1}Determine location of the compute node${Color_Off}"
 echo -e "${H1}==================================================${Color_Off}"
 
-hypervisor=$(/usr/local/bin/openstack server show ${instancename} -f json \
+hypervisor=$(openstack server show ${instancename} -f json \
              | jq -e -r '."OS-EXT-SRV-ATTR:hypervisor_hostname"')
-echo "Instance is on ${hypervisor}"
-if [ "${hypervisor}" == "kolla" ]; then
-    echo "Hypervisors named kolla are assumed to be local"
-    hypervisor="localhost"
-fi
+echo "Instance is on ${hypervisor}, we are "$(hostname)
 
 echo
 echo -e "${H1}==================================================${Color_Off}"
@@ -123,6 +122,7 @@ echo
 echo -e "${H1}==================================================${Color_Off}"
 echo -e "${H1}Dump libvirt domain XML for instance${Color_Off}"
 echo -e "${H1}==================================================${Color_Off}"
+
 
 /srv/shakenfist/actions/tools/run_remote ${hypervisor} sudo docker exec nova_libvirt virsh dumpxml 1
 
@@ -150,7 +150,7 @@ echo -e "${H1}==================================================${Color_Off}"
 echo -e "${H1}Create console${Color_Off}"
 echo -e "${H1}==================================================${Color_Off}"
 
-consoleurl=$(/usr/local/bin/openstack console url show ${instancename} \
+consoleurl=$(openstack console url show ${instancename} \
     --spice-direct -f json | jq -e -r ".url")
 consoletoken=$(echo ${consoleurl} | sed 's/.*token=//')
 
@@ -163,14 +163,14 @@ echo -e "${H1}==================================================${Color_Off}"
 echo -e "${H1}Dump an attempt to lookup the console with debug on${Color_Off}"
 echo -e "${H1}==================================================${Color_Off}"
 
-/usr/local/bin/openstack --debug console connection show ${consoletoken}
+openstack --debug console connection show ${consoletoken}
 
 echo
 echo -e "${H1}==================================================${Color_Off}"
 echo -e "${H1}Lookup console connection details${Color_Off}"
 echo -e "${H1}==================================================${Color_Off}"
 
-connjson=$(/usr/local/bin/openstack console connection show ${consoletoken} -f json)
+connjson=$(openstack console connection show ${consoletoken} -f json)
 connhost=$(echo ${connjson} | jq -e -r ".host")
 connport=$(echo ${connjson} | jq -e -r ".port")
 
@@ -188,8 +188,7 @@ echo -e "${H1}==================================================${Color_Off}"
 echo -e "${H1}Attempt to fetch a .vv file from Kerbside${Color_Off}"
 echo -e "${H1}==================================================${Color_Off}"
 
-curl --cacert /etc/kolla/certificates/ca/root.crt \
-    --output /tmp/console.vv ${consoleurl}
+curl --cacert /tmp/kolla-ca.pem --output /tmp/console.vv ${consoleurl}
 
 echo
 echo -e "${H1}==================================================${Color_Off}"

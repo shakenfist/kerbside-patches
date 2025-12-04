@@ -31,41 +31,74 @@ def _get_container_registry_repos_http(gl, project, debug=False):
         elif hasattr(gl, 'http_username') and hasattr(gl, 'http_password'):
             session.auth = (gl.http_username, gl.http_password)
 
-        response = session.get(api_url)
+        # Handle pagination
+        repo_list = []
+        page = 1
+        per_page = 100
 
-        if debug:
-            click.echo(f'Debug: HTTP response status: {response.status_code}', err=True)
-            click.echo(f'Debug: HTTP response headers: {dict(response.headers)}', err=True)
-            click.echo(f'Debug: HTTP response content: {response.text}', err=True)
+        while True:
+            paginated_url = f'{api_url}?page={page}&per_page={per_page}'
+            if debug:
+                click.echo(f'Debug: Fetching page {page}: {paginated_url}', err=True)
 
-        if response.status_code == 200:
+            response = session.get(paginated_url)
+
+            if debug:
+                click.echo(
+                    f'Debug: HTTP response status: {response.status_code}',
+                    err=True
+                )
+
+            if response.status_code != 200:
+                if debug:
+                    click.echo(
+                        f'Debug: HTTP API request failed with status '
+                        f'{response.status_code}: {response.text}',
+                        err=True
+                    )
+                break
+
             try:
                 repositories = response.json()
-                if debug:
-                    click.echo(f'Debug: HTTP API returned {len(repositories)} repositories', err=True)
-                    if repositories:
-                        click.echo(f'Debug: Repository data: {repositories}', err=True)
-
-                # Convert to our format
-                repo_list = []
-                for repo in repositories:
-                    repo_list.append({
-                        'path': repo.get('path', ''),
-                        'id': repo.get('id'),
-                        'name': repo.get('name', ''),
-                        'location': repo.get('location', ''),
-                        'project_id': project.id
-                    })
-
-                return repo_list
             except json.JSONDecodeError as e:
                 if debug:
-                    click.echo(f'Debug: Failed to parse JSON response: {e}', err=True)
-                return []
-        else:
+                    click.echo(
+                        f'Debug: Failed to parse JSON response: {e}',
+                        err=True
+                    )
+                break
+
+            if not repositories:
+                break
+
             if debug:
-                click.echo(f'Debug: HTTP API request failed with status {response.status_code}: {response.text}', err=True)
-            return []
+                click.echo(
+                    f'Debug: Page {page} returned {len(repositories)} repositories',
+                    err=True
+                )
+
+            for repo in repositories:
+                repo_list.append({
+                    'path': repo.get('path', ''),
+                    'id': repo.get('id'),
+                    'name': repo.get('name', ''),
+                    'location': repo.get('location', ''),
+                    'project_id': project.id
+                })
+
+            # Check if there are more pages
+            if len(repositories) < per_page:
+                break
+
+            page += 1
+
+        if debug:
+            click.echo(
+                f'Debug: Total repositories fetched: {len(repo_list)}',
+                err=True
+            )
+
+        return repo_list
 
     except Exception as e:
         if debug:
@@ -300,13 +333,35 @@ def find(ctx, search_tag):
         if debug:
             click.echo(f'Debug: Getting tags for repository: {repo_path}', err=True)
 
-        repository_data = repository_info['repository_data']
-        if _check_for_tag(gl_instance, repository_data, search_tag, debug):
-            sys.exit(0)
+        # Handle both API-based and HTTP-based repository data
+        if 'repository_data' in repository_info:
+            repository_data = repository_info['repository_data']
+        elif 'repository' in repository_info:
+            # Convert API repository object to the format expected by _check_for_tag
+            repo = repository_info['repository']
+            repository_data = {
+                'id': repo.id,
+                'project_id': repository_info['project'].id
+            }
+        else:
+            if debug:
+                click.echo(
+                    f'Debug: Skipping {repo_path} - no repository data available',
+                    err=True
+                )
+            continue
 
-    if debug:
-        click.echo(f'Debug: Tag "{search_tag}" not found in any repository', err=True)
-    sys.exit(1)
+        if _check_for_tag(gl_instance, repository_data, search_tag, debug):
+            print(repo_path)
+            found = True
+
+    if not found:
+        if debug:
+            click.echo(
+                f'Debug: Tag "{search_tag}" not found in any repository',
+                err=True
+            )
+        sys.exit(1)
 
 
 @cli.command(name='list', help='List all available repositories')

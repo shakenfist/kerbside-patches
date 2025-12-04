@@ -1,0 +1,4 @@
+Fix kerbside proxy certificate.
+
+Change-Id: I3fbd738e7eb955782d9aba5a7f1d5850b2024b2f
+Signed-off-by: Michael Still <mikal@stillhq.com>

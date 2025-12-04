@@ -1,0 +1,130 @@
+commit 4c33eaa42b7682a272ff5b4ab6fde425be150d7c
+Author: Michael Still <mikal@stillhq.com>
+Date:   Wed Nov 26 17:20:01 2025 +1100
+
+    Serve the correct CA for .vv files.
+    
+    Change-Id: I9f986da8b64a579b130873024cacc3e765bf2393
+    Signed-off-by: Michael Still <mikal@stillhq.com>
+
+diff --git a/ansible/roles/certificates/tasks/generate-kerbside.yml b/ansible/roles/certificates/tasks/generate-kerbside.yml
+index dafd60540..839d51ab3 100644
+--- a/ansible/roles/certificates/tasks/generate-kerbside.yml
++++ b/ansible/roles/certificates/tasks/generate-kerbside.yml
+@@ -51,6 +51,16 @@
+     mode: "0660"
+     state: file
+ 
++# We maintain a separate copy of the CA certificate used for
++# kerbside because it is copied into the .vv files which
++# kerbside_api serves to users. This makes it easier to use
++# a different CA for kerbside proxies if desired.
++- name: Copy kerbside CA to kerbside-ca.pem
++  copy:
++    src: "{{ root_dir }}/root.crt"
++    dest: "{{ kolla_certificates_dir }}/kerbside-ca.pem"
++    mode: "0660"
++
+ - name: Copy kerbside cert to kerbside-cert.pem
+   copy:
+     src: "{{ backend_dir }}/kerbside.crt"
+diff --git a/ansible/roles/kerbside/tasks/copy-certs.yml b/ansible/roles/kerbside/tasks/copy-certs.yml
+index 6b731cde8..cf3ce8ca3 100644
+--- a/ansible/roles/kerbside/tasks/copy-certs.yml
++++ b/ansible/roles/kerbside/tasks/copy-certs.yml
+@@ -3,4 +3,21 @@
+   import_role:
+     role: service-cert-copy
+   vars:
+-    project_services: "{{ kerbside_services }}"
+\ No newline at end of file
++    project_services: "{{ kerbside_services }}"
++
++- name: "Copy CA certificate"
++  vars:
++    certs:
++      - "{{ kolla_certificates_dir }}/{{ inventory_hostname }}/{{ project_name }}-ca.pem"
++      - "{{ kolla_certificates_dir }}/{{ inventory_hostname }}-ca.pem"
++      - "{{ kolla_certificates_dir }}/{{ project_name }}-ca.pem"
++      - "{{ kolla_certificates_dir }}/ca-certificates/root.crt"
++    kerbside_ca_cert: "{{ lookup('first_found', certs) }}"
++  copy:
++    src: "{{ kerbside_ca_cert }}"
++    dest: "{{ node_config_directory }}/{{ project_name }}-ca.pem"
++    mode: "0644"
++  become: true
++  when: >
++    (inventory_hostname is in groups["kerbside-api"] or
++     inventory_hostname is in groups["kerbside-proxy"])
+diff --git a/ansible/roles/kerbside/templates/kerbside-wsgi.conf.j2 b/ansible/roles/kerbside/templates/kerbside-wsgi.conf.j2
+index d63e2f216..4afd74b82 100644
+--- a/ansible/roles/kerbside/templates/kerbside-wsgi.conf.j2
++++ b/ansible/roles/kerbside/templates/kerbside-wsgi.conf.j2
+@@ -31,7 +31,7 @@ LogLevel info
+     CustomLog /var/log/kolla/kerbside/kerbside-api-access.log logformat
+ {% if kerbside_enable_tls_backend | bool %}
+     SSLEngine On
+-    SSLCertificateFile /etc/kerbside/certs/kerbside-cert.pem
+-    SSLCertificateKeyFile /etc/kerbside/certs/kerbside-key.pem
++    SSLCertificateFile /etc/pki/kerbside/servercert.pem
++    SSLCertificateKeyFile /etc/pki/kerbside/serverkey.pem
+ {% endif %}
+ </VirtualHost>
+diff --git a/ansible/roles/kerbside/templates/kerbside.ini.j2 b/ansible/roles/kerbside/templates/kerbside.ini.j2
+index 62b080b34..6b541af74 100644
+--- a/ansible/roles/kerbside/templates/kerbside.ini.j2
++++ b/ansible/roles/kerbside/templates/kerbside.ini.j2
+@@ -7,7 +7,7 @@ log_output_json = true
+ public_fqdn = {{ keystone_external_fqdn | put_address_in_context('url') }}
+ public_secure_port = {{ kerbside_vdi_secure_port }}
+ public_insecure_port = {{ kerbside_vdi_insecure_port }}
+-cacert_path = /var/lib/kolla/share/ca-certificates/root.crt
++cacert_path = /etc/pki/kerbside/serverca.pem
+ proxy_host_cert_path = /etc/pki/kerbside/servercert.pem
+ proxy_host_cert_key_path = /etc/pki/kerbside/serverkey.pem
+ proxy_host_subject = 
+diff --git a/ansible/roles/kerbside/templates/kerbside_api.json.j2 b/ansible/roles/kerbside/templates/kerbside_api.json.j2
+index c120afde1..5a55f3bed 100644
+--- a/ansible/roles/kerbside/templates/kerbside_api.json.j2
++++ b/ansible/roles/kerbside/templates/kerbside_api.json.j2
+@@ -25,15 +25,21 @@
+             "owner": "kerbside",
+             "perm": "0600"
+         }{% endif %},
++        {
++            "source": "{{ container_config_directory }}/kerbside-ca.pem",
++            "dest": "/etc/pki/kerbside/serverca.pem",
++            "owner": "kerbside",
++            "perm": "0600"
++        },
+         {
+             "source": "{{ container_config_directory }}/kerbside-cert.pem",
+-            "dest": "/etc/kerbside/kerbside-cert.pem",
++            "dest": "/etc/pki/kerbside/servercert.pem",
+             "owner": "kerbside",
+             "perm": "0600"
+         },
+         {
+             "source": "{{ container_config_directory }}/kerbside-key.pem",
+-            "dest": "/etc/kerbside/kerbside-key.pem",
++            "dest": "/etc/pki/kerbside/serverkey.pem",
+             "owner": "kerbside",
+             "perm": "0600"
+         },
+diff --git a/ansible/roles/kerbside/templates/kerbside_proxy.json.j2 b/ansible/roles/kerbside/templates/kerbside_proxy.json.j2
+index f3b9167d8..db765dfd1 100644
+--- a/ansible/roles/kerbside/templates/kerbside_proxy.json.j2
++++ b/ansible/roles/kerbside/templates/kerbside_proxy.json.j2
+@@ -13,6 +13,12 @@
+             "owner": "kerbside",
+             "perm": "0600"
+         },
++        {
++            "source": "{{ container_config_directory }}/kerbside-ca.pem",
++            "dest": "/etc/pki/kerbside/serverca.pem",
++            "owner": "kerbside",
++            "perm": "0600"
++        },
+         {
+             "source": "{{ container_config_directory }}/kerbside-cert.pem",
+             "dest": "/etc/pki/kerbside/servercert.pem",

@@ -1,0 +1,6 @@
+Fix kerbside CA location and PEM filenames.
+
+Also fix the uWSGI configuration to use the correct certificate paths
+at /etc/pki/kerbside/ instead of /etc/kerbside/.
+
+Change-Id: Iabcf46ba0876a5bef10b934ab39f4227602b3097

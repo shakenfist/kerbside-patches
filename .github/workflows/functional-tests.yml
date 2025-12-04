@@ -1,4 +1,4 @@
-name: Build images for test installs
+name: Build test clouds
 
 on:
   workflow_dispatch:
@@ -8,7 +8,7 @@ on:
 
 jobs:
   build_images:
-    name: "Build images for ${{ matrix.test.release }} on ${{ matrix.test.container_distro }}"
+    name: "Images for ${{ matrix.test.release }} on ${{ matrix.test.container_distro }}"
     strategy:
       fail-fast: false
       matrix:
@@ -63,6 +63,12 @@ jobs:
         uses: actions/checkout@v4
         with:
           path: kerbside-patches
+          fetch-depth: 0
+
+      - name: Checkout actions
+        uses: actions/checkout@v4
+        with:
+          path: actions
           fetch-depth: 0
 
       - name: Install dependencies on local runner
@@ -215,9 +221,9 @@ jobs:
           # Terminate array and remove trailing comma
           results="${results%,}]"
           echo "results=${results}" >> $GITHUB_OUTPUT
-          
+
   test_installs:
-    name: "Build a test cloud for ${{ matrix.test.description }} using ${{ matrix.test.container_distro }}"
+    name: "${{ matrix.test.description }} using ${{ matrix.test.container_distro }} containers"
     strategy:
       fail-fast: false
       matrix:
@@ -385,7 +391,7 @@ jobs:
               script="${script} --image-tag ${{ steps.incoming.outputs.image_tag }}"
               script="${script} --build-targets ${{ matrix.test.release }}"
               script="${script} --topology ${{ matrix.test.topology }};"
-          
+
           ssh -i /srv/github/id_ci -o StrictHostKeyChecking=no \
               -o UserKnownHostsFile=/dev/null \
               ${{ matrix.test.baseuser }}@10.0.2.2 "${script}"
@@ -465,67 +471,110 @@ jobs:
               ${{ matrix.test.baseuser }}@10.0.2.2 \
               'openssl s_client -showcerts -connect 10.0.2.3:13002'
 
+      - name: Fetch Kolla-Ansible CA cert and add it to the local system bundle
+        if: always()
+        run: |
+          . $GITHUB_ENV
+
+          echo "Make a copy of the CA certificate available for scp"
+          script="sudo cp /etc/kolla/certificates/ca/root.crt /tmp/kolla-ca.pem;"
+          script="${script} sudo chown ${{ matrix.test.baseuser }}:${{ matrix.test.baseuser }} /tmp/kolla-ca.pem;"
+
+          ssh -i /srv/github/id_ci -o StrictHostKeyChecking=no \
+              -o UserKnownHostsFile=/dev/null \
+              ${{ matrix.test.baseuser }}@10.0.2.2 "${script}"
+
+          echo
+          echo "Fetch Kolla-Ansible CA certificate"
+          scp -i /srv/github/id_ci -o StrictHostKeyChecking=no \
+              -o UserKnownHostsFile=/dev/null \
+              ${{ matrix.test.baseuser }}@10.0.2.2:/tmp/kolla-ca.pem /tmp/kolla-ca.pem
+
+          echo
+          echo "Dump Kolla-Ansible CA certificate"
+          echo
+          cat /tmp/kolla-ca.pem
+
+          echo
+          echo "Trust Kolla-Ansible CA certificate"
+          sudo ${GITHUB_WORKSPACE}/kerbside-patches/tools/add-ca-certificate /tmp/kolla-ca.pem
+
+          echo
+          echo "Verify we now trust the certificate presented by Horizon"
+          unset http_proxy
+          unset https_proxy
+          unset HTTP_PROXY
+          unset HTTPS_PROXY
+          curl -v https://10.0.2.3
+
       - name: Attempt to start an instance with a console and connect to it
         run: |
           . $GITHUB_ENV
-          ssh -i /srv/github/id_ci -o StrictHostKeyChecking=no \
-              -o UserKnownHostsFile=/dev/null \
-              ${{ matrix.test.baseuser }}@10.0.2.2 \
-              'cd /srv/shakenfist/kerbside-patches; sudo ./tools/test-console'
 
-      - name: Dump netstat
-        if: always()
-        run: |
-          . $GITHUB_ENV
-          ssh -i /srv/github/id_ci -o StrictHostKeyChecking=no \
-              -o UserKnownHostsFile=/dev/null \
-              ${{ matrix.test.baseuser }}@10.0.2.2 \
-              'sudo netstat -plnt || true'
+          mkdir -p /srv/shakenfist
+          ln -s ${GITHUB_WORKSPACE}/actions /srv/shakenfist/
 
-      - name: Dump haproxy docker logs
-        if: always()
-        run: |
-          . $GITHUB_ENV
-          ssh -i /srv/github/id_ci -o StrictHostKeyChecking=no \
-              -o UserKnownHostsFile=/dev/null \
-              ${{ matrix.test.baseuser }}@10.0.2.2 \
-              'sudo docker logs haproxy || true'
+          echo "Make a copy of admin-openrc.sh for scp"
+          script="sudo cp /etc/kolla/admin-openrc.sh /tmp/admin-openrc.sh;"
+          script="${script} sudo chown ${{ matrix.test.baseuser }}:${{ matrix.test.baseuser }} /tmp/admin-openrc.sh;"
 
-      - name: Dump kerbside API docker logs
-        if: always()
-        run: |
-          . $GITHUB_ENV
           ssh -i /srv/github/id_ci -o StrictHostKeyChecking=no \
               -o UserKnownHostsFile=/dev/null \
-              ${{ matrix.test.baseuser }}@10.0.2.2 \
-              'sudo docker logs kerbside_api || true'
+              ${{ matrix.test.baseuser }}@10.0.2.2 "${script}"
 
-      - name: Dump kerbside proxy docker logs
-        if: always()
-        run: |
-          . $GITHUB_ENV
-          ssh -i /srv/github/id_ci -o StrictHostKeyChecking=no \
+          echo
+          echo "Fetch admin-openrc.sh"
+          scp -i /srv/github/id_ci -o StrictHostKeyChecking=no \
               -o UserKnownHostsFile=/dev/null \
-              ${{ matrix.test.baseuser }}@10.0.2.2 \
-              'sudo docker logs kerbside_proxy || true'
+              ${{ matrix.test.baseuser }}@10.0.2.2:/tmp/admin-openrc.sh /tmp/admin-openrc.sh
 
-      - name: Inspect kerbside API docker container
-        if: always()
-        run: |
-          . $GITHUB_ENV
-          ssh -i /srv/github/id_ci -o StrictHostKeyChecking=no \
-              -o UserKnownHostsFile=/dev/null \
-              ${{ matrix.test.baseuser }}@10.0.2.2 \
-              'sudo docker inspect kerbside_api || true'
+          sed -i 's|/etc/kolla/certificates/ca/root.crt|/tmp/kolla-ca.pem|' /tmp/admin-openrc.sh
 
-      - name: Inspect kerbside proxy docker container
-        if: always()
-        run: |
-          . $GITHUB_ENV
+          # Prefetch the required image with the proxy
+          if [ ! -e /srv/shakenfist/uefi-latency-guest.qcow2 ]; then
+              echo
+              echo "Downloading test image..."
+
+              wget -q https://images.shakenfist.com/testimages/uefi-latency-guest.qcow2 \
+                  -O /srv/shakenfist/uefi-latency-guest.qcow2
+              ls -lrth /srv/shakenfist/uefi-latency-guest.qcow2
+          fi
+
+          # Disable the proxy for the actual test
+          unset http_proxy
+          unset https_proxy
+          unset HTTP_PROXY
+          unset HTTPS_PROXY
+          . /tmp/admin-openrc.sh
+
+          echo
+          echo "Install openstack client..."
+          sudo mkdir -p /srv/kolla-ansible
+          sudo chown -R debian:debian /srv/kolla-ansible
+          python3 -mvenv /srv/kolla-ansible/venv
+
+          echo
+          echo "Fetch the correct version of the code..."
+          # Again I use tar here because of permissions and so forth
+          cd /
           ssh -i /srv/github/id_ci -o StrictHostKeyChecking=no \
               -o UserKnownHostsFile=/dev/null \
               ${{ matrix.test.baseuser }}@10.0.2.2 \
-              'sudo docker inspect kerbside_proxy || true'
+              "sudo tar czf - /srv/shakenfist/kerbside-patches" | \
+              tar xzf -
+
+          cd /srv/shakenfist/kerbside-patches/
+          ls -l
+          sudo ./tools/install-openstack-clients
+
+          echo
+          echo "Images in cloud:"
+          openstack image list
+
+          echo
+          echo "Running console tests..."
+          export baseuser=${{ matrix.test.baseuser }}
+          ./tools/test-console
 
       - name: Collect logs
         if: always()
