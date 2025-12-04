@@ -123,6 +123,7 @@ echo -e "${H1}==================================================${Color_Off}"
 echo -e "${H1}Dump libvirt domain XML for instance${Color_Off}"
 echo -e "${H1}==================================================${Color_Off}"
 
+
 /srv/shakenfist/actions/tools/run_remote ${hypervisor} sudo docker exec nova_libvirt virsh dumpxml 1
 
 echo
