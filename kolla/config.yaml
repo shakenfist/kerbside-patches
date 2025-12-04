@@ -6,4 +6,4 @@ directory: kolla
 release: master
 depends_on: ''
 source_sha: b013f9ad1dd7a70fc4607a363edeae085d08adf3
-previous_source_sha: 14a7644a1e458dcfe8e928d9ea032b0465da08f5
+previous_source_sha: b013f9ad1dd7a70fc4607a363edeae085d08adf3
