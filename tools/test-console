@@ -109,7 +109,7 @@ echo -e "${H1}==================================================${Color_Off}"
 
 hypervisor=$(openstack server show ${instancename} -f json \
              | jq -e -r '."OS-EXT-SRV-ATTR:hypervisor_hostname"')
-echo "Instance is on ${hypervisor}"
+echo "Instance is on ${hypervisor}, we are "$(hostname)
 
 echo
 echo -e "${H1}==================================================${Color_Off}"
