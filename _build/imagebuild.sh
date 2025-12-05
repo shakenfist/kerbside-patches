@@ -132,6 +132,8 @@ for target in ${build_targets}; do
     echo -e "${H3}${venvdir}/bin/kolla-build \\"
     echo -e "    --config-file \"${topdir}/archive/kolla-build.conf\" \\"
     echo -e "    --tag ${image_tag} \\"
+    echo -e "    --skip-existing \\"
+    echo -e "    --summary-json-file build.json \\"
     echo -e "    --namespace kolla ${kolla_build_args} 2>&1 | \\"
     echo -e "    tee --append ${topdir}/archive/build.log | \\"
     echo -e "    ts \"%b %d %H:%M:%S ${target}\""
@@ -139,6 +141,8 @@ for target in ${build_targets}; do
 
     ${venvdir}/bin/kolla-build \
         --config-file "${topdir}/archive/kolla-build.conf" \
+        --skip-existing \
+        --summary-json-file build.json \
         --tag ${image_tag} \
         --namespace kolla ${kolla_build_args} 2>&1 | \
         tee --append ${topdir}/archive/build.log | \
@@ -149,14 +153,14 @@ for target in ${build_targets}; do
 
     # Did we see any messages indicating failure?
     failed=0
-    if [ $(grep -c "Failed with status" ${topdir}/archive/build.log || true) -gt 0 ]; then\
+    if [ $(grep -c "Failed with status" ${topdir}/archive/build.log || true) -gt 0 ]; then
         echo "Image build failed..."
         grep "Failed with status" ${topdir}/archive/build.log
         echo
         failed = 1
     fi
 
-    for img in $(tail -1 ${topdir}/archive/build.log | jq -r ".failed | .[] | .name"); do
+    for img in $(cat ${topdir}/archive/build.json | jq -r ".failed | .[] | .name"); do
         echo "${img} failed"
         failed = 1
     done
@@ -164,7 +168,7 @@ for target in ${build_targets}; do
         echo
     fi
 
-    for img in $(tail -1 ${topdir}/archive/build.log | jq -r ".unbuildable | .[] | .name"); do
+    for img in $(cat ${topdir}/archive/build.json | jq -r ".unbuildable | .[] | .name"); do
         echo "${img} unbuildable"
         failed = 1
     done
