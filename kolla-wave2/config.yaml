@@ -1,0 +1,9 @@
+repo: https://github.com/openstack/kolla
+source_branch: master
+destination_branch: retry-source-downloads
+shallow_clone: false
+directory: kolla
+release: wave-2
+depends_on: ''
+source_sha: b013f9ad1dd7a70fc4607a363edeae085d08adf3
+previous_source_sha: b013f9ad1dd7a70fc4607a363edeae085d08adf3

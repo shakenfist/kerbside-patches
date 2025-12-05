@@ -1,0 +1,79 @@
+commit 61d21a3b8dab026d5e657cf2b8e50718d3eb282d
+Author: Michael Still <mikal@stillhq.com>
+Date:   Fri Dec 5 17:56:59 2025 +1100
+
+    Retry source downloads.
+    
+    I have had some difficulties in my CI environment with requests to
+    tarballs.opendev.org timing out. Instead of failing the entire image
+    build, let's retry a few times in case its just a blip.
+    
+    Change-Id: Ie58cc68f8dc9ba0e2ba3b3263509847d5e9d34b9
+    Signed-off-by: Michael Still <mikal@stillhq.com>
+
+diff --git a/kolla/image/tasks.py b/kolla/image/tasks.py
+index 39d759390..e7d988258 100644
+--- a/kolla/image/tasks.py
++++ b/kolla/image/tasks.py
+@@ -17,6 +17,7 @@ import json
+ import os
+ import shutil
+ import tarfile
++import time
+ 
+ try:
+     import docker.errors
+@@ -208,26 +209,33 @@ class BuildTask(EngineTask):
+                 image.status = Status.ERROR
+                 return
+ 
+-            if r.status_code == 200:
+-                if source.get('sha256'):
+-                    conf_sha = source['sha256'][self.conf.debian_arch]
+-                    computed_sha = hashlib.sha256(r.content).hexdigest()
+-                    if conf_sha != computed_sha:
+-                        self.logger.error("%s SHA256 checksum does not match"
+-                                          "(configured: %s, computed: %s)",
+-                                          source['source'],
+-                                          conf_sha,
+-                                          computed_sha)
+-                        image.status = Status.ERROR
+-                        return
+-                with open(dest_archive, 'wb') as f:
+-                    f.write(r.content)
+-            else:
+-                self.logger.error(
+-                    'Failed to download archive: status_code %s',
+-                    r.status_code)
+-                image.status = Status.ERROR
+-                return
++            attempts = 0
++            while attempts < 3:
++                attempts += 1
++                if r.status_code == 200:
++                    if source.get('sha256'):
++                        conf_sha = source['sha256'][self.conf.debian_arch]
++                        computed_sha = hashlib.sha256(r.content).hexdigest()
++                        if conf_sha != computed_sha:
++                            self.logger.error("%s SHA256 checksum does not match"
++                                            "(configured: %s, computed: %s)",
++                                            source['source'],
++                                            conf_sha,
++                                            computed_sha)
++                            image.status = Status.ERROR
++                            return
++                    with open(dest_archive, 'wb') as f:
++                        f.write(r.content)
++
++                    return
++
++                time.sleep(5)
++
++            self.logger.error(
++                'Failed to download archive: status_code %s',
++                r.status_code)
++            image.status = Status.ERROR
++            return
+ 
+         elif source.get('type') == 'git':
+             clone_dir = '{}-{}'.format(dest_archive,
