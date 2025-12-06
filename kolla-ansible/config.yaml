@@ -1,9 +1,9 @@
 repo: https://github.com/openstack/kolla-ansible
-source_branch: sha:365814006a9c8bfc958b5c4858107ac7faa43b39
+source_branch: master
 destination_branch: master-patches
 shallow_clone: false
 directory: kolla-ansible
 release: master
 depends_on: ''
-source_sha: 4abe434084764a2cb3d617267cc90137c46c21da
-previous_source_sha: 10da9f10a0a569f9b2a8ba39595fda024e860955
+source_sha: a62923a2dee5db7b517a0ea03058928e7de34cb6
+previous_source_sha: 4abe434084764a2cb3d617267cc90137c46c21da
