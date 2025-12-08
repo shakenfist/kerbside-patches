@@ -6,4 +6,4 @@ directory: nova
 release: 2025.1
 depends_on: ''
 source_sha: 3b97b00f0e2b1d7d10b71696e82fabb5582ce92a
-previous_source_sha: 3b97b00f0e2b1d7d10b71696e82fabb5582ce92a
+previous_source_sha: 2674b64ba7e9b2d4c3be86729df519d6bec672ff

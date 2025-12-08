@@ -6,4 +6,4 @@ directory: kolla
 release: 2025.1
 depends_on: ''
 source_sha: 584d57e7c378eb377e823b7cdf2c886ccf116312
-previous_source_sha: 584d57e7c378eb377e823b7cdf2c886ccf116312
+previous_source_sha: d26c62383a31ab45f47a45624668862b3d2473b5

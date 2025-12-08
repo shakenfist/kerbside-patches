@@ -6,4 +6,4 @@ directory: kolla-ansible
 release: 2025.1
 depends_on: ''
 source_sha: dbdd7f663341b9c46987761261fcaf9c6e8a2989
-previous_source_sha: dbdd7f663341b9c46987761261fcaf9c6e8a2989
+previous_source_sha: d63160ab69fcd8412870982c9901ca53b6c0db57
