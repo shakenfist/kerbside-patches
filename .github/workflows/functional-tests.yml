@@ -150,6 +150,7 @@ jobs:
           archive_path="/tmp/build-${{ matrix.test.release}}-${{ matrix.test.container_distro }}"
           mkdir ${archive_path}
           cp kerbside-patches/archive/build.log ${archive_path}/
+          cp kerbside-patches/archive/build.json ${archive_path}/
           cp kerbside-patches/archive/kolla-build.conf ${archive_path}/
 
       - uses: actions/upload-artifact@v4
