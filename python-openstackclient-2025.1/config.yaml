@@ -5,5 +5,5 @@ shallow_clone: false
 directory: python-openstackclient
 release: 2025.1
 depends_on: openstacksdk-2025.1
-source_sha: a312e9cdad626add8ea40e92844f867a9e586751
+source_sha: 78ef2f592268d0f18419da231d376970d70f86ef
 previous_source_sha: 78ef2f592268d0f18419da231d376970d70f86ef
