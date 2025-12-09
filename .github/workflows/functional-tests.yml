@@ -141,6 +141,12 @@ jobs:
 
           echo "image_tag=${{ matrix.test.release }}-${{ matrix.test.container_distro }}-${{ matrix.test.container_distro_version }}-${hash}" >> ${GITHUB_OUTPUT}
 
+      - name: Dump build.json
+        if: always()
+        run: |
+          . $GITHUB_ENV
+          cat kerbside-patches/archive/build.json | python3 -m json.tool
+
       # We have the output of the build job and its config, regardless of success or failure
       - name: Archive build config and logs
         if: always()
