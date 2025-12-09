@@ -145,7 +145,11 @@ jobs:
         if: always()
         run: |
           . $GITHUB_ENV
-          cat kerbside-patches/archive/build.json | python3 -m json.tool
+          if [ -e kerbside-patches/archive/build.json ]; then
+              cat kerbside-patches/archive/build.json | python3 -m json.tool
+          else
+              echo "File not found"
+          fi
 
       # We have the output of the build job and its config, regardless of success or failure
       - name: Archive build config and logs
