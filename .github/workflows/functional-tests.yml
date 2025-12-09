@@ -147,11 +147,22 @@ jobs:
         run: |
           . $GITHUB_ENV
 
-          archive_path="/tmp/build-${{ matrix.test.release}}-${{ matrix.test.container_distro }}"
+          # Not all these files will exist if the build above was skipped because the images
+          # already exist
+          archive_path="/tmp/build-${{ matrix.test.release }}-${{ matrix.test.container_distro }}"
           mkdir ${archive_path}
-          cp kerbside-patches/archive/build.log ${archive_path}/
-          cp kerbside-patches/archive/build.json ${archive_path}/
-          cp kerbside-patches/archive/kolla-build.conf ${archive_path}/
+
+          echo ${{ matrix.build_images.image_tag }} > ${archive_path}/image_tag
+
+          if [ -e kerbside-patches/archive/build.log ]; then
+              cp kerbside-patches/archive/build.log ${archive_path}/
+          fi
+          if [ -e kerbside-patches/archive/build.json ]; then
+              cp kerbside-patches/archive/build.json ${archive_path}/
+          fi
+          if [ -e kerbside-patches/archive/kolla-build.conf ]; then
+              cp kerbside-patches/archive/kolla-build.conf ${archive_path}/
+          fi
 
       - uses: actions/upload-artifact@v4
         if: always()
