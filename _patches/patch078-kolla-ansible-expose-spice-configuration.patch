@@ -1,6 +1,6 @@
-commit f8861ef587f0fe168cbdb2dc3a8b7c0e60325eb0
+commit 7730ad6274f0f18e8b39566881ac2475f51bc390
 Author: Michael Still <mikal@stillhq.com>
-Date:   Tue Dec 9 13:13:01 2025 +1100
+Date:   Wed Dec 10 15:32:56 2025 +1100
 
     Add additional SPICE configuration options.
     
