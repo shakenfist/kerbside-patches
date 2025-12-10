@@ -1,6 +1,6 @@
-commit ab3a6cd6d6a084357baec54b42d46b433c463d51
+commit 7a12703edcbfa067bfa447bb6113b88662980821
 Author: Michael Still <mikal@stillhq.com>
-Date:   Fri Nov 21 12:43:50 2025 +1100
+Date:   Thu Dec 11 08:27:16 2025 +1100
 
     Allow concurrent sessions with SPICE.
     
@@ -17,7 +17,7 @@ Date:   Fri Nov 21 12:43:50 2025 +1100
     Signed-off-by: Michael Still <mikal@stillhq.com>
 
 diff --git a/ansible/group_vars/all/nova.yml b/ansible/group_vars/all/nova.yml
-index 17131a166..24cfb9914 100644
+index be9ceedb5..9bf3373e9 100644
 --- a/ansible/group_vars/all/nova.yml
 +++ b/ansible/group_vars/all/nova.yml
 @@ -75,3 +75,4 @@ nova_spice_zlib_compression: "auto"

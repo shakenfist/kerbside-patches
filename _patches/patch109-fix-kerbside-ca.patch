@@ -1,13 +1,14 @@
-commit 1acdce2fb4e5c48d5749918b225cc08777a29099
+commit e79976519a4b0e1496ff6d203b1bd3de33b754c9
 Author: Michael Still <mikal@stillhq.com>
-Date:   Tue Dec 2 06:06:24 2025 +1100
+Date:   Thu Dec 11 08:27:17 2025 +1100
 
     Fix kerbside CA location and PEM filenames.
-
+    
     Also fix the uWSGI configuration to use the correct certificate paths
     at /etc/pki/kerbside/ instead of /etc/kerbside/.
-
+    
     Change-Id: Iabcf46ba0876a5bef10b934ab39f4227602b3097
+    Signed-off-by: Michael Still <mikal@stillhq.com>
 
 diff --git a/ansible/roles/kerbside/tasks/copy-certs.yml b/ansible/roles/kerbside/tasks/copy-certs.yml
 index ef2e28584..713904d33 100644
@@ -70,7 +71,7 @@ index 5a55f3bed..b3e3fcce5 100644
              "perm": "0600"
          },
 diff --git a/ansible/roles/kerbside/templates/kerbside_proxy.json.j2 b/ansible/roles/kerbside/templates/kerbside_proxy.json.j2
-index db765dfd1..d2ef225f8 100644
+index db765dfd1..8fc68d54e 100644
 --- a/ansible/roles/kerbside/templates/kerbside_proxy.json.j2
 +++ b/ansible/roles/kerbside/templates/kerbside_proxy.json.j2
 @@ -15,19 +15,19 @@

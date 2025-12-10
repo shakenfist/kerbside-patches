@@ -1,0 +1,4 @@
+Deploy Kerbside with Kolla-Ansible.
+
+Change-Id: I73a7a0b521085fd4023b08ab6f8a137d53a8712a
+Signed-off-by: Michael Still <mikal@stillhq.com>

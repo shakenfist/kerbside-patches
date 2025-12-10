@@ -1,3 +1,4 @@
 Fix kerbside cert paths.
 
 Change-Id: Ie823da2d814bddd4e9785c4154802c6546157199
+Signed-off-by: Michael Still <mikal@stillhq.com>

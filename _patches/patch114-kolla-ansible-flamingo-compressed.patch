@@ -1,6 +1,6 @@
-commit 034f826e142936a38fb660deb78332a643b972e4
+commit 50a8bc8b39d0a8b436f2a63cdec1e07fd4fbea4f
 Author: Michael Still <mikal@stillhq.com>
-Date:   Thu Dec 11 08:27:17 2025 +1100
+Date:   Thu Dec 11 08:26:33 2025 +1100
 
     Deploy Kerbside with Kolla-Ansible.
     
@@ -8,10 +8,10 @@ Date:   Thu Dec 11 08:27:17 2025 +1100
     Signed-off-by: Michael Still <mikal@stillhq.com>
 
 diff --git a/ansible/certificates.yml b/ansible/certificates.yml
-index decf2682b..0956ff88a 100644
+index 772aa2f5c..04cbc8759 100644
 --- a/ansible/certificates.yml
 +++ b/ansible/certificates.yml
-@@ -4,7 +4,8 @@
+@@ -3,7 +3,8 @@
    when: >-
      kolla_enable_tls_backend | default(false) | bool or
      rabbitmq_enable_tls | default(false) | bool or
@@ -44,7 +44,7 @@ index 000000000..c49b13525
 +kerbside_safety_upgrade: "no"
 +kerbside_enable_tls_backend: "yes"
 diff --git a/ansible/inventory/all-in-one b/ansible/inventory/all-in-one
-index fbd2664ec..f392739a3 100644
+index 4c6c23670..b4d8a5e22 100644
 --- a/ansible/inventory/all-in-one
 +++ b/ansible/inventory/all-in-one
 @@ -18,6 +18,9 @@ localhost       ansible_connection=local
@@ -73,7 +73,7 @@ index fbd2664ec..f392739a3 100644
  
  [hacluster:children]
  control
-@@ -226,6 +231,16 @@ nova
+@@ -227,6 +232,16 @@ nova
  [nova-serialproxy:children]
  nova
  
@@ -91,7 +91,7 @@ index fbd2664ec..f392739a3 100644
  [ironic-neutron-agent:children]
  neutron
 diff --git a/ansible/inventory/multinode b/ansible/inventory/multinode
-index f22d27072..d5fd051e8 100644
+index a2cba879a..ac301a84d 100644
 --- a/ansible/inventory/multinode
 +++ b/ansible/inventory/multinode
 @@ -29,6 +29,10 @@ monitoring01
@@ -129,7 +129,7 @@ index f22d27072..d5fd051e8 100644
  
  [hacluster:children]
  control
-@@ -244,6 +251,16 @@ nova
+@@ -245,6 +252,16 @@ nova
  [nova-serialproxy:children]
  nova
  
@@ -147,7 +147,7 @@ index f22d27072..d5fd051e8 100644
  [ironic-neutron-agent:children]
  neutron
 diff --git a/ansible/nova.yml b/ansible/nova.yml
-index 95eb6a141..3d7ea8454 100644
+index c41d85407..659e104dd 100644
 --- a/ansible/nova.yml
 +++ b/ansible/nova.yml
 @@ -20,6 +20,9 @@
@@ -160,7 +160,7 @@ index 95eb6a141..3d7ea8454 100644
  
  # We need to perform database bootstrapping before deploying or upgrading any
  # containers, to ensure all database schema migrations have been performed,
-@@ -172,6 +175,23 @@
+@@ -171,6 +174,23 @@
          - enable_nova | bool
          - kolla_action in ['deploy', 'reconfigure']
  
@@ -184,7 +184,7 @@ index 95eb6a141..3d7ea8454 100644
  # Following an upgrade, Nova services must be restarted once all compute
  # services have registered themselves, to remove the RPC version pin.
  # Also, when nova_safety_upgrade is true, this starts services which were
-@@ -256,6 +276,26 @@
+@@ -252,6 +272,26 @@
          - enable_nova | bool
          - kolla_action == 'upgrade'
  
@@ -1266,7 +1266,7 @@ index 8da5e6b66..2e9992a3b 100644
  {% if inventory_hostname in groups[nova_cell_compute_group] %}
  html5proxy_base_url = {{ nova_spicehtml5proxy_fqdn | kolla_url(public_protocol, nova_spicehtml5proxy_public_port, '/spice_auto.html') }}
 diff --git a/ansible/roles/nova/defaults/main.yml b/ansible/roles/nova/defaults/main.yml
-index 9845b41b0..34db4082e 100644
+index dec9d0614..f6579098c 100644
 --- a/ansible/roles/nova/defaults/main.yml
 +++ b/ansible/roles/nova/defaults/main.yml
 @@ -224,7 +224,6 @@ nova_super_conductor_extra_volumes: "{{ nova_extra_volumes }}"
@@ -1278,10 +1278,10 @@ index 9845b41b0..34db4082e 100644
  # OpenStack
  ####################
 diff --git a/ansible/site.yml b/ansible/site.yml
-index 9cec91e08..25c31500d 100644
+index 610c4a9eb..efe2ef0ed 100644
 --- a/ansible/site.yml
 +++ b/ansible/site.yml
-@@ -44,6 +44,7 @@
+@@ -43,6 +43,7 @@
          - enable_influxdb_{{ enable_influxdb | bool }}
          - enable_ironic_{{ enable_ironic | bool }}
          - enable_iscsid_{{ enable_iscsid | bool }}
@@ -1289,19 +1289,18 @@ index 9cec91e08..25c31500d 100644
          - enable_keystone_{{ enable_keystone | bool }}
          - enable_kuryr_{{ enable_kuryr | bool }}
          - enable_letsencrypt_{{ enable_letsencrypt | bool }}
-@@ -253,6 +254,12 @@
+@@ -231,6 +232,11 @@
              tasks_from: loadbalancer
            tags: keystone
            when: enable_keystone | bool
-+        - name: Configure loadbalancer for kerbside
-+          include_role:
++        - include_role:
 +            name: kerbside
 +            tasks_from: loadbalancer
 +          tags: kerbside
 +          when: enable_kerbside | bool
-         - name: Configure loadbalancer for letsencrypt
-           include_role:
+         - include_role:
              name: letsencrypt
+             tasks_from: loadbalancer
 diff --git a/etc/kolla/passwords.yml b/etc/kolla/passwords.yml
 index 1120754a8..c42395908 100644
 --- a/etc/kolla/passwords.yml
