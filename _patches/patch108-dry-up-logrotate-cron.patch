@@ -1,6 +1,6 @@
-commit 64bc335ceb1dc98441e54e17163925fda4bf5b95
+commit f514daaaac7964db14f39881dd67b9a274eeaef4
 Author: Michael Still <mikal@stillhq.com>
-Date:   Tue Dec 9 13:13:02 2025 +1100
+Date:   Thu Dec 11 05:37:25 2025 +1100
 
     Simplify cron jobs for log rotate.
     
@@ -292,15 +292,6 @@ index e8e6da8e3..000000000
 +++ /dev/null
 @@ -1,3 +0,0 @@
 -"/var/log/kolla/mistral/*.log"
--{
--}
-diff --git a/ansible/roles/cron/templates/cron-logrotate-nova-libvirt.conf.j2 b/ansible/roles/cron/templates/cron-logrotate-nova-libvirt.conf.j2
-deleted file mode 100644
-index 50f493d37..000000000
---- a/ansible/roles/cron/templates/cron-logrotate-nova-libvirt.conf.j2
-+++ /dev/null
-@@ -1,3 +0,0 @@
--"/var/log/kolla/libvirt/*.log"
 -{
 -}
 diff --git a/ansible/roles/cron/templates/cron-logrotate-nova.conf.j2 b/ansible/roles/cron/templates/cron-logrotate-nova.conf.j2
