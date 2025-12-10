@@ -115,10 +115,6 @@ for target in ${build_targets}; do
         exit 1
     fi
 
-    # Clear build cache
-    echo -e "${H2}Clear build cache${Color_Off}"
-    docker buildx prune -f
-
     # Build images
     echo
     echo -e "${H2}Build images${Color_Off}"
