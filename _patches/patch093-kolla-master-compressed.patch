@@ -1,6 +1,6 @@
-commit c296f7cd3697d6ece5ea2e6f8abccdf419948a35
+commit 862267277f31ea66642f632e691208e89d0f20cf
 Author: Michael Still <mikal@stillhq.com>
-Date:   Fri Nov 21 10:43:18 2025 +1100
+Date:   Wed Dec 10 15:01:27 2025 +1100
 
     Implement container image build for kerbside.
     
@@ -14,7 +14,7 @@ Date:   Fri Nov 21 10:43:18 2025 +1100
 
 diff --git a/docker/kerbside/kerbside-api/Dockerfile.j2 b/docker/kerbside/kerbside-api/Dockerfile.j2
 new file mode 100644
-index 0000000..4e5e1f7
+index 000000000..4e5e1f7a1
 --- /dev/null
 +++ b/docker/kerbside/kerbside-api/Dockerfile.j2
 @@ -0,0 +1,9 @@
@@ -29,7 +29,7 @@ index 0000000..4e5e1f7
 +USER kerbside
 diff --git a/docker/kerbside/kerbside-api/extend_start.sh b/docker/kerbside/kerbside-api/extend_start.sh
 new file mode 100644
-index 0000000..9b917b3
+index 000000000..9b917b374
 --- /dev/null
 +++ b/docker/kerbside/kerbside-api/extend_start.sh
 @@ -0,0 +1,6 @@
@@ -41,7 +41,7 @@ index 0000000..9b917b3
 +. /usr/local/bin/kolla_httpd_setup
 diff --git a/docker/kerbside/kerbside-base/Dockerfile.j2 b/docker/kerbside/kerbside-base/Dockerfile.j2
 new file mode 100644
-index 0000000..6ede949
+index 000000000..6ede9496c
 --- /dev/null
 +++ b/docker/kerbside/kerbside-base/Dockerfile.j2
 @@ -0,0 +1,51 @@
@@ -98,7 +98,7 @@ index 0000000..6ede949
 +{% block footer %}{% endblock %}
 diff --git a/docker/kerbside/kerbside-proxy/Dockerfile.j2 b/docker/kerbside/kerbside-proxy/Dockerfile.j2
 new file mode 100644
-index 0000000..4e5e1f7
+index 000000000..4e5e1f7a1
 --- /dev/null
 +++ b/docker/kerbside/kerbside-proxy/Dockerfile.j2
 @@ -0,0 +1,9 @@
@@ -113,7 +113,7 @@ index 0000000..4e5e1f7
 +USER kerbside
 diff --git a/docker/kerbside/kerbside-proxy/extend_start.sh b/docker/kerbside/kerbside-proxy/extend_start.sh
 new file mode 100644
-index 0000000..92ef80a
+index 000000000..92ef80a22
 --- /dev/null
 +++ b/docker/kerbside/kerbside-proxy/extend_start.sh
 @@ -0,0 +1,4 @@
@@ -122,7 +122,7 @@ index 0000000..92ef80a
 +# Make the log directory
 +mkdir -p /var/log/kolla/kerbside
 diff --git a/kolla/common/config.py b/kolla/common/config.py
-index 2ec2194..90f97fc 100644
+index f0fa025e3..653c84c53 100644
 --- a/kolla/common/config.py
 +++ b/kolla/common/config.py
 @@ -93,6 +93,7 @@ _PROFILE_OPTS = [
@@ -134,7 +134,7 @@ index 2ec2194..90f97fc 100644
                      'magnum',
                      'manila',
 diff --git a/kolla/common/sources.py b/kolla/common/sources.py
-index d999335..5c4c607 100644
+index d999335da..5c4c607fa 100644
 --- a/kolla/common/sources.py
 +++ b/kolla/common/sources.py
 @@ -156,6 +156,10 @@ SOURCES = {
@@ -149,7 +149,7 @@ index d999335..5c4c607 100644
          'type': 'url',
          'location': ('$tarballs_base/openstack/kuryr/'
 diff --git a/kolla/common/users.py b/kolla/common/users.py
-index de8fc31..b3611c0 100644
+index ec21b0658..acde40533 100644
 --- a/kolla/common/users.py
 +++ b/kolla/common/users.py
 @@ -350,4 +350,8 @@ USERS = {

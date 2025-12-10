@@ -1,0 +1,97 @@
+commit a770ffdf6a26e2b002b8ae177facd22963024f7b
+Author: Michael Still <mikal@stillhq.com>
+Date:   Wed Dec 10 15:01:28 2025 +1100
+
+    Optionally strip git history from source / archives.
+    
+    I am interested in ways I can reduce the size of the images I am
+    building with kolla-build. One quick win is to remove the git
+    history from the built images, which can be quite large in some
+    cases.
+    
+    Change-Id: Icf0a693914ec5dcd09123cd58f95d12969d520d4
+    Signed-off-by: Michael Still <mikal@stillhq.com>
+
+diff --git a/kolla/common/config.py b/kolla/common/config.py
+index 653c84c53..1bc5f4e68 100644
+--- a/kolla/common/config.py
++++ b/kolla/common/config.py
+@@ -271,7 +271,10 @@ _CLI_OPTS = [
+     cfg.StrOpt('engine', default='docker', choices=['docker', 'podman'],
+                help='Container engine to build images on.'),
+     cfg.StrOpt('podman_base_url', default='unix:///run/podman/podman.sock',
+-               help='Path to podman socket.')
++               help='Path to podman socket.'),
++    cfg.BoolOpt('strip-git-history', default=False,
++                help=('Optionally strip git history from source tarballs '
++                      'and plugin archives to reduce image size.'))
+ ]
+ 
+ _BASE_OPTS = [
+diff --git a/kolla/image/tasks.py b/kolla/image/tasks.py
+index 39d759390..d01539d78 100644
+--- a/kolla/image/tasks.py
++++ b/kolla/image/tasks.py
+@@ -342,6 +342,15 @@ class BuildTask(EngineTask):
+                         raise ArchivingError
+             arc_path = os.path.join(image.path, '%s-archive' % arcname)
+ 
++            if self.conf.strip_git_history:
++                for dirpath, dirnames, _ in os.walk(arc_path, topdown=True):
++                    if '.git' in dirnames:
++                        git_path = os.path.join(dirpath, '.git')
++                        self.logger.info('Removing git history from %s',
++                                         git_path)
++                        shutil.rmtree(git_path)
++                        dirnames.remove('.git')
++
+             # NOTE(jneumann): Change ownership of files to root:root. This
+             # avoids an issue introduced by the fix for git CVE-2022-24765,
+             # which breaks PBR when the source checkout is not owned by the
+@@ -375,11 +384,34 @@ class BuildTask(EngineTask):
+         image.start = datetime.datetime.now()
+         self.logger.info('Building started at %s' % image.start)
+ 
++        # XXX
+         if image.source and 'source' in image.source:
+             self.process_source(image, image.source)
+             if image.status in STATUS_ERRORS:
+                 return
+ 
++            archive_path = os.path.join(
++                image.path, image.source['name'] + '-archive')
++
++            if os.path.exists(archive_path) and self.conf.strip_git_history:
++                orig_path = archive_path + '.orig'
++                os.rename(archive_path, orig_path)
++
++                with tarfile.open(orig_path, 'r:*') as input_tar:
++                    with tarfile.open(archive_path, 'w:gz') as output_tar:
++                        for member in input_tar.getmembers():
++                            path_parts = member.name.split(os.sep)
++                            if '.git' in path_parts:
++                                continue
++
++                            if member.isfile():
++                                fileobj = input_tar.extractfile(member)
++                                output_tar.addfile(member, fileobj)
++                            else:
++                                output_tar.addfile(member)
++
++                os.unlink(orig_path)
++
+         try:
+             plugins_am = make_an_archive(image.plugins, 'plugins')
+         except ArchivingError:
+diff --git a/releasenotes/notes/optionally-strip-git-270b6e09f00a5d01.yaml b/releasenotes/notes/optionally-strip-git-270b6e09f00a5d01.yaml
+new file mode 100644
+index 000000000..8578235fe
+--- /dev/null
++++ b/releasenotes/notes/optionally-strip-git-270b6e09f00a5d01.yaml
+@@ -0,0 +1,6 @@
++---
++features:
++  - |
++    You can now strip git history from source and archives included in built
++    images using the --strip-git-history flag to ``kolla-build``. This can
++    be desirable if you want to reduce the size of built images.

@@ -1,0 +1,86 @@
+commit c8abfbbe1fad6980e4c13e40e6e80330bd28bee8
+Author: Michael Still <mikal@stillhq.com>
+Date:   Wed Dec 10 15:01:28 2025 +1100
+
+    Track the layers created for various images and their sizes.
+    
+    Change-Id: I21c4e6209fc4f29a8d58938b7c7a0d4f614f3484
+    Signed-off-by: Michael Still <mikal@stillhq.com>
+
+diff --git a/kolla/common/config.py b/kolla/common/config.py
+index 1bc5f4e68..ad2d1953a 100644
+--- a/kolla/common/config.py
++++ b/kolla/common/config.py
+@@ -274,7 +274,9 @@ _CLI_OPTS = [
+                help='Path to podman socket.'),
+     cfg.BoolOpt('strip-git-history', default=False,
+                 help=('Optionally strip git history from source tarballs '
+-                      'and plugin archives to reduce image size.'))
++                      'and plugin archives to reduce image size.')),
++    cfg.StrOpt('layer-json-file',
++               help='Emit information about the layers in each built image.')
+ ]
+ 
+ _BASE_OPTS = [
+diff --git a/kolla/image/kolla_worker.py b/kolla/image/kolla_worker.py
+index 723914f5a..733e39988 100644
+--- a/kolla/image/kolla_worker.py
++++ b/kolla/image/kolla_worker.py
+@@ -57,6 +57,7 @@ class Image(object):
+         self.plugins = []
+         self.additions = []
+         self.engine_client = engine_client
++        self.layer_data = []
+ 
+     def copy(self):
+         c = Image(self.name, self.canonical_name, self.path,
+@@ -621,6 +622,26 @@ class KollaWorker(object):
+                 # backwards-compatibility.
+                 json_summary(sys.stdout)
+ 
++        if self.conf.layer_json_file:
++            layer_info = []
++            for image in self.images:
++                if image.layer_data:
++                    layer_info.append({
++                        'name': image.name,
++                        'status': image.status,
++                        'layers': image.layer_data
++                    })
++
++            try:
++                with open(self.conf.layer_json_file, 'w') as f:
++                    f.write(
++                        json.dumps(layer_info, indent=4, sort_keys=True))
++            except OSError as e:
++                LOG.error('Failed to write JSON layer summary to '
++                          f'{self.conf.layer_json_file}')
++                LOG.error(f'Exception caught: {e}')
++                sys.exit(1)
++
+         return results
+ 
+     def get_image_statuses(self):
+diff --git a/kolla/image/tasks.py b/kolla/image/tasks.py
+index d01539d78..e4fa90281 100644
+--- a/kolla/image/tasks.py
++++ b/kolla/image/tasks.py
+@@ -157,7 +157,6 @@ class BuildTask(EngineTask):
+         return 'BuildTask(%s)' % self.image.name
+ 
+     def run(self):
+-        self.builder(self.image)
+         if self.image.status in (Status.BUILT, Status.SKIPPED):
+             self.success = True
+ 
+@@ -507,6 +506,10 @@ class BuildTask(EngineTask):
+             self.logger.info('Built at %s (took %s)' %
+                              (now, now - image.start))
+ 
++            if self.conf.layer_json_file:
++                built_image = self.engine_client.images.get(image.name)
++                image.layer_data = built_image.history()
++
+     def squash(self):
+         image_tag = self.image.canonical_name
+         image_id = self.engine_client.images.get(image_tag).id

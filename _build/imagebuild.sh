@@ -130,6 +130,7 @@ for target in ${build_targets}; do
     fi
 
     echo -e "${H3}${venvdir}/bin/kolla-build \\"
+    echo -e "    --debug \\"
     echo -e "    --config-file \"${topdir}/archive/kolla-build.conf\" \\"
     echo -e "    --tag ${image_tag} \\"
     echo -e "    --summary-json-file build.json \\"
@@ -140,6 +141,7 @@ for target in ${build_targets}; do
     echo -e "${Color_Off}"
 
     ${venvdir}/bin/kolla-build \
+        --debug \
         --config-file "${topdir}/archive/kolla-build.conf" \
         --summary-json-file ${topdir}/archive/build.json \
         --skip-existing \
