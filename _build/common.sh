@@ -24,7 +24,7 @@ distro="debian"
 build_images="nova-compute nova-libvirt nova-api kerbside"
 
 # What tag to use to identify this set of containers.
-image_tag="${CI_COMMIT_SHORT_SHA}-debian-bookworm"
+image_tag="undefined"
 
 # Should we only test once at the end?
 defer_tests="false"

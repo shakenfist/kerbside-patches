@@ -22,7 +22,11 @@ fi
 
 for target in ${build_targets}; do
     if [ ${distro} == "debian" ]; then
-        distro_version="bookworm"
+        if [ ${target} == "master" ]; then
+            distro_version="trixie"
+        else
+            distro_version="bookworm"
+        fi
     elif [ ${distro} == "ubuntu" ]; then
         distro_version="noble"
     else
