@@ -3,9 +3,4 @@
 ../_patches/patch009-support-secure-spice.patch
 ../_patches/patch011-allow-concurrent-spice-connections.patch
 ../_patches/patch018-expose-spice-debug-logging.patch
-../_patches/patch096-kolla-ansible-epoxy-compressed.patch
-../_patches/patch104-kolla-ansible-epoxy-fixed-proxy-cert.patch
-../_patches/patch105-kerbside-epoxy-server-ca.patch
-../_patches/patch107-further-kerbside-role-config-epoxy.patch
-../_patches/patch109-fix-kerbside-ca.patch
-../_patches/patch110-fix-kerbside-cert-path.patch
+../_patches/patch117-kolla-ansible-epoxy-compressed.patch
