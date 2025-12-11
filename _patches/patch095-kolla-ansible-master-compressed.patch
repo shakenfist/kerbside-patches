@@ -227,13 +227,14 @@ diff --git a/ansible/roles/certificates/tasks/main.yml b/ansible/roles/certifica
 index e0aa89098..fc755bbe6 100644
 --- a/ansible/roles/certificates/tasks/main.yml
 +++ b/ansible/roles/certificates/tasks/main.yml
-@@ -3,6 +3,6 @@
- - include_tasks: generate.yml
- - include_tasks: generate-backend.yml
+@@ -6,7 +6,7 @@
+ - name: Generate backend certificates
+   include_tasks: generate-backend.yml
    when:
 -    - kolla_enable_tls_backend | bool or rabbitmq_enable_tls | bool or database_enable_tls_backend | bool
 +    - kolla_enable_tls_backend | bool or rabbitmq_enable_tls | bool or database_enable_tls_backend | bool or enable_kerbside | bool
- - include_tasks: generate-libvirt.yml
+ - name: Generate libvirt certificates
+   include_tasks: generate-libvirt.yml
    when: certificates_generate_libvirt | bool
 diff --git a/ansible/roles/certificates/templates/openssl-kolla-kerbside.cnf.j2 b/ansible/roles/certificates/templates/openssl-kolla-kerbside.cnf.j2
 new file mode 100644
