@@ -1,6 +1,6 @@
-commit 22e5f8c4296b9f7672f8fd699d1efca9bf8ad04b
+commit b0598b560022b0a22d9b8a7a3923a9c673091c2c
 Author: Michael Still <mikal@stillhq.com>
-Date:   Fri Dec 12 05:19:29 2025 +1100
+Date:   Fri Dec 12 09:32:01 2025 +1100
 
     Track the layers created for various images and their sizes.
     
@@ -23,7 +23,7 @@ index 1bc5f4e68..ad2d1953a 100644
  
  _BASE_OPTS = [
 diff --git a/kolla/image/kolla_worker.py b/kolla/image/kolla_worker.py
-index 723914f5a..0e049f5a1 100644
+index 723914f5a..353642c80 100644
 --- a/kolla/image/kolla_worker.py
 +++ b/kolla/image/kolla_worker.py
 @@ -57,6 +57,7 @@ class Image(object):
@@ -62,7 +62,7 @@ index 723914f5a..0e049f5a1 100644
  
      def get_image_statuses(self):
 diff --git a/kolla/image/tasks.py b/kolla/image/tasks.py
-index df779d7e1..50b4d7923 100644
+index df779d7e1..b7d4012f3 100644
 --- a/kolla/image/tasks.py
 +++ b/kolla/image/tasks.py
 @@ -384,7 +384,6 @@ class BuildTask(EngineTask):
@@ -73,13 +73,14 @@ index df779d7e1..50b4d7923 100644
          if image.source and 'source' in image.source:
              self.process_source(image, image.source)
              if image.status in STATUS_ERRORS:
-@@ -507,6 +506,16 @@ class BuildTask(EngineTask):
+@@ -507,6 +506,17 @@ class BuildTask(EngineTask):
              self.logger.info('Built at %s (took %s)' %
                               (now, now - image.start))
  
 +            if self.conf.layer_json_file:
 +                try:
-+                    built_image = self.engine_client.images.get(image.canonical_name)
++                    built_image = self.engine_client.images.get(
++                        image.canonical_name)
 +                    image.layer_data = built_image.history()
 +
 +                except requests.exceptions.HTTPError as e:
