@@ -44,7 +44,7 @@ index 723914f5a..0e049f5a1 100644
 +                if image.layer_data:
 +                    layer_info.append({
 +                        'name': image.canonical_name,
-+                        'status': image.status,
++                        'status': str(image.status),
 +                        'layers': image.layer_data
 +                    })
 +
