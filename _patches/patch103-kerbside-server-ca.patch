@@ -1,6 +1,6 @@
-commit eb4913756b5d62da6b4554faffc624a6ac33da7f
+commit e830c47bf19f7b96306d606e92a384a03030c288
 Author: Michael Still <mikal@stillhq.com>
-Date:   Thu Nov 27 09:33:54 2025 +1100
+Date:   Thu Dec 11 08:27:17 2025 +1100
 
     Serve the correct CA for .vv files.
     
@@ -29,7 +29,7 @@ index dafd60540..839d51ab3 100644
    copy:
      src: "{{ backend_dir }}/kerbside.crt"
 diff --git a/ansible/roles/kerbside/tasks/copy-certs.yml b/ansible/roles/kerbside/tasks/copy-certs.yml
-index c80990f8c..cf3ce8ca3 100644
+index c80990f8c..ef2e28584 100644
 --- a/ansible/roles/kerbside/tasks/copy-certs.yml
 +++ b/ansible/roles/kerbside/tasks/copy-certs.yml
 @@ -4,3 +4,20 @@

@@ -1,10 +1,11 @@
-commit 6952c1615a5bc38893970a55a1fb1fd91f7cca84
+commit e93b2cbfff5ed6f5bbd3b69fd08094680f4bcc1b
 Author: Michael Still <mikal@stillhq.com>
-Date:   Thu Dec 4 10:53:25 2025 +1100
+Date:   Thu Dec 11 08:27:17 2025 +1100
 
     Fix kerbside cert paths.
     
     Change-Id: Ie823da2d814bddd4e9785c4154802c6546157199
+    Signed-off-by: Michael Still <mikal@stillhq.com>
 
 diff --git a/ansible/roles/kerbside/tasks/config.yml b/ansible/roles/kerbside/tasks/config.yml
 index 75dc8f8f7..ac03c2337 100644

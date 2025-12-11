@@ -1,6 +1,6 @@
-commit da4e9f709a7e2a2aa3cf2f628be7e002bd6ee796
+commit f5393fded92ddebf128c6d71ea66760230c0ae67
 Author: Michael Still <mikal@stillhq.com>
-Date:   Fri Nov 21 12:45:17 2025 +1100
+Date:   Thu Dec 11 08:27:16 2025 +1100
 
     Allow setting of the new SPICE debug_logging option.
     
@@ -11,7 +11,7 @@ Date:   Fri Nov 21 12:45:17 2025 +1100
     Signed-off-by: Michael Still <mikal@stillhq.com>
 
 diff --git a/ansible/group_vars/all/nova.yml b/ansible/group_vars/all/nova.yml
-index 24cfb9914..845ed12e8 100644
+index 9bf3373e9..08b624226 100644
 --- a/ansible/group_vars/all/nova.yml
 +++ b/ansible/group_vars/all/nova.yml
 @@ -76,3 +76,4 @@ nova_spice_playback_compression: "yes"

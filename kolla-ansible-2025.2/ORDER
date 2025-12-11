@@ -5,7 +5,7 @@
 ../_patches/patch108-dry-up-logrotate-cron.patch
 ../_patches/patch081-expose-spice-debug-logging.patch
 ../_patches/patch064-allow-rocky-10-builds.patch
-../_patches/patch095-kolla-ansible-master-compressed.patch
+../_patches/patch114-kolla-ansible-flamingo-compressed.patch
 ../_patches/patch097-kolla-ansible-fixed-proxy-cert.patch
 ../_patches/patch103-kerbside-server-ca.patch
 ../_patches/patch106-further-kerbside-role-config.patch

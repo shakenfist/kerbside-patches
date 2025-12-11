@@ -1,6 +1,6 @@
-commit 8e4f9b8ce559f20caa7ae00a1e5bf2be7881576a
+commit 4e322467c4450310a3da7f2a53aae2d3ffe0ad4a
 Author: Michael Still <mikal@stillhq.com>
-Date:   Fri Nov 21 17:35:00 2025 +1100
+Date:   Thu Dec 11 08:27:17 2025 +1100
 
     Fix kerbside proxy certificate.
     

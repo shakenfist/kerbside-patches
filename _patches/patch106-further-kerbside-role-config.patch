@@ -1,10 +1,11 @@
-commit 7da8329368e7c5a452a93a3fee9848adf3ad61cc
+commit 9572491923f41a3b021f507b9bb8cfe9b002e70d
 Author: Michael Still <mikal@stillhq.com>
-Date:   Thu Nov 27 18:10:52 2025 +1100
+Date:   Thu Dec 11 08:27:17 2025 +1100
 
     Add missing kerbside role config.
     
     Change-Id: I0750dabe750c386eeab0c8b62d0e2328e9fee36d
+    Signed-off-by: Michael Still <mikal@stillhq.com>
 
 diff --git a/ansible/roles/cron/tasks/config.yml b/ansible/roles/cron/tasks/config.yml
 index caebee58c..83ce78bfc 100644
@@ -32,7 +33,7 @@ index dfbe2d635..f066f707a 100644
      enabled: "{{ enable_keystone | bool }}"
    - name: kuryr
 diff --git a/ansible/roles/loadbalancer/tasks/precheck.yml b/ansible/roles/loadbalancer/tasks/precheck.yml
-index 20f6e36e6..24595c123 100644
+index 20f6e36e6..284e2ebd7 100644
 --- a/ansible/roles/loadbalancer/tasks/precheck.yml
 +++ b/ansible/roles/loadbalancer/tasks/precheck.yml
 @@ -435,6 +435,45 @@
