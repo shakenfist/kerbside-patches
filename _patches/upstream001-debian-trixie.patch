@@ -1,0 +1,452 @@
+From 456e2333c5ceb959ac33412272230f5a4032e1e3 Mon Sep 17 00:00:00 2001
+From: Michal Nasiadka <mnasiadka@gmail.com>
+Date: Fri, 24 Oct 2025 16:58:36 +0200
+Subject: [PATCH] Switch to Debian Trixie
+
+Change-Id: Ib7f551d4a7c6ffe95786853d6899e704de4747b8
+Signed-off-by: Michal Nasiadka <mnasiadka@gmail.com>
+---
+ doc/source/support_matrix.rst                 |  2 +-
+ docker/base/apt_preferences.debian            |  2 +-
+ docker/base/sources.list.debian               |  9 ++--
+ docker/httpd/Dockerfile.j2                    |  3 +-
+ docker/openstack-base/Dockerfile.j2           |  2 +-
+ docker/valkey/valkey-sentinel/Dockerfile.j2   |  6 +--
+ docker/valkey/valkey-server/Dockerfile.j2     |  6 +--
+ kolla/common/config.py                        |  6 +--
+ kolla/image/unbuildable.py                    |  2 -
+ kolla/template/repos.yaml                     | 16 +++----
+ kolla/tests/test_methods.py                   |  8 ++--
+ .../notes/debian-trixie-23987480043dc662.yaml |  5 +++
+ setup.cfg                                     |  1 +
+ tests/templates/template_overrides.j2         | 13 +-----
+ zuul.d/debian.yaml                            | 42 +++++++++----------
+ zuul.d/nodesets.yaml                          |  8 ++--
+ zuul.d/project.yaml                           | 13 ------
+ 17 files changed, 57 insertions(+), 87 deletions(-)
+ create mode 100644 releasenotes/notes/debian-trixie-23987480043dc662.yaml
+
+diff --git a/doc/source/support_matrix.rst b/doc/source/support_matrix.rst
+index 48338af6f..658d87a62 100644
+--- a/doc/source/support_matrix.rst
++++ b/doc/source/support_matrix.rst
+@@ -18,7 +18,7 @@ The following base container images are supported:
+ Distribution       Default base                    Default base tag
+ ================== =============================== ================
+ Rocky Linux        quay.io/rockylinux/rockylinux   10
+-Debian Bookworm    debian                          bookworm
++Debian Bookworm    debian                          trixie
+ Ubuntu Noble       ubuntu                          24.04
+ ================== =============================== ================
+ 
+diff --git a/docker/base/apt_preferences.debian b/docker/base/apt_preferences.debian
+index 5edb8814a..08e21ff22 100644
+--- a/docker/base/apt_preferences.debian
++++ b/docker/base/apt_preferences.debian
+@@ -1,4 +1,4 @@
+ # NOTE(hrw): we do not want backports unless requested
+ Package: *
+-Pin: release n=bookworm-backports
++Pin: release n=trixie-backports
+ Pin-Priority: -1000
+diff --git a/docker/base/sources.list.debian b/docker/base/sources.list.debian
+index 89f7a1160..3518a3b6a 100644
+--- a/docker/base/sources.list.debian
++++ b/docker/base/sources.list.debian
+@@ -1,11 +1,8 @@
+ # Default repos
+-deb http://deb.debian.org/debian bookworm main
++deb http://deb.debian.org/debian trixie main
+ 
+ # debian security updates
+-deb http://deb.debian.org/debian-security bookworm-security main
++# deb http://deb.debian.org/debian-security trixie-security main
+ 
+ # debian updates
+-deb http://deb.debian.org/debian bookworm-updates main
+-
+-# debian backports
+-deb http://deb.debian.org/debian bookworm-backports main
++deb http://deb.debian.org/debian trixie-updates main
+diff --git a/docker/httpd/Dockerfile.j2 b/docker/httpd/Dockerfile.j2
+index 2b58e7b12..a41465661 100644
+--- a/docker/httpd/Dockerfile.j2
++++ b/docker/httpd/Dockerfile.j2
+@@ -22,8 +22,7 @@ LABEL maintainer="{{ maintainer }}" name="{{ image_name }}" build-date="{{ build
+         'apache2',
+         'ca-certificates',
+         'libapache2-mod-auth-mellon',
+-        'libapache2-mod-auth-openidc',
+-        'libapache2-mod-proxy-uwsgi'
++        'libapache2-mod-auth-openidc'
+     ] %}
+ {% endif %}
+ 
+diff --git a/docker/openstack-base/Dockerfile.j2 b/docker/openstack-base/Dockerfile.j2
+index fafd405d5..85b1f4b00 100644
+--- a/docker/openstack-base/Dockerfile.j2
++++ b/docker/openstack-base/Dockerfile.j2
+@@ -44,7 +44,7 @@ LABEL maintainer="{{ maintainer }}" name="{{ image_name }}" build-date="{{ build
+         'git',
+         'libapache2-mod-wsgi-py3',
+         'libffi-dev',
+-        'libpcre3-dev',
++        'libpcre2-dev',
+         'libpq-dev',
+         'libssl-dev',
+         'libxml2-dev',
+diff --git a/docker/valkey/valkey-sentinel/Dockerfile.j2 b/docker/valkey/valkey-sentinel/Dockerfile.j2
+index e3045d2fe..9cdfac282 100644
+--- a/docker/valkey/valkey-sentinel/Dockerfile.j2
++++ b/docker/valkey/valkey-sentinel/Dockerfile.j2
+@@ -11,11 +11,7 @@ LABEL maintainer="{{ maintainer }}" name="{{ image_name }}" build-date="{{ build
+ {{ macros.enable_extra_repos(['epel']) }}
+     {% set valkey_sentinel_packages = ['valkey'] %}
+ {% elif base_package_type == 'deb' %}
+-    {% if base_distro == 'debian' %}
+-        {% set valkey_sentinel_packages = ['valkey-sentinel/bookworm-backports'] %}
+-    {% else %}
+-        {% set valkey_sentinel_packages = ['valkey-sentinel'] %}
+-    {% endif %}
++    {% set valkey_sentinel_packages = ['valkey-sentinel'] %}
+ {% endif %}
+ {{ macros.install_packages(valkey_sentinel_packages | customizable("packages")) }}
+ 
+diff --git a/docker/valkey/valkey-server/Dockerfile.j2 b/docker/valkey/valkey-server/Dockerfile.j2
+index 7b989f66b..046260d7b 100644
+--- a/docker/valkey/valkey-server/Dockerfile.j2
++++ b/docker/valkey/valkey-server/Dockerfile.j2
+@@ -11,11 +11,7 @@ LABEL maintainer="{{ maintainer }}" name="{{ image_name }}" build-date="{{ build
+ {{ macros.enable_extra_repos(['epel']) }}
+     {% set valkey_server_packages = ['valkey'] %}
+ {% elif base_package_type == 'deb' %}
+-    {% if base_distro == 'debian' %}
+-        {% set valkey_server_packages = ['valkey/bookworm-backports'] %}
+-    {% else %}
+-        {% set valkey_server_packages = ['valkey'] %}
+-    {% endif %}
++    {% set valkey_server_packages = ['valkey'] %}
+ {% endif %}
+ {{ macros.install_packages(valkey_server_packages | customizable("packages")) }}
+ 
+diff --git a/kolla/common/config.py b/kolla/common/config.py
+index 2ec2194ac..44d0797b6 100644
+--- a/kolla/common/config.py
++++ b/kolla/common/config.py
+@@ -26,14 +26,14 @@ BASE_ARCH = ['x86_64', 'aarch64']
+ DEBIAN_ARCH = ['amd64', 'arm64']
+ DEFAULT_BASE_TAGS = {
+     'centos': {'name': 'quay.io/centos/centos', 'tag': 'stream10'},
+-    'debian': {'name': 'debian', 'tag': 'bookworm'},
++    'debian': {'name': 'debian', 'tag': 'trixie'},
+     'rocky': {'name': 'quay.io/rockylinux/rockylinux', 'tag': '10'},
+     'ubuntu': {'name': 'ubuntu', 'tag': '24.04'},
+ }
+ # NOTE(hrw): has to match PRETTY_NAME in /etc/os-release
+ DISTRO_PRETTY_NAME = {
+     'centos': 'CentOS Stream 10',
+-    'debian': 'Debian GNU/Linux 12 (bookworm)',
++    'debian': 'Debian GNU/Linux 13 (trixie)',
+     'rocky': 'Rocky Linux 10.* (Red Quartz)',
+     'ubuntu': 'Ubuntu 24.04.* LTS',
+ }
+@@ -41,7 +41,7 @@ DISTRO_PRETTY_NAME = {
+ OPENSTACK_RELEASE = 'master'
+ # NOTE(mnasiadka): Using Epoxy here, since Debian OpenStack builds Flamingo
+ #                  only for Trixie
+-OPENSTACK_RELEASE_CODENAME = 'Epoxy'
++OPENSTACK_RELEASE_CODENAME = 'Flamingo'
+ 
+ # TODO(mandre) check for file integrity instead of downloading from an HTTPS
+ # source
+diff --git a/kolla/image/unbuildable.py b/kolla/image/unbuildable.py
+index 997b4b86b..4e2e6bf73 100644
+--- a/kolla/image/unbuildable.py
++++ b/kolla/image/unbuildable.py
+@@ -32,8 +32,6 @@ UNBUILDABLE_IMAGES = {
+     },
+ 
+     'debian': {
+-        "openvswitch-netcontrold",
+-        # https://bugs.launchpad.net/kolla/+bug/2027668
+     },
+ 
+     'rocky': {
+diff --git a/kolla/template/repos.yaml b/kolla/template/repos.yaml
+index 7d9d7ec71..b896cf824 100644
+--- a/kolla/template/repos.yaml
++++ b/kolla/template/repos.yaml
+@@ -32,12 +32,12 @@ debian:
+     gpg_key: "erlang-ppa.gpg"
+   docker-ce:
+     url: "https://download.docker.com/linux/debian"
+-    suite: "bookworm"
++    suite: "trixie"
+     component: "stable"
+     gpg_key: "docker-ce.asc"
+   fluentd:
+-    url: "https://fluentd.cdn.cncf.io/lts/6/debian/bookworm"
+-    suite: "bookworm"
++    url: "https://fluentd.cdn.cncf.io/lts/6/debian/trixie"
++    suite: "trixie"
+     component: "contrib"
+     gpg_key: "fluentd.asc"
+   mariadb:
+@@ -46,20 +46,20 @@ debian:
+     component: "main"
+     gpg_key: "mariadb.gpg"
+   proxysql:
+-    url: "https://repo.proxysql.com/ProxySQL/proxysql-3.0.x/bookworm/"
++    url: "https://repo.proxysql.com/ProxySQL/proxysql-3.0.x/trixie/"
+     suite: "./"
+     component: ""
+     gpg_key: "proxysql.asc"
+   rabbitmq:
+-    url: "https://deb1.rabbitmq.com/rabbitmq-server/debian/bookworm"
+-    suite: "bookworm"
++    url: "https://deb1.rabbitmq.com/rabbitmq-server/debian/trixie/"
++    suite: "trixie"
+     component: "main"
+     gpg_key: "rabbitmq.gpg"
+ 
+ debian-aarch64:
+   rabbitmq:
+-    url: "https://deb1.rabbitmq.com/rabbitmq-server/debian/bookworm"
+-    suite: "bookworm"
++    url: "https://deb1.rabbitmq.com/rabbitmq-server/debian/trixie"
++    suite: "trixie"
+     component: "main"
+     # NOTE(mnasiadka): Since rabbitmq is really noarch and community mirror is not
+     # syncing binary-aarch64 - we're using amd64 here.
+diff --git a/kolla/tests/test_methods.py b/kolla/tests/test_methods.py
+index 2d2fdd3ed..f30462362 100644
+--- a/kolla/tests/test_methods.py
++++ b/kolla/tests/test_methods.py
+@@ -191,13 +191,13 @@ class MethodsTest(base.TestCase):
+         }
+ 
+         result = methods.handle_repos(template_vars, ["rabbitmq"], "enable")
+-        expectCmd = "RUN echo 'Uris: https://deb1.rabbitmq.com/rabbitmq-server/debian/bookworm' "  # noqa: E501
++        expectCmd = "RUN echo 'Uris: https://deb1.rabbitmq.com/rabbitmq-server/debian/trixie' "  # noqa: E501
+         expectCmd += ">/etc/apt/sources.list.d/rabbitmq.sources && "
+         expectCmd += "echo 'Components: main' "
+         expectCmd += ">>/etc/apt/sources.list.d/rabbitmq.sources && "
+         expectCmd += "echo 'Types: deb' "
+         expectCmd += ">>/etc/apt/sources.list.d/rabbitmq.sources && "
+-        expectCmd += "echo 'Suites: bookworm' "
++        expectCmd += "echo 'Suites: trixie' "
+         expectCmd += ">>/etc/apt/sources.list.d/rabbitmq.sources && "
+         expectCmd += "echo 'Signed-By: /etc/kolla/apt-keys/rabbitmq.gpg' "
+         expectCmd += ">>/etc/apt/sources.list.d/rabbitmq.sources && "
+@@ -236,13 +236,13 @@ class MethodsTest(base.TestCase):
+         expectCmd += ">>/etc/apt/sources.list.d/grafana.sources && "
+ 
+         expectCmd += "echo 'Uris: "
+-        expectCmd += "https://deb1.rabbitmq.com/rabbitmq-server/debian/bookworm' "  # noqa: E501
++        expectCmd += "https://deb1.rabbitmq.com/rabbitmq-server/debian/trixie/' "  # noqa: E501
+         expectCmd += ">/etc/apt/sources.list.d/rabbitmq.sources && "
+         expectCmd += "echo 'Components: main' "
+         expectCmd += ">>/etc/apt/sources.list.d/rabbitmq.sources && "
+         expectCmd += "echo 'Types: deb' "
+         expectCmd += ">>/etc/apt/sources.list.d/rabbitmq.sources && "
+-        expectCmd += "echo 'Suites: bookworm' "
++        expectCmd += "echo 'Suites: trixie' "
+         expectCmd += ">>/etc/apt/sources.list.d/rabbitmq.sources && "
+         expectCmd += "echo 'Signed-By: /etc/kolla/apt-keys/rabbitmq.gpg' "
+         expectCmd += ">>/etc/apt/sources.list.d/rabbitmq.sources"
+diff --git a/releasenotes/notes/debian-trixie-23987480043dc662.yaml b/releasenotes/notes/debian-trixie-23987480043dc662.yaml
+new file mode 100644
+index 000000000..fc0d4955a
+--- /dev/null
++++ b/releasenotes/notes/debian-trixie-23987480043dc662.yaml
+@@ -0,0 +1,5 @@
++---
++features:
++  - |
++    Debian 'trixie' is now used instead of 'bookworm'. Trixie is the current
++    stable release of Debian.
+diff --git a/setup.cfg b/setup.cfg
+index 1ee28f601..112c86ad8 100644
+--- a/setup.cfg
++++ b/setup.cfg
+@@ -23,6 +23,7 @@ classifier =
+     Programming Language :: Python :: 3.10
+     Programming Language :: Python :: 3.11
+     Programming Language :: Python :: 3.12
++    Programming Language :: Python :: 3.13
+ 
+ [files]
+ packages =
+diff --git a/tests/templates/template_overrides.j2 b/tests/templates/template_overrides.j2
+index d9d89b3e0..e1bacd1ec 100644
+--- a/tests/templates/template_overrides.j2
++++ b/tests/templates/template_overrides.j2
+@@ -32,13 +32,8 @@ RUN sed -i -e "s/^mirrorlist/#mirrorlist/g" -e "s/^#baseurl/baseurl/g" \
+ {% raw %}
+ {% block base_debian_after_sources_list %}
+ {% endraw %}
+-{% if base_distro == "debian" %}
+ 
+-RUN sed -i -e "s|http://deb.debian.org|[trusted=yes] http://{{ nodepool_mirror_host }}|" \
+-        -e "s|http://security.debian.org|[trusted=yes] http://{{ nodepool_mirror_host }}|" \
+-        /etc/apt/sources.list
+-
+-{% elif base_distro == "ubuntu" %}
++{% if base_distro == "ubuntu" %}
+ 
+ RUN sed -i -e "s|mirror://mirrors.ubuntu.com/mirrors.txt|[trusted=yes] http://{{ nodepool_mirror_host }}/ubuntu/|" \
+         -e "s|http://ports.ubuntu.com|[trusted=yes] http://{{ nodepool_mirror_host }}/ubuntu-ports|" \
+@@ -65,11 +60,7 @@ RUN if [ -f /usr/etc/npmrc ]; then \
+     fi \
+     && rm -f /etc/npmrc
+ 
+-{% if base_distro == "debian" %}
+-RUN sed -i -e "s|\[trusted=yes\] http://{{ nodepool_mirror_host }}|http://deb.debian.org|" \
+-        -e "s|\[trusted=yes\] http://{{ nodepool_mirror_host }}|http://security.debian.org|" \
+-        /etc/apt/sources.list
+-{% elif base_distro == "ubuntu" %}
++{% if base_distro == "ubuntu" %}
+ RUN sed -i -e "s|\[trusted=yes\] http://{{ nodepool_mirror_host }}/ubuntu/|mirror://mirrors.ubuntu.com/mirrors.txt|" \
+         -e "s|\[trusted=yes\] http://{{ nodepool_mirror_host }}/ubuntu-cloud-archive|http://ubuntu-cloud.archive.canonical.com/ubuntu|" \
+         -e "s|\[trusted=yes\] http://{{ nodepool_mirror_host }}/ubuntu-ports|http://ports.ubuntu.com|" \
+diff --git a/zuul.d/debian.yaml b/zuul.d/debian.yaml
+index 847a0b4d1..d40f10fc0 100644
+--- a/zuul.d/debian.yaml
++++ b/zuul.d/debian.yaml
+@@ -1,23 +1,23 @@
+ ---
+ - job:
+-    name: kolla-build-debian-bookworm
++    name: kolla-build-debian-trixie
+     parent: kolla-base
+-    nodeset: kolla-debian-bookworm-8GB
++    nodeset: kolla-debian-trixie-8GB
+ 
+ - job:
+-    name: kolla-build-debian-bookworm-podman
++    name: kolla-build-debian-trixie-podman
+     parent: kolla-base-podman
+-    nodeset: kolla-debian-bookworm-8GB
++    nodeset: kolla-debian-trixie-8GB
+ 
+ - job:
+-    name: kolla-build-debian-bookworm-arm64
+-    parent: kolla-build-debian-bookworm
+-    nodeset: kolla-debian-bookworm-arm64-8GB
++    name: kolla-build-debian-trixie-arm64
++    parent: kolla-build-debian-trixie
++    nodeset: kolla-debian-trixie-arm64-8GB
+     voting: false
+ 
+ - job:
+-    name: kolla-publish-debian-bookworm-quay
+-    parent: kolla-build-debian-bookworm
++    name: kolla-publish-debian-trixie-quay
++    parent: kolla-build-debian-trixie
+     post-run: tests/playbooks/publish.yml
+     vars:
+       publisher: true
+@@ -28,8 +28,8 @@
+       - kolla_quay_io_api_oct_2025
+ 
+ - job:
+-    name: kolla-publish-debian-bookworm-arm64-quay
+-    parent: kolla-build-debian-bookworm-arm64
++    name: kolla-publish-debian-trixie-arm64-quay
++    parent: kolla-build-debian-trixie-arm64
+     post-run: tests/playbooks/publish.yml
+     vars:
+       publisher: true
+@@ -40,9 +40,9 @@
+       - kolla_quay_io_api_oct_2025
+ 
+ - job:
+-    name: kolla-build-debian-bookworm-no-infra-wheels
++    name: kolla-build-debian-trixie-no-infra-wheels
+     parent: kolla-build-no-infra-wheels-base
+-    nodeset: kolla-debian-bookworm-8GB
++    nodeset: kolla-debian-trixie-8GB
+ 
+ - project-template:
+     name: kolla-build-debian
+@@ -50,19 +50,19 @@
+       Runs Kolla Debian build jobs.
+     check:
+       jobs:
+-        - kolla-build-debian-bookworm
+-        - kolla-build-debian-bookworm-podman
++        - kolla-build-debian-trixie
++        - kolla-build-debian-trixie-podman
+     check-arm64:
+       jobs:
+-        - kolla-build-debian-bookworm-arm64
++        - kolla-build-debian-trixie-arm64
+     gate:
+       jobs:
+-        - kolla-build-debian-bookworm
+-        - kolla-build-debian-bookworm-podman
++        - kolla-build-debian-trixie
++        - kolla-build-debian-trixie-podman
+     experimental:
+       jobs:
+-        - kolla-build-debian-bookworm-no-infra-wheels
++        - kolla-build-debian-trixie-no-infra-wheels
+     periodic:
+       jobs:
+-        - kolla-publish-debian-bookworm-quay
+-        - kolla-publish-debian-bookworm-arm64-quay
++        - kolla-publish-debian-trixie-quay
++        - kolla-publish-debian-trixie-arm64-quay
+diff --git a/zuul.d/nodesets.yaml b/zuul.d/nodesets.yaml
+index 5a069beb6..dfa2b6c3c 100644
+--- a/zuul.d/nodesets.yaml
++++ b/zuul.d/nodesets.yaml
+@@ -12,16 +12,16 @@
+         label: centos-10-stream-arm64-8GB
+ 
+ - nodeset:
+-    name: kolla-debian-bookworm-8GB
++    name: kolla-debian-trixie-8GB
+     nodes:
+       - name: primary
+-        label: debian-bookworm-8GB
++        label: debian-trixie-8GB
+ 
+ - nodeset:
+-    name: kolla-debian-bookworm-arm64-8GB
++    name: kolla-debian-trixie-arm64-8GB
+     nodes:
+       - name: primary
+-        label: debian-bookworm-arm64-8GB
++        label: debian-trixie-arm64-8GB
+ 
+ - nodeset:
+     name: kolla-rocky-10-8GB
+diff --git a/zuul.d/project.yaml b/zuul.d/project.yaml
+index f8652aaf7..50f9e8f08 100644
+--- a/zuul.d/project.yaml
++++ b/zuul.d/project.yaml
+@@ -5,20 +5,7 @@
+ - project:
+     templates:
+       - check-requirements
+-      - kolla-build-centos
+       - kolla-build-debian
+-      - kolla-build-rocky
+-      - kolla-build-ubuntu
+-      - kolla-periodic-copr
+-      - kolla-scenario-aio
+-      - kolla-scenario-bifrost
+-      - kolla-scenario-cells
+-      - kolla-scenario-cephadm
+-      - kolla-scenario-ironic
+-      - kolla-scenario-mariadb
+-      - kolla-scenario-masakari
+-      - kolla-scenario-octavia
+-      - kolla-scenario-ovn
+       - kolla-tox-genconfig
+       - openstack-python3-jobs
+       - openstack-python3-jobs-arm64
+-- 
+2.39.5
+

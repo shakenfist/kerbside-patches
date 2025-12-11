@@ -1,0 +1,22 @@
+Change-Id: Ib7f551d4a7c6ffe95786853d6899e704de4747b8
+Signed-off-by: Michal Nasiadka <mnasiadka@gmail.com>
+---
+ doc/source/support_matrix.rst                 |  2 +-
+ docker/base/apt_preferences.debian            |  2 +-
+ docker/base/sources.list.debian               |  9 ++--
+ docker/httpd/Dockerfile.j2                    |  3 +-
+ docker/openstack-base/Dockerfile.j2           |  2 +-
+ docker/valkey/valkey-sentinel/Dockerfile.j2   |  6 +--
+ docker/valkey/valkey-server/Dockerfile.j2     |  6 +--
+ kolla/common/config.py                        |  6 +--
+ kolla/image/unbuildable.py                    |  2 -
+ kolla/template/repos.yaml                     | 16 +++----
+ kolla/tests/test_methods.py                   |  8 ++--
+ .../notes/debian-trixie-23987480043dc662.yaml |  5 +++
+ setup.cfg                                     |  1 +
+ tests/templates/template_overrides.j2         | 13 +-----
+ zuul.d/debian.yaml                            | 42 +++++++++----------
+ zuul.d/nodesets.yaml                          |  8 ++--
+ zuul.d/project.yaml                           | 13 ------
+ 17 files changed, 57 insertions(+), 87 deletions(-)
+ create mode 100644 releasenotes/notes/debian-trixie-23987480043dc662.yaml

@@ -36,7 +36,7 @@ jobs:
             'baseuser': 'debian',
             'topology': 'all-in-one',
             'container_distro': 'debian',
-            'container_distro_version': 'bookworm'
+            'container_distro_version': 'trixie'
           },
           {
             'name': 'build-ubuntu-master',
