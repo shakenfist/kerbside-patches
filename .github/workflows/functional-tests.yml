@@ -296,7 +296,7 @@ jobs:
             'release': 'master',
             'base': 'debian:12',
             'baseuser': 'debian',
-            'topology': 'multinode',
+            'topology': 'multinode-2',
             'runs_on': 'debian-12',
             'container_distro': 'debian'
           },
