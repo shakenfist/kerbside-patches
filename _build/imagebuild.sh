@@ -131,6 +131,7 @@ for target in ${build_targets}; do
     echo -e "    --tag ${image_tag} \\"
     echo -e "    --summary-json-file ${topdir}/archive/build.json \\"
     echo -e "    --skip-existing \\"
+    echo -e "    --strip-git-history \\"
     echo -e "    --layer-json-file ${topdir}/archive/layers.json \\"
     echo -e "    --namespace kolla ${topdir}/archive/${kolla_build_args} 2>&1 | \\"
     echo -e "    tee --append ${topdir}/archive/build.log | \\"
@@ -142,6 +143,7 @@ for target in ${build_targets}; do
         --config-file "${topdir}/archive/kolla-build.conf" \
         --summary-json-file ${topdir}/archive/build.json \
         --skip-existing \
+        --strip-git-history \
         --layer-json-file ${topdir}/archive/layers.json \
         --tag ${image_tag} \
         --namespace kolla ${kolla_build_args} 2>&1 | \
