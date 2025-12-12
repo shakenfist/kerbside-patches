@@ -26,6 +26,7 @@ echo -e "${H2}${Arrow}Shallow cloning: ${shallow_clone}${Color_Off}"
 echo -e "${H2}${Arrow}Dependencies: ${depends_on}${Color_Off}"
 echo
 echo -e "${H2}${Arrow}Skip tests: ${skip_tests}${Color_Off}"
+echo -e "${H2}${Arrow}Test patch: ${test_patch:-all}${Color_Off}"
 echo -e "${H2}${Arrow}Use CI registry: ${use_ci_registry}${Color_Off}"
 echo
 
@@ -155,8 +156,10 @@ fi
 
 echo -e "${H3}Ensure tests pass on a clean ${project} ${source_branch} branch${Color_Off}"
 cd ${topsrcdir}/${directory}
-if [ "${defer_tests}" != "true" ]; then
+if [ "${defer_tests}" != "true" ] && [ -z "${test_patch}" ]; then
     run_tests ${repo} ${source_branch} "upstream"
+elif [ -n "${test_patch}" ]; then
+    echo -e "${H3}Skipping upstream tests (--test-patch specified)${Color_Off}"
 fi
 echo
 
@@ -189,7 +192,22 @@ do
     git commit -s -a --file ${topdir}/${project}/${patch}-message
     echo
 
+    # Determine whether to run tests for this patch
+    should_test="false"
     if [ "${defer_tests}" != "true" ]; then
+        if [ -z "${test_patch}" ]; then
+            # No specific patch requested, test all
+            should_test="true"
+        elif [[ "${shortpatch}" == *"${test_patch}"* ]]; then
+            # This patch matches the requested test_patch
+            should_test="true"
+            echo -e "${H3}Running tests for requested patch: ${shortpatch}${Color_Off}"
+        else
+            echo -e "${H3}Skipping tests for ${shortpatch} (--test-patch ${test_patch})${Color_Off}"
+        fi
+    fi
+
+    if [ "${should_test}" == "true" ]; then
         run_tests ${repo} ${source_branch} ${shortpatch}
     fi
 
@@ -230,7 +248,22 @@ if [ ${use_ci_patches} == "true" ]; then
             git commit -s -a --file ${topdir}/${project}/${patch}-message
             echo
 
+            # Determine whether to run tests for this patch
+            should_test="false"
             if [ "${defer_tests}" != "true" ]; then
+                if [ -z "${test_patch}" ]; then
+                    # No specific patch requested, test all
+                    should_test="true"
+                elif [[ "${shortpatch}" == *"${test_patch}"* ]]; then
+                    # This patch matches the requested test_patch
+                    should_test="true"
+                    echo -e "${H3}Running tests for requested patch: ${shortpatch}${Color_Off}"
+                else
+                    echo -e "${H3}Skipping tests for ${shortpatch} (--test-patch ${test_patch})${Color_Off}"
+                fi
+            fi
+
+            if [ "${should_test}" == "true" ]; then
                 run_tests ${repo} ${source_branch} ${shortpatch}
             fi
 
@@ -245,8 +278,10 @@ if [ ${use_ci_patches} == "true" ]; then
 fi
 
 pushd ${topsrcdir}/${directory} > /dev/null
-if [ "${defer_tests}" == "true" ]; then
+if [ "${defer_tests}" == "true" ] && [ -z "${test_patch}" ]; then
     run_tests ${repo} ${source_branch} "final"
+elif [ "${defer_tests}" == "true" ] && [ -n "${test_patch}" ]; then
+    echo -e "${H3}Skipping final deferred tests (--test-patch specified)${Color_Off}"
 fi
 popd > /dev/null
 

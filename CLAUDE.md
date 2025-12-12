@@ -44,7 +44,14 @@ _build/assemble-source.sh <release>   # e.g., master, 2024.1, 2024.2
 Tests run automatically during `test-apply.sh`. Control with flags:
 - `--skip-tests`: Skip all testing (fast, only tests patch application)
 - `--defer-tests`: Defer testing until all patches applied
+- `--test-patch <name>`: Only run tests for patches matching `<name>` (substring match)
 - Tests include: `tox -epy3`, `tox -epep8`, `tox -efunctional` (Nova only), `tox -elinters` (Kolla-Ansible)
+
+**Testing a specific failing patch** (useful when CI identifies a failing patch):
+```bash
+# Test only patch115 without running tests for other patches or upstream
+./_build/test-apply.sh --test-patch patch115 kolla-ansible
+```
 
 ## Repository Architecture
 
