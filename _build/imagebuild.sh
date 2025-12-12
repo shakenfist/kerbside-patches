@@ -129,9 +129,9 @@ for target in ${build_targets}; do
     echo -e "    --debug \\"
     echo -e "    --config-file \"${topdir}/archive/kolla-build.conf\" \\"
     echo -e "    --tag ${image_tag} \\"
-    echo -e "    --summary-json-file build.json \\"
+    echo -e "    --summary-json-file ${topdir}/archive/build.json \\"
     echo -e "    --skip-existing \\"
-    echo -e "    --layer-json-file layers.json \\"
+    echo -e "    --layer-json-file ${topdir}/archive/layers.json \\"
     echo -e "    --namespace kolla ${topdir}/archive/${kolla_build_args} 2>&1 | \\"
     echo -e "    tee --append ${topdir}/archive/build.log | \\"
     echo -e "    ts \"%b %d %H:%M:%S ${target}\""
@@ -142,16 +142,19 @@ for target in ${build_targets}; do
         --config-file "${topdir}/archive/kolla-build.conf" \
         --summary-json-file ${topdir}/archive/build.json \
         --skip-existing \
-        --layer-json-file layers.json \
+        --layer-json-file ${topdir}/archive/layers.json \
         --tag ${image_tag} \
         --namespace kolla ${kolla_build_args} 2>&1 | \
         tee --append ${topdir}/archive/build.log | \
         ts "%b %d %H:%M:%S ${target}"
 
     echo
-    echo -e "${H3}Exit code: ${?}"
+    echo -e "${H3}Exit code: ${?}${Color_Off}"
 
     # Did we see any messages indicating failure?
+    echo
+    echo -e "${H3}Checkout build logs and JSON${Color_Off}"
+    echo "... logs"
     failed=0
     if [ $(grep -c "Failed with status" ${topdir}/archive/build.log || true) -gt 0 ]; then
         echo "Image build failed..."
@@ -160,6 +163,7 @@ for target in ${build_targets}; do
         failed = 1
     fi
 
+    echo "... failed?"
     for img in $(cat ${topdir}/archive/build.json | jq -r ".failed | .[] | .name"); do
         echo "${img} failed"
         failed = 1
@@ -168,14 +172,11 @@ for target in ${build_targets}; do
         echo
     fi
 
+    echo "... unbuildable?"
     for img in $(cat ${topdir}/archive/build.json | jq -r ".unbuildable | .[] | .name"); do
         echo "${img} unbuildable"
         failed = 1
     done
-    if [ ${failed} == 1 ]; then
-        echo
-    fi
-
 
     if [ ${failed} == 1 ]; then
         echo "kolla-build failed!"
