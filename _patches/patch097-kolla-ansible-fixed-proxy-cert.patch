@@ -81,12 +81,14 @@ diff --git a/ansible/roles/certificates/tasks/main.yml b/ansible/roles/certifica
 index fc755bbe6..465e5ee02 100644
 --- a/ansible/roles/certificates/tasks/main.yml
 +++ b/ansible/roles/certificates/tasks/main.yml
-@@ -4,5 +4,8 @@
- - include_tasks: generate-backend.yml
+@@ -7,5 +7,9 @@
+   include_tasks: generate-backend.yml
    when:
      - kolla_enable_tls_backend | bool or rabbitmq_enable_tls | bool or database_enable_tls_backend | bool or enable_kerbside | bool
-+- include_tasks: generate-kerbside.yml
++- name: Generate kerbside certificates
++  include_tasks: generate-kerbside.yml
 +  when:
 +    - enable_kerbside | bool
- - include_tasks: generate-libvirt.yml
+ - name: Generate libvirt certificates
+   include_tasks: generate-libvirt.yml
    when: certificates_generate_libvirt | bool

@@ -1,0 +1,4 @@
+Move kerbside proxy into its own role.
+
+Change-Id: Ic800304e7a342eb820028fbf6d2b0b5d4e112222
+Signed-off-by: Michael Still <mikal@stillhq.com>
