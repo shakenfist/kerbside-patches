@@ -35,6 +35,9 @@ skip_unit_tests="false"
 # Should we skip tests entirely?
 skip_tests="false"
 
+# Should we only test a specific patch? (empty means test all)
+test_patch=""
+
 # Should we rewrite the patch file to match what was applied?
 update_patches="false"
 
@@ -113,6 +116,12 @@ while [[ ${found_arg} -gt 0 ]]; do
             export skip_tests="true"
             echo "Will skip testing."
             shift
+            found_arg=1
+            ;;
+        --test-patch)
+            export test_patch="$2"
+            echo "Will only test patch: ${test_patch}"
+            shift; shift
             found_arg=1
             ;;
         --ci-gitlab)

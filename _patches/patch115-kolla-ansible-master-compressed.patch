@@ -184,10 +184,10 @@ index 95eb6a141..3d7ea8454 100644
  # Following an upgrade, Nova services must be restarted once all compute
  # services have registered themselves, to remove the RPC version pin.
  # Also, when nova_safety_upgrade is true, this starts services which were
-@@ -256,6 +276,26 @@
+@@ -256,6 +276,27 @@
          - enable_nova | bool
          - kolla_action == 'upgrade'
- 
+
 +- name: Reload kerbside services
 +  gather_facts: false
 +  hosts:
@@ -201,7 +201,8 @@ index 95eb6a141..3d7ea8454 100644
 +       default(kolla_max_fail_percentage) |
 +       default(100) }}
 +  tasks:
-+    - import_role:
++    - name: Reload kerbside services
++      import_role:
 +        name: kerbside
 +        tasks_from: reload
 +      when:
@@ -618,7 +619,7 @@ new file mode 100644
 index 000000000..fd2f6fed2
 --- /dev/null
 +++ b/ansible/roles/kerbside/tasks/bootstrap.yml
-@@ -0,0 +1,54 @@
+@@ -0,0 +1,56 @@
 +---
 +- name: Creating Kerbside databases
 +  become: true
@@ -671,8 +672,10 @@ index 000000000..fd2f6fed2
 +  when:
 +    - enable_kerbside | bool
 +
-+- import_tasks: config.yml
-+- import_tasks: bootstrap_service.yml
++- name: Configure kerbside
++  import_tasks: config.yml
++- name: Bootstrap kerbside service
++  import_tasks: bootstrap_service.yml
 diff --git a/ansible/roles/kerbside/tasks/bootstrap_service.yml b/ansible/roles/kerbside/tasks/bootstrap_service.yml
 new file mode 100644
 index 000000000..c8fefaa39
@@ -704,16 +707,17 @@ new file mode 100644
 index 000000000..b7e2f7c29
 --- /dev/null
 +++ b/ansible/roles/kerbside/tasks/check-containers.yml
-@@ -0,0 +1,3 @@
+@@ -0,0 +1,4 @@
 +---
-+- import_role:
++- name: Check kerbside containers
++  import_role:
 +    name: service-check-containers
 diff --git a/ansible/roles/kerbside/tasks/config.yml b/ansible/roles/kerbside/tasks/config.yml
 new file mode 100644
 index 000000000..ac03c2337
 --- /dev/null
 +++ b/ansible/roles/kerbside/tasks/config.yml
-@@ -0,0 +1,164 @@
+@@ -0,0 +1,165 @@
 +---
 +- name: Ensuring config directories exist
 +  become: true
@@ -827,7 +831,8 @@ index 000000000..ac03c2337
 +  notify:
 +    - "Restart kerbside_proxy container"
 +
-+- include_tasks: copy-certs.yml
++- name: Copy certificates
++  include_tasks: copy-certs.yml
 +
 +- name: Copying over config.json files for bootstrap
 +  become: true
@@ -913,11 +918,14 @@ new file mode 100644
 index 000000000..ca3509aff
 --- /dev/null
 +++ b/ansible/roles/kerbside/tasks/deploy.yml
-@@ -0,0 +1,7 @@
+@@ -0,0 +1,10 @@
 +---
-+- import_tasks: config.yml
-+- import_tasks: check-containers.yml
-+- import_tasks: bootstrap.yml
++- name: Configure kerbside
++  import_tasks: config.yml
++- name: Check kerbside containers
++  import_tasks: check-containers.yml
++- name: Bootstrap kerbside
++  import_tasks: bootstrap.yml
 +
 +- name: Flush handlers
 +  meta: flush_handlers
@@ -939,17 +947,19 @@ new file mode 100644
 index 000000000..bc5d1e625
 --- /dev/null
 +++ b/ansible/roles/kerbside/tasks/main.yml
-@@ -0,0 +1,2 @@
+@@ -0,0 +1,3 @@
 +---
-+- include_tasks: "{{ kolla_action }}.yml"
++- name: Include kerbside action tasks
++  include_tasks: "{{ kolla_action }}.yml"
 diff --git a/ansible/roles/kerbside/tasks/precheck.yml b/ansible/roles/kerbside/tasks/precheck.yml
 new file mode 100644
 index 000000000..499fa87c2
 --- /dev/null
 +++ b/ansible/roles/kerbside/tasks/precheck.yml
-@@ -0,0 +1,131 @@
+@@ -0,0 +1,132 @@
 +---
-+- import_role:
++- name: Run service precheck
++  import_role:
 +    name: service-precheck
 +  vars:
 +    service_precheck_services: "{{ kerbside_services }}"
@@ -1084,9 +1094,10 @@ new file mode 100644
 index 000000000..53f9c5fda
 --- /dev/null
 +++ b/ansible/roles/kerbside/tasks/pull.yml
-@@ -0,0 +1,3 @@
+@@ -0,0 +1,4 @@
 +---
-+- import_role:
++- name: Pull kerbside container images
++  import_role:
 +    role: service-images-pull
 diff --git a/ansible/roles/kerbside/tasks/reload.yml b/ansible/roles/kerbside/tasks/reload.yml
 new file mode 100644
@@ -1122,9 +1133,10 @@ new file mode 100644
 index 000000000..2115ef623
 --- /dev/null
 +++ b/ansible/roles/kerbside/tasks/upgrade.yml
-@@ -0,0 +1,2 @@
+@@ -0,0 +1,3 @@
 +---
-+- import_tasks: bootstrap_service.yml
++- name: Bootstrap kerbside service for upgrade
++  import_tasks: bootstrap_service.yml
 diff --git a/ansible/roles/kerbside/templates/kerbside-wsgi.conf.j2 b/ansible/roles/kerbside/templates/kerbside-wsgi.conf.j2
 new file mode 100644
 index 000000000..d63e2f216

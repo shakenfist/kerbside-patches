@@ -12,6 +12,9 @@ extra=""
 if [ ${skip_tests} == "true" ]; then
     extra="${extra} --skip-tests"
 fi
+if [ -n "${test_patch}" ]; then
+    extra="${extra} --test-patch ${test_patch}"
+fi
 if [ ${use_ci_registry} == "true" ]; then
     extra="${extra} --use-ci-registry"
 fi
