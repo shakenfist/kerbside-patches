@@ -72,6 +72,9 @@ Located in `_patches/`:
 - `apply-patches-and-test.sh`: Applies patches from ORDER file, runs tests
 - `build-containers.sh`: Builds Kolla container images
 - `imagebuild.sh`: Container image build logic
+- `test-patches-for-ci.sh`: CI-friendly patch testing with JSON output
+- `extract-patch-failures.py`: Parse JSON failures into human-readable format
+- `bump-source-shas.sh`: Update source SHAs to latest upstream commits
 
 ### Tools (`tools/`)
 - `find_images`: GitLab Container Registry image finder (Python/Click CLI)
@@ -120,3 +123,56 @@ When editing `.patch` files in `_patches/`, you must update both the content AND
    - Kolla-Ansible runs `tox -elinters` which includes ansible-lint
 
 5. **Verify changes** by running `test-apply.sh` without `--skip-tests`
+
+## CI/CD Automation
+
+### Daily Rebase Workflow
+
+The `daily-rebase-checks.yml` workflow runs daily to:
+1. Update source SHAs to latest upstream commits
+2. Test if patches still apply cleanly
+3. If patches fail, invoke Claude Code to attempt automatic fixes
+4. Create a PR with the updated SHAs (and any auto-fixed patches)
+5. Create an issue if patches cannot be fixed automatically
+
+### Required Secrets
+
+- `DAILY_REBASE_TOKEN`: GitHub token for creating PRs and issues
+
+### Claude Code CLI
+
+The workflow uses the Claude Code CLI (`claude`) in headless mode for auto-fixing
+patches. This requires a dedicated runner with the `claude-code` label that has:
+
+1. Claude Code CLI pre-installed (`npm install -g @anthropic-ai/claude-code`)
+2. Pre-authenticated via `claude login` (uses Claude Max subscription)
+
+The runner must have valid credentials in `~/.claude/` for the user running jobs.
+
+### CI Scripts for Patch Testing
+
+```bash
+# Test all projects and output JSON results
+./_build/test-patches-for-ci.sh
+
+# Test specific projects
+./_build/test-patches-for-ci.sh kolla kolla-ansible
+
+# Parse failure output for human reading
+cat patch-results.json | ./_build/extract-patch-failures.py
+```
+
+The JSON output format:
+```json
+{
+  "success": false,
+  "projects_tested": ["kolla", "kolla-ansible"],
+  "failures": [
+    {
+      "project": "kolla",
+      "patch": "_patches/patch112-kolla-layer-data.patch",
+      "error": "error: patch failed: kolla/common/config.py:271..."
+    }
+  ]
+}
+```
