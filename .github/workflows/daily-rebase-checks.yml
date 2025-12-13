@@ -35,10 +35,6 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.DAILY_REBASE_TOKEN }}
         run: |
-          python3 -mvenv ${GITHUB_WORKSPACE}/_venv
-          . ${GITHUB_WORKSPACE}/_venv/bin/activate
-          pip3 install yq
-
           cd ${GITHUB_WORKSPACE}/kerbside-patches
 
           git checkout -b daily-rebase-${DATESTAMP}
@@ -63,7 +59,6 @@ jobs:
         id: test-patches
         continue-on-error: true
         run: |
-          . ${GITHUB_WORKSPACE}/_venv/bin/activate
           cd ${GITHUB_WORKSPACE}/kerbside-patches
 
           # Run patch tests and capture results
@@ -162,7 +157,6 @@ jobs:
           steps.claude-check.outputs.claude_available == 'true'
         id: verify-fix
         run: |
-          . ${GITHUB_WORKSPACE}/_venv/bin/activate
           cd ${GITHUB_WORKSPACE}/kerbside-patches
 
           # Clean up any leftover source directories
