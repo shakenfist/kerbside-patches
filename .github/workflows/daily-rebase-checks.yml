@@ -7,8 +7,8 @@ on:
 
 jobs:
   daily-rebase:
-    runs-on: [self-hosted, vm]
-    timeout-minutes: 60
+    runs-on: [self-hosted, claude-code]
+    timeout-minutes: 120
     concurrency:
       group: ${{ github.workflow }}-${{ github.ref }}
       cancel-in-progress: true
@@ -22,6 +22,8 @@ jobs:
         run: |
           echo "SF_HEAD_SHA=${{ github.event.pull_request.head.sha }}" >> $GITHUB_ENV
           echo "SHAKENFIST_NAMESPACE=$(hostname)" >> $GITHUB_ENV
+          echo "DATESTAMP=$(date '+%Y%m%d')" >> $GITHUB_ENV
+          echo "DATEPRETTY=$(date '+%-d %B %Y')" >> $GITHUB_ENV
 
       - name: Checkout kerbside-patches
         uses: actions/checkout@v4
@@ -51,12 +53,10 @@ jobs:
 
           cd ${GITHUB_WORKSPACE}/kerbside-patches
 
-          datestamp=$(date "+%Y%m%d")
-          datepretty=$(date "+%-d %B %Y")
-          git checkout -b daily-rebase-${datestamp}
+          git checkout -b daily-rebase-${DATESTAMP}
 
           # Bump the description in README.md
-          cat README.md.tmpl | sed "s/%%date%%/${datepretty}/" > README.md
+          cat README.md.tmpl | sed "s/%%date%%/${DATEPRETTY}/" > README.md
 
           # Lock in new daily SHAs
           _build/bump-source-shas.sh 1
@@ -66,20 +66,231 @@ jobs:
           git diff
           echo
 
-          echo "Commit changes and push to github..."
+          echo "Commit changes..."
           git config --global user.name "shakenfist-bot"
           git config --global user.email "bot@shakenfist.com"
-          git commit -a -m "Daily rebase for ${datestamp}."
-          git push -f origin daily-rebase-${datestamp}
+          git commit -a -m "Daily rebase for ${DATESTAMP}."
+
+      - name: Test patch application
+        id: test-patches
+        continue-on-error: true
+        run: |
+          . ${GITHUB_WORKSPACE}/_venv/bin/activate
+          cd ${GITHUB_WORKSPACE}/kerbside-patches
+
+          # Run patch tests and capture results
+          set +e
+          ./_build/test-patches-for-ci.sh > ${GITHUB_WORKSPACE}/patch-test-results.json 2>&1
+          test_exit_code=$?
+          set -e
+
+          echo "Test exit code: ${test_exit_code}"
+          echo "Test results:"
+          cat ${GITHUB_WORKSPACE}/patch-test-results.json
+
+          if [ ${test_exit_code} -ne 0 ]; then
+            echo "patches_failed=true" >> $GITHUB_OUTPUT
+
+            # Extract failure details using helper script
+            cat ${GITHUB_WORKSPACE}/patch-test-results.json | \
+                ./_build/extract-patch-failures.py > ${GITHUB_WORKSPACE}/patch-failures.txt
+            echo "Failure details:"
+            cat ${GITHUB_WORKSPACE}/patch-failures.txt
+          else
+            echo "patches_failed=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Check Claude Code availability
+        if: steps.test-patches.outputs.patches_failed == 'true'
+        id: claude-check
+        run: |
+          if command -v claude &> /dev/null; then
+            echo "Claude Code CLI found at: $(which claude)"
+            echo "claude_available=true" >> $GITHUB_OUTPUT
+          else
+            echo "::warning::Claude Code CLI not found on this runner"
+            echo "claude_available=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Attempt Claude Code patch fix
+        if: |
+          steps.test-patches.outputs.patches_failed == 'true' &&
+          steps.claude-check.outputs.claude_available == 'true'
+        id: claude-fix
+        run: |
+          cd ${GITHUB_WORKSPACE}/kerbside-patches
+
+          # Build the prompt
+          cat > ${GITHUB_WORKSPACE}/claude-prompt.txt << 'PROMPT_EOF'
+          A patch has failed to apply during the daily rebase of the
+          kerbside-patches repository. Please fix the failing patch.
+
+          ## Context
+
+          This repository maintains patches against OpenStack components
+          (kolla, kolla-ansible, nova). The workflow has already:
+          1. Updated source SHAs in config.yaml files to latest upstream
+          2. Attempted to apply patches with the new upstream code
+
+          ## Failure Details
+
+          PROMPT_EOF
+
+          # Append failure details
+          cat ${GITHUB_WORKSPACE}/patch-failures.txt >> ${GITHUB_WORKSPACE}/claude-prompt.txt
+
+          cat >> ${GITHUB_WORKSPACE}/claude-prompt.txt << 'PROMPT_EOF'
+
+          ## Your Task
+
+          1. Read CLAUDE.md to understand how patches work in this repo
+          2. Read the failing patch file from _patches/
+          3. Examine the upstream source code in src/ to understand what changed
+          4. Update the patch file so it applies cleanly, following the
+             guidelines in CLAUDE.md about editing diff headers
+          5. Test your fix: ./_build/test-apply.sh --skip-tests <project>
+          6. If successful, stage and commit the patch update
+
+          ## Important Notes
+
+          - Only modify files in _patches/ directory
+          - When editing patches, update BOTH the diff content AND the
+            @@ header line counts in a single edit
+          - The patch may need line number adjustments if upstream added/removed lines
+          - Test your changes before committing
+          PROMPT_EOF
+
+          echo "Running Claude Code CLI..."
+          # Run Claude Code in headless mode with the prompt
+          # Using --dangerously-skip-permissions to allow file edits in CI
+          claude -p "$(cat ${GITHUB_WORKSPACE}/claude-prompt.txt)" \
+              --dangerously-skip-permissions \
+              --max-turns 20 \
+              --output-format text || true
+
+      - name: Verify Claude's fix
+        if: |
+          steps.test-patches.outputs.patches_failed == 'true' &&
+          steps.claude-check.outputs.claude_available == 'true'
+        id: verify-fix
+        run: |
+          . ${GITHUB_WORKSPACE}/_venv/bin/activate
+          cd ${GITHUB_WORKSPACE}/kerbside-patches
+
+          # Clean up any leftover source directories
+          rm -rf src/
+
+          # Re-run patch tests
+          set +e
+          ./_build/test-patches-for-ci.sh > ${GITHUB_WORKSPACE}/patch-verify-results.json 2>&1
+          verify_exit_code=$?
+          set -e
+
+          echo "Verification exit code: ${verify_exit_code}"
+          cat ${GITHUB_WORKSPACE}/patch-verify-results.json
+
+          if [ ${verify_exit_code} -eq 0 ]; then
+            echo "fix_succeeded=true" >> $GITHUB_OUTPUT
+          else
+            echo "fix_succeeded=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Commit Claude's patch fixes
+        if: |
+          steps.test-patches.outputs.patches_failed == 'true' &&
+          steps.claude-check.outputs.claude_available == 'true' &&
+          steps.verify-fix.outputs.fix_succeeded == 'true'
+        run: |
+          cd ${GITHUB_WORKSPACE}/kerbside-patches
+
+          # Check if there are changes to commit
+          if [ -n "$(git status --porcelain _patches/)" ]; then
+            git add _patches/
+            git commit -m "Auto-fix patches for daily rebase ${DATESTAMP}.
+
+            Claude Code automatically updated patches that failed to apply
+            after upstream SHA bump.
+
+            Assisted-By: Claude Code
+            Co-Authored-By: Claude <noreply@anthropic.com>"
+          fi
+
+      - name: Push branch and create PR
+        env:
+          GITHUB_TOKEN: ${{ secrets.DAILY_REBASE_TOKEN }}
+        run: |
+          cd ${GITHUB_WORKSPACE}/kerbside-patches
+
+          git push -f origin daily-rebase-${DATESTAMP}
           sleep 10
-          echo
+
+          # Determine PR body based on what happened
+          if [ "${{ steps.test-patches.outputs.patches_failed }}" == "true" ]; then
+            if [ "${{ steps.verify-fix.outputs.fix_succeeded }}" == "true" ]; then
+              pr_body="A daily rebase was attempted.
+
+          **Note:** Some patches failed to apply with the new upstream SHAs.
+          Claude Code automatically fixed the patches.
+
+          Please review the patch changes carefully before merging."
+            else
+              pr_body="A daily rebase was attempted.
+
+          **Warning:** Some patches failed to apply and Claude Code was
+          unable to fix them automatically. Manual intervention is required.
+
+          See the workflow logs for details about which patches failed."
+            fi
+          else
+            pr_body="A daily rebase was attempted. All patches applied successfully."
+          fi
 
           echo "Create a PR..."
           gh pr create \
               --assignee mikalstill \
               --reviewer mikalstill \
-              --title "Daily rebase for ${datestamp}." \
-              --body "A daily rebase was attempted." \
+              --title "Daily rebase for ${DATESTAMP}." \
+              --body "${pr_body}" \
               --head $(git branch --show-current)
           echo
           echo "Pull request created."
+
+      - name: Create issue for unfixable patches
+        if: |
+          steps.test-patches.outputs.patches_failed == 'true' &&
+          (steps.claude-check.outputs.claude_available != 'true' ||
+           steps.verify-fix.outputs.fix_succeeded == 'false')
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.DAILY_REBASE_TOKEN }}
+          script: |
+            const fs = require('fs');
+            const failuresPath = process.env.GITHUB_WORKSPACE + '/patch-failures.txt';
+            let failures = 'See workflow logs for details.';
+            try {
+              failures = fs.readFileSync(failuresPath, 'utf8');
+            } catch (e) {
+              console.log('Could not read failures file:', e);
+            }
+
+            const claudeAvailable = '${{ steps.claude-check.outputs.claude_available }}' === 'true';
+            const reason = claudeAvailable
+              ? 'Claude Code was unable to fix them automatically'
+              : 'Claude Code CLI was not available on the runner';
+
+            await github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: `Daily rebase failed: patches need manual attention (${process.env.DATESTAMP})`,
+              body: `The daily rebase workflow detected failing patches. ${reason}.
+
+            **Failed patches:**
+            \`\`\`
+            ${failures}
+            \`\`\`
+
+            Please review and fix manually. The daily rebase PR has been created but will fail CI until patches are fixed.
+
+            See [workflow run](${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}) for details.`,
+              labels: ['rebase-failure', 'needs-attention']
+            });
