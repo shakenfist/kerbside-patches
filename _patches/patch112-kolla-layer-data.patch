@@ -8,15 +8,15 @@ Date:   Fri Dec 12 09:32:01 2025 +1100
     Signed-off-by: Michael Still <mikal@stillhq.com>
 
 diff --git a/kolla/common/config.py b/kolla/common/config.py
-index 1bc5f4e68..ad2d1953a 100644
+index 653c84c53..ad2d1953a 100644
 --- a/kolla/common/config.py
 +++ b/kolla/common/config.py
-@@ -274,7 +274,9 @@ _CLI_OPTS = [
-                help='Path to podman socket.'),
-     cfg.BoolOpt('strip-git-history', default=False,
-                 help=('Optionally strip git history from source tarballs '
--                      'and plugin archives to reduce image size.'))
-+                      'and plugin archives to reduce image size.')),
+@@ -271,7 +271,9 @@ _CLI_OPTS = [
+     cfg.StrOpt('engine', default='docker', choices=['docker', 'podman'],
+                help='Container engine to build images on.'),
+     cfg.StrOpt('podman_base_url', default='unix:///run/podman/podman.sock',
+-               help='Path to podman socket.')
++               help='Path to podman socket.'),
 +    cfg.StrOpt('layer-json-file',
 +               help='Emit information about the layers in each built image.')
  ]
@@ -62,18 +62,10 @@ index 723914f5a..353642c80 100644
  
      def get_image_statuses(self):
 diff --git a/kolla/image/tasks.py b/kolla/image/tasks.py
-index df779d7e1..b7d4012f3 100644
+index 39d759390..b7d4012f3 100644
 --- a/kolla/image/tasks.py
 +++ b/kolla/image/tasks.py
-@@ -384,7 +384,6 @@ class BuildTask(EngineTask):
-         image.start = datetime.datetime.now()
-         self.logger.info('Building started at %s' % image.start)
- 
--        # XXX
-         if image.source and 'source' in image.source:
-             self.process_source(image, image.source)
-             if image.status in STATUS_ERRORS:
-@@ -507,6 +506,17 @@ class BuildTask(EngineTask):
+@@ -465,6 +465,17 @@ class BuildTask(EngineTask):
              self.logger.info('Built at %s (took %s)' %
                               (now, now - image.start))
  

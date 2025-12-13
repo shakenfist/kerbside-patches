@@ -5,5 +5,15 @@ building with kolla-build. One quick win is to remove the git
 history from the built images, which can be quite large in some
 cases.
 
+Before stripping git history:
+
+    Total unique layers: 873
+    Layers with non-zero size: 495
+    Total unique layer size: 16.53 GB (17,746,505,728 bytes)
+
+After stripping git history:
+
+    ...
+
 Change-Id: Icf0a693914ec5dcd09123cd58f95d12969d520d4
 Signed-off-by: Michael Still <mikal@stillhq.com>
