@@ -176,3 +176,71 @@ The JSON output format:
   ]
 }
 ```
+
+### Shared Patch Handling
+
+Patches in `_patches/` may be referenced by multiple ORDER files (e.g., the same
+patch used by `kolla-ansible`, `kolla-ansible-2024.1`, and `kolla-ansible-2025.1`).
+When a patch fails during daily rebase, the fix strategy depends on whether the
+patch is shared:
+
+**Check patch usage:**
+```bash
+./_build/find-patch-usage.py _patches/patch008-use-routable-ip.patch
+# Output: {"patch": "...", "used_by": ["kolla-ansible", "kolla-ansible-2025.1"]}
+```
+
+**Fix strategies:**
+
+1. **modify_in_place**: If the patch is only used by ONE project (or only the
+   failing project needs different code), edit the patch directly.
+
+2. **create_copy**: If the patch is shared across multiple releases and only one
+   release needs changes, create a release-specific copy:
+   - Use the next available patch number (see below)
+   - Use the codename in the filename (e.g., `epoxy` for 2025.1)
+   - Update the ORDER file for the failing project to use the new patch
+   - Leave the original patch unchanged for other releases
+
+**Naming convention for release-specific patches:**
+```
+patch{number:03d}-{project}-{codename}-{description}.patch
+Example: patch118-kolla-ansible-epoxy-compressed-zstd.patch
+```
+
+**Release name mappings** (see `_build/release-names.yaml`):
+- 2024.1 = caracal
+- 2024.2 = dalmatian
+- 2025.1 = epoxy
+- 2025.2 = flamingo
+- 2026.1 = gazpacho
+- master = master
+
+**Get the next available patch number:**
+```bash
+./_build/get-next-patch-number.py
+# Output: 118
+```
+
+This script checks both existing files in `_patches/` AND open GitHub PRs to
+avoid conflicts with patches being added by other work.
+
+**Analyze failing patches for fix strategy:**
+```bash
+./_build/analyze-shared-patches.py patch-test-results.json
+```
+
+Output includes recommended strategy, suggested names, and next patch number:
+```json
+{
+  "failures": [
+    {
+      "patch": "_patches/patch008.patch",
+      "failed_in": "kolla-ansible-2025.1",
+      "also_used_by": ["kolla-ansible", "kolla-ansible-2024.2"],
+      "strategy": "create_copy",
+      "suggested_name": "_patches/patch118-kolla-ansible-epoxy-use-routable-ip.patch"
+    }
+  ],
+  "next_patch_number": 119
+}

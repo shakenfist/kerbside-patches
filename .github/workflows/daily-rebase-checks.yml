@@ -83,6 +83,18 @@ jobs:
             echo "patches_failed=false" >> $GITHUB_OUTPUT
           fi
 
+      - name: Analyze shared patches
+        if: steps.test-patches.outputs.patches_failed == 'true'
+        env:
+          GITHUB_TOKEN: ${{ secrets.DAILY_REBASE_TOKEN }}
+        run: |
+          cd ${GITHUB_WORKSPACE}/kerbside-patches
+          ./_build/analyze-shared-patches.py \
+              ${GITHUB_WORKSPACE}/patch-test-results.json \
+              > ${GITHUB_WORKSPACE}/shared-patch-analysis.json
+          echo "Shared patch analysis:"
+          cat ${GITHUB_WORKSPACE}/shared-patch-analysis.json
+
       - name: Check Claude Code availability
         if: steps.test-patches.outputs.patches_failed == 'true'
         id: claude-check
@@ -124,23 +136,52 @@ jobs:
 
           cat >> ${GITHUB_WORKSPACE}/claude-prompt.txt << 'PROMPT_EOF'
 
+          ## Shared Patch Analysis
+
+          PROMPT_EOF
+
+          # Append the shared patch analysis
+          cat ${GITHUB_WORKSPACE}/shared-patch-analysis.json >> ${GITHUB_WORKSPACE}/claude-prompt.txt
+
+          cat >> ${GITHUB_WORKSPACE}/claude-prompt.txt << 'PROMPT_EOF'
+
           ## Your Task
 
           1. Read CLAUDE.md to understand how patches work in this repo
-          2. Read the failing patch file from _patches/
-          3. Examine the upstream source code in src/ to understand what changed
-          4. Update the patch file so it applies cleanly, following the
-             guidelines in CLAUDE.md about editing diff headers
-          5. Test your fix: ./_build/test-apply.sh --skip-tests <project>
-          6. If successful, stage and commit the patch update
+          2. Read the shared patch analysis above to determine the fix strategy
+          3. Read the failing patch file from _patches/
+          4. Examine the upstream source code in src/ to understand what changed
+          5. Apply the recommended strategy:
+
+             **If strategy is "modify_in_place":**
+             - Update the patch file directly so it applies cleanly
+             - Follow the guidelines in CLAUDE.md about editing diff headers
+
+             **If strategy is "create_copy":**
+             - Create a NEW patch file with the suggested_name from the analysis
+             - Update the ORDER file for the failing project to use the new patch
+             - Leave the original patch unchanged for other releases
+
+          6. Test your fix: ./_build/test-apply.sh --skip-tests <project>
+          7. If successful, stage your changes (do not commit - the workflow will commit)
+
+          ## Release Name Mappings
+
+          When creating release-specific patches, use codenames in filenames:
+          - 2024.1 = caracal
+          - 2024.2 = dalmatian
+          - 2025.1 = epoxy
+          - 2025.2 = flamingo
+          - 2026.1/master = gazpacho
 
           ## Important Notes
 
-          - Only modify files in _patches/ directory
+          - Only modify files in _patches/ directory and */ORDER files
           - When editing patches, update BOTH the diff content AND the
             @@ header line counts in a single edit
           - The patch may need line number adjustments if upstream added/removed lines
-          - Test your changes before committing
+          - Test your changes before staging
+          - Do NOT commit - just stage the changes with git add
           PROMPT_EOF
 
           echo "Running Claude Code CLI..."
@@ -185,9 +226,9 @@ jobs:
         run: |
           cd ${GITHUB_WORKSPACE}/kerbside-patches
 
-          # Check if there are changes to commit
-          if [ -n "$(git status --porcelain _patches/)" ]; then
-            git add _patches/
+          # Check if there are changes to commit (patches or ORDER files)
+          if [ -n "$(git status --porcelain _patches/ */ORDER)" ]; then
+            git add _patches/ */ORDER
             git commit -m "Auto-fix patches for daily rebase ${DATESTAMP}.
 
             Claude Code automatically updated patches that failed to apply

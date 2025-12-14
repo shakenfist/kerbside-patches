@@ -1,0 +1,14 @@
+# OpenStack release name mappings
+# Directory names use numeric versions (e.g., kolla-ansible-2025.1)
+# Patch names use codenames (e.g., patch117-kolla-ansible-epoxy-compressed.patch)
+#
+# This file is used by the automated rebase workflow to create
+# release-specific patch copies with appropriate naming.
+
+releases:
+  "2024.1": "caracal"
+  "2024.2": "dalmatian"
+  "2025.1": "epoxy"
+  "2025.2": "flamingo"
+  "2026.1": "gazpacho"
+  "master": "master"
