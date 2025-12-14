@@ -1,6 +1,6 @@
-commit a770ffdf6a26e2b002b8ae177facd22963024f7b
+commit 5d5de0f78899d37d0a796c4a83da8370f57cf915
 Author: Michael Still <mikal@stillhq.com>
-Date:   Wed Dec 10 15:01:28 2025 +1100
+Date:   Sun Dec 14 15:11:43 2025 +1100
 
     Optionally strip git history from source / archives.
     
@@ -8,13 +8,13 @@ Date:   Wed Dec 10 15:01:28 2025 +1100
     building with kolla-build. One quick win is to remove the git
     history from the built images, which can be quite large in some
     cases.
-
+    
     My initial attempt along those lines was to strip out the .git
     directory from source and plugin archives before the images
     were built, but that didn't work because we need the .git
     directories when pip installs the python package because that's
     where the version is derived from.
-
+    
     This second attempt therefore is to post process the layers
     of the image, much like the squash option already does. I don't
     completely love this approach, but the only alternative I have
@@ -24,25 +24,25 @@ Date:   Wed Dec 10 15:01:28 2025 +1100
     I am not completely confident that there is nothing in any
     container image we build that doesn't require those source
     files for some other reason.
-
+    
     Before stripping git history:
-
+    
         Total unique layers: 873
         Layers with non-zero size: 495
         Total unique layer size: 16.53 GB (17,746,505,728 bytes)
-
+    
     After stripping git history:
-
+    
         ...
     
     Change-Id: Icf0a693914ec5dcd09123cd58f95d12969d520d4
     Signed-off-by: Michael Still <mikal@stillhq.com>
 
 diff --git a/kolla/common/config.py b/kolla/common/config.py
-index 653c84c53..1bc5f4e68 100644
+index 7ae2578d0..917c61cd1 100644
 --- a/kolla/common/config.py
 +++ b/kolla/common/config.py
-@@ -271,7 +271,10 @@ _CLI_OPTS = [
+@@ -264,7 +264,10 @@ _CLI_OPTS = [
      cfg.StrOpt('engine', default='docker', choices=['docker', 'podman'],
                 help='Container engine to build images on.'),
      cfg.StrOpt('podman_base_url', default='unix:///run/podman/podman.sock',
@@ -55,7 +55,7 @@ index 653c84c53..1bc5f4e68 100644
  
  _BASE_OPTS = [
 diff --git a/kolla/image/tasks.py b/kolla/image/tasks.py
-index 39d759390..d01539d78 100644
+index 39d759390..df779d7e1 100644
 --- a/kolla/image/tasks.py
 +++ b/kolla/image/tasks.py
 @@ -342,6 +342,15 @@ class BuildTask(EngineTask):

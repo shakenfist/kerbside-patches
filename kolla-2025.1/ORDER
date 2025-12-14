@@ -1,4 +1,3 @@
 ../_patches/patch094-kolla-epoxy-compressed.patch
-../_patches/patch111-kolla-strip-git.patch
-../_patches/patch112-kolla-layer-data.patch
+../_patches/patch118-kolla-epoxy-layer-data.patch
 
