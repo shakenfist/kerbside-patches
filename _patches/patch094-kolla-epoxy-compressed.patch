@@ -1,17 +1,18 @@
-commit 67465e041e2b199b8975739a796db46d2ed32d13
+commit a5cf333b68a43d1618670a5cd054188ffa727f79
 Author: Michael Still <mikal@stillhq.com>
-Date:   Mon Oct 13 09:01:35 2025 +1100
+Date:   Sun Dec 14 15:11:43 2025 +1100
 
     Implement container image build for kerbside.
     
     I am fairly sure this will need improvement, but its a starting
     point at least.
     
+    Change-Id: Ibb0a9d7c531e9b249db77c77bc6f5984c10984e8
     Signed-off-by: Michael Still <mikal@stillhq.com>
 
 diff --git a/docker/kerbside/kerbside-api/Dockerfile.j2 b/docker/kerbside/kerbside-api/Dockerfile.j2
 new file mode 100644
-index 0000000..4e5e1f7
+index 000000000..4e5e1f7a1
 --- /dev/null
 +++ b/docker/kerbside/kerbside-api/Dockerfile.j2
 @@ -0,0 +1,9 @@
@@ -26,7 +27,7 @@ index 0000000..4e5e1f7
 +USER kerbside
 diff --git a/docker/kerbside/kerbside-api/extend_start.sh b/docker/kerbside/kerbside-api/extend_start.sh
 new file mode 100644
-index 0000000..9b917b3
+index 000000000..9b917b374
 --- /dev/null
 +++ b/docker/kerbside/kerbside-api/extend_start.sh
 @@ -0,0 +1,6 @@
@@ -38,7 +39,7 @@ index 0000000..9b917b3
 +. /usr/local/bin/kolla_httpd_setup
 diff --git a/docker/kerbside/kerbside-base/Dockerfile.j2 b/docker/kerbside/kerbside-base/Dockerfile.j2
 new file mode 100644
-index 0000000..6ede949
+index 000000000..6ede9496c
 --- /dev/null
 +++ b/docker/kerbside/kerbside-base/Dockerfile.j2
 @@ -0,0 +1,51 @@
@@ -95,7 +96,7 @@ index 0000000..6ede949
 +{% block footer %}{% endblock %}
 diff --git a/docker/kerbside/kerbside-proxy/Dockerfile.j2 b/docker/kerbside/kerbside-proxy/Dockerfile.j2
 new file mode 100644
-index 0000000..4e5e1f7
+index 000000000..4e5e1f7a1
 --- /dev/null
 +++ b/docker/kerbside/kerbside-proxy/Dockerfile.j2
 @@ -0,0 +1,9 @@
@@ -110,7 +111,7 @@ index 0000000..4e5e1f7
 +USER kerbside
 diff --git a/docker/kerbside/kerbside-proxy/extend_start.sh b/docker/kerbside/kerbside-proxy/extend_start.sh
 new file mode 100644
-index 0000000..92ef80a
+index 000000000..92ef80a22
 --- /dev/null
 +++ b/docker/kerbside/kerbside-proxy/extend_start.sh
 @@ -0,0 +1,4 @@
@@ -119,7 +120,7 @@ index 0000000..92ef80a
 +# Make the log directory
 +mkdir -p /var/log/kolla/kerbside
 diff --git a/docker/skyline/skyline-apiserver/Dockerfile.j2 b/docker/skyline/skyline-apiserver/Dockerfile.j2
-index a34178a..00c8711 100644
+index a34178a85..00c871165 100644
 --- a/docker/skyline/skyline-apiserver/Dockerfile.j2
 +++ b/docker/skyline/skyline-apiserver/Dockerfile.j2
 @@ -16,8 +16,6 @@ ADD skyline-apiserver-archive /skyline-apiserver-source
@@ -132,7 +133,7 @@ index a34178a..00c8711 100644
      && chmod 644 /usr/local/bin/kolla_skyline_extend_start
  
 diff --git a/kolla/common/config.py b/kolla/common/config.py
-index 53d78d8..374ed00 100644
+index 197f22394..7ae2578d0 100644
 --- a/kolla/common/config.py
 +++ b/kolla/common/config.py
 @@ -89,6 +89,7 @@ _PROFILE_OPTS = [
@@ -144,7 +145,7 @@ index 53d78d8..374ed00 100644
                      'magnum',
                      'manila',
 diff --git a/kolla/common/sources.py b/kolla/common/sources.py
-index 0c010d6..e6e15d1 100644
+index 0c010d6a9..e6e15d195 100644
 --- a/kolla/common/sources.py
 +++ b/kolla/common/sources.py
 @@ -164,6 +164,10 @@ SOURCES = {
@@ -159,15 +160,13 @@ index 0c010d6..e6e15d1 100644
          'type': 'url',
          'location': ('$tarballs_base/openstack/kuryr/'
 diff --git a/kolla/common/users.py b/kolla/common/users.py
-index 9468396..5fa49e5 100644
+index 878022e48..2b4a8b2f4 100644
 --- a/kolla/common/users.py
 +++ b/kolla/common/users.py
-@@ -349,5 +349,9 @@ USERS = {
-     'valkey-user': {
+@@ -350,4 +350,8 @@ USERS = {
          'uid': 42494,
          'gid': 42494,
--    },
-+    },
+     },
 +    'kerbside-user': {
 +        'uid': 42495,
 +        'gid': 42495,

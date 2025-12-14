@@ -1,0 +1,8 @@
+libvirt: Add objects and notifications for USB controller model.
+
+This patch adds just the objects and notifications required to
+support an extra spec to configure a USB controller inside
+the guest. This is useful for SPICE consoles using the native
+protocol.
+
+Change-Id: I791b16c5bf0e860a188783c863e95dc423998b0a

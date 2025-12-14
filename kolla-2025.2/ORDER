@@ -1,2 +1,4 @@
 ../_patches/patch047-kolla-fluentd-enable-syslog.patch
 ../_patches/patch093-kolla-master-compressed.patch
+../_patches/patch119-kolla-flamingo-layer-data.patch
+

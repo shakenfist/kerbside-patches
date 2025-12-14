@@ -11,7 +11,7 @@
 # Options:
 #   --bump-shas         Update source SHAs to latest upstream (like daily rebase)
 #   --no-claude         Skip Claude Code, just test and report failures
-#   --max-turns N       Maximum Claude turns (default: 20)
+#   --max-turns N       Maximum Claude turns (default: 50)
 #   --interactive       Run Claude in interactive mode (default: headless)
 #   --ci                CI mode: output machine-readable status, no colors
 #   --output-dir DIR    Directory for output files (default: temp dir)
@@ -45,7 +45,7 @@ cd "${topdir}"
 # Default options
 bump_shas=false
 use_claude=true
-max_turns=20
+max_turns=50
 interactive=false
 ci_mode=false
 output_dir=""

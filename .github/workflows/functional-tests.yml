@@ -151,6 +151,16 @@ jobs:
               echo "File not found"
           fi
 
+      - name: Dump layers.json
+        if: always()
+        run: |
+          . $GITHUB_ENV
+          if [ -e kerbside-patches/archive/layers.json ]; then
+              cat kerbside-patches/archive/layers.json | python3 -m json.tool
+          else
+              echo "File not found"
+          fi
+
       # We have the output of the build job and its config, regardless of success or failure
       - name: Archive build config and logs
         if: always()
@@ -169,6 +179,9 @@ jobs:
           fi
           if [ -e kerbside-patches/archive/build.json ]; then
               cp kerbside-patches/archive/build.json ${archive_path}/
+          fi
+          if [ -e kerbside-patches/archive/layers.json ]; then
+              cp kerbside-patches/archive/layers.json ${archive_path}/
           fi
           if [ -e kerbside-patches/archive/kolla-build.conf ]; then
               cp kerbside-patches/archive/kolla-build.conf ${archive_path}/

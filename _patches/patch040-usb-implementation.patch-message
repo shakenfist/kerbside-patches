@@ -1,0 +1,8 @@
+Implement USB controller extra spec for libvirt.
+
+This is the implementation for the USB controller extra spec as
+desired by the new libvirt spice-direct console mode. USB device
+redirection support is a frequently requested feature for VDI users.
+
+Change-Id: I71edd03b5c63a8028c23a746c01c59d303994144
+Signed-off-by: Michael Still <mikal@stillhq.com>

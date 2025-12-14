@@ -1,0 +1,35 @@
+Optionally strip git history from source / archives.
+
+I am interested in ways I can reduce the size of the images I am
+building with kolla-build. One quick win is to remove the git
+history from the built images, which can be quite large in some
+cases.
+
+My initial attempt along those lines was to strip out the .git
+directory from source and plugin archives before the images
+were built, but that didn't work because we need the .git
+directories when pip installs the python package because that's
+where the version is derived from.
+
+This second attempt therefore is to post process the layers
+of the image, much like the squash option already does. I don't
+completely love this approach, but the only alternative I have
+been able to come up with would be to build python wheel files
+outside of the Docker build process and then inject those
+instead of the tarballs. That feels more fragile though because
+I am not completely confident that there is nothing in any
+container image we build that doesn't require those source
+files for some other reason.
+
+Before stripping git history:
+
+    Total unique layers: 873
+    Layers with non-zero size: 495
+    Total unique layer size: 16.53 GB (17,746,505,728 bytes)
+
+After stripping git history:
+
+    ...
+
+Change-Id: Icf0a693914ec5dcd09123cd58f95d12969d520d4
+Signed-off-by: Michael Still <mikal@stillhq.com>

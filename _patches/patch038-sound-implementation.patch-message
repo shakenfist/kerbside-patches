@@ -1,0 +1,7 @@
+Implement sound model extra spec for libvirt.
+
+This is the implementation for the sound model extra spec as
+desired by the new libvirt spice-direct console mode. Sound
+support is a frequently requested feature for VDI users.
+
+Change-Id: I33b8fc0136b4c1783b5c493e8ca9a15110767f6c
