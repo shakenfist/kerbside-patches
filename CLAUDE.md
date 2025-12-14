@@ -55,6 +55,12 @@ Tests run automatically during `test-apply.sh`. Control with flags:
 
 ## Repository Architecture
 
+### Documentation Files
+
+**Important**: Do not edit `README.md` directly. Edit `README.md.tmpl` instead.
+The daily rebase workflow regenerates `README.md` from the template, replacing
+`%%date%%` with the current date. Any direct edits to `README.md` will be lost.
+
 ### Patch Organization
 Each OpenStack component has its own directory (e.g., `kolla/`, `kolla-ansible/`, `nova-2025.1/`):
 - `config.yaml`: Repository URL, branch, SHA, release version, dependencies
