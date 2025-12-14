@@ -149,6 +149,37 @@ patches. This requires a dedicated runner with the `claude-code` label that has:
 
 The runner must have valid credentials in `~/.claude/` for the user running jobs.
 
+### Rebase Helper Script
+
+The `_build/rebase-with-claude.sh` script is used by both the GitHub Actions
+workflow and for interactive command-line use. It handles testing patches,
+analyzing shared patch usage, and invoking Claude Code to fix failures.
+
+```bash
+# Test all patches on current branch (no SHA updates)
+./_build/rebase-with-claude.sh
+
+# Test specific project
+./_build/rebase-with-claude.sh kolla-ansible-2025.1
+
+# Full daily rebase (update SHAs, test, auto-fix)
+./_build/rebase-with-claude.sh --bump-shas
+
+# Just test, don't try to fix with Claude
+./_build/rebase-with-claude.sh --no-claude
+
+# Interactive mode (Claude session you can guide)
+./_build/rebase-with-claude.sh --interactive
+```
+
+Options:
+- `--bump-shas`: Update source SHAs to latest upstream before testing
+- `--no-claude`: Skip Claude Code, just test and report failures
+- `--max-turns N`: Maximum Claude turns (default: 20)
+- `--interactive`: Run Claude in interactive mode instead of headless
+- `--ci`: CI mode with machine-readable output (used by GitHub Actions)
+- `--output-dir DIR`: Directory for output files (default: temp dir)
+
 ### CI Scripts for Patch Testing
 
 ```bash

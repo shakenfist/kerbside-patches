@@ -31,7 +31,7 @@ jobs:
           path: kerbside-patches
           fetch-depth: 0
 
-      - name: Bump rebase field in README.md, and source SHAs
+      - name: Create rebase branch and bump SHAs
         env:
           GITHUB_TOKEN: ${{ secrets.DAILY_REBASE_TOKEN }}
         run: |
@@ -55,174 +55,49 @@ jobs:
           git config --global user.email "bot@shakenfist.com"
           git commit -a -m "Daily rebase for ${DATESTAMP}."
 
-      - name: Test patch application
-        id: test-patches
+      - name: Test patches and attempt fixes with Claude
+        id: rebase
         continue-on-error: true
-        run: |
-          cd ${GITHUB_WORKSPACE}/kerbside-patches
-
-          # Run patch tests and capture results
-          set +e
-          ./_build/test-patches-for-ci.sh > ${GITHUB_WORKSPACE}/patch-test-results.json 2>&1
-          test_exit_code=$?
-          set -e
-
-          echo "Test exit code: ${test_exit_code}"
-          echo "Test results:"
-          cat ${GITHUB_WORKSPACE}/patch-test-results.json
-
-          if [ ${test_exit_code} -ne 0 ]; then
-            echo "patches_failed=true" >> $GITHUB_OUTPUT
-
-            # Extract failure details using helper script
-            cat ${GITHUB_WORKSPACE}/patch-test-results.json | \
-                ./_build/extract-patch-failures.py > ${GITHUB_WORKSPACE}/patch-failures.txt
-            echo "Failure details:"
-            cat ${GITHUB_WORKSPACE}/patch-failures.txt
-          else
-            echo "patches_failed=false" >> $GITHUB_OUTPUT
-          fi
-
-      - name: Analyze shared patches
-        if: steps.test-patches.outputs.patches_failed == 'true'
         env:
           GITHUB_TOKEN: ${{ secrets.DAILY_REBASE_TOKEN }}
         run: |
           cd ${GITHUB_WORKSPACE}/kerbside-patches
-          ./_build/analyze-shared-patches.py \
-              ${GITHUB_WORKSPACE}/patch-test-results.json \
-              > ${GITHUB_WORKSPACE}/shared-patch-analysis.json
-          echo "Shared patch analysis:"
-          cat ${GITHUB_WORKSPACE}/shared-patch-analysis.json
 
-      - name: Check Claude Code availability
-        if: steps.test-patches.outputs.patches_failed == 'true'
-        id: claude-check
-        run: |
-          if command -v claude &> /dev/null; then
-            echo "Claude Code CLI found at: $(which claude)"
-            echo "claude_available=true" >> $GITHUB_OUTPUT
-          else
-            echo "::warning::Claude Code CLI not found on this runner"
-            echo "claude_available=false" >> $GITHUB_OUTPUT
-          fi
-
-      - name: Attempt Claude Code patch fix
-        if: |
-          steps.test-patches.outputs.patches_failed == 'true' &&
-          steps.claude-check.outputs.claude_available == 'true'
-        id: claude-fix
-        run: |
-          cd ${GITHUB_WORKSPACE}/kerbside-patches
-
-          # Build the prompt
-          cat > ${GITHUB_WORKSPACE}/claude-prompt.txt << 'PROMPT_EOF'
-          A patch has failed to apply during the daily rebase of the
-          kerbside-patches repository. Please fix the failing patch.
-
-          ## Context
-
-          This repository maintains patches against OpenStack components
-          (kolla, kolla-ansible, nova). The workflow has already:
-          1. Updated source SHAs in config.yaml files to latest upstream
-          2. Attempted to apply patches with the new upstream code
-
-          ## Failure Details
-
-          PROMPT_EOF
-
-          # Append failure details
-          cat ${GITHUB_WORKSPACE}/patch-failures.txt >> ${GITHUB_WORKSPACE}/claude-prompt.txt
-
-          cat >> ${GITHUB_WORKSPACE}/claude-prompt.txt << 'PROMPT_EOF'
-
-          ## Shared Patch Analysis
-
-          PROMPT_EOF
-
-          # Append the shared patch analysis
-          cat ${GITHUB_WORKSPACE}/shared-patch-analysis.json >> ${GITHUB_WORKSPACE}/claude-prompt.txt
-
-          cat >> ${GITHUB_WORKSPACE}/claude-prompt.txt << 'PROMPT_EOF'
-
-          ## Your Task
-
-          1. Read CLAUDE.md to understand how patches work in this repo
-          2. Read the shared patch analysis above to determine the fix strategy
-          3. Read the failing patch file from _patches/
-          4. Examine the upstream source code in src/ to understand what changed
-          5. Apply the recommended strategy:
-
-             **If strategy is "modify_in_place":**
-             - Update the patch file directly so it applies cleanly
-             - Follow the guidelines in CLAUDE.md about editing diff headers
-
-             **If strategy is "create_copy":**
-             - Create a NEW patch file with the suggested_name from the analysis
-             - Update the ORDER file for the failing project to use the new patch
-             - Leave the original patch unchanged for other releases
-
-          6. Test your fix: ./_build/test-apply.sh --skip-tests <project>
-          7. If successful, stage your changes (do not commit - the workflow will commit)
-
-          ## Release Name Mappings
-
-          When creating release-specific patches, use codenames in filenames:
-          - 2024.1 = caracal
-          - 2024.2 = dalmatian
-          - 2025.1 = epoxy
-          - 2025.2 = flamingo
-          - 2026.1/master = gazpacho
-
-          ## Important Notes
-
-          - Only modify files in _patches/ directory and */ORDER files
-          - When editing patches, update BOTH the diff content AND the
-            @@ header line counts in a single edit
-          - The patch may need line number adjustments if upstream added/removed lines
-          - Test your changes before staging
-          - Do NOT commit - just stage the changes with git add
-          PROMPT_EOF
-
-          echo "Running Claude Code CLI..."
-          # Run Claude Code in headless mode with the prompt
-          # Using --dangerously-skip-permissions to allow file edits in CI
-          claude -p "$(cat ${GITHUB_WORKSPACE}/claude-prompt.txt)" \
-              --dangerously-skip-permissions \
-              --max-turns 20 \
-              --output-format text || true
-
-      - name: Verify Claude's fix
-        if: |
-          steps.test-patches.outputs.patches_failed == 'true' &&
-          steps.claude-check.outputs.claude_available == 'true'
-        id: verify-fix
-        run: |
-          cd ${GITHUB_WORKSPACE}/kerbside-patches
-
-          # Clean up any leftover source directories
-          rm -rf src/
-
-          # Re-run patch tests
+          # Run the rebase helper script (same script used for CLI)
+          # It will test patches, analyze failures, and invoke Claude if needed
           set +e
-          ./_build/test-patches-for-ci.sh > ${GITHUB_WORKSPACE}/patch-verify-results.json 2>&1
-          verify_exit_code=$?
+          ./_build/rebase-with-claude.sh \
+              --ci \
+              --output-dir ${GITHUB_WORKSPACE}/rebase-output \
+              2>&1 | tee ${GITHUB_WORKSPACE}/rebase-log.txt
+          rebase_exit_code=$?
           set -e
 
-          echo "Verification exit code: ${verify_exit_code}"
-          cat ${GITHUB_WORKSPACE}/patch-verify-results.json
+          # Parse the CI output for GitHub Actions
+          if grep -q "patches_failed=true" ${GITHUB_WORKSPACE}/rebase-log.txt; then
+            echo "patches_failed=true" >> $GITHUB_OUTPUT
+          else
+            echo "patches_failed=false" >> $GITHUB_OUTPUT
+          fi
 
-          if [ ${verify_exit_code} -eq 0 ]; then
+          if grep -q "fix_succeeded=true" ${GITHUB_WORKSPACE}/rebase-log.txt; then
             echo "fix_succeeded=true" >> $GITHUB_OUTPUT
           else
             echo "fix_succeeded=false" >> $GITHUB_OUTPUT
           fi
 
+          if grep -q "claude_available=true" ${GITHUB_WORKSPACE}/rebase-log.txt; then
+            echo "claude_available=true" >> $GITHUB_OUTPUT
+          else
+            echo "claude_available=false" >> $GITHUB_OUTPUT
+          fi
+
+          exit ${rebase_exit_code}
+
       - name: Commit Claude's patch fixes
         if: |
-          steps.test-patches.outputs.patches_failed == 'true' &&
-          steps.claude-check.outputs.claude_available == 'true' &&
-          steps.verify-fix.outputs.fix_succeeded == 'true'
+          steps.rebase.outputs.patches_failed == 'true' &&
+          steps.rebase.outputs.fix_succeeded == 'true'
         run: |
           cd ${GITHUB_WORKSPACE}/kerbside-patches
 
@@ -248,8 +123,8 @@ jobs:
           sleep 10
 
           # Determine PR body based on what happened
-          if [ "${{ steps.test-patches.outputs.patches_failed }}" == "true" ]; then
-            if [ "${{ steps.verify-fix.outputs.fix_succeeded }}" == "true" ]; then
+          if [ "${{ steps.rebase.outputs.patches_failed }}" == "true" ]; then
+            if [ "${{ steps.rebase.outputs.fix_succeeded }}" == "true" ]; then
               pr_body="A daily rebase was attempted.
 
           **Note:** Some patches failed to apply with the new upstream SHAs.
@@ -280,15 +155,15 @@ jobs:
 
       - name: Create issue for unfixable patches
         if: |
-          steps.test-patches.outputs.patches_failed == 'true' &&
-          (steps.claude-check.outputs.claude_available != 'true' ||
-           steps.verify-fix.outputs.fix_succeeded == 'false')
+          steps.rebase.outputs.patches_failed == 'true' &&
+          (steps.rebase.outputs.claude_available != 'true' ||
+           steps.rebase.outputs.fix_succeeded == 'false')
         uses: actions/github-script@v7
         with:
           github-token: ${{ secrets.DAILY_REBASE_TOKEN }}
           script: |
             const fs = require('fs');
-            const failuresPath = process.env.GITHUB_WORKSPACE + '/patch-failures.txt';
+            const failuresPath = process.env.GITHUB_WORKSPACE + '/rebase-output/patch-failures.txt';
             let failures = 'See workflow logs for details.';
             try {
               failures = fs.readFileSync(failuresPath, 'utf8');
@@ -296,7 +171,7 @@ jobs:
               console.log('Could not read failures file:', e);
             }
 
-            const claudeAvailable = '${{ steps.claude-check.outputs.claude_available }}' === 'true';
+            const claudeAvailable = '${{ steps.rebase.outputs.claude_available }}' === 'true';
             const reason = claudeAvailable
               ? 'Claude Code was unable to fix them automatically'
               : 'Claude Code CLI was not available on the runner';
