@@ -1,6 +1,6 @@
-commit d314d61fd429086906d8c8a07dbc62231cd5b4e7
+commit 6fb76687f141aba0c749c507719f881350c65882
 Author: Michael Still <mikal@stillhq.com>
-Date:   Thu Dec 11 05:38:32 2025 +1100
+Date:   Mon Dec 15 19:45:51 2025 +1100
 
     Add additional SPICE configuration options.
     
@@ -368,10 +368,10 @@ index f1996cd73..0b334b317 100644
 +nova_spice_playback_compression: "yes"
 +nova_spice_streaming_mode: "filter"
 diff --git a/ansible/roles/loadbalancer/tasks/precheck.yml b/ansible/roles/loadbalancer/tasks/precheck.yml
-index cdb211f32..20f6e36e6 100644
+index b997c671e..d62a1eaf4 100644
 --- a/ansible/roles/loadbalancer/tasks/precheck.yml
 +++ b/ansible/roles/loadbalancer/tasks/precheck.yml
-@@ -604,6 +604,7 @@
+@@ -607,6 +607,7 @@
    when:
      - enable_nova | bool
      - nova_console == 'spice'
@@ -393,10 +393,10 @@ index 1cc4a04aa..4ac72a94d 100644
      dimensions: "{{ nova_spicehtml5proxy_dimensions }}"
      healthcheck: "{{ nova_spicehtml5proxy_healthcheck }}"
 diff --git a/ansible/roles/nova-cell/tasks/loadbalancer.yml b/ansible/roles/nova-cell/tasks/loadbalancer.yml
-index 16b6e53cb..119815832 100644
+index 0ff2bcd70..f75ae3963 100644
 --- a/ansible/roles/nova-cell/tasks/loadbalancer.yml
 +++ b/ansible/roles/nova-cell/tasks/loadbalancer.yml
-@@ -71,10 +71,10 @@
+@@ -73,10 +73,10 @@
      cell_proxy_project_services:
        nova-spicehtml5proxy:
          group: "{{ nova_cell_spicehtml5proxy_group }}"
@@ -409,7 +409,7 @@ index 16b6e53cb..119815832 100644
              mode: "http"
              external: false
              port: "{{ hostvars[groups[cell_proxy_group][0]]['nova_spicehtml5proxy_port'] }}"
-@@ -82,7 +82,7 @@
+@@ -84,7 +84,7 @@
              backend_http_extra:
                - "timeout tunnel {{ haproxy_nova_spicehtml5_proxy_tunnel_timeout }}"
            nova_spicehtml5proxy_external:
