@@ -1,6 +1,6 @@
-commit b0598b560022b0a22d9b8a7a3923a9c673091c2c
+commit d6f9c65c790329c3158a17548ac3ed89acb025cf
 Author: Michael Still <mikal@stillhq.com>
-Date:   Fri Dec 12 09:32:01 2025 +1100
+Date:   Tue Dec 16 09:41:07 2025 +1100
 
     Track the layers created for various images and their sizes.
     
@@ -8,7 +8,7 @@ Date:   Fri Dec 12 09:32:01 2025 +1100
     Signed-off-by: Michael Still <mikal@stillhq.com>
 
 diff --git a/kolla/common/config.py b/kolla/common/config.py
-index 653c84c53..ad2d1953a 100644
+index 653c84c53..ea9b8de41 100644
 --- a/kolla/common/config.py
 +++ b/kolla/common/config.py
 @@ -271,7 +271,9 @@ _CLI_OPTS = [
@@ -62,10 +62,10 @@ index 723914f5a..353642c80 100644
  
      def get_image_statuses(self):
 diff --git a/kolla/image/tasks.py b/kolla/image/tasks.py
-index 39d759390..b7d4012f3 100644
+index 39d759390..17dd8c804 100644
 --- a/kolla/image/tasks.py
 +++ b/kolla/image/tasks.py
-@@ -465,6 +465,17 @@ class BuildTask(EngineTask):
+@@ -475,6 +475,17 @@ class BuildTask(EngineTask):
              self.logger.info('Built at %s (took %s)' %
                               (now, now - image.start))
  

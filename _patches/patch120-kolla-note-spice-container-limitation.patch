@@ -1,0 +1,26 @@
+commit b34744207df6d7b0333407a813360a06f2602f88
+Author: Michael Still <mikal@stillhq.com>
+Date:   Tue Dec 16 09:41:07 2025 +1100
+
+    Note SPICE limitations in support matrix.
+    
+    Change-Id: I4ab5d742cb9a82a48a44672c780943a483df64d4
+    Signed-off-by: Michael Still <mikal@stillhq.com>
+
+diff --git a/doc/source/support_matrix.rst b/doc/source/support_matrix.rst
+index 48338af6f..a3aaba937 100644
+--- a/doc/source/support_matrix.rst
++++ b/doc/source/support_matrix.rst
+@@ -89,3 +89,12 @@ Currently unbuildable images
+ 
+ For a list of currently unbuildable images please look into
+ ``kolla/image/unbuildable.py`` file - ``UNBUILDABLE_IMAGES`` dictionary.
++
++SPICE limitations
++=================
++
++The new OpenStack Compute console type ``spice-direct`` requires that
++SPICE support be compiled into the qemu running the instance. Sadly,
++Red Hat chose to remove SPICE support from qemu in RHEL9, and Rocky
++Linux has followed along. You therefore _must_ run the Debian container
++images if you wish to use the ``spice-direct`` console type.
