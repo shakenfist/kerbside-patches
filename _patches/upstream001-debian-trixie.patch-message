@@ -13,10 +13,9 @@ Signed-off-by: Michal Nasiadka <mnasiadka@gmail.com>
  kolla/template/repos.yaml                     | 16 +++----
  kolla/tests/test_methods.py                   |  8 ++--
  .../notes/debian-trixie-23987480043dc662.yaml |  5 +++
- setup.cfg                                     |  1 +
  tests/templates/template_overrides.j2         | 13 +-----
  zuul.d/debian.yaml                            | 42 +++++++++----------
  zuul.d/nodesets.yaml                          |  8 ++--
  zuul.d/project.yaml                           | 13 ------
- 17 files changed, 57 insertions(+), 87 deletions(-)
+ 16 files changed, 56 insertions(+), 87 deletions(-)
  create mode 100644 releasenotes/notes/debian-trixie-23987480043dc662.yaml

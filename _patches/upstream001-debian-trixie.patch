@@ -18,12 +18,11 @@ Signed-off-by: Michal Nasiadka <mnasiadka@gmail.com>
  kolla/template/repos.yaml                     | 16 +++----
  kolla/tests/test_methods.py                   |  8 ++--
  .../notes/debian-trixie-23987480043dc662.yaml |  5 +++
- setup.cfg                                     |  1 +
  tests/templates/template_overrides.j2         | 13 +-----
  zuul.d/debian.yaml                            | 42 +++++++++----------
  zuul.d/nodesets.yaml                          |  8 ++--
  zuul.d/project.yaml                           | 13 ------
- 17 files changed, 57 insertions(+), 87 deletions(-)
+ 16 files changed, 56 insertions(+), 87 deletions(-)
  create mode 100644 releasenotes/notes/debian-trixie-23987480043dc662.yaml
 
 diff --git a/doc/source/support_matrix.rst b/doc/source/support_matrix.rst
@@ -265,18 +264,6 @@ index 000000000..fc0d4955a
 +  - |
 +    Debian 'trixie' is now used instead of 'bookworm'. Trixie is the current
 +    stable release of Debian.
-diff --git a/setup.cfg b/setup.cfg
-index 1ee28f601..112c86ad8 100644
---- a/setup.cfg
-+++ b/setup.cfg
-@@ -23,6 +23,7 @@ classifier =
-     Programming Language :: Python :: 3.10
-     Programming Language :: Python :: 3.11
-     Programming Language :: Python :: 3.12
-+    Programming Language :: Python :: 3.13
- 
- [files]
- packages =
 diff --git a/tests/templates/template_overrides.j2 b/tests/templates/template_overrides.j2
 index d9d89b3e0..e1bacd1ec 100644
 --- a/tests/templates/template_overrides.j2
