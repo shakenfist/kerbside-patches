@@ -34,7 +34,14 @@ jobs:
             'release': 'master',
             'base': 'debian:12',
             'baseuser': 'debian',
-            'topology': 'all-in-one',
+            'container_distro': 'debian',
+            'container_distro_version': 'BOOKWORM'
+          },
+          {
+            'name': 'build-debian-master',
+            'release': 'master',
+            'base': 'debian:12',
+            'baseuser': 'debian',
             'container_distro': 'debian',
             'container_distro_version': 'trixie'
           },
@@ -43,7 +50,6 @@ jobs:
             'release': 'master',
             'base': 'debian:12',
             'baseuser': 'debian',
-            'topology': 'all-in-one',
             'container_distro': 'ubuntu',
             'container_distro_version': 'noble'
           },
