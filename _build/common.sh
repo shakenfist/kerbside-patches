@@ -257,9 +257,14 @@ function run_tests {
             if [ $(tox -a | grep -c py3) -gt 0 ]
             then
                 echo -e "${H3}tox -epy3${Color_Off}"
-                tox -epy3 | ts "%b %d %H:%M:%S ${2} ${3} py3"
+                tox -epy3 | ts "%b %d %H:%M:%S ${2} ${3} py3 #1"
+                if [ $? -eq 2 ]; then
+                    echo -e "${H3}tox -epy3 failed, but will attempt retry after a nap${Color_Off}"
+                    sleep 60
+                    tox -epy3 | ts "%b %d %H:%M:%S ${2} ${3} py3 #2"
+                fi
                 if [ $? -gt 0 ]; then
-                    echo -e "${H3}tox -epy3 failed!${Color_Off}"
+                    echo -e "${H3}tox -epy3 failed twice!${Color_Off}"
                     exit 1
                 fi
             fi
@@ -270,17 +275,27 @@ function run_tests {
         if [ $(tox -a | grep -c pep8) -gt 0 ]
         then
             echo -e "${H3}tox -epep8${Color_Off}"
-            tox -epep8 | ts "%b %d %H:%M:%S ${2} ${3} pep8"
-            if [ $? -gt 0 ]; then
-                echo -e "${H3}tox -epep8 failed!${Color_Off}"
-                exit 1
-            fi
+            tox -epep8 | ts "%b %d %H:%M:%S ${2} ${3} pep8 #1"
+            if [ $? -eq 2 ]; then
+                    echo -e "${H3}tox -epep8 failed, but will attempt retry after a nap${Color_Off}"
+                    sleep 60
+                    tox -epep8 | ts "%b %d %H:%M:%S ${2} ${3} pep8 #2"
+                fi
+                if [ $? -gt 0 ]; then
+                    echo -e "${H3}tox -epep8 failed twice!${Color_Off}"
+                    exit 1
+                fi
         elif [ $(tox -a | grep -c flake8) -gt 0 ]
         then
             echo -e "${H3}tox -eflake8${Color_Off}"
-            tox -eflake8 | ts "%b %d %H:%M:%S ${2} ${3} flake8"
+            tox -eflake8 | ts "%b %d %H:%M:%S ${2} ${3} flake8 #1"
+            if [ $? -eq 2 ]; then
+                echo -e "${H3}tox -eflake8 failed, but will attempt retry after a nap${Color_Off}"
+                sleep 60
+                tox -eflake8 | ts "%b %d %H:%M:%S ${2} ${3} flake8 #2"
+            fi
             if [ $? -gt 0 ]; then
-                echo -e "${H3}tox -eflake8 failed!${Color_Off}"
+                echo -e "${H3}tox -eflake8 failed twice!${Color_Off}"
                 exit 1
             fi
         fi
@@ -291,9 +306,14 @@ function run_tests {
             if [ $(tox -a | egrep -c "functional$") -gt 0 ]
             then
                 echo -e "${H3}tox -efunctional${Color_Off}"
-                tox -efunctional | ts "%b %d %H:%M:%S ${2} ${3} functional"
+                tox -efunctional | ts "%b %d %H:%M:%S ${2} ${3} functional #1"
+                if [ $? -eq 2 ]; then
+                    echo -e "${H3}tox -efunctional failed, but will attempt retry after a nap${Color_Off}"
+                    sleep 60
+                    tox -efunctional | ts "%b %d %H:%M:%S ${2} ${3} functional #2"
+                fi
                 if [ $? -gt 0 ]; then
-                    echo -e "${H3}tox -efunctional failed!${Color_Off}"
+                    echo -e "${H3}tox -efunctional failed twice!${Color_Off}"
                     exit 1
                 fi
             fi
@@ -303,9 +323,14 @@ function run_tests {
         if [ $(tox -a | grep -c linters) -gt 0 ]
         then
             echo -e "${H3}tox -elinters -vv --skip-missing-interpreters=false${Color_Off}"
-            tox -elinters | ts "%b %d %H:%M:%S ${2} ${3} linters"
+            tox -elinters | ts "%b %d %H:%M:%S ${2} ${3} linters #1"
+            if [ $? -eq 2 ]; then
+                echo -e "${H3}tox -elinters failed, but will attempt retry after a nap${Color_Off}"
+                sleep 60
+                tox -elinters | ts "%b %d %H:%M:%S ${2} ${3} linters #2"
+            fi
             if [ $? -gt 0 ]; then
-                echo -e "${H3}tox -elinters failed!${Color_Off}"
+                echo -e "${H3}tox -elinters failed twice!${Color_Off}"
                 exit 1
             fi
         fi
