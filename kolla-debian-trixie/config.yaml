@@ -5,5 +5,7 @@ shallow_clone: true
 directory: kolla
 release: debian-trixie
 depends_on: ''
-source_sha: dd3cb3dd1ffc4770a2afa259a6f0a467bb845f61
-previous_source_sha: 35f7b3c3426662877d4f8fc2e3c517697ffba6d9
+source_sha: 35f7b3c3426662877d4f8fc2e3c517697ffba6d9
+previous_source_sha: 96b54022857ccef8dc6bb11789abe32119827109
+skip_rebase: true
+skip_claude: true

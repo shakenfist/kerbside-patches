@@ -54,6 +54,11 @@ for project in ${projects}; do
         continue
     fi
 
+    skip_rebase=$(yq -r .skip_rebase ${project}/config.yaml)
+    if [ "${skip_rebase}" == "true" ]; then
+        continue
+    fi
+
     projects_tested+=("\"${project}\"")
 
     # Clean up any previous source directory
