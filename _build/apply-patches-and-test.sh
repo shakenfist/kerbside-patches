@@ -117,6 +117,17 @@ git checkout -b ${destination_branch}
 echo -e "${H2}Working in branch ${destination_branch}${Color_Off}"
 cd ${topdir}
 
+# Drop a CLAUDE.md into the local directory for development, if one exists
+if [ -e ${topdir}/${directory}/_CLAUDE.md ]; then
+    skip_claude=$(yq -r .skip_claude ${project}/config.yaml)
+    if [ "${skip_claude}" != "true" ]; then
+        cp ${topdir}/${directory}/_CLAUDE.md ${topsrcdir}/${directory}/CLAUDE.md
+        cd ${topsrcdir}/${directory}
+        git add CLAUDE.md
+        git commit -a -m "Add CLAUDE file."
+    fi
+fi
+
 if [ -e ${project}/PREPATCH ]; then
     for patch in $(cat ${project}/PREPATCH)
     do
@@ -298,11 +309,6 @@ done
 pushd ${topsrcdir} > /dev/null
 tar czf ${directory}.tgz ${directory}
 ls -lrth ${topsrcdir}/${directory}.tgz
-
-# Drop a CLAUDE.md into the local directory for development, if one exists
-if [ -e ${topdir}/${directory}/_CLAUDE.md ]; then
-    cp ${topdir}/${directory}/_CLAUDE.md ${topsrcdir}/${directory}/CLAUDE.md
-fi
 
 echo -e "${H2}Success for branch ${source_branch}!${Color_Off}"
 echo ""

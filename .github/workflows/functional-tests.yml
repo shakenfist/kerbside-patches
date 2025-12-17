@@ -8,7 +8,7 @@ on:
 
 jobs:
   build_images:
-    name: "Images for ${{ matrix.test.release }} on ${{ matrix.test.container_distro }}"
+    name: "Images for ${{ matrix.test.release }} on ${{ matrix.test.container_distro }} ${{ matrix.test.container_distro_version }}"
     strategy:
       fail-fast: false
       matrix:
@@ -34,7 +34,14 @@ jobs:
             'release': 'master',
             'base': 'debian:12',
             'baseuser': 'debian',
-            'topology': 'all-in-one',
+            'container_distro': 'debian',
+            'container_distro_version': 'bookworm'
+          },
+          {
+            'name': 'build-debian-master',
+            'release': 'master',
+            'base': 'debian:12',
+            'baseuser': 'debian',
             'container_distro': 'debian',
             'container_distro_version': 'trixie'
           },
@@ -43,7 +50,6 @@ jobs:
             'release': 'master',
             'base': 'debian:12',
             'baseuser': 'debian',
-            'topology': 'all-in-one',
             'container_distro': 'ubuntu',
             'container_distro_version': 'noble'
           },

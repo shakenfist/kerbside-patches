@@ -1,3 +1,3 @@
 ../_patches/patch094-kolla-epoxy-compressed.patch
 ../_patches/patch118-kolla-epoxy-layer-data.patch
-
+../_patches/patch120-kolla-note-spice-container-limitation.patch

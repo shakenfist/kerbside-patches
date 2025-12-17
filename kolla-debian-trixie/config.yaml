@@ -1,9 +1,0 @@
-repo: https://github.com/openstack/kolla
-source_branch: master
-destination_branch: debian-trixie
-shallow_clone: true
-directory: kolla
-release: debian-trixie
-depends_on: ''
-source_sha: dd3cb3dd1ffc4770a2afa259a6f0a467bb845f61
-previous_source_sha: 35f7b3c3426662877d4f8fc2e3c517697ffba6d9
