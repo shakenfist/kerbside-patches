@@ -30,7 +30,7 @@ jobs:
             'container_distro_version': 'bookworm'
           },
           {
-            'name': 'build-debian-master',
+            'name': 'build-debian-bookworm-master',
             'release': 'master',
             'base': 'debian:12',
             'baseuser': 'debian',
@@ -38,7 +38,7 @@ jobs:
             'container_distro_version': 'bookworm'
           },
           {
-            'name': 'build-debian-master',
+            'name': 'build-debian-trixie-master',
             'release': 'master',
             'base': 'debian:12',
             'baseuser': 'debian',
@@ -175,7 +175,7 @@ jobs:
 
           # Not all these files will exist if the build above was skipped because the images
           # already exist
-          archive_path="/tmp/build-${{ matrix.test.release }}-${{ matrix.test.container_distro }}"
+          archive_path="/tmp/${{ matrix.test.name }}"
           mkdir ${archive_path}
 
           echo ${{ matrix.build_images.image_tag }} > ${archive_path}/image_tag
@@ -196,10 +196,10 @@ jobs:
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: build-${{ matrix.test.release }}-${{ matrix.test.container_distro }}
+          name: ${{ matrix.test.name }}
           retention-days: 14
           if-no-files-found: error
-          path: /tmp/build-${{ matrix.test.release}}-${{ matrix.test.container_distro }}
+          path: /tmp/${{ matrix.test.name }}
 
       - name: Archive patched source
         if: success()
