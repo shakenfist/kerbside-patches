@@ -8,7 +8,7 @@ on:
 
 jobs:
   build_images:
-    name: "Images for ${{ matrix.test.release }} on ${{ matrix.test.container_distro }}"
+    name: "Images for ${{ matrix.test.release }} on ${{ matrix.test.container_distro }} ${{ matrix.test.container_distro_version }}"
     strategy:
       fail-fast: false
       matrix:
@@ -35,7 +35,7 @@ jobs:
             'base': 'debian:12',
             'baseuser': 'debian',
             'container_distro': 'debian',
-            'container_distro_version': 'BOOKWORM'
+            'container_distro_version': 'bookworm'
           },
           {
             'name': 'build-debian-master',
