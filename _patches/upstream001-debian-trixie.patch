@@ -8,7 +8,7 @@ Signed-off-by: Michal Nasiadka <mnasiadka@gmail.com>
 ---
  doc/source/support_matrix.rst                 |  2 +-
  docker/base/apt_preferences.debian            |  2 +-
- docker/base/sources.list.debian               |  9 ++--
+ docker/base/debian.sources                     |  9 ++--
  docker/httpd/Dockerfile.j2                    |  3 +-
  docker/openstack-base/Dockerfile.j2           |  2 +-
  docker/valkey/valkey-sentinel/Dockerfile.j2   |  6 +--
@@ -18,11 +18,10 @@ Signed-off-by: Michal Nasiadka <mnasiadka@gmail.com>
  kolla/template/repos.yaml                     | 16 +++----
  kolla/tests/test_methods.py                   |  8 ++--
  .../notes/debian-trixie-23987480043dc662.yaml |  5 +++
- tests/templates/template_overrides.j2         | 13 +-----
  zuul.d/debian.yaml                            | 42 +++++++++----------
  zuul.d/nodesets.yaml                          |  8 ++--
  zuul.d/project.yaml                           | 13 ------
- 16 files changed, 56 insertions(+), 87 deletions(-)
+ 15 files changed, 48 insertions(+), 74 deletions(-)
  create mode 100644 releasenotes/notes/debian-trixie-23987480043dc662.yaml
 
 diff --git a/doc/source/support_matrix.rst b/doc/source/support_matrix.rst
@@ -48,25 +47,31 @@ index 5edb8814a..08e21ff22 100644
 -Pin: release n=bookworm-backports
 +Pin: release n=trixie-backports
  Pin-Priority: -1000
-diff --git a/docker/base/sources.list.debian b/docker/base/sources.list.debian
-index 89f7a1160..3518a3b6a 100644
---- a/docker/base/sources.list.debian
-+++ b/docker/base/sources.list.debian
-@@ -1,11 +1,8 @@
- # Default repos
--deb http://deb.debian.org/debian bookworm main
-+deb http://deb.debian.org/debian trixie main
- 
- # debian security updates
--deb http://deb.debian.org/debian-security bookworm-security main
-+# deb http://deb.debian.org/debian-security trixie-security main
- 
- # debian updates
--deb http://deb.debian.org/debian bookworm-updates main
--
--# debian backports
--deb http://deb.debian.org/debian bookworm-backports main
-+deb http://deb.debian.org/debian trixie-updates main
+diff --git a/docker/base/debian.sources b/docker/base/debian.sources
+index 000000000..000000001 100644
+--- a/docker/base/debian.sources
++++ b/docker/base/debian.sources
+@@ -1,13 +1,13 @@
+ Types: deb
+ # http://snapshot.debian.org/archive/debian/20251020T000000Z
+ URIs: http://deb.debian.org/debian
+-Suites: bookworm bookworm-updates bookworm-backports
++Suites: trixie trixie-updates
+ Components: main
+ Signed-By: /usr/share/keyrings/debian-archive-keyring.gpg
+
+-Types: deb
+-# http://snapshot.debian.org/archive/debian-security/20251020T000000Z
+-URIs: http://deb.debian.org/debian-security
+-Suites: bookworm-security
+-Components: main
+-Signed-By: /usr/share/keyrings/debian-archive-keyring.gpg
++# Types: deb
++# # http://snapshot.debian.org/archive/debian-security/20251020T000000Z
++# URIs: http://deb.debian.org/debian-security
++# Suites: trixie-security
++# Components: main
++# Signed-By: /usr/share/keyrings/debian-archive-keyring.gpg
 diff --git a/docker/httpd/Dockerfile.j2 b/docker/httpd/Dockerfile.j2
 index 2b58e7b12..a41465661 100644
 --- a/docker/httpd/Dockerfile.j2
@@ -264,38 +269,6 @@ index 000000000..fc0d4955a
 +  - |
 +    Debian 'trixie' is now used instead of 'bookworm'. Trixie is the current
 +    stable release of Debian.
-diff --git a/tests/templates/template_overrides.j2 b/tests/templates/template_overrides.j2
-index d9d89b3e0..e1bacd1ec 100644
---- a/tests/templates/template_overrides.j2
-+++ b/tests/templates/template_overrides.j2
-@@ -32,13 +32,8 @@ RUN sed -i -e "s/^mirrorlist/#mirrorlist/g" -e "s/^#baseurl/baseurl/g" \
- {% raw %}
- {% block base_debian_after_sources_list %}
- {% endraw %}
--{% if base_distro == "debian" %}
- 
--RUN sed -i -e "s|http://deb.debian.org|[trusted=yes] http://{{ nodepool_mirror_host }}|" \
--        -e "s|http://security.debian.org|[trusted=yes] http://{{ nodepool_mirror_host }}|" \
--        /etc/apt/sources.list
--
--{% elif base_distro == "ubuntu" %}
-+{% if base_distro == "ubuntu" %}
- 
- RUN sed -i -e "s|mirror://mirrors.ubuntu.com/mirrors.txt|[trusted=yes] http://{{ nodepool_mirror_host }}/ubuntu/|" \
-         -e "s|http://ports.ubuntu.com|[trusted=yes] http://{{ nodepool_mirror_host }}/ubuntu-ports|" \
-@@ -65,11 +60,7 @@ RUN if [ -f /usr/etc/npmrc ]; then \
-     fi \
-     && rm -f /etc/npmrc
- 
--{% if base_distro == "debian" %}
--RUN sed -i -e "s|\[trusted=yes\] http://{{ nodepool_mirror_host }}|http://deb.debian.org|" \
--        -e "s|\[trusted=yes\] http://{{ nodepool_mirror_host }}|http://security.debian.org|" \
--        /etc/apt/sources.list
--{% elif base_distro == "ubuntu" %}
-+{% if base_distro == "ubuntu" %}
- RUN sed -i -e "s|\[trusted=yes\] http://{{ nodepool_mirror_host }}/ubuntu/|mirror://mirrors.ubuntu.com/mirrors.txt|" \
-         -e "s|\[trusted=yes\] http://{{ nodepool_mirror_host }}/ubuntu-cloud-archive|http://ubuntu-cloud.archive.canonical.com/ubuntu|" \
-         -e "s|\[trusted=yes\] http://{{ nodepool_mirror_host }}/ubuntu-ports|http://ports.ubuntu.com|" \
 diff --git a/zuul.d/debian.yaml b/zuul.d/debian.yaml
 index 847a0b4d1..d40f10fc0 100644
 --- a/zuul.d/debian.yaml

@@ -120,7 +120,7 @@ if [ -e /etc/cloud/templates/hosts.redhat.tmpl ]; then
     cloud_init_template="/etc/cloud/templates/hosts.redhat.tmpl"
 fi
 
-if [ ! -z "${cloud_init_template}"]; then
+if [ ! -z "${cloud_init_template}" ]; then
     echo -e "${H2}Tweak /etc/hosts template for cloud-init${Color_Off}"
     sed -i "s/127.0.0.1 kolla.local kolla//" ${cloud_init_template}
     sed -i "s/127.0.0.1 localhost.localdomain localhost//" ${cloud_init_template}
@@ -140,6 +140,14 @@ fi
 echo -e "${H2}Tweak hostname for single node deployments${Color_Off}"
 if [ "${topology}" == "all-in-one" ]; then
     hostnamectl set-hostname kolla
+
+    # Add kolla to /etc/hosts to ensure it's resolvable. This is required on
+    # systems like Rocky Linux that don't have nss-myhostname enabled by
+    # default (Debian has it, so the hostname is resolvable automatically).
+    if ! getent ahostsv4 kolla > /dev/null 2>&1; then
+        echo -e "${H2}Adding kolla to /etc/hosts for hostname resolution${Color_Off}"
+        sed -i "1s/^/127.0.0.1 kolla\n\n/" /etc/hosts
+    fi
 fi
 
 echo -e "${H2}Generate passwords${Color_Off}"
