@@ -151,9 +151,6 @@ jobs:
           path: actions
           fetch-depth: 0
 
-      - name: Download artifacts
-        uses: actions/download-artifact@v4
-
       - name: Install dependencies on local runner
         run: |
           . $GITHUB_ENV
@@ -192,20 +189,41 @@ jobs:
           docker image tag heartbeat:latest 192.168.1.12:4000/openstack/kolla-images/ci_heartbeat:${identifier}
           docker image push 192.168.1.12:4000/openstack/kolla-images/ci_heartbeat:${identifier}
 
+      - name: Download artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: source-${{ matrix.test.release }}
+
       - name: Move source to correct location
         run: |
           . $GITHUB_ENV
-          cd source-${{ matrix.test.release }}
+
+          echo "Contents of ${GITHUB_WORKSPACE}"
+          ls -lrt
+
+          echo
+          echo "Extract source"
           unzip bundle.zip
           rm bundle.zip
+          ls -lrt
           
+          echo
+          echo "Contents of bundle"
           cd bundle
+          ls -lrt
+
           mkdir -p ${GITHUB_WORKSPACE}/kerbside-patches/src
           for item in *.tgz; do
               echo "Extracting ${item}"
               cp ${item} ${GITHUB_WORKSPACE}/kerbside-patches/src/
               tar xzf ${item} -C ${GITHUB_WORKSPACE}/kerbside-patches/src/
           done
+
+          echo
+          echo "Contents of ${GITHUB_WORKSPACE}/kerbside-patches/src/"
+          ls -lrt ${GITHUB_WORKSPACE}/kerbside-patches/src/
+
+          echo
           echo "Done"
 
       - name: Build container images
@@ -300,7 +318,7 @@ jobs:
       - uses: actions/upload-artifact@v4
         if: success()
         with:
-          name: buildresult-${{ matrix.test.release }}-${{ matrix.test.container_distro }}
+          name: buildresult-${{ matrix.test.release }}-${{ matrix.test.container_distro }}-${{ matrix.test.container_distro_version }}
           retention-days: 14
           if-no-files-found: error
           path: /tmp/result.json
@@ -314,6 +332,8 @@ jobs:
     steps:
       - name: Download artifacts
         uses: actions/download-artifact@v4
+        with:
+          pattern: buildresult-*
 
       - name: Combine results and expose as an output
         id: combine
@@ -343,7 +363,8 @@ jobs:
             'baseuser': 'debian',
             'topology': 'all-in-one',
             'runs_on': 'debian-12',
-            'container_distro': 'debian'
+            'container_distro': 'debian',
+            'container_distro_version': 'bookworm'
           },
           {
             'name': '2025.2-debian12-aio',
@@ -353,7 +374,8 @@ jobs:
             'baseuser': 'debian',
             'topology': 'all-in-one',
             'runs_on': 'debian-12',
-            'container_distro': 'debian'
+            'container_distro': 'debian',
+            'container_distro_version': 'bookworm'
           },
           {
             'name': 'master-debian12-aio',
@@ -363,7 +385,8 @@ jobs:
             'baseuser': 'debian',
             'topology': 'all-in-one',
             'runs_on': 'debian-12',
-            'container_distro': 'debian'
+            'container_distro': 'debian',
+            'container_distro_version': 'bookworm'
           },
           {
             'name': 'master-rocky10-aio',
@@ -373,7 +396,8 @@ jobs:
             'baseuser': 'cloud-user',
             'topology': 'all-in-one',
             'runs_on': 'debian-12',
-            'container_distro': 'debian'
+            'container_distro': 'debian',
+            'container_distro_version': 'bookworm'
           },
           {
             'name': 'master-debian12-multi',
@@ -383,7 +407,8 @@ jobs:
             'baseuser': 'debian',
             'topology': 'multinode-2',
             'runs_on': 'debian-12',
-            'container_distro': 'debian'
+            'container_distro': 'debian',
+            'container_distro_version': 'bookworm'
           },
         ]
     runs-on: [self-hosted, vm, '${{ matrix.test.runs_on }}']
@@ -410,8 +435,15 @@ jobs:
           path: actions
           fetch-depth: 0
 
-      - name: Download artifacts
+      - name: Download relevant build results
         uses: actions/download-artifact@v4
+        with:
+          pattern: "buildresult-${{ matrix.test.release }}-${{ matrix.test.container_distro }}-${{ matrix.test.container_distro_version }}*"
+
+      - name: Download source
+        uses: actions/download-artifact@v4
+        with:
+          pattern: "source-${{ matrix.test.release }}*"
 
       - name: Log incoming results
         id: incoming
@@ -424,12 +456,16 @@ jobs:
           echo '${{ needs.aggregate_results.outputs.all_results }}' | python3 -m json.tool
 
           echo
+          distro_ver="${{ matrix.test.container_distro }}-${{ matrix.test.container_distro_version }}"
+          echo "Distro version is: ${distro_ver}"
+
+          echo
           echo "Results specific to this job:"
-          cat buildresult-${{ matrix.test.release }}-${{ matrix.test.container_distro }}/result.json | python3 -m json.tool
+          cat buildresult-${{ matrix.test.release }}-${distro_ver}/result.json | python3 -m json.tool
 
           echo
           echo "Export results specific to this job..."
-          image_tag=$(cat buildresult-${{ matrix.test.release }}-${{ matrix.test.container_distro }}/result.json | jq -r .image_tag)
+          image_tag=$(cat buildresult-${{ matrix.test.release }}-${distro_ver}/result.json | jq -r .image_tag)
           echo "image_tag=${image_tag}" >> $GITHUB_OUTPUT
           echo "    image_tag is ${image_tag}"
 
@@ -458,9 +494,11 @@ jobs:
         run: |
           . $GITHUB_ENV
 
+          echo "State of workspace:"
+          ls -lrt
+
           echo "Extracting source from build step..."
-          artifact_dir="${GITHUB_WORKSPACE}/source-${{ matrix.test.release }}-${{ matrix.test.container_distro }}"
-          cd ${artifact_dir}
+          cd source-${{ matrix.test.release }}
           unzip bundle.zip
           cd bundle
           ls -lrth
@@ -469,8 +507,15 @@ jobs:
           echo "Using that source to bootstrap kerbside-patches src directory..."
           sudo mkdir -p /srv/shakenfist/kerbside-patches/src
           sudo chown -R debian:debian /srv/shakenfist
+          mv *.tgz /srv/shakenfist/kerbside-patches/src
           cd /srv/shakenfist/kerbside-patches/src
-          find ${artifact_dir}/bundle/*.tgz -name "*.tgz" -print -exec tar xzf {} \; -exec echo \;
+
+          echo
+          echo "Extract source..."
+          for item in *.tgz; do
+              tar xzf ${item}
+              echo "    Extracted ${item}"
+          done
 
           echo
           echo "State of source..."
@@ -478,6 +523,7 @@ jobs:
 
           echo
           echo "Copy source to target node..."
+
           # I use tar here because some of the entries are symlinks
           cd /srv/shakenfist/kerbside-patches
           tar czf - src | ssh -i /srv/github/id_ci \

@@ -18,7 +18,6 @@ echo -e "${H2}Cloning kerbside${Color_Off}"
 mkdir src
 cd src
 git clone https://github.com/shakenfist/kerbside
-tar czf kerbside.tgz kerbside
 cd ..
 echo
 echo
@@ -27,7 +26,6 @@ echo
 echo -e "${H2}Cloning Shaken Fist utilities${Color_Off}"
 cd src
 git clone https://github.com/shakenfist/library-utilities
-tar czf library-utilities.tgz library-utilities
 cd ..
 echo
 echo
@@ -87,6 +85,16 @@ for required in kolla kolla-ansible nova; do
         git clone --branch ${required_branch} https://github.com/openstack/${required} \
             src/${required}
     fi
+done
+
+echo
+echo
+echo -e "${H1}Tar up the various source directories${Color_Off}"
+echo
+cd src
+for project in *; do
+    echo -e "${H2}${project}${Color_Off}"
+    tar czf ${project}.tgz ${project}
 done
 
 echo
