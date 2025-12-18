@@ -7,6 +7,79 @@ on:
       - develop
 
 jobs:
+  assemble_source:
+    name: "Assemble source for ${{ matrix.test.release }}"
+    strategy:
+      fail-fast: false
+      matrix:
+        test: [
+          {
+            'release': '2025.1'
+          },
+          {
+            'release': '2025.2'
+          },
+          {
+            'release': 'master'
+          },
+        ]
+    runs-on: [self-hosted, vm, 'debian-12', 'xl']
+    timeout-minutes: 30
+    concurrency:
+      group: ${{ github.workflow }}-${{ github.ref }}-source-${{ matrix.test.release }}
+      cancel-in-progress: true
+
+    # NOTE(mikal): git repos are checked out to /srv/github/_work/{org}/{repo}
+    # which is available as GITHUB_WORKSPACE. You can find other environment
+    # variables at https://docs.github.com/en/actions/learn-github-actions/environment-variables
+
+    steps:
+      - name: Checkout kerbside-patches
+        uses: actions/checkout@v4
+        with:
+          path: kerbside-patches
+          fetch-depth: 0
+
+      - name: Checkout actions
+        uses: actions/checkout@v4
+        with:
+          path: actions
+          fetch-depth: 0
+
+      - name: Install dependencies on local runner
+        run: |
+          . $GITHUB_ENV
+          cd kerbside-patches
+
+          ./_build/install-build-dependencies.sh
+          ./_build/setup-local-build-environment.sh
+
+      - name: Build patched repositories
+        run: |
+          . $GITHUB_ENV
+          cd kerbside-patches
+          ./_build/assemble-source.sh --use-ci-patches ${{ matrix.test.release }}
+
+      - name: Archive patched source
+        if: success()
+        run: |
+          . $GITHUB_ENV
+          cd kerbside-patches
+
+          mkdir /tmp/bundle
+          mv src/*.tgz /tmp/bundle/
+          cd /tmp
+          zip -r bundle.zip bundle
+
+      - uses: actions/upload-artifact@v4
+        id: upload_source
+        if: success()
+        with:
+          name: source-${{ matrix.test.release }}
+          retention-days: 90
+          if-no-files-found: error
+          path: /tmp/bundle.zip
+
   build_images:
     name: "Images for ${{ matrix.test.release }} on ${{ matrix.test.container_distro }} ${{ matrix.test.container_distro_version }}"
     strategy:
@@ -54,6 +127,7 @@ jobs:
             'container_distro_version': 'noble'
           },
         ]
+    needs: assemble_source
     runs-on: [self-hosted, vm, 'debian-12', 'xl']
     timeout-minutes: 180
     concurrency:
@@ -76,6 +150,9 @@ jobs:
         with:
           path: actions
           fetch-depth: 0
+
+      - name: Download artifacts
+        uses: actions/download-artifact@v4
 
       - name: Install dependencies on local runner
         run: |
@@ -115,11 +192,21 @@ jobs:
           docker image tag heartbeat:latest 192.168.1.12:4000/openstack/kolla-images/ci_heartbeat:${identifier}
           docker image push 192.168.1.12:4000/openstack/kolla-images/ci_heartbeat:${identifier}
 
-      - name: Build patched repositories
+      - name: Move source to correct location
         run: |
           . $GITHUB_ENV
-          cd kerbside-patches
-          ./_build/assemble-source.sh --use-ci-patches ${{ matrix.test.release }}
+          cd source-${{ matrix.test.release }}
+          unzip bundle.zip
+          rm bundle.zip
+          
+          cd bundle
+          mkdir -p ${GITHUB_WORKSPACE}/kerbside-patches/src
+          for item in *.tgz; do
+              echo "Extracting ${item}"
+              cp ${item} ${GITHUB_WORKSPACE}/kerbside-patches/src/
+              tar xzf ${item} -C ${GITHUB_WORKSPACE}/kerbside-patches/src/
+          done
+          echo "Done"
 
       - name: Build container images
         id: build_images
@@ -201,34 +288,13 @@ jobs:
           if-no-files-found: error
           path: /tmp/${{ matrix.test.name }}
 
-      - name: Archive patched source
-        if: success()
-        run: |
-          . $GITHUB_ENV
-          cd kerbside-patches
-
-          mkdir /tmp/bundle
-          mv src/*.tgz /tmp/bundle/
-          cd /tmp
-          zip -r bundle.zip bundle
-
-      - uses: actions/upload-artifact@v4
-        id: upload_source
-        if: success()
-        with:
-          name: source-${{ matrix.test.release }}-${{ matrix.test.container_distro }}
-          retention-days: 90
-          if-no-files-found: error
-          path: /tmp/bundle.zip
-
       # This works around the limited support in Github Actions for outputs from matrices
       - name: Write outputs to a temporary file
         if: success()
         run: |
           echo "{" \
               "\"release\": \"${{ matrix.test.release }}\"," \
-              "\"image_tag\": \"${{ steps.build_images.outputs.image_tag }}\"," \
-              "\"source_artifact\": \"${{ steps.upload_source.outputs.artifact-url }}\"" \
+              "\"image_tag\": \"${{ steps.build_images.outputs.image_tag }}\"" \
               "}" >> /tmp/result.json
 
       - uses: actions/upload-artifact@v4
@@ -242,7 +308,7 @@ jobs:
   aggregate_results:
     name: "Aggregate results"
     needs: build_images
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, vm, 'debian-12', 'm']
     outputs:
       all_results: ${{ steps.combine.outputs.results }}
     steps:
