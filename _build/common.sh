@@ -237,6 +237,27 @@ function banner {
 }
 
 
+function install_test_environment {
+    # $1 is the name of the environment
+    echo -e "${H3}Build tox -e${1} environment${Color_Off}"
+
+    echo -e "    ${Arrow} Attempt #1${Color_Off}"
+    if tox -e${1} --notest; then
+        return
+    fi
+
+    sleep 60
+
+    echo -e "    ${Arrow} Attempt #2${Color_Off}"
+    if tox -e${1} --notest; then
+        return
+    fi
+
+    echo -e "    ${Arrow} Failed!${Color_Off}"
+    exit 1
+}
+
+
 function run_tests {
     # $1 is the repo
     # $2 is the name of the branch
@@ -249,90 +270,49 @@ function run_tests {
 
     echo -e "${H3}Working in ${topsrcdir}/${directory} on branch ${1}${Color_Off}"
 
-    if [ ! -e tox.ini ]
-    then
+    if [ ! -e tox.ini ]; then
         echo "${Red}No test configuration found!${Colour_off}"
     else
         if [ "${skip_unit_tests}" == "false" ]; then
-            if [ $(tox -a | grep -c py3) -gt 0 ]
-            then
+            if [ $(tox -a | grep -c py3) -gt 0 ]; then
+                install_test_environment py3
+                echo
                 echo -e "${H3}tox -epy3${Color_Off}"
-                tox -epy3 | ts "%b %d %H:%M:%S ${2} ${3} py3 #1"
-                if [ $? -eq 2 ]; then
-                    echo -e "${H3}tox -epy3 failed, but will attempt retry after a nap${Color_Off}"
-                    sleep 60
-                    tox -epy3 | ts "%b %d %H:%M:%S ${2} ${3} py3 #2"
-                fi
-                if [ $? -gt 0 ]; then
-                    echo -e "${H3}tox -epy3 failed twice!${Color_Off}"
-                    exit 1
-                fi
+                tox -epy3 | ts "%b %d %H:%M:%S ${2} ${3} py3"
             fi
         fi
 
         # Nova has both fast8 and pep8, but runs pep8 in their CI so that
         # should be our gold standard.
-        if [ $(tox -a | grep -c pep8) -gt 0 ]
-        then
+        if [ $(tox -a | grep -c pep8) -gt 0 ]; then
+            install_test_environment pep8
+            echo
             echo -e "${H3}tox -epep8${Color_Off}"
-            tox -epep8 | ts "%b %d %H:%M:%S ${2} ${3} pep8 #1"
-            if [ $? -eq 2 ]; then
-                    echo -e "${H3}tox -epep8 failed, but will attempt retry after a nap${Color_Off}"
-                    sleep 60
-                    tox -epep8 | ts "%b %d %H:%M:%S ${2} ${3} pep8 #2"
-                fi
-                if [ $? -gt 0 ]; then
-                    echo -e "${H3}tox -epep8 failed twice!${Color_Off}"
-                    exit 1
-                fi
-        elif [ $(tox -a | grep -c flake8) -gt 0 ]
-        then
+            tox -epep8 | ts "%b %d %H:%M:%S ${2} ${3} pep8"
+        elif [ $(tox -a | grep -c flake8) -gt 0 ]; then
+            install_test_environment flake8
+            echo
             echo -e "${H3}tox -eflake8${Color_Off}"
-            tox -eflake8 | ts "%b %d %H:%M:%S ${2} ${3} flake8 #1"
-            if [ $? -eq 2 ]; then
-                echo -e "${H3}tox -eflake8 failed, but will attempt retry after a nap${Color_Off}"
-                sleep 60
-                tox -eflake8 | ts "%b %d %H:%M:%S ${2} ${3} flake8 #2"
-            fi
-            if [ $? -gt 0 ]; then
-                echo -e "${H3}tox -eflake8 failed twice!${Color_Off}"
-                exit 1
-            fi
-        fi
+            tox -eflake8 | ts "%b %d %H:%M:%S ${2} ${3} flake8"
+    fi
 
         # Nova has functional tests which do not require devstack. Other projects
         # require devstack, which we don't do right now.
         if [ $(echo ${repo} | grep -c "/nova" || true) -gt 0 ]; then
-            if [ $(tox -a | egrep -c "functional$") -gt 0 ]
-            then
-                echo -e "${H3}tox -efunctional${Color_Off}"
-                tox -efunctional | ts "%b %d %H:%M:%S ${2} ${3} functional #1"
-                if [ $? -eq 2 ]; then
-                    echo -e "${H3}tox -efunctional failed, but will attempt retry after a nap${Color_Off}"
-                    sleep 60
-                    tox -efunctional | ts "%b %d %H:%M:%S ${2} ${3} functional #2"
-                fi
-                if [ $? -gt 0 ]; then
-                    echo -e "${H3}tox -efunctional failed twice!${Color_Off}"
-                    exit 1
-                fi
+            if [ $(tox -a | egrep -c "functional$") -gt 0 ]; then
+                install_test_environment functional
+                echo
+                echo -e "${H3}tox -efunctiona${Color_Off}"
+                tox -efunctional | ts "%b %d %H:%M:%S ${2} ${3} functional"
             fi
         fi
 
         # Kolla-Ansible also has additional linters as well as a pep8
-        if [ $(tox -a | grep -c linters) -gt 0 ]
-        then
-            echo -e "${H3}tox -elinters -vv --skip-missing-interpreters=false${Color_Off}"
-            tox -elinters | ts "%b %d %H:%M:%S ${2} ${3} linters #1"
-            if [ $? -eq 2 ]; then
-                echo -e "${H3}tox -elinters failed, but will attempt retry after a nap${Color_Off}"
-                sleep 60
-                tox -elinters | ts "%b %d %H:%M:%S ${2} ${3} linters #2"
-            fi
-            if [ $? -gt 0 ]; then
-                echo -e "${H3}tox -elinters failed twice!${Color_Off}"
-                exit 1
-            fi
+        if [ $(tox -a | grep -c linters) -gt 0 ]; then
+            install_test_environment linters
+            echo
+            echo -e "${H3}tox -elinters${Color_Off}"
+            tox -elinters | ts "%b %d %H:%M:%S ${2} ${3} linters"
         fi
 
         # Try building docs too
