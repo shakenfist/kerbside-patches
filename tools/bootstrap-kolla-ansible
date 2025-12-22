@@ -46,8 +46,12 @@ if [ "${target_release}" == "2024.1" ]; then
     ansible_core="ansible-core<2.17"
 elif [ "${target_release}" == "2024.2" ]; then
     ansible_core="ansible-core>=2.15,<2.18"
-else
+elif [ "${target_release}" == "2025.1" ]; then
     ansible_core="ansible-core>=2.17,<2.19"
+elif [ "${target_release}" == "2025.2" ]; then
+    ansible_core="ansible-core>=2.17,<2.19"
+else
+    ansible_core="ansible-core>=2.19,<2.21"
 fi
 pip3 install -U ${ansible_core} ansible dbus-python selinux
 echo
