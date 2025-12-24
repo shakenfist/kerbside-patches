@@ -1,6 +1,6 @@
-commit 2761ed3675bb99777c02e8de70361bef14a68618
+commit 1267de4fa7a2e11cfb098272bd015175e5f990ae
 Author: Michael Still <mikal@stillhq.com>
-Date:   Tue Dec 16 11:45:16 2025 +1100
+Date:   Wed Dec 24 06:19:00 2025 +1100
 
     Add additional SPICE configuration options.
     
@@ -75,7 +75,7 @@ index b997c671e..d62a1eaf4 100644
      - haproxy_stat.find('nova_spicehtml5proxy') == -1
      - haproxy_vip_prechecks
 diff --git a/ansible/roles/nova-cell/defaults/main.yml b/ansible/roles/nova-cell/defaults/main.yml
-index 1cc4a04aa..4ac72a94d 100644
+index 84ea698d6..f13f19b7c 100644
 --- a/ansible/roles/nova-cell/defaults/main.yml
 +++ b/ansible/roles/nova-cell/defaults/main.yml
 @@ -33,7 +33,7 @@ nova_cell_services:
@@ -138,7 +138,7 @@ index 6e8877950..1f1d7aacc 100644
  [vnc]
  enabled = false
 diff --git a/doc/source/reference/compute/nova-guide.rst b/doc/source/reference/compute/nova-guide.rst
-index 3cf5848d4..a83987648 100644
+index 8e083f241..f0ef31fcc 100644
 --- a/doc/source/reference/compute/nova-guide.rst
 +++ b/doc/source/reference/compute/nova-guide.rst
 @@ -45,6 +45,21 @@ Valid options are ``none``, ``novnc`` and ``spice``. Additionally,
