@@ -908,7 +908,7 @@ index 8da5e6b..2e9992a 100644
  playback_compression = {{ nova_spice_playback_compression | bool | lower }}
  streaming_mode = {{ nova_spice_streaming_mode }}
  server_proxyclient_address = "{{ 'api' | kolla_address }}"
-+spice_direct_proxy_base_url = "https://{{ kolla_external_fqdn }}:13002/nova"
++spice_direct_proxy_base_url = "https://{{ kolla_external_fqdn }}:13002/nova-console.vv"
  {% if nova_spice_html5 == 'yes' %}
  {% if inventory_hostname in groups[nova_cell_compute_group] %}
  html5proxy_base_url = {{ nova_spicehtml5proxy_fqdn | kolla_url(public_protocol, nova_spicehtml5proxy_public_port, '/spice_auto.html') }}
