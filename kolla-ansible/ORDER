@@ -1,8 +1,8 @@
-../_patches/patch078-kolla-ansible-expose-spice-configuration.patch
-../_patches/patch008-use-routable-ip-for-spice-consoles.patch
+../_patches/patch123-kolla-ansible-master-expose-spice-configuration.patch
+../_patches/patch124-kolla-ansible-master-use-routable-ip-for-spice.patch
 ../_patches/patch121-kolla-ansible-master-support-secure-spice.patch
 ../_patches/patch080-allow-concurrent-spice-connections.patch
 ../_patches/patch081-expose-spice-debug-logging.patch
 ../_patches/patch064-allow-rocky-10-builds.patch
-../_patches/patch108-dry-up-logrotate-cron.patch
+../_patches/patch125-kolla-ansible-master-dry-up-logrotate-cron.patch
 ../_patches/patch115-kolla-ansible-master-compressed.patch
