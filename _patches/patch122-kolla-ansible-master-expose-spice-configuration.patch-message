@@ -1,0 +1,31 @@
+Add additional SPICE configuration options.
+
+Recent changes to OpenStack Compute have added a number of new
+configuration options for SPICE VDI consoles. Additionally, it is
+not always desirable to enable the HTML5 transcoding proxy for
+SPICE consoles in Horizon. This patch adds configuration to
+globals.yml for most of these new options. Specifically:
+
+* nova_spice_html5: whether to enable the HTML5 transcoding proxy
+  or not. Defaults to the previous behaviour of enabling the proxy.
+
+Notably, nova_spice_require_secure is not exposed here as it implies
+that qemu is configured to support TLS, and that TLS certificates
+have been configured in the nova_libvirt container. These changes
+are large, and are included in a separate patch for clarity.
+
+Additionally, OpenStack Compute added these configuration options
+in 2023.1, and they are exposed as well:
+
+* nova_spice_image_compression: "auto_glz"
+* nova_spice_jpeg_compression: "auto"
+* nova_spice_zlib_compression: "auto"
+* nova_spice_playback_compression: "yes"
+* nova_spice_streaming_mode: "filter"
+
+All configuration options and their various values are documented
+by OpenStack Compute in their documentation.
+
+Partially-Implements: #2131793 (spice-direct consoles)
+Change-Id: I07f6890f1c7c4e543667d3cbd7b3e82bd9ec83e3
+Signed-off-by: Michael Still <mikal@stillhq.com>

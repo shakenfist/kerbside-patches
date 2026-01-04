@@ -1,0 +1,151 @@
+commit 1267de4fa7a2e11cfb098272bd015175e5f990ae
+Author: Michael Still <mikal@stillhq.com>
+Date:   Wed Dec 24 06:19:00 2025 +1100
+
+    Add additional SPICE configuration options.
+
+    Recent changes to OpenStack Compute have added a number of new
+    configuration options for SPICE VDI consoles. Additionally, it is
+    not always desirable to enable the HTML5 transcoding proxy for
+    SPICE consoles in Horizon. This patch adds configuration to
+    globals.yml for most of these new options. Specifically:
+
+    * nova_spice_html5: whether to enable the HTML5 transcoding proxy
+      or not. Defaults to the previous behaviour of enabling the proxy.
+
+    Notably, nova_spice_require_secure is not exposed here as it implies
+    that qemu is configured to support TLS, and that TLS certificates
+    have been configured in the nova_libvirt container. These changes
+    are large, and are included in a separate patch for clarity.
+
+    Additionally, OpenStack Compute added these configuration options
+    in 2023.1, and they are exposed as well:
+
+    * nova_spice_image_compression: "auto_glz"
+    * nova_spice_jpeg_compression: "auto"
+    * nova_spice_zlib_compression: "auto"
+    * nova_spice_playback_compression: "yes"
+    * nova_spice_streaming_mode: "filter"
+
+    All configuration options and their various values are documented
+    by OpenStack Compute in their documentation.
+
+    Partially-Implements: #2131793 (spice-direct consoles)
+    Change-Id: I07f6890f1c7c4e543667d3cbd7b3e82bd9ec83e3
+    Signed-off-by: Michael Still <mikal@stillhq.com>
+
+diff --git a/ansible/group_vars/all/nova.yml b/ansible/group_vars/all/nova.yml
+index f1996cd73..0b334b317 100644
+--- a/ansible/group_vars/all/nova.yml
++++ b/ansible/group_vars/all/nova.yml
+@@ -67,3 +67,10 @@ nova_serialproxy_port: "6083"
+ nova_serialproxy_listen_port: "{{ nova_serialproxy_port }}"
+ nova_serialproxy_public_port: "{{ haproxy_single_external_frontend_public_port if haproxy_single_external_frontend | bool else nova_serialproxy_port }}"
+ nova_serialproxy_protocol: "{{ 'wss' if kolla_enable_tls_external | bool else 'ws' }}"
++
++nova_spice_html5: "yes"
++nova_spice_image_compression: "auto_glz"
++nova_spice_jpeg_compression: "auto"
++nova_spice_zlib_compression: "auto"
++nova_spice_playback_compression: "yes"
++nova_spice_streaming_mode: "filter"
+diff --git a/ansible/roles/loadbalancer/tasks/precheck.yml b/ansible/roles/loadbalancer/tasks/precheck.yml
+index b997c671e..d62a1eaf4 100644
+--- a/ansible/roles/loadbalancer/tasks/precheck.yml
++++ b/ansible/roles/loadbalancer/tasks/precheck.yml
+@@ -607,6 +607,7 @@
+   when:
+     - enable_nova | bool
+     - nova_console == 'spice'
++    - nova_spice_html5 | bool
+     - inventory_hostname in groups['loadbalancer']
+     - haproxy_stat.find('nova_spicehtml5proxy') == -1
+     - haproxy_vip_prechecks
+diff --git a/ansible/roles/nova-cell/defaults/main.yml b/ansible/roles/nova-cell/defaults/main.yml
+index 84ea698d6..f13f19b7c 100644
+--- a/ansible/roles/nova-cell/defaults/main.yml
++++ b/ansible/roles/nova-cell/defaults/main.yml
+@@ -33,7 +33,7 @@ nova_cell_services:
+     container_name: "nova_spicehtml5proxy"
+     group: "{{ nova_cell_spicehtml5proxy_group }}"
+     image: "{{ nova_spicehtml5proxy_image_full }}"
+-    enabled: "{{ nova_console == 'spice' }}"
++    enabled: "{{ nova_console == 'spice' and (nova_spice_html5 | bool) }}"
+     volumes: "{{ nova_spicehtml5proxy_default_volumes + nova_spicehtml5proxy_extra_volumes }}"
+     dimensions: "{{ nova_spicehtml5proxy_dimensions }}"
+     healthcheck: "{{ nova_spicehtml5proxy_healthcheck }}"
+diff --git a/ansible/roles/nova-cell/tasks/loadbalancer.yml b/ansible/roles/nova-cell/tasks/loadbalancer.yml
+index 0ff2bcd70..f75ae3963 100644
+--- a/ansible/roles/nova-cell/tasks/loadbalancer.yml
++++ b/ansible/roles/nova-cell/tasks/loadbalancer.yml
+@@ -73,10 +73,10 @@
+     cell_proxy_project_services:
+       nova-spicehtml5proxy:
+         group: "{{ nova_cell_spicehtml5proxy_group }}"
+-        enabled: "{{ hostvars[groups[cell_proxy_group][0]]['nova_console'] == 'spice' }}"
++        enabled: "{{ hostvars[groups[cell_proxy_group][0]]['nova_console'] == 'spice' and (nova_spice_html5 | bool) }}"
+         haproxy:
+           nova_spicehtml5proxy:
+-            enabled: "{{ hostvars[groups[cell_proxy_group][0]]['nova_console'] == 'spice' }}"
++            enabled: "{{ hostvars[groups[cell_proxy_group][0]]['nova_console'] == 'spice' and (nova_spice_html5 | bool) }}"
+             mode: "http"
+             external: false
+             port: "{{ hostvars[groups[cell_proxy_group][0]]['nova_spicehtml5proxy_port'] }}"
+@@ -84,7 +84,7 @@
+             backend_http_extra:
+               - "timeout tunnel {{ haproxy_nova_spicehtml5_proxy_tunnel_timeout }}"
+           nova_spicehtml5proxy_external:
+-            enabled: "{{ hostvars[groups[cell_proxy_group][0]]['nova_console'] == 'spice' }}"
++            enabled: "{{ hostvars[groups[cell_proxy_group][0]]['nova_console'] == 'spice' and (nova_spice_html5 | bool) }}"
+             mode: "http"
+             external: true
+             external_fqdn: "{{ hostvars[groups[cell_proxy_group][0]]['nova_spicehtml5proxy_fqdn'] }}"
+diff --git a/ansible/roles/nova-cell/templates/nova.conf.j2 b/ansible/roles/nova-cell/templates/nova.conf.j2
+index 6e8877950..1f1d7aacc 100644
+--- a/ansible/roles/nova-cell/templates/nova.conf.j2
++++ b/ansible/roles/nova-cell/templates/nova.conf.j2
+@@ -62,10 +62,17 @@ enabled = false
+ [spice]
+ enabled = true
+ server_listen = {{ api_interface_address }}
++image_compression = {{ nova_spice_image_compression }}
++jpeg_compression = {{ nova_spice_jpeg_compression }}
++zlib_compression = {{ nova_spice_zlib_compression }}
++playback_compression = {{ nova_spice_playback_compression | bool | lower }}
++streaming_mode = {{ nova_spice_streaming_mode }}
++{% if nova_spice_html5 == 'yes' %}
+ server_proxyclient_address = {{ api_interface_address }}
+ {%     if inventory_hostname in groups[nova_cell_compute_group] %}
+ html5proxy_base_url = {{ nova_spicehtml5proxy_fqdn | kolla_url(public_protocol, nova_spicehtml5proxy_public_port, '/spice_auto.html') }}
+ {%     endif %}
+ html5proxy_host = {{ api_interface_address }}
+ html5proxy_port = {{ nova_spicehtml5proxy_listen_port }}
++{% endif %}
+ {% elif nova_console == 'none' %}
+ [vnc]
+diff --git a/doc/source/reference/compute/nova-guide.rst b/doc/source/reference/compute/nova-guide.rst
+index 8e083f241..f0ef31fcc 100644
+--- a/doc/source/reference/compute/nova-guide.rst
++++ b/doc/source/reference/compute/nova-guide.rst
+@@ -45,6 +45,21 @@ Valid options are ``none``, ``novnc`` and ``spice``. Additionally,
+ serial console support can be enabled by setting
+ ``enable_nova_serialconsole_proxy`` to ``yes``.
+
++``spice`` consoles have additional configuration options:
++
++* nova_spice_html5: configures whether the HTML5 transcoding proxy used by
++  Horizon is enabled, and defaults to ``yes``.
++* nova_spice_image_compression: which compression algorithm to use for images
++  when using the SPICE console type. Defaults to ``auto_glz``.
++* nova_spice_jpeg_compression: whether or not to use JPEG compression with
++  SPICE consoles. Defaults to ``auto``.
++* nova_spice_zlib_compression: whether or not to use zlib compression with
++  SPICE consoles. Defaults to ``auto``.
++* nova_spice_playback_compression: whether or not to use compression for video
++  playback. Defaults to ``yes``.
++* nova_spice_streaming_mode: what streaming mode to use with SPICE consoles.
++  Defaults to ``filter``.
++
+ Cells
+ =====
+
