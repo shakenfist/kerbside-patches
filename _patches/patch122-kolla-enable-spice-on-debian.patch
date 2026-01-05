@@ -1,0 +1,25 @@
+commit f5f64abc60abc842150875d5d20ff73e2ca45d61
+Author: Michael Still <mikal@stillhq.com>
+Date:   Mon Jan 5 14:05:10 2026 +1100
+
+    Re-enable SPICE support on Debian.
+    
+    SPICE was originally included in the qemu packages shipped with Debian,
+    but in Trixie it is a separate package. Therefore in order to support
+    SPICE, we must add this package to the nova-libvirt container.
+    
+    Change-Id: Ib4ced4a04353b9c11c6f0abb7cfa91001b239e53
+    Signed-off-by: Michael Still <mikal@stillhq.com>
+
+diff --git a/docker/nova/nova-libvirt/Dockerfile.j2 b/docker/nova/nova-libvirt/Dockerfile.j2
+index d65d31584..435ad6a0f 100644
+--- a/docker/nova/nova-libvirt/Dockerfile.j2
++++ b/docker/nova/nova-libvirt/Dockerfile.j2
+@@ -54,6 +54,7 @@ LABEL maintainer="{{ maintainer }}" name="{{ image_name }}" build-date="{{ build
+         'python3-rbd',
+         'qemu-block-extra',
+         'qemu-system',
++        'qemu-system-modules-spice',
+         'qemu-utils',
+         'sasl2-bin',
+         'swtpm',

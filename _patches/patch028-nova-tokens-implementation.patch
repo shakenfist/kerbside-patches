@@ -195,7 +195,7 @@ index 0000000000..2a9e1ffb93
 +    "remote_console": {
 +        "protocol": "spice",
 +        "type": "spice-direct",
-+        "url": "http://127.0.0.1:13002/nova?token=aeabd4ec-3acb-4898-9130-10521ccbe5f3"
++        "url": "http://127.0.0.1:13002/nova-console.vv?token=aeabd4ec-3acb-4898-9130-10521ccbe5f3"
 +    }
 +}
 +
@@ -449,7 +449,7 @@ index d01a83c3b9..4c457c8707 100644
    and port where the ``nova-spicehtml5proxy`` service is listening.
 +"""),
 +    cfg.URIOpt('spice_direct_proxy_base_url',
-+        default='http://127.0.0.1:13002/nova',
++        default='http://127.0.0.1:13002/nova-console.vv',
 +        help="""
 +Location of a SPICE protocol native console proxy.
 +
@@ -517,7 +517,7 @@ index 0000000000..27e6c0ad3f
 +    "remote_console": {
 +        "protocol": "spice",
 +        "type": "spice-direct",
-+        "url": "http://127.0.0.1:13002/nova?token=%(uuid)s"
++        "url": "http://127.0.0.1:13002/nova-console.vv?token=%(uuid)s"
 +    }
 +}
 +
