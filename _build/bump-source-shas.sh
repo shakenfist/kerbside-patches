@@ -67,7 +67,13 @@ for project in ${projects}; do
         # Get commits from current SHA to HEAD, reverse to chronological order,
         # then pick the Nth one
         commits_ahead=$(git log --pretty=format:%H ${current_source_sha}..HEAD | tac)
-        commit_count=$(echo "${commits_ahead}" | grep -c . || echo 0)
+
+        # Count commits (handle empty case separately to avoid grep exit code issue)
+        if [ -z "${commits_ahead}" ]; then
+            commit_count=0
+        else
+            commit_count=$(echo "${commits_ahead}" | grep -c .)
+        fi
 
         if [ "${commit_count}" -eq 0 ]; then
             echo "  Already at HEAD, no commits to step forward"
