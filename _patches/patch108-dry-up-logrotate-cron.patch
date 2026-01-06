@@ -139,16 +139,16 @@ index 5b20985bd..000000000
 -{
 -}
 diff --git a/ansible/roles/cron/templates/cron-logrotate-global.conf.j2 b/ansible/roles/cron/templates/cron-logrotate-global.conf.j2
-index f57a2e034..1b50f1d27 100644
+index b8628a88d..a6821b5ea 100644
 --- a/ansible/roles/cron/templates/cron-logrotate-global.conf.j2
 +++ b/ansible/roles/cron/templates/cron-logrotate-global.conf.j2
-@@ -19,6 +19,6 @@ maxsize {{ cron_logrotate_log_maxsize }}
+@@ -19,6 +19,5 @@ maxsize {{ cron_logrotate_log_maxsize }}
  su root kolla
  
  {% for service in cron_logrotate_enabled_services %}
--{% include "cron-logrotate-" ~ service ~ ".conf.j2" %}
-+{% include ["cron-logrotate-" ~ service ~ ".conf.j2", "cron-logrotate-default.conf.j2"] %}
- 
+-{%     include "cron-logrotate-" ~ service ~ ".conf.j2" %}
+-
++{%     include ["cron-logrotate-" ~ service ~ ".conf.j2", "cron-logrotate-default.conf.j2"] %}
  {% endfor %}
 diff --git a/ansible/roles/cron/templates/cron-logrotate-gnocchi.conf.j2 b/ansible/roles/cron/templates/cron-logrotate-gnocchi.conf.j2
 deleted file mode 100644
