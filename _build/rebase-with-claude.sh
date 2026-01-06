@@ -10,6 +10,7 @@
 #
 # Options:
 #   --bump-shas         Update source SHAs to latest upstream (like daily rebase)
+#   --step-forward N    Step forward N commits from current SHA (for incremental)
 #   --no-claude         Skip Claude Code, just test and report failures
 #   --max-turns N       Maximum Claude turns (default: 50)
 #   --interactive       Run Claude in interactive mode (default: headless)
@@ -34,6 +35,9 @@
 #   # Full daily rebase (update SHAs, test, auto-fix)
 #   _build/rebase-with-claude.sh --bump-shas
 #
+#   # Step forward 5 commits from current position (for manual incremental rebase)
+#   _build/rebase-with-claude.sh --step-forward 5
+#
 #   # CI mode with output directory
 #   _build/rebase-with-claude.sh --ci --output-dir /tmp/results
 
@@ -44,6 +48,7 @@ cd "${topdir}"
 
 # Default options
 bump_shas=false
+step_forward=""
 use_claude=true
 max_turns=50
 interactive=false
@@ -75,6 +80,10 @@ while [[ $# -gt 0 ]]; do
             bump_shas=true
             shift
             ;;
+        --step-forward)
+            step_forward="$2"
+            shift 2
+            ;;
         --no-claude)
             use_claude=false
             shift
@@ -96,7 +105,7 @@ while [[ $# -gt 0 ]]; do
             shift 2
             ;;
         --help|-h)
-            head -42 "$0" | tail -39
+            head -45 "$0" | tail -42
             exit 0
             ;;
         -*)
@@ -150,8 +159,15 @@ if [ "${bump_shas}" = true ]; then
     echo "SHA changes:"
     git diff --stat */config.yaml 2>/dev/null || true
     echo
+elif [ -n "${step_forward}" ]; then
+    echo -e "${YELLOW}Step 1: Stepping forward ${step_forward} commits...${NC}"
+    ./_build/bump-source-shas.sh --forward "${step_forward}"
+    echo
+    echo "SHA changes:"
+    git diff --stat */config.yaml 2>/dev/null || true
+    echo
 else
-    echo -e "${YELLOW}Step 1: Skipping SHA updates (use --bump-shas to update)${NC}"
+    echo -e "${YELLOW}Step 1: Skipping SHA updates (use --bump-shas or --step-forward N)${NC}"
     echo
 fi
 
