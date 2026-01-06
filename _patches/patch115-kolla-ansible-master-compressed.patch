@@ -1144,11 +1144,11 @@ index 000000000..d63e2f216
 +++ b/ansible/roles/kerbside/templates/kerbside-wsgi.conf.j2
 @@ -0,0 +1,37 @@
 +{% if kerbside_enable_tls_backend | bool %}
-+{% if kolla_base_distro in ['centos', 'rocky']  %}
++{%     if kolla_base_distro in ['centos', 'rocky']  %}
 +LoadModule ssl_module /usr/lib64/httpd/modules/mod_ssl.so
-+{% else %}
++{%     else %}
 +LoadModule ssl_module /usr/lib/apache2/modules/mod_ssl.so
-+{% endif %}
++{%     endif %}
 +{% endif %}
 +Listen {{ api_interface_address | put_address_in_context('url') }}:{{ kerbside_api_listen_port }}
 +
@@ -1240,13 +1240,13 @@ index 000000000..b3e3fcce5
 +            "dest": "/etc/kerbside/sources.yaml",
 +            "owner": "kerbside",
 +            "perm": "0600"
-+        }{% if kerbside_wsgi_provider == "apache"%},
++        }{% if kerbside_wsgi_provider == "apache" %},
 +        {
 +            "source": "{{ container_config_directory }}/kerbside-wsgi.conf",
 +            "dest": "/etc/kerbside/kerbside-wsgi.conf",
 +            "owner": "kerbside",
 +            "perm": "0600"
-+        }{% endif %}{% if kerbside_wsgi_provider == "uwsgi"%},
++        }{% endif %}{% if kerbside_wsgi_provider == "uwsgi" %},
 +        {
 +            "source": "{{ container_config_directory }}/kerbside-uwsgi.ini",
 +            "dest": "/etc/kerbside/kerbside-uwsgi.ini",
