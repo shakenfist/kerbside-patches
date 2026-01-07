@@ -3,7 +3,7 @@ source_branch: master
 destination_branch: influxdb-repo-gpg-key
 shallow_clone: false
 directory: kolla
-release: master
+release: master-wave-2
 depends_on: ''
 source_sha: 9a09f82646c577c4b484eeaac7bf56d8005da11b
 previous_source_sha: dd3cb3dd1ffc4770a2afa259a6f0a467bb845f61
