@@ -1,0 +1,8 @@
+Update repo GPG key for influxdata.
+
+According to https://www.influxdata.com/blog/package-signing-key-rotation
+the preferred signing key for influxdata package repositories
+changed in early 2026. Update to the new preferred key.
+
+Change-Id: I77d38e713678ea653ded3b14fd0541d3ec0ebee6
+Signed-off-by: Michael Still <mikal@stillhq.com>

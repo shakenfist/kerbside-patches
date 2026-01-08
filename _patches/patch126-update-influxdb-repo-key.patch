@@ -1,0 +1,39 @@
+commit 3cb747f0a68f51cd4d7aa650cc6f665f3f0eb34c
+Author: Michael Still <mikal@stillhq.com>
+Date:   Wed Jan 7 20:00:53 2026 +1100
+
+    Update repo GPG key for influxdata.
+    
+    According to https://www.influxdata.com/blog/package-signing-key-rotation
+    the preferred signing key for influxdata package repositories
+    changed in early 2026. Update to the new preferred key.
+    
+    Change-Id: I77d38e713678ea653ded3b14fd0541d3ec0ebee6
+    Signed-off-by: Michael Still <mikal@stillhq.com>
+
+diff --git a/docker/base/Dockerfile.j2 b/docker/base/Dockerfile.j2
+index 53ef731cc..6c758207a 100644
+--- a/docker/base/Dockerfile.j2
++++ b/docker/base/Dockerfile.j2
+@@ -247,7 +247,7 @@ COPY apt_preferences /etc/apt/preferences.d/kolla-custom
+    {'name': 'docker-ce', 'url': 'https://download.docker.com/linux/debian/gpg'},
+    {'name': 'fluentd', 'url': 'https://fluentd.cdn.cncf.io/GPG-KEY-fluent-package'},
+    {'name': 'grafana', 'url': 'https://rpm.grafana.com/gpg.key'},
+-   {'name': 'influxdb', 'url': 'https://repos.influxdata.com/influxdata-archive_compat.key'},
++   {'name': 'influxdb', 'url': 'https://repos.influxdata.com/influxdata-archive.key'},
+    {'name': 'mariadb', 'url': 'https://downloads.mariadb.com/MariaDB/mariadb-keyring-2019.gpg', 'type': 'gpg'},
+    {'name': 'opensearch', 'url': 'https://artifacts.opensearch.org/publickeys/opensearch-release.pgp'},
+    {'name': 'proxysql', 'url': 'https://repo.proxysql.com/ProxySQL/proxysql-3.0.x/repo_pub_key'},
+diff --git a/kolla/template/repos.yaml b/kolla/template/repos.yaml
+index efdb15376..a5c66d34a 100644
+--- a/kolla/template/repos.yaml
++++ b/kolla/template/repos.yaml
+@@ -147,7 +147,7 @@ rpm:
+     distro: true
+   influxdb:
+     baseurl: "https://repos.influxdata.com/rhel/9/$basearch/stable"
+-    gpgkey: "https://repos.influxdata.com/influxdata-archive_compat.key"
++    gpgkey: "https://repos.influxdata.com/influxdata-archive.key"
+     name: "influxdb"
+   kolla_el10:
+     baseurl: "https://download.copr.fedorainfracloud.org/results/@openstack-kolla/el10-missing/epel-10-$basearch/"
