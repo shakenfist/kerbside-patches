@@ -743,20 +743,26 @@ jobs:
           # Phase 1: Setup - copy tools to remote nodes
           for node in ${nodes}; do
               node_address=${!node}
-              echo "Setting up ${node} at ${node_address}"
+              node_start=$(date +%s)
+              echo "::group::${node} at ${node_address} - $(date -Iseconds)"
 
               if [ "${node_address}" != "10.0.2.2" ]; then
+                  echo "Setting up remote node..."
+                  setup_start=$(date +%s)
                   script="sudo mkdir -p /srv/shakenfist/kerbside-patches"
                   script="${script}; sudo chown -R ${{ matrix.test.baseuser }}:${{ matrix.test.baseuser }} /srv/shakenfist"
 
                   ssh -i /srv/github/id_ci -o StrictHostKeyChecking=no \
-                          -o UserKnownHostsFile=/dev/null ${{ matrix.test.baseuser }}@${node_address} \
+                          -o UserKnownHostsFile=/dev/null \
+                          ${{ matrix.test.baseuser }}@${node_address} \
                           "${script}"
 
                   scp -rp -i /srv/github/id_ci -o StrictHostKeyChecking=no \
                       -o UserKnownHostsFile=/dev/null \
                       ${GITHUB_WORKSPACE}/kerbside-patches/tools \
                       ${{ matrix.test.baseuser }}@${node_address}:/srv/shakenfist/kerbside-patches
+                  setup_end=$(date +%s)
+                  echo "Setup took $((setup_end - setup_start)) seconds"
               fi
           done
 
@@ -795,22 +801,46 @@ jobs:
                   cat /tmp/gather-${node}.log || true
               fi
 
+              echo "Running gather-logs (5 minute timeout)..."
+              gather_start=$(date +%s)
+              timeout 300 ssh -i /srv/github/id_ci -o StrictHostKeyChecking=no \
+                  -o UserKnownHostsFile=/dev/null \
+                  ${{ matrix.test.baseuser }}@${node_address} \
+                  'cd /srv/shakenfist/kerbside-patches/tools; sudo ./gather-logs' \
+                  2>&1 | tee /tmp/bundle/gather-${node}.log
+              gather_exit=$?
+              gather_end=$(date +%s)
+              echo "gather-logs took $((gather_end - gather_start)) seconds (exit code: ${gather_exit})"
+
+              echo "Fetching bundle..."
+              fetch_start=$(date +%s)
               scp -i /srv/github/id_ci -o StrictHostKeyChecking=no \
                   -o UserKnownHostsFile=/dev/null \
-                  ${{ matrix.test.baseuser }}@${node_address}:/tmp/bundle.zip /tmp/bundle/${node}.zip || true
+                  ${{ matrix.test.baseuser }}@${node_address}:/tmp/bundle.zip \
+                  /tmp/bundle/${node}.zip || true
+              fetch_end=$(date +%s)
+              echo "Fetch took $((fetch_end - fetch_start)) seconds"
 
-              mkdir -p /tmp/bundle/${node}
-              cd /tmp/bundle/${node}
-              unzip ../${node}.zip || true
-              rm -f ../${node}.zip
+              if [ -f /tmp/bundle/${node}.zip ]; then
+                  echo "Extracting bundle..."
+                  mkdir -p /tmp/bundle/${node}
+                  cd /tmp/bundle/${node}
+                  unzip ../${node}.zip || true
+                  rm ../${node}.zip
+              else
+                  echo "Warning: No bundle.zip received from ${node}"
+              fi
+
+              node_end=$(date +%s)
+              echo "::endgroup::"
+              echo "${node} total: $((node_end - node_start)) seconds"
           done
 
-          echo
-          echo
-          echo "Building single bundle"
-          echo
+          echo "::group::Building final bundle"
+          echo "Building single bundle..."
           cd /tmp/
           zip -r bundle.zip bundle
+          echo "::endgroup::"
 
 
       - uses: actions/upload-artifact@v4
