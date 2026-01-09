@@ -737,9 +737,8 @@ jobs:
 
           mkdir -p /tmp/bundle/consoledata
 
-          for instance_name in $(sf-client --simple instance list | cut -f 2 -d "," | grep -v name); do
-              sf-client instance consoledata ${instance_name} 100000000 > /tmp/bundle/consoledata/${instance_name}
-          done
+          # NOTE: Console data collection via sf-client has been removed as the
+          # CI runner orchestrator already collects this information for us.
 
           # Phase 1: Setup - copy tools to remote nodes
           for node in ${nodes}; do
