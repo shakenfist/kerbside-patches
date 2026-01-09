@@ -741,12 +741,10 @@ jobs:
               sf-client instance consoledata ${instance_name} 100000000 > /tmp/bundle/consoledata/${instance_name}
           done
 
+          # Phase 1: Setup - copy tools to remote nodes
           for node in ${nodes}; do
-              echo
-              echo
               node_address=${!node}
-              echo "${node} is at ${node_address}"
-              echo
+              echo "Setting up ${node} at ${node_address}"
 
               if [ "${node_address}" != "10.0.2.2" ]; then
                   script="sudo mkdir -p /srv/shakenfist/kerbside-patches"
@@ -761,19 +759,51 @@ jobs:
                       ${GITHUB_WORKSPACE}/kerbside-patches/tools \
                       ${{ matrix.test.baseuser }}@${node_address}:/srv/shakenfist/kerbside-patches
               fi
+          done
 
-              ssh -i /srv/github/id_ci -o StrictHostKeyChecking=no \
-                  -o UserKnownHostsFile=/dev/null \
-                  ${{ matrix.test.baseuser }}@${node_address} \
-                  'cd /srv/shakenfist/kerbside-patches/tools; sudo ./gather-logs'
+          # Phase 2: Gather logs in parallel on all nodes (5 minute timeout each)
+          echo
+          echo "Starting parallel log collection..."
+          pids=""
+          for node in ${nodes}; do
+              node_address=${!node}
+              echo "Starting gather-logs on ${node} at ${node_address}"
+
+              (
+                  timeout 300 ssh -i /srv/github/id_ci -o StrictHostKeyChecking=no \
+                      -o UserKnownHostsFile=/dev/null \
+                      ${{ matrix.test.baseuser }}@${node_address} \
+                      'cd /srv/shakenfist/kerbside-patches/tools; sudo ./gather-logs' \
+                      > /tmp/gather-${node}.log 2>&1
+                  echo $? > /tmp/gather-${node}.exitcode
+              ) &
+              pids="${pids} $!"
+          done
+
+          echo "Waiting for all gather-logs processes to complete..."
+          wait ${pids}
+          echo "All gather-logs processes completed"
+
+          # Phase 3: Fetch bundles and extract
+          for node in ${nodes}; do
+              node_address=${!node}
+              echo
+              echo "Fetching bundle from ${node} at ${node_address}"
+
+              exitcode=$(cat /tmp/gather-${node}.exitcode 2>/dev/null || echo "unknown")
+              if [ "${exitcode}" != "0" ]; then
+                  echo "Warning: gather-logs on ${node} exited with code ${exitcode}"
+                  cat /tmp/gather-${node}.log || true
+              fi
+
               scp -i /srv/github/id_ci -o StrictHostKeyChecking=no \
                   -o UserKnownHostsFile=/dev/null \
-                  ${{ matrix.test.baseuser }}@${node_address}:/tmp/bundle.zip /tmp/bundle/${node}.zip
+                  ${{ matrix.test.baseuser }}@${node_address}:/tmp/bundle.zip /tmp/bundle/${node}.zip || true
 
               mkdir -p /tmp/bundle/${node}
               cd /tmp/bundle/${node}
               unzip ../${node}.zip || true
-              rm ../${node}.zip
+              rm -f ../${node}.zip
           done
 
           echo
