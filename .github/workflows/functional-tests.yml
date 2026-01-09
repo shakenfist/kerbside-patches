@@ -761,7 +761,7 @@ jobs:
               fi
           done
 
-          # Phase 2: Gather logs in parallel on all nodes (5 minute timeout each)
+          # Phase 2: Gather logs in parallel on all nodes (10 minute timeout each)
           echo
           echo "Starting parallel log collection..."
           pids=""
@@ -770,7 +770,7 @@ jobs:
               echo "Starting gather-logs on ${node} at ${node_address}"
 
               (
-                  timeout 300 ssh -i /srv/github/id_ci -o StrictHostKeyChecking=no \
+                  timeout 600 ssh -i /srv/github/id_ci -o StrictHostKeyChecking=no \
                       -o UserKnownHostsFile=/dev/null \
                       ${{ matrix.test.baseuser }}@${node_address} \
                       'cd /srv/shakenfist/kerbside-patches/tools; sudo ./gather-logs' \
