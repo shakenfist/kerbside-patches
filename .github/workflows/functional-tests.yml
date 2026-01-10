@@ -764,6 +764,9 @@ jobs:
                   setup_end=$(date +%s)
                   echo "Setup took $((setup_end - setup_start)) seconds"
               fi
+
+              echo
+              echo
           done
 
           # Phase 2: Gather logs in parallel on all nodes (10 minute timeout each)
@@ -834,6 +837,9 @@ jobs:
               node_end=$(date +%s)
               echo "::endgroup::"
               echo "${node} total: $((node_end - node_start)) seconds"
+
+              echo
+              echo
           done
 
           echo "::group::Building final bundle"
