@@ -4,5 +4,6 @@ SPICE was originally included in the qemu packages shipped with Debian,
 but in Trixie it is a separate package. Therefore in order to support
 SPICE, we must add this package to the nova-libvirt container.
 
+Depends-On: https://review.opendev.org/c/openstack/kolla/+/972437
 Change-Id: Ib4ced4a04353b9c11c6f0abb7cfa91001b239e53
 Signed-off-by: Michael Still <mikal@stillhq.com>

@@ -1,6 +1,6 @@
-commit f5f64abc60abc842150875d5d20ff73e2ca45d61
+commit 3181dd8f55dc7fbeeb45467a4eef2a84de3a5710
 Author: Michael Still <mikal@stillhq.com>
-Date:   Mon Jan 5 14:05:10 2026 +1100
+Date:   Sat Jan 10 06:45:16 2026 +1100
 
     Re-enable SPICE support on Debian.
     
@@ -8,11 +8,12 @@ Date:   Mon Jan 5 14:05:10 2026 +1100
     but in Trixie it is a separate package. Therefore in order to support
     SPICE, we must add this package to the nova-libvirt container.
     
+    Depends-On: https://review.opendev.org/c/openstack/kolla/+/972437
     Change-Id: Ib4ced4a04353b9c11c6f0abb7cfa91001b239e53
     Signed-off-by: Michael Still <mikal@stillhq.com>
 
 diff --git a/docker/nova/nova-libvirt/Dockerfile.j2 b/docker/nova/nova-libvirt/Dockerfile.j2
-index d65d31584..435ad6a0f 100644
+index d65d31584..88e4a52d6 100644
 --- a/docker/nova/nova-libvirt/Dockerfile.j2
 +++ b/docker/nova/nova-libvirt/Dockerfile.j2
 @@ -54,6 +54,7 @@ LABEL maintainer="{{ maintainer }}" name="{{ image_name }}" build-date="{{ build
