@@ -1,4 +1,4 @@
-../_patches/patch122-kolla-enable-spice-on-debian.patch
+# ../_patches/patch122-kolla-enable-spice-on-debian.patch
 ../_patches/patch047-kolla-fluentd-enable-syslog.patch
 ../_patches/patch093-kolla-master-compressed.patch
 ../_patches/patch112-kolla-layer-data.patch
