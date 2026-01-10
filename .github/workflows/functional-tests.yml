@@ -737,51 +737,110 @@ jobs:
 
           mkdir -p /tmp/bundle/consoledata
 
-          for instance_name in $(sf-client --simple instance list | cut -f 2 -d "," | grep -v name); do
-              sf-client instance consoledata ${instance_name} 100000000 > /tmp/bundle/consoledata/${instance_name}
-          done
+          # NOTE: Console data collection via sf-client has been removed as the
+          # CI runner orchestrator already collects this information for us.
 
+          # Phase 1: Setup - copy tools to remote nodes
           for node in ${nodes}; do
-              echo
-              echo
               node_address=${!node}
-              echo "${node} is at ${node_address}"
-              echo
+              node_start=$(date +%s)
+              echo "::group::${node} at ${node_address} - $(date -Iseconds)"
 
               if [ "${node_address}" != "10.0.2.2" ]; then
+                  echo "Setting up remote node..."
+                  setup_start=$(date +%s)
                   script="sudo mkdir -p /srv/shakenfist/kerbside-patches"
                   script="${script}; sudo chown -R ${{ matrix.test.baseuser }}:${{ matrix.test.baseuser }} /srv/shakenfist"
 
                   ssh -i /srv/github/id_ci -o StrictHostKeyChecking=no \
-                          -o UserKnownHostsFile=/dev/null ${{ matrix.test.baseuser }}@${node_address} \
+                          -o UserKnownHostsFile=/dev/null \
+                          ${{ matrix.test.baseuser }}@${node_address} \
                           "${script}"
 
                   scp -rp -i /srv/github/id_ci -o StrictHostKeyChecking=no \
                       -o UserKnownHostsFile=/dev/null \
                       ${GITHUB_WORKSPACE}/kerbside-patches/tools \
                       ${{ matrix.test.baseuser }}@${node_address}:/srv/shakenfist/kerbside-patches
+                  setup_end=$(date +%s)
+                  echo "Setup took $((setup_end - setup_start)) seconds"
               fi
-
-              ssh -i /srv/github/id_ci -o StrictHostKeyChecking=no \
-                  -o UserKnownHostsFile=/dev/null \
-                  ${{ matrix.test.baseuser }}@${node_address} \
-                  'cd /srv/shakenfist/kerbside-patches/tools; sudo ./gather-logs'
-              scp -i /srv/github/id_ci -o StrictHostKeyChecking=no \
-                  -o UserKnownHostsFile=/dev/null \
-                  ${{ matrix.test.baseuser }}@${node_address}:/tmp/bundle.zip /tmp/bundle/${node}.zip
-
-              mkdir -p /tmp/bundle/${node}
-              cd /tmp/bundle/${node}
-              unzip ../${node}.zip || true
-              rm ../${node}.zip
           done
 
+          # Phase 2: Gather logs in parallel on all nodes (10 minute timeout each)
           echo
-          echo
-          echo "Building single bundle"
-          echo
+          echo "Starting parallel log collection..."
+          pids=""
+          for node in ${nodes}; do
+              node_address=${!node}
+              echo "Starting gather-logs on ${node} at ${node_address}"
+
+              (
+                  timeout 600 ssh -i /srv/github/id_ci -o StrictHostKeyChecking=no \
+                      -o UserKnownHostsFile=/dev/null \
+                      ${{ matrix.test.baseuser }}@${node_address} \
+                      'cd /srv/shakenfist/kerbside-patches/tools; sudo ./gather-logs' \
+                      > /tmp/gather-${node}.log 2>&1
+                  echo $? > /tmp/gather-${node}.exitcode
+              ) &
+              pids="${pids} $!"
+          done
+
+          echo "Waiting for all gather-logs processes to complete..."
+          wait ${pids}
+          echo "All gather-logs processes completed"
+
+          # Phase 3: Fetch bundles and extract
+          for node in ${nodes}; do
+              node_address=${!node}
+              echo
+              echo "Fetching bundle from ${node} at ${node_address}"
+
+              exitcode=$(cat /tmp/gather-${node}.exitcode 2>/dev/null || echo "unknown")
+              if [ "${exitcode}" != "0" ]; then
+                  echo "Warning: gather-logs on ${node} exited with code ${exitcode}"
+                  cat /tmp/gather-${node}.log || true
+              fi
+
+              echo "Running gather-logs (5 minute timeout)..."
+              gather_start=$(date +%s)
+              timeout 300 ssh -i /srv/github/id_ci -o StrictHostKeyChecking=no \
+                  -o UserKnownHostsFile=/dev/null \
+                  ${{ matrix.test.baseuser }}@${node_address} \
+                  'cd /srv/shakenfist/kerbside-patches/tools; sudo ./gather-logs' \
+                  2>&1 | tee /tmp/bundle/gather-${node}.log
+              gather_exit=$?
+              gather_end=$(date +%s)
+              echo "gather-logs took $((gather_end - gather_start)) seconds (exit code: ${gather_exit})"
+
+              echo "Fetching bundle..."
+              fetch_start=$(date +%s)
+              scp -i /srv/github/id_ci -o StrictHostKeyChecking=no \
+                  -o UserKnownHostsFile=/dev/null \
+                  ${{ matrix.test.baseuser }}@${node_address}:/tmp/bundle.zip \
+                  /tmp/bundle/${node}.zip || true
+              fetch_end=$(date +%s)
+              echo "Fetch took $((fetch_end - fetch_start)) seconds"
+
+              if [ -f /tmp/bundle/${node}.zip ]; then
+                  echo "Extracting bundle..."
+                  mkdir -p /tmp/bundle/${node}
+                  cd /tmp/bundle/${node}
+                  unzip ../${node}.zip || true
+                  rm ../${node}.zip
+              else
+                  echo "Warning: No bundle.zip received from ${node}"
+              fi
+
+              node_end=$(date +%s)
+              echo "::endgroup::"
+              echo "${node} total: $((node_end - node_start)) seconds"
+          done
+
+          echo "::group::Building final bundle"
+          echo "Building single bundle..."
           cd /tmp/
           zip -r bundle.zip bundle
+          echo "::endgroup::"
 
 
       - uses: actions/upload-artifact@v4
