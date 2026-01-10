@@ -176,7 +176,7 @@ echo
 
 cd ${topdir}
 
-for patch in $(cat ${project}/ORDER)
+for patch in $(grep -v -E "^#" ${project}/ORDER)
 do
     echo
     shortpatch=$(echo ${patch} | sed -e 's|.*/||' -e 's/.patch$//')

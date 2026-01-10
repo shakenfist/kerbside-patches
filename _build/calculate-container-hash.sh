@@ -43,7 +43,7 @@ for dir in ${*}; do
             fi
 
             if [ -e ORDER ]; then
-                for patch in $(cat ORDER); do
+                for patch in $(grep -v -E "^#" ${project}/ORDER); do
                     hash=$(sha1sum ${patch} | cut -f 1 -d " " | sed -rn 's/^(........).*/\1/gp')
                     unique="${unique};${hash}"
                 done

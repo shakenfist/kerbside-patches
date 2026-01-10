@@ -41,7 +41,7 @@ for project in ${projects}; do
     release=$(yq -r .release ${project}/config.yaml)
     echo "${project} is release ${release}"
     if [ "${release}" == "${target_release}" ]; then
-        num_patches=$(cat ${project}/ORDER | egrep -c "^" || true)
+        num_patches=$(grep -v -E "^#" ${project}/ORDER | egrep -c "^" || true)
         if [ -e ${project}/FORCE ]; then
             num_patches=$(( ${num_patches} + 1 ))
         fi
