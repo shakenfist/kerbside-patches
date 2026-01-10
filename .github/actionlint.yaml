@@ -1,0 +1,11 @@
+# Configuration for actionlint
+# https://github.com/rhysd/actionlint/blob/main/docs/config.md
+
+self-hosted-runner:
+  # Custom labels used by our self-hosted runners
+  labels:
+    - vm
+    - debian-12
+    - xl
+    - m
+    - claude-code

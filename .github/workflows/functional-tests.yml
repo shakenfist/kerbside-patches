@@ -283,7 +283,7 @@ jobs:
           archive_path="/tmp/${{ matrix.test.name }}"
           mkdir ${archive_path}
 
-          echo ${{ matrix.build_images.image_tag }} > ${archive_path}/image_tag
+          echo ${{ steps.build_images.outputs.image_tag }} > ${archive_path}/image_tag
 
           if [ -e kerbside-patches/archive/build.log ]; then
               cp kerbside-patches/archive/build.log ${archive_path}/
