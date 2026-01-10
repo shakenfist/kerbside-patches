@@ -24,7 +24,7 @@ Date:   Tue Jan 20 12:47:10 2026 +1100
     * nova_spice_image_compression: "auto_glz"
     * nova_spice_jpeg_compression: "auto"
     * nova_spice_zlib_compression: "auto"
-    * nova_spice_playback_compression: "yes"
+    * nova_spice_playback_compression: true
     * nova_spice_streaming_mode: "filter"
     
     All configuration options and their various values are documented
@@ -37,7 +37,7 @@ Date:   Tue Jan 20 12:47:10 2026 +1100
     Signed-off-by: Michael Still <mikal@stillhq.com>
 
 diff --git a/ansible/group_vars/all/nova.yml b/ansible/group_vars/all/nova.yml
-index f1996cd73..0b334b317 100644
+index f1996cd73..4b116200a 100644
 --- a/ansible/group_vars/all/nova.yml
 +++ b/ansible/group_vars/all/nova.yml
 @@ -58,12 +58,19 @@ nova_novncproxy_fqdn: "{{ kolla_external_fqdn }}"
@@ -58,11 +58,11 @@ index f1996cd73..0b334b317 100644
 +nova_spicehtml5proxy_port: "6082"
 +nova_spicehtml5proxy_listen_port: "{{ nova_spicehtml5proxy_port }}"
 +nova_spicehtml5proxy_public_port: "{{ haproxy_single_external_frontend_public_port if haproxy_single_external_frontend | bool else nova_spicehtml5proxy_port }}"
-+nova_spice_html5: "yes"
++nova_spice_html5: true
 +nova_spice_image_compression: "auto_glz"
 +nova_spice_jpeg_compression: "auto"
 +nova_spice_zlib_compression: "auto"
-+nova_spice_playback_compression: "yes"
++nova_spice_playback_compression: true
 +nova_spice_streaming_mode: "filter"
 diff --git a/ansible/roles/loadbalancer/tasks/precheck.yml b/ansible/roles/loadbalancer/tasks/precheck.yml
 index b997c671e..d62a1eaf4 100644

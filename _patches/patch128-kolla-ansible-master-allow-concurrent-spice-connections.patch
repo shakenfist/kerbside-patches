@@ -1,0 +1,52 @@
+commit 6d7963a2c1704935a15bb7f439b889f07b430e8f
+Author: Michael Still <mikal@stillhq.com>
+Date:   Sat Jan 10 17:01:23 2026 +1100
+
+    Allow concurrent sessions with SPICE.
+    
+    SPICE consoles as provided by Nova can now support more than one
+    user being connected to the console at the same time. Subsequent
+    users have slightly less functionality than the first user, but
+    this can still be quite a useful piece of functionality.
+    
+    This patch enables that configuration option through the deployment
+    by adding the new configuration option
+    `nova_spice_allow_concurrent`.
+    
+    Change-Id: Id5fe10e650f52fe3a1970317924866b99ec9bcad
+    Signed-off-by: Michael Still <mikal@stillhq.com>
+
+diff --git a/ansible/group_vars/all/nova.yml b/ansible/group_vars/all/nova.yml
+index b5dd3e66b..b54f151dd 100644
+--- a/ansible/group_vars/all/nova.yml
++++ b/ansible/group_vars/all/nova.yml
+@@ -75,3 +75,4 @@ nova_spice_zlib_compression: "auto"
+ nova_spice_playback_compression: true
+ nova_spice_streaming_mode: "filter"
+ nova_spice_require_secure: "no"
++nova_spice_allow_concurrent: true
+diff --git a/ansible/roles/nova-cell/templates/nova.conf.j2 b/ansible/roles/nova-cell/templates/nova.conf.j2
+index c019f40a0..e7c2cc145 100644
+--- a/ansible/roles/nova-cell/templates/nova.conf.j2
++++ b/ansible/roles/nova-cell/templates/nova.conf.j2
+@@ -62,6 +62,7 @@ enabled = false
+ [spice]
+ enabled = true
+ require_secure = {{ nova_spice_require_secure | bool | lower }}
++allow_concurrent = {{ nova_spice_allow_concurrent | bool | lower }}
+ server_listen = {{ api_interface_address }}
+ image_compression = {{ nova_spice_image_compression }}
+ jpeg_compression = {{ nova_spice_jpeg_compression }}
+diff --git a/doc/source/reference/compute/nova-guide.rst b/doc/source/reference/compute/nova-guide.rst
+index 6225b0eab..dab4c2d93 100644
+--- a/doc/source/reference/compute/nova-guide.rst
++++ b/doc/source/reference/compute/nova-guide.rst
+@@ -57,6 +57,8 @@ serial console support can be enabled by setting
+ Additionally ``spice`` has the following configuration options passed directly
+ through to ``nova``:
+ 
++* nova_spice_allow_concurrent: whether to allow multiple user sessions to a
++  single SPICE console. Defaults to ``yes``.
+ * nova_spice_image_compression: which compression algorithm to use for images
+   when using the SPICE console type. Defaults to ``auto_glz``.
+ * nova_spice_jpeg_compression: whether or not to use JPEG compression with

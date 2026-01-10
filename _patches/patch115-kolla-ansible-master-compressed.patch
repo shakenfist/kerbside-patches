@@ -1457,10 +1457,10 @@ index d62a1eaf4..3665bf29d 100644
    wait_for:
      host: "{{ kolla_internal_vip_address }}"
 diff --git a/ansible/roles/nova-cell/templates/nova.conf.j2 b/ansible/roles/nova-cell/templates/nova.conf.j2
-index 7d53c5635..15b7d7e87 100644
+index e7c2cc145..0d91d8d51 100644
 --- a/ansible/roles/nova-cell/templates/nova.conf.j2
 +++ b/ansible/roles/nova-cell/templates/nova.conf.j2
-@@ -71,6 +71,9 @@ zlib_compression = {{ nova_spice_zlib_compression }}
+@@ -70,6 +70,9 @@ zlib_compression = {{ nova_spice_zlib_compression }}
  playback_compression = {{ nova_spice_playback_compression | bool | lower }}
  streaming_mode = {{ nova_spice_streaming_mode }}
  server_proxyclient_address = "{{ 'api' | kolla_address }}"

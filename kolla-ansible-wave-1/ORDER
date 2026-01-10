@@ -1,3 +1,2 @@
 ../_patches/patch123-kolla-ansible-master-expose-spice-configuration.patch
-../_patches/patch124-kolla-ansible-master-use-routable-ip-for-spice-consoles.patch
 ../_patches/patch121-kolla-ansible-master-support-secure-spice.patch

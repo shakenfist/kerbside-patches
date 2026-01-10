@@ -18,12 +18,12 @@ Date:   Tue Jan 20 12:47:11 2026 +1100
     Signed-off-by: Michael Still <mikal@stillhq.com>
 
 diff --git a/ansible/group_vars/all/nova.yml b/ansible/group_vars/all/nova.yml
-index 0b334b317..be9ceedb5 100644
+index 4b116200a..b5dd3e66b 100644
 --- a/ansible/group_vars/all/nova.yml
 +++ b/ansible/group_vars/all/nova.yml
 @@ -74,3 +74,4 @@ nova_spice_jpeg_compression: "auto"
  nova_spice_zlib_compression: "auto"
- nova_spice_playback_compression: "yes"
+ nova_spice_playback_compression: true
  nova_spice_streaming_mode: "filter"
 +nova_spice_require_secure: "no"
 diff --git a/ansible/roles/nova-cell/templates/nova-libvirt.json.j2 b/ansible/roles/nova-cell/templates/nova-libvirt.json.j2
