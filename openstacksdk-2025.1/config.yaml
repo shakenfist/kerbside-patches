@@ -1,4 +1,4 @@
-repo: https://github.com/openstack/openstacksdk
+repo: https://opendev.org/openstack/openstacksdk
 source_branch: stable/2025.2
 destination_branch: stable/2025.1-patches
 shallow_clone: false
