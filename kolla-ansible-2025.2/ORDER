@@ -1,5 +1,4 @@
 ../_patches/patch078-kolla-ansible-expose-spice-configuration.patch
-../_patches/patch008-use-routable-ip-for-spice-consoles.patch
 ../_patches/patch079-support-secure-spice.patch
 ../_patches/patch080-allow-concurrent-spice-connections.patch
 ../_patches/patch125-kolla-ansible-flamingo-dry-up-logrotate-cron.patch
