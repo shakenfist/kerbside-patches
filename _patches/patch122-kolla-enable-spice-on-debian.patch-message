@@ -12,9 +12,9 @@ result in messages like this in the nova-libvirt logs:
 And the instance will enter an error state.
 
 The fix is to install the `qemu-system-modules-spice` package as well in
-the nova-libvirt image. I do not believe this affects Debian Bookworm.
+the nova-libvirt image. This re-arrangement of packages does not affect
+Debian Bookworm unless backports are explicitly enabled later.
 
 Closes-Bug: #2138186
-Depends-On: https://review.opendev.org/c/openstack/kolla/+/972437
 Change-Id: Ib4ced4a04353b9c11c6f0abb7cfa91001b239e53
 Signed-off-by: Michael Still <mikal@stillhq.com>

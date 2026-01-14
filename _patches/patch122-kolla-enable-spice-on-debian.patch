@@ -16,10 +16,10 @@ Date:   Sat Jan 10 06:45:16 2026 +1100
     And the instance will enter an error state.
 
     The fix is to install the `qemu-system-modules-spice` package as well in
-    the nova-libvirt image. I do not believe this affects Debian Bookworm.
+    the nova-libvirt image. This re-arrangement of packages does not affect
+    Debian Bookworm unless backports are explicitly enabled later.
     
     Closes-Bug: #2138186
-    Depends-On: https://review.opendev.org/c/openstack/kolla/+/972437
     Change-Id: Ib4ced4a04353b9c11c6f0abb7cfa91001b239e53
     Signed-off-by: Michael Still <mikal@stillhq.com>
 
@@ -44,8 +44,8 @@ index 000000000..3874c534a
 +---
 +fixes:
 +  - |
-+    Debian Trixie container images require an additional operating
-+    system package for SPICE consoles to function correctly. Without
-+    this package instances requesting a SPICE console will fail to
-+    start with an error message. Further details are available in
++    Debian Trixie container images require the additional
++    qemu-system-modules-spice operating system package for SPICE consoles
++    to function correctly. This package has therefore been added
++    to the nova-libvirt container build. Further details are available in
 +    the bug report at `LP#2138186 <https://launchpad.net/bugs/2138186>`__.
