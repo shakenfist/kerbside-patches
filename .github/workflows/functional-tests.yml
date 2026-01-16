@@ -274,7 +274,7 @@ jobs:
         run: |
           . $GITHUB_ENV
           if [ -e kerbside-patches/archive/build.json ]; then
-              cat kerbside-patches/archive/build.json | python3 -m json.tool
+              python3 -m json.tool < kerbside-patches/archive/build.json
           else
               echo "File not found"
           fi
@@ -284,7 +284,7 @@ jobs:
         run: |
           . $GITHUB_ENV
           if [ -e kerbside-patches/archive/layers.json ]; then
-              cat kerbside-patches/archive/layers.json | python3 -m json.tool
+              python3 -m json.tool < kerbside-patches/archive/layers.json
           else
               echo "File not found"
           fi
@@ -535,13 +535,13 @@ jobs:
           echo "Using that source to bootstrap kerbside-patches src directory..."
           sudo mkdir -p /srv/shakenfist/kerbside-patches/src
           sudo chown -R debian:debian /srv/shakenfist
-          mv *.tgz /srv/shakenfist/kerbside-patches/src
+          mv ./*.tgz /srv/shakenfist/kerbside-patches/src
           cd /srv/shakenfist/kerbside-patches/src
 
           echo
           echo "Extract source..."
-          for item in *.tgz; do
-              tar xzf ${item}
+          for item in ./*.tgz; do
+              tar xzf "${item}"
               echo "    Extracted ${item}"
           done
 
