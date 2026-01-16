@@ -265,11 +265,15 @@ pip install pre-commit
 pre-commit install
 ```
 
+These checks also run automatically in CI on pull requests, so even if you don't
+install the hooks locally, your PR will be checked.
+
 The configured hooks include:
 
 | Hook | Description |
 |------|-------------|
 | `actionlint` | Lints GitHub Actions workflow files for syntax errors, invalid expressions, and other issues. Custom runner labels are configured in `.github/actionlint.yaml`. |
+| `shellcheck` | Static analysis tool for shell scripts. Checks scripts in `_build/` and `tools/` directories for common issues. Configuration is in `.shellcheckrc`. |
 
 ### Git Hooks and Utilities
 

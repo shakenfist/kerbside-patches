@@ -7,6 +7,23 @@ on:
       - develop
 
 jobs:
+  lint:
+    name: "Lint shell scripts and workflows"
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout kerbside-patches
+        uses: actions/checkout@v4
+
+      - name: Install pre-commit and shellcheck
+        run: |
+          pip install pre-commit
+          sudo apt-get update
+          sudo apt-get install -y shellcheck
+
+      - name: Run pre-commit
+        run: pre-commit run --all-files
+
   assemble_source:
     name: "Assemble source for ${{ matrix.test.release }}"
     strategy:

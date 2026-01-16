@@ -91,7 +91,7 @@ for target in ${build_targets}; do
         if [ $(grep -c "kolla-build failed!" ${topdir}/archive/build.log || true) -gt 0 ]; then
             echo
             echo
-            echo -e "${H2}Retry build once.${Color_off}"
+            echo -e "${H2}Retry build once.${Color_Off}"
             ./_build/imagebuild.sh --build-targets "${target}" \
                 --build-images "${build_images}" \
                 --image-tag "${complete_image_tag}"
