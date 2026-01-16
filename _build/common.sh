@@ -332,5 +332,5 @@ function run_tests {
         # fi
     fi
 
-    echo -e "${H2}${ARROW}Tests complete${Color_Off}"
+    echo -e "${H2}${Arrow}Tests complete${Color_Off}"
 }
