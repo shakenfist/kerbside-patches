@@ -1,4 +1,4 @@
-repo: https://github.com/openstack/kolla
+repo: https://opendev.org/openstack/kolla
 source_branch: master
 destination_branch: influxdb-repo-gpg-key
 shallow_clone: false

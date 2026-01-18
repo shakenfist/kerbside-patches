@@ -1,4 +1,4 @@
-repo: https://github.com/openstack/nova
+repo: https://opendev.org/openstack/nova
 source_branch: stable/2025.1
 destination_branch: stable/2025.1-patches
 shallow_clone: true

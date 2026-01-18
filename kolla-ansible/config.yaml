@@ -1,4 +1,4 @@
-repo: https://github.com/openstack/kolla-ansible
+repo: https://opendev.org/openstack/kolla-ansible
 source_branch: master
 destination_branch: master-patches
 shallow_clone: false

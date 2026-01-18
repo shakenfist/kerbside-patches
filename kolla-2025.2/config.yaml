@@ -1,4 +1,4 @@
-repo: https://github.com/openstack/kolla
+repo: https://opendev.org/openstack/kolla
 source_branch: stable/2025.2
 destination_branch: stable/2025.2-patches
 shallow_clone: true
