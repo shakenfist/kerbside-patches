@@ -724,9 +724,14 @@ jobs:
           echo "Images in cloud:"
           openstack image list
 
+          export baseuser=${{ matrix.test.baseuser }}
+
+          echo
+          echo "Running config tests..."
+          ./tools/test-config
+
           echo
           echo "Running console tests..."
-          export baseuser=${{ matrix.test.baseuser }}
           ./tools/test-console
 
       - name: Collect logs
