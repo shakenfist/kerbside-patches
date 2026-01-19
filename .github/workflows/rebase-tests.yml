@@ -347,6 +347,44 @@ jobs:
             fi
           done
 
+      - name: Deep test patches (2025.2)
+        run: |
+          Green='\033[0;32m'        # Green
+          Color_Off='\033[0m'       # Text Reset
+
+          for target in ${{ matrix.test.targets }}; do
+            project=$( echo ${target} | cut -f 1 -d ":" )
+            branch=$( echo ${target} | cut -f 2 -d ":" )
+            echo "Considering target ${target}, ${project} branch ${branch}"
+
+            if [[ ${branch} == "2025.2" ]]; then
+              echo
+              echo -e "${Green}==================================================${Color_Off}"
+              echo -e "${Green}Attempting to apply patches for ${target}${Color_Off}"
+              echo -e "${Green}==================================================${Color_Off}"
+
+              if [ $(echo ${{ matrix.test.infrastructure }} | grep metal) ]; then
+                echo
+                echo -e "${Green}Running test locally${Color_Off}"
+                echo
+                cd ${GITHUB_WORKSPACE}
+                if [ -e .venv ]; then
+                  . .venv/bin/activate
+                fi
+                cd kerbside-patches
+                ./_build/test-apply.sh ${project}
+              else
+                echo
+                echo -e "${Green}Running test on a VM${Color_Off}"
+                echo
+                . ${GITHUB_WORKSPACE}/ci-environment.sh
+                ssh -i /srv/github/id_ci -o StrictHostKeyChecking=no \
+                    -o UserKnownHostsFile=/dev/null ${{ matrix.test.baseuser }}@${primary} \
+                    "cd kerbside-patches; ./_build/test-apply.sh ${project}"
+              fi
+            fi
+          done
+
       - name: Deep test patches (master)
         run: |
           Green='\033[0;32m'        # Green
