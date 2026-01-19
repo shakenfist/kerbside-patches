@@ -1,6 +1,6 @@
-commit 6635f10f85aee682e914a25dc83603b9cd54d5d0
+commit 0b4191bdeac91a4de8d7d354a1e318ec790a56b3
 Author: Michael Still <mikal@stillhq.com>
-Date:   Mon Jan 19 18:36:25 2026 +1100
+Date:   Mon Jan 19 18:36:11 2026 +1100
 
     Cap bandit version for linting.
     
@@ -40,12 +40,12 @@ Date:   Mon Jan 19 18:36:25 2026 +1100
     Signed-off-by: Michael Still <mikal@stillhq.com>
 
 diff --git a/lint-requirements.txt b/lint-requirements.txt
-index a7adc68a3..420a57ed8 100644
+index 64500804f..6be45f452 100644
 --- a/lint-requirements.txt
 +++ b/lint-requirements.txt
 @@ -1,6 +1,6 @@
- ansible>=12,<14 # GPLv3
- ansible-lint<26 # MIT
+ ansible>=10,<12 # GPLv3
+ ansible-lint>=6.22.0,<7.0.0 # MIT
 -bandit>=1.1.0 # Apache-2.0
 +bandit>=1.1.0,<1.9.3 # Apache-2.0
  bashate>=0.5.1 # Apache-2.0

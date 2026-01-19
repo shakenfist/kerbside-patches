@@ -1,6 +1,6 @@
-commit ac1b7b1af49e0b0826e4c98c130b151e431bda89
+commit 90e013f2e1632baf0b7c495de7b2b06d6a2b7b24
 Author: Michael Still <mikal@stillhq.com>
-Date:   Fri Nov 21 10:42:39 2025 +1100
+Date:   Mon Jan 19 18:36:11 2026 +1100
 
     Allow setting of the new SPICE debug_logging option.
     

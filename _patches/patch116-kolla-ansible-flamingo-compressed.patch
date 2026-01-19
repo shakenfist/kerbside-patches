@@ -1,6 +1,6 @@
-commit b3d2421db71186110e80beea1b930de07f661647
+commit 211e419b6819db4ebfb8f01fdb192dc20c713f8e
 Author: Michael Still <mikal@stillhq.com>
-Date:   Fri Dec 12 10:47:32 2025 +1100
+Date:   Mon Jan 19 18:36:15 2026 +1100
 
     Deploy Kerbside with Kolla-Ansible.
     
@@ -1442,7 +1442,7 @@ index 8680c33b5..dd0840a10 100644
    wait_for:
      host: "{{ kolla_internal_vip_address }}"
 diff --git a/ansible/roles/nova-cell/templates/nova.conf.j2 b/ansible/roles/nova-cell/templates/nova.conf.j2
-index 8da5e6b66..2e9992a3b 100644
+index 8da5e6b66..35493ecbb 100644
 --- a/ansible/roles/nova-cell/templates/nova.conf.j2
 +++ b/ansible/roles/nova-cell/templates/nova.conf.j2
 @@ -71,6 +71,7 @@ zlib_compression = {{ nova_spice_zlib_compression }}
