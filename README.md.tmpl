@@ -255,6 +255,26 @@ directories. This section documents each script and its purpose.
 |--------|-------------|
 | `find_images` | Python CLI tool for finding images in GitLab Container Registry. Searches by tag patterns and lists available images. |
 
+### Pre-commit Hooks
+
+This repository uses [pre-commit](https://pre-commit.com/) to validate files
+before commits. To set up pre-commit hooks locally:
+
+```
+pip install pre-commit
+pre-commit install
+```
+
+These checks also run automatically in CI on pull requests, so even if you don't
+install the hooks locally, your PR will be checked.
+
+The configured hooks include:
+
+| Hook | Description |
+|------|-------------|
+| `actionlint` | Lints GitHub Actions workflow files for syntax errors, invalid expressions, and other issues. Custom runner labels are configured in `.github/actionlint.yaml`. |
+| `shellcheck` | Static analysis tool for shell scripts. Checks scripts in `_build/` and `tools/` directories for common issues. Configuration is in `.shellcheckrc`. |
+
 ### Git Hooks and Utilities
 
 | Script | Description |
