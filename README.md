@@ -13,7 +13,7 @@ The remainder of the patches are ancillary changes -- support for new Nova API
 microversions in clients, things which helped me debug along the way, and that
 sort of thing.
 
-These patches last successfully applied via CI on 18 January 2026. When this occurs,
+These patches last successfully applied via CI on 19 January 2026. When this occurs,
 the SHAs the patches were applied to for each project are recorded in the
 relevant config.yaml file, and will be used for patch applications until
 updated.
@@ -254,26 +254,6 @@ directories. This section documents each script and its purpose.
 | Script | Description |
 |--------|-------------|
 | `find_images` | Python CLI tool for finding images in GitLab Container Registry. Searches by tag patterns and lists available images. |
-
-### Pre-commit Hooks
-
-This repository uses [pre-commit](https://pre-commit.com/) to validate files
-before commits. To set up pre-commit hooks locally:
-
-```
-pip install pre-commit
-pre-commit install
-```
-
-These checks also run automatically in CI on pull requests, so even if you don't
-install the hooks locally, your PR will be checked.
-
-The configured hooks include:
-
-| Hook | Description |
-|------|-------------|
-| `actionlint` | Lints GitHub Actions workflow files for syntax errors, invalid expressions, and other issues. Custom runner labels are configured in `.github/actionlint.yaml`. |
-| `shellcheck` | Static analysis tool for shell scripts. Checks scripts in `_build/` and `tools/` directories for common issues. Configuration is in `.shellcheckrc`. |
 
 ### Git Hooks and Utilities
 
