@@ -12,7 +12,7 @@ export H1="${Green}"
 # Make failures more obvious
 function on_exit {
     echo
-    echo -e "${Red}*** Failed ***${No_Color}"
+    echo -e "${Red}*** Failed ***${Color_Off}"
     echo
     exit 1
     }

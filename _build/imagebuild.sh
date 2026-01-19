@@ -158,13 +158,13 @@ for target in ${build_targets}; do
         echo "Image build failed..."
         grep "Failed with status" ${topdir}/archive/build.log
         echo
-        failed = 1
+        failed=1
     fi
 
     echo "... failed?"
     for img in $(cat ${topdir}/archive/build.json | jq -r ".failed | .[] | .name"); do
         echo "${img} failed"
-        failed = 1
+        failed=1
     done
     if [ ${failed} == 1 ]; then
         echo
@@ -173,7 +173,7 @@ for target in ${build_targets}; do
     echo "... unbuildable?"
     for img in $(cat ${topdir}/archive/build.json | jq -r ".unbuildable | .[] | .name"); do
         echo "${img} unbuildable"
-        failed = 1
+        failed=1
     done
 
     if [ ${failed} == 1 ]; then

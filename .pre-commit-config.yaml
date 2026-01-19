@@ -1,0 +1,20 @@
+repos:
+  - repo: https://github.com/rhysd/actionlint
+    rev: v1.7.7
+    hooks:
+      - id: actionlint
+        args: ['-config-file', '.github/actionlint.yaml']
+
+  - repo: https://github.com/shellcheck-py/shellcheck-py
+    rev: v0.10.0.1
+    hooks:
+      - id: shellcheck
+        files: ^(_build/|tools/)
+        types_or: [sh, bash, shell]
+        args: ['-x']
+      - id: shellcheck
+        name: shellcheck (extensionless scripts)
+        files: ^(_build/|tools/)[^/.]+$
+        types: [text]
+        exclude: '(find_images|spice-connect\.py|extract-commit-message|summarize_layers\.py|analyze-shared-patches\.py)$'
+        args: ['-x']

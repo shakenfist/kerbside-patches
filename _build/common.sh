@@ -1,3 +1,4 @@
+# shellcheck shell=bash
 # Intended to be sourced by all build scripts. This is command line parsing,
 # helper functions, etc etc.
 
@@ -218,7 +219,7 @@ export H3="${Arrow}${Purple}"
 # Make failures more obvious
 function on_exit {
     echo
-    echo -e "${Red}*** Failed ***${No_Color}"
+    echo -e "${Red}*** Failed ***${Color_Off}"
     echo
     exit 1
     }
@@ -271,7 +272,7 @@ function run_tests {
     echo -e "${H3}Working in ${topsrcdir}/${directory} on branch ${1}${Color_Off}"
 
     if [ ! -e tox.ini ]; then
-        echo "${Red}No test configuration found!${Colour_off}"
+        echo "${Red}No test configuration found!${Color_Off}"
     else
         if [ "${skip_unit_tests}" == "false" ]; then
             if [ $(tox -a | grep -c py3) -gt 0 ]; then
@@ -331,5 +332,5 @@ function run_tests {
         # fi
     fi
 
-    echo -e "${H2}${ARROW}Tests complete${Color_Off}"
+    echo -e "${H2}${Arrow}Tests complete${Color_Off}"
 }

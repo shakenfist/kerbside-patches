@@ -20,10 +20,12 @@ jobs:
     steps:
       - name: Set environment variables
         run: |
-          echo "SF_HEAD_SHA=${{ github.event.pull_request.head.sha }}" >> $GITHUB_ENV
-          echo "SHAKENFIST_NAMESPACE=$(hostname)" >> $GITHUB_ENV
-          echo "DATESTAMP=$(date '+%Y%m%d')" >> $GITHUB_ENV
-          echo "DATEPRETTY=$(date '+%-d %B %Y')" >> $GITHUB_ENV
+          {
+            echo "SF_HEAD_SHA=${{ github.event.pull_request.head.sha }}"
+            echo "SHAKENFIST_NAMESPACE=$(hostname)"
+            echo "DATESTAMP=$(date '+%Y%m%d')"
+            echo "DATEPRETTY=$(date '+%-d %B %Y')"
+          } >> $GITHUB_ENV
 
       - name: Checkout kerbside-patches
         uses: actions/checkout@v4
@@ -40,7 +42,7 @@ jobs:
           git checkout -b daily-rebase-${DATESTAMP}
 
           # Bump the description in README.md
-          cat README.md.tmpl | sed "s/%%date%%/${DATEPRETTY}/" > README.md
+          sed "s/%%date%%/${DATEPRETTY}/" README.md.tmpl > README.md
 
           # Lock in new daily SHAs
           _build/bump-source-shas.sh 1
@@ -102,8 +104,8 @@ jobs:
           cd ${GITHUB_WORKSPACE}/kerbside-patches
 
           # Check if there are changes to commit (patches or ORDER files)
-          if [ -n "$(git status --porcelain _patches/ */ORDER)" ]; then
-            git add _patches/ */ORDER
+          if [ -n "$(git status --porcelain _patches/ ./*/ORDER)" ]; then
+            git add _patches/ ./*/ORDER
             git commit -m "Auto-fix patches for daily rebase ${DATESTAMP}.
 
             Claude Code automatically updated patches that failed to apply

@@ -7,6 +7,23 @@ on:
       - develop
 
 jobs:
+  lint:
+    name: "Lint shell scripts and workflows"
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout kerbside-patches
+        uses: actions/checkout@v4
+
+      - name: Install pre-commit and shellcheck
+        run: |
+          pip install pre-commit
+          sudo apt-get update
+          sudo apt-get install -y shellcheck
+
+      - name: Run pre-commit
+        run: pre-commit run --all-files
+
   assemble_source:
     name: "Assemble source for ${{ matrix.test.release }}"
     strategy:
@@ -257,7 +274,7 @@ jobs:
         run: |
           . $GITHUB_ENV
           if [ -e kerbside-patches/archive/build.json ]; then
-              cat kerbside-patches/archive/build.json | python3 -m json.tool
+              python3 -m json.tool < kerbside-patches/archive/build.json
           else
               echo "File not found"
           fi
@@ -267,7 +284,7 @@ jobs:
         run: |
           . $GITHUB_ENV
           if [ -e kerbside-patches/archive/layers.json ]; then
-              cat kerbside-patches/archive/layers.json | python3 -m json.tool
+              python3 -m json.tool < kerbside-patches/archive/layers.json
           else
               echo "File not found"
           fi
@@ -283,7 +300,7 @@ jobs:
           archive_path="/tmp/${{ matrix.test.name }}"
           mkdir ${archive_path}
 
-          echo ${{ matrix.build_images.image_tag }} > ${archive_path}/image_tag
+          echo ${{ steps.build_images.outputs.image_tag }} > ${archive_path}/image_tag
 
           if [ -e kerbside-patches/archive/build.log ]; then
               cp kerbside-patches/archive/build.log ${archive_path}/
@@ -518,13 +535,13 @@ jobs:
           echo "Using that source to bootstrap kerbside-patches src directory..."
           sudo mkdir -p /srv/shakenfist/kerbside-patches/src
           sudo chown -R debian:debian /srv/shakenfist
-          mv *.tgz /srv/shakenfist/kerbside-patches/src
+          mv ./*.tgz /srv/shakenfist/kerbside-patches/src
           cd /srv/shakenfist/kerbside-patches/src
 
           echo
           echo "Extract source..."
-          for item in *.tgz; do
-              tar xzf ${item}
+          for item in ./*.tgz; do
+              tar xzf "${item}"
               echo "    Extracted ${item}"
           done
 
