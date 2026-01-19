@@ -372,7 +372,7 @@ jobs:
                   . .venv/bin/activate
                 fi
                 cd kerbside-patches
-                ./_build/test-apply.sh ${project}
+                ./_build/test-apply.sh ${project}-${branch}
               else
                 echo
                 echo -e "${Green}Running test on a VM${Color_Off}"
