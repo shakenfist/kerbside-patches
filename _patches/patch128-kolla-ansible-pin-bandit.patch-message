@@ -1,0 +1,36 @@
+Cap bandit version for linting.
+
+Bandit 1.9.3 was released today and is causing linting failures
+for kolla-ansible because it is detecting strings as potential
+hard coded passwords. Don't use this latest version until these
+issues can be resolved.
+
+There are a variety of errors, but generally of the form:
+
+Working... ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 100% 0:00:00
+Run started:2026-01-19 04:51:58.251405+00:00
+
+Test results:
+>> Issue: [B105:hardcoded_password_string] Possible hardcoded password: 'None'
+   Severity: Low   Confidence: Medium
+   CWE: CWE-259 (https://cwe.mitre.org/data/definitions/259.html)
+   More Info: https://bandit.readthedocs.io/en/1.9.3/plugins/b105_hardcoded_password_string.html
+   Location: ansible/library/kolla_container.py:359:8
+358             'auth_email': None,
+359             'auth_password': None,
+360             'auth_registry': None,
+361             'auth_username': None,
+362             'environment': None,
+363             'restart_policy': None,
+364             'restart_retries': 10,
+365             'api_version': 'auto',
+366             'graceful_timeout': 10,
+367             'client_timeout': 120,
+368             'container_engine': 'docker',
+369         }
+370
+371         new_args = module.params.pop('common_options', dict()) or dict()
+372         env_module_environment = module.params.pop('environment', dict()) or dict()
+
+Change-Id: I131cb33b4adff499e5041504049a56312e7f2856
+Signed-off-by: Michael Still <mikal@stillhq.com>

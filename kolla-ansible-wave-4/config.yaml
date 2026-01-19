@@ -1,0 +1,11 @@
+repo: https://opendev.org/openstack/kolla-ansible
+source_branch: master
+destination_branch: pin-bandit
+shallow_clone: false
+directory: kolla-ansible
+release: master-wave-4
+depends_on: ''
+source_sha: e80dc8332dfe3b2cdfe508c804b894af4952dd62
+previous_source_sha: 8def4234bcd1f9c29670382108957afacda7e46b
+skip_rebase: true
+skip_claude: true
