@@ -1,6 +1,6 @@
-commit 6408e3bd87c0aa52e858201d467cbc2c88147a3a
+commit 56bb6787d4b89c7d9153488bde15f102948a0579
 Author: Michael Still <mikal@stillhq.com>
-Date:   Mon Jan 19 18:36:11 2026 +1100
+Date:   Mon Jan 19 19:00:02 2026 +1100
 
     Move kerbside proxy into its own role.
     

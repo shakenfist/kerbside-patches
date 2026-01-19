@@ -1,6 +1,6 @@
-commit 190c2a53722125fe029d03a8b3f3ed2437f16606
+commit b0cc93f7d36b65b12fa27d8a0a53db190d9915d9
 Author: Michael Still <mikal@stillhq.com>
-Date:   Mon Jan 19 18:36:11 2026 +1100
+Date:   Mon Jan 19 19:00:01 2026 +1100
 
     Add additional SPICE configuration options.
     
@@ -128,17 +128,6 @@ index 4aa7781ce..acebea545 100644
  {% elif nova_console == 'none' %}
  [vnc]
  enabled = false
-diff --git a/ansible/roles/nova-cell/templates/qemu.conf.j2 b/ansible/roles/nova-cell/templates/qemu.conf.j2
-index 82ecd7f23..148640171 100644
---- a/ansible/roles/nova-cell/templates/qemu.conf.j2
-+++ b/ansible/roles/nova-cell/templates/qemu.conf.j2
-@@ -4,4 +4,4 @@ user = "nova"
- group = "nova"
- 
- max_files =  {{ qemu_max_files }}
--max_processes =  {{ qemu_max_processes }}
-+max_processes =  {{ qemu_max_processes }}
-\ No newline at end of file
 diff --git a/doc/source/reference/compute/nova-guide.rst b/doc/source/reference/compute/nova-guide.rst
 index 464e84abd..d06353589 100644
 --- a/doc/source/reference/compute/nova-guide.rst

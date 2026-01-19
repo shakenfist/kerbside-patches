@@ -30,3 +30,4 @@ Partially-Implements: #2131793 (spice-direct consoles)
 Change-Id: I07f6890f1c7c4e543667d3cbd7b3e82bd9ec83e3
 Signed-off-by: Michael Still <mikal@stillhq.com>
 Depends-On: https://review.opendev.org/c/openstack/kolla/+/972441
+Signed-off-by: Michael Still <mikal@stillhq.com>

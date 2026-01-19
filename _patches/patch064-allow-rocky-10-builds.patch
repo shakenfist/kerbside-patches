@@ -1,6 +1,6 @@
-commit 72921251d4122dbe0374cbeb20e1be9ad6ac7db8
+commit b89d906dfe7d0f62e95f151fe66ef88c78197006
 Author: Michael Still <mikal@stillhq.com>
-Date:   Mon Jan 19 18:36:26 2026 +1100
+Date:   Mon Jan 19 19:00:21 2026 +1100
 
     Allow Rocky 10 installs.
     
