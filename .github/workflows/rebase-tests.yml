@@ -24,7 +24,7 @@ jobs:
               'name': 'rocky-9-kolla',
               'baseimage': 'sf://label/ci-images/rocky-9',
               'baseuser': 'cloud-user',
-              'targets': 'kolla:master',
+              'targets': 'kolla:master kolla:2025.2 kolla:2025.1',
               'infrastructure': 'rocky-9-metal'
           },
           {
@@ -32,7 +32,7 @@ jobs:
               'name': 'debian-12-kolla',
               'baseimage': 'sf://label/ci-images/debian-12',
               'baseuser': 'debian',
-              'targets': 'kolla:master',
+              'targets': 'kolla:master kolla:2025.2 kolla:2025.1',
               'infrastructure': 'debian-12-metal'
           },
           {
@@ -40,7 +40,7 @@ jobs:
               'name': 'rocky-9-kolla-ansible',
               'baseimage': 'sf://label/ci-images/rocky-9',
               'baseuser': 'cloud-user',
-              'targets': 'kolla-ansible:master',
+              'targets': 'kolla-ansible:master kolla-ansible:2025.2 kolla-ansible:2025.1',
               'infrastructure': 'rocky-9-metal'
           },
           {
@@ -48,7 +48,7 @@ jobs:
               'name': 'debian-12-kolla-ansible',
               'baseimage': 'sf://label/ci-images/debian-12',
               'baseuser': 'debian',
-              'targets': 'kolla-ansible:master',
+              'targets': 'kolla-ansible:master kolla-ansible:2025.2 kolla-ansible:2025.1',
               'infrastructure': 'debian-12-metal'
           },
         ]
