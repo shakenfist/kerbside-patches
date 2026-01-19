@@ -1,6 +1,6 @@
-commit f9367e81517615c885577a039941d63dc17ab110
+commit 56bb6787d4b89c7d9153488bde15f102948a0579
 Author: Michael Still <mikal@stillhq.com>
-Date:   Fri Dec 12 10:49:45 2025 +1100
+Date:   Mon Jan 19 19:00:02 2026 +1100
 
     Move kerbside proxy into its own role.
     
@@ -1485,7 +1485,7 @@ index 8a2966d7c..a2b1392bf 100644
    wait_for:
      host: "{{ kolla_internal_vip_address }}"
 diff --git a/ansible/roles/nova-cell/templates/nova.conf.j2 b/ansible/roles/nova-cell/templates/nova.conf.j2
-index 7eaa1dc42..4349d7c3b 100644
+index 7eaa1dc42..506b198f1 100644
 --- a/ansible/roles/nova-cell/templates/nova.conf.j2
 +++ b/ansible/roles/nova-cell/templates/nova.conf.j2
 @@ -73,6 +73,7 @@ zlib_compression = {{ nova_spice_zlib_compression }}

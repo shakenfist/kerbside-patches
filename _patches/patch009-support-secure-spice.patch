@@ -1,6 +1,6 @@
-commit 0ed935fec1cc00dc394da749f337968ab0e4e87d
+commit 4237e57d954c2bdb299112a057ee64432ff6d4d8
 Author: Michael Still <mikal@stillhq.com>
-Date:   Fri Nov 21 10:42:39 2025 +1100
+Date:   Mon Jan 19 19:00:01 2026 +1100
 
     Allow requiring secure channels with SPICE.
     
@@ -71,22 +71,18 @@ index 4295482f7..e6f62f12c 100644
  image_compression = {{ nova_spice_image_compression }}
  jpeg_compression = {{ nova_spice_jpeg_compression }}
 diff --git a/ansible/roles/nova-cell/templates/qemu.conf.j2 b/ansible/roles/nova-cell/templates/qemu.conf.j2
-index 148640171..65f5612bf 100644
+index 82ecd7f23..e65785391 100644
 --- a/ansible/roles/nova-cell/templates/qemu.conf.j2
 +++ b/ansible/roles/nova-cell/templates/qemu.conf.j2
-@@ -4,4 +4,9 @@ user = "nova"
- group = "nova"
+@@ -5,3 +5,8 @@ group = "nova"
  
  max_files =  {{ qemu_max_files }}
--max_processes =  {{ qemu_max_processes }}
-\ No newline at end of file
-+max_processes =  {{ qemu_max_processes }}
+ max_processes =  {{ qemu_max_processes }}
 +
 +{% if nova_spice_require_secure == 'yes' %}
 +spice_tls = 1
 +spice_tls_x509_cert_dir = "/etc/pki/libvirt-spice"
 +{% endif %}
-\ No newline at end of file
 diff --git a/doc/source/reference/compute/nova-guide.rst b/doc/source/reference/compute/nova-guide.rst
 index d06353589..07e7ab762 100644
 --- a/doc/source/reference/compute/nova-guide.rst

@@ -1,6 +1,6 @@
-commit 1267de4fa7a2e11cfb098272bd015175e5f990ae
+commit ae2c77d7dfd4196edd52592ffa685b32f930fa37
 Author: Michael Still <mikal@stillhq.com>
-Date:   Wed Dec 24 06:19:00 2025 +1100
+Date:   Mon Jan 19 19:00:10 2026 +1100
 
     Add additional SPICE configuration options.
     
@@ -35,7 +35,7 @@ Date:   Wed Dec 24 06:19:00 2025 +1100
     Signed-off-by: Michael Still <mikal@stillhq.com>
 
 diff --git a/ansible/group_vars/all/nova.yml b/ansible/group_vars/all/nova.yml
-index f1996cd73..0b334b317 100644
+index 48811be62..3be5ee73b 100644
 --- a/ansible/group_vars/all/nova.yml
 +++ b/ansible/group_vars/all/nova.yml
 @@ -58,12 +58,19 @@ nova_novncproxy_fqdn: "{{ kolla_external_fqdn }}"
@@ -63,10 +63,10 @@ index f1996cd73..0b334b317 100644
 +nova_spice_playback_compression: "yes"
 +nova_spice_streaming_mode: "filter"
 diff --git a/ansible/roles/loadbalancer/tasks/precheck.yml b/ansible/roles/loadbalancer/tasks/precheck.yml
-index b997c671e..d62a1eaf4 100644
+index 7d4fc4bbf..8680c33b5 100644
 --- a/ansible/roles/loadbalancer/tasks/precheck.yml
 +++ b/ansible/roles/loadbalancer/tasks/precheck.yml
-@@ -607,6 +607,7 @@
+@@ -604,6 +604,7 @@
    when:
      - enable_nova | bool
      - nova_console == 'spice'
@@ -75,7 +75,7 @@ index b997c671e..d62a1eaf4 100644
      - haproxy_stat.find('nova_spicehtml5proxy') == -1
      - haproxy_vip_prechecks
 diff --git a/ansible/roles/nova-cell/defaults/main.yml b/ansible/roles/nova-cell/defaults/main.yml
-index 84ea698d6..f13f19b7c 100644
+index 88f35ff73..ac994cd68 100644
 --- a/ansible/roles/nova-cell/defaults/main.yml
 +++ b/ansible/roles/nova-cell/defaults/main.yml
 @@ -33,7 +33,7 @@ nova_cell_services:
@@ -88,10 +88,10 @@ index 84ea698d6..f13f19b7c 100644
      dimensions: "{{ nova_spicehtml5proxy_dimensions }}"
      healthcheck: "{{ nova_spicehtml5proxy_healthcheck }}"
 diff --git a/ansible/roles/nova-cell/tasks/loadbalancer.yml b/ansible/roles/nova-cell/tasks/loadbalancer.yml
-index 0ff2bcd70..f75ae3963 100644
+index 16b6e53cb..119815832 100644
 --- a/ansible/roles/nova-cell/tasks/loadbalancer.yml
 +++ b/ansible/roles/nova-cell/tasks/loadbalancer.yml
-@@ -73,10 +73,10 @@
+@@ -71,10 +71,10 @@
      cell_proxy_project_services:
        nova-spicehtml5proxy:
          group: "{{ nova_cell_spicehtml5proxy_group }}"
@@ -104,7 +104,7 @@ index 0ff2bcd70..f75ae3963 100644
              mode: "http"
              external: false
              port: "{{ hostvars[groups[cell_proxy_group][0]]['nova_spicehtml5proxy_port'] }}"
-@@ -84,7 +84,7 @@
+@@ -82,7 +82,7 @@
              backend_http_extra:
                - "timeout tunnel {{ haproxy_nova_spicehtml5_proxy_tunnel_timeout }}"
            nova_spicehtml5proxy_external:
@@ -138,7 +138,7 @@ index 6e8877950..1f1d7aacc 100644
  [vnc]
  enabled = false
 diff --git a/doc/source/reference/compute/nova-guide.rst b/doc/source/reference/compute/nova-guide.rst
-index 8e083f241..f0ef31fcc 100644
+index 3cf5848d4..a83987648 100644
 --- a/doc/source/reference/compute/nova-guide.rst
 +++ b/doc/source/reference/compute/nova-guide.rst
 @@ -45,6 +45,21 @@ Valid options are ``none``, ``novnc`` and ``spice``. Additionally,

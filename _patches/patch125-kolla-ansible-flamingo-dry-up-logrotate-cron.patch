@@ -1,6 +1,6 @@
-commit 43260a61dfc0087e99060b8ab5859abdef87bedf
+commit 8f6543afa619768ca562fed1387afb55b25149ed
 Author: Michael Still <mikal@stillhq.com>
-Date:   Wed Dec 24 06:19:57 2025 +1100
+Date:   Mon Jan 19 19:00:10 2026 +1100
 
     Simplify cron jobs for log rotate.
     
@@ -139,7 +139,7 @@ index 5b20985bd..000000000
 -{
 -}
 diff --git a/ansible/roles/cron/templates/cron-logrotate-global.conf.j2 b/ansible/roles/cron/templates/cron-logrotate-global.conf.j2
-index b8628a88d..a6821b5ea 100644
+index f57a2e034..74d74b28b 100644
 --- a/ansible/roles/cron/templates/cron-logrotate-global.conf.j2
 +++ b/ansible/roles/cron/templates/cron-logrotate-global.conf.j2
 @@ -19,6 +19,5 @@ maxsize {{ cron_logrotate_log_maxsize }}

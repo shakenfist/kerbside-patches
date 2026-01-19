@@ -1,6 +1,6 @@
-commit 7a12703edcbfa067bfa447bb6113b88662980821
+commit aaa5af7bb6ee127f5f0ba769788ff45fdfcf4805
 Author: Michael Still <mikal@stillhq.com>
-Date:   Thu Dec 11 08:27:16 2025 +1100
+Date:   Mon Jan 19 19:00:21 2026 +1100
 
     Allow concurrent sessions with SPICE.
     
@@ -26,7 +26,7 @@ index be9ceedb5..9bf3373e9 100644
  nova_spice_require_secure: "no"
 +nova_spice_allow_concurrent: "yes"
 diff --git a/ansible/roles/nova-cell/templates/nova.conf.j2 b/ansible/roles/nova-cell/templates/nova.conf.j2
-index a4cccee29..c32c3c660 100644
+index c019f40a0..e7c2cc145 100644
 --- a/ansible/roles/nova-cell/templates/nova.conf.j2
 +++ b/ansible/roles/nova-cell/templates/nova.conf.j2
 @@ -62,6 +62,7 @@ enabled = false
@@ -38,7 +38,7 @@ index a4cccee29..c32c3c660 100644
  image_compression = {{ nova_spice_image_compression }}
  jpeg_compression = {{ nova_spice_jpeg_compression }}
 diff --git a/doc/source/reference/compute/nova-guide.rst b/doc/source/reference/compute/nova-guide.rst
-index cc0aa8029..a491cb56a 100644
+index 6225b0eab..dab4c2d93 100644
 --- a/doc/source/reference/compute/nova-guide.rst
 +++ b/doc/source/reference/compute/nova-guide.rst
 @@ -57,6 +57,8 @@ serial console support can be enabled by setting

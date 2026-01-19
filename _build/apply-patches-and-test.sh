@@ -121,15 +121,19 @@ cd ${topdir}
 if [ -e ${topdir}/${directory}/_CLAUDE.md ]; then
     skip_claude=$(yq -r .skip_claude ${project}/config.yaml)
     if [ "${skip_claude}" != "true" ]; then
+        echo -e "${H3}Applying CLAUDE.md${Color_Off}"
         cp ${topdir}/${directory}/_CLAUDE.md ${topsrcdir}/${directory}/CLAUDE.md
         cd ${topsrcdir}/${directory}
         git add CLAUDE.md
         git commit -a -m "Add CLAUDE file."
+    else
+        echo -e "${H3}Skipping CLAUDE.md${Color_Off}"
     fi
 fi
 
+cd ${topdir}
 if [ -e ${project}/PREPATCH ]; then
-    for patch in $(cat ${project}/PREPATCH)
+    for patch in $(grep -v -E "^#" ${project}/PREPATCH)
     do
         echo
 
@@ -163,6 +167,8 @@ if [ -e ${project}/PREPATCH ]; then
 
         popd > /dev/null
     done
+else
+    echo -e "${H3}No prepatches defined at ${project}/PREPATCH${Color_Off}"
 fi
 
 echo -e "${H3}Ensure tests pass on a clean ${project} ${source_branch} branch${Color_Off}"
@@ -175,7 +181,6 @@ fi
 echo
 
 cd ${topdir}
-
 for patch in $(grep -v -E "^#" ${project}/ORDER)
 do
     echo
