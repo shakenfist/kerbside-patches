@@ -1,0 +1,247 @@
+#!/usr/bin/env python3
+"""
+Analyze Gerrit review timestamps to find patterns.
+
+This script fetches recent reviews from Kolla and Kolla-Ansible and analyzes
+when human reviewers are most active. Use this to determine optimal times
+to post changes for faster reviews.
+
+Usage:
+    analyze-gerrit-review-times              # Analyze last 100 reviews
+    analyze-gerrit-review-times --limit 200  # Analyze last 200 reviews
+    analyze-gerrit-review-times --project openstack/nova  # Different project
+"""
+
+import argparse
+import json
+import subprocess
+import sys
+from collections import defaultdict
+from datetime import datetime, timezone
+
+
+def fetch_reviews(project: str, limit: int) -> list:
+    """Fetch reviews from Gerrit via SSH API."""
+    cmd = [
+        'ssh', '-p', '29418', 'review.opendev.org',
+        'gerrit', 'query',
+        '--format=JSON',
+        '--comments',
+        '--all-approvals',
+        f'project:{project} status:merged limit:{limit}'
+    ]
+    result = subprocess.run(cmd, capture_output=True, text=True)
+    if result.returncode != 0:
+        print(f'Error fetching from {project}: {result.stderr}', file=sys.stderr)
+        return []
+
+    reviews = []
+    for line in result.stdout.strip().split('\n'):
+        if line:
+            data = json.loads(line)
+            if data.get('type') != 'stats':
+                reviews.append(data)
+    return reviews
+
+
+def analyze_reviews(reviews: list):
+    """Analyze review timestamps for patterns."""
+    # Track human review activities (exclude Zuul bot)
+    review_hours_utc = defaultdict(int)
+    review_days = defaultdict(int)
+    reviewer_hours = defaultdict(lambda: defaultdict(int))
+    reviewer_activity = defaultdict(int)
+    time_to_first_review = []
+
+    for review in reviews:
+        created_ts = review.get('createdOn', 0)
+        first_human_review_ts = None
+
+        for comment in review.get('comments', []):
+            reviewer = comment.get('reviewer', {})
+            username = reviewer.get('username', '')
+            name = reviewer.get('name', '')
+
+            # Skip bots
+            if username in ('zuul', 'jenkins') or 'bot' in username.lower():
+                continue
+
+            # Skip "Uploaded patch set" messages from the author
+            msg = comment.get('message', '')
+            if 'Uploaded patch set' in msg:
+                continue
+
+            ts = comment.get('timestamp', 0)
+            if ts == 0:
+                continue
+
+            dt = datetime.fromtimestamp(ts, tz=timezone.utc)
+
+            # Track activity
+            review_hours_utc[dt.hour] += 1
+            review_days[dt.strftime('%A')] += 1
+            reviewer_hours[name or username][dt.hour] += 1
+            reviewer_activity[name or username] += 1
+
+            # Track time to first human review
+            if first_human_review_ts is None or ts < first_human_review_ts:
+                first_human_review_ts = ts
+
+        if first_human_review_ts and created_ts:
+            hours_to_review = (first_human_review_ts - created_ts) / 3600
+            if hours_to_review > 0:  # Exclude immediate self-comments
+                time_to_first_review.append(hours_to_review)
+
+    return {
+        'hours_utc': dict(review_hours_utc),
+        'days': dict(review_days),
+        'reviewer_hours': {k: dict(v) for k, v in reviewer_hours.items()},
+        'reviewer_activity': dict(reviewer_activity),
+        'time_to_first_review': time_to_first_review,
+    }
+
+
+def print_results(data: dict):
+    """Print analysis results."""
+    review_hours_utc = data['hours_utc']
+    review_days = data['days']
+    reviewer_hours = data['reviewer_hours']
+    reviewer_activity = data['reviewer_activity']
+    time_to_first_review = data['time_to_first_review']
+
+    print('=' * 60)
+    print('REVIEW ACTIVITY BY HOUR (UTC)')
+    print('=' * 60)
+    max_count = max(review_hours_utc.values()) if review_hours_utc else 1
+    for hour in range(24):
+        count = review_hours_utc.get(hour, 0)
+        bar = '#' * int(40 * count / max_count) if max_count else ''
+        print(f'{hour:02d}:00 UTC | {bar} ({count})')
+
+    print('\n' + '=' * 60)
+    print('REVIEW ACTIVITY BY DAY OF WEEK')
+    print('=' * 60)
+    day_order = [
+        'Monday', 'Tuesday', 'Wednesday', 'Thursday',
+        'Friday', 'Saturday', 'Sunday'
+    ]
+    max_day = max(review_days.values()) if review_days else 1
+    for day in day_order:
+        count = review_days.get(day, 0)
+        bar = '#' * int(40 * count / max_day) if max_day else ''
+        print(f'{day:9} | {bar} ({count})')
+
+    print('\n' + '=' * 60)
+    print('TOP REVIEWERS AND THEIR PEAK HOURS')
+    print('=' * 60)
+    top_reviewers = sorted(reviewer_activity.items(), key=lambda x: -x[1])[:10]
+    for name, total in top_reviewers:
+        hours = reviewer_hours.get(name, {})
+        if hours:
+            peak_hour = max(hours, key=hours.get)
+            # Find timezone guess based on peak hour
+            # Assuming peak is morning/workday: 9 AM local
+            tz_offset = (peak_hour - 9) % 24
+            if tz_offset > 12:
+                tz_offset -= 24
+            tz_str = f'UTC{tz_offset:+d}' if tz_offset != 0 else 'UTC'
+            print(
+                f'{name[:30]:30} | {total:3} reviews | '
+                f'peak {peak_hour:02d}:00 UTC (~{tz_str})'
+            )
+
+    print('\n' + '=' * 60)
+    print('TIME TO FIRST HUMAN REVIEW')
+    print('=' * 60)
+    if time_to_first_review:
+        time_to_first_review.sort()
+        n = len(time_to_first_review)
+        median = time_to_first_review[n // 2]
+        avg = sum(time_to_first_review) / n
+        p25 = time_to_first_review[n // 4]
+        p75 = time_to_first_review[3 * n // 4]
+        print(f'Median: {median:.1f} hours')
+        print(f'Average: {avg:.1f} hours')
+        print(f'25th percentile: {p25:.1f} hours')
+        print(f'75th percentile: {p75:.1f} hours')
+        print(f'Min: {min(time_to_first_review):.1f} hours')
+        print(f'Max: {max(time_to_first_review):.1f} hours')
+
+    print('\n' + '=' * 60)
+    print('RECOMMENDATIONS')
+    print('=' * 60)
+
+    # Find best hours
+    best_hours = sorted(review_hours_utc.items(), key=lambda x: -x[1])[:5]
+    print(
+        f'Most active review hours (UTC): '
+        f'{", ".join(f"{h:02d}:00" for h, _ in best_hours)}'
+    )
+
+    # Find best days
+    best_days = sorted(
+        [(d, review_days.get(d, 0)) for d in day_order],
+        key=lambda x: -x[1]
+    )[:3]
+    print(f'Most active review days: {", ".join(d for d, _ in best_days)}')
+
+    # Convert to common timezones
+    print('\nOptimal posting times by timezone:')
+    peak_utc = best_hours[0][0] if best_hours else 12
+    timezones = [
+        ('US Pacific', -8),
+        ('US Eastern', -5),
+        ('Europe/Berlin', 1),
+        ('Australia/Sydney', 11),
+    ]
+    for tz_name, offset in timezones:
+        local_hour = (peak_utc + offset) % 24
+        print(f'  {tz_name}: Post by {local_hour:02d}:00 local time')
+
+
+def main():
+    parser = argparse.ArgumentParser(
+        description='Analyze Gerrit review timing patterns',
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog=__doc__,
+    )
+    parser.add_argument(
+        '--limit', '-n',
+        type=int,
+        default=100,
+        help='Number of reviews to fetch per project (default: 100)',
+    )
+    parser.add_argument(
+        '--project', '-p',
+        action='append',
+        dest='projects',
+        help='Project to analyze (can specify multiple). '
+             'Default: openstack/kolla and openstack/kolla-ansible',
+    )
+
+    args = parser.parse_args()
+
+    projects = args.projects or ['openstack/kolla', 'openstack/kolla-ansible']
+
+    print(f'Fetching reviews from: {", ".join(projects)}')
+    print(f'Limit per project: {args.limit}\n')
+
+    all_reviews = []
+    for project in projects:
+        print(f'Fetching {project}...', end=' ', flush=True)
+        reviews = fetch_reviews(project, args.limit)
+        print(f'{len(reviews)} reviews')
+        all_reviews.extend(reviews)
+
+    if not all_reviews:
+        print('No reviews found.')
+        sys.exit(1)
+
+    print(f'\nAnalyzing {len(all_reviews)} total reviews...\n')
+
+    data = analyze_reviews(all_reviews)
+    print_results(data)
+
+
+if __name__ == '__main__':
+    main()

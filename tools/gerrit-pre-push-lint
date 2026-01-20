@@ -1,0 +1,887 @@
+#!/usr/bin/env python3
+"""
+Pre-push linter for OpenStack Gerrit submissions.
+
+This tool checks common issues that reviewers typically flag during code review
+of Kolla and Kolla-Ansible patches. Run this before pushing to Gerrit to catch
+issues early.
+
+Based on analysis of actual Gerrit review comments from openstack/kolla and
+openstack/kolla-ansible projects.
+
+Usage:
+    cd /path/to/openstack-project
+    gerrit-pre-push-lint              # Check staged changes
+    gerrit-pre-push-lint --all        # Check all uncommitted changes
+    gerrit-pre-push-lint --commit     # Check the most recent commit
+    gerrit-pre-push-lint --stack 5    # Check the last 5 commits (stacked patches)
+    gerrit-pre-push-lint --range origin/master..HEAD  # Check commits in range
+"""
+
+import argparse
+import os
+import re
+import subprocess
+import sys
+from dataclasses import dataclass
+from enum import Enum
+from pathlib import Path
+from typing import Optional
+
+
+class Severity(Enum):
+    ERROR = 'error'
+    WARNING = 'warning'
+    INFO = 'info'
+
+
+@dataclass
+class Issue:
+    severity: Severity
+    file: str
+    line: Optional[int]
+    message: str
+    suggestion: Optional[str] = None
+
+
+class GerritLinter:
+    """Linter for OpenStack Gerrit submissions."""
+
+    # Commands that are typically read-only and should use changed_when: false
+    READ_ONLY_COMMANDS = [
+        'losetup -f',
+        'losetup --find',
+        'cat ',
+        'grep ',
+        'find ',
+        'ls ',
+        'stat ',
+        'head ',
+        'tail ',
+        'wc ',
+        'id ',
+        'whoami',
+        'hostname',
+        'uname ',
+        'getent ',
+        'which ',
+        'type ',
+        'command -v',
+    ]
+
+    # Bug reference patterns in commit messages
+    BUG_PATTERNS = [
+        r'Closes-Bug:\s*#?\d+',
+        r'Partial-Bug:\s*#?\d+',
+        r'Related-Bug:\s*#?\d+',
+        r'Fixes:\s*https?://bugs\.launchpad\.net/',
+        r'https?://bugs\.launchpad\.net/[^\s]+',
+        r'https?://storyboard\.openstack\.org/',
+    ]
+
+    def __init__(self, repo_path: str = '.'):
+        self.repo_path = Path(repo_path).resolve()
+        self.issues: list[Issue] = []
+        self.project_name = self._detect_project()
+
+    def _detect_project(self) -> str:
+        """Detect the OpenStack project name from git remote."""
+        try:
+            result = subprocess.run(
+                ['git', 'remote', 'get-url', 'origin'],
+                capture_output=True,
+                text=True,
+                cwd=self.repo_path,
+            )
+            if result.returncode == 0:
+                url = result.stdout.strip()
+                # Extract project name from URL like
+                # https://opendev.org/openstack/kolla.git
+                if 'openstack/' in url:
+                    match = re.search(r'openstack/([^/\s.]+)', url)
+                    if match:
+                        return match.group(1)
+        except Exception:
+            pass
+        return 'unknown'
+
+    def add_issue(
+        self,
+        severity: Severity,
+        file: str,
+        line: Optional[int],
+        message: str,
+        suggestion: Optional[str] = None,
+    ):
+        """Add an issue to the list."""
+        self.issues.append(Issue(severity, file, line, message, suggestion))
+
+    def get_changed_files(self, mode: str = 'staged') -> list[str]:
+        """Get list of changed files based on mode."""
+        if mode == 'staged':
+            cmd = ['git', 'diff', '--cached', '--name-only']
+        elif mode == 'all':
+            cmd = ['git', 'diff', '--name-only', 'HEAD']
+        elif mode == 'commit':
+            cmd = ['git', 'diff', '--name-only', 'HEAD~1', 'HEAD']
+        else:
+            raise ValueError(f'Unknown mode: {mode}')
+
+        result = subprocess.run(
+            cmd, capture_output=True, text=True, cwd=self.repo_path
+        )
+        if result.returncode != 0:
+            return []
+        return [f for f in result.stdout.strip().split('\n') if f]
+
+    def get_file_diff(self, filepath: str, mode: str = 'staged') -> str:
+        """Get the diff for a specific file."""
+        if mode == 'staged':
+            cmd = ['git', 'diff', '--cached', '--', filepath]
+        elif mode == 'all':
+            cmd = ['git', 'diff', 'HEAD', '--', filepath]
+        elif mode == 'commit':
+            cmd = ['git', 'diff', 'HEAD~1', 'HEAD', '--', filepath]
+        else:
+            raise ValueError(f'Unknown mode: {mode}')
+
+        result = subprocess.run(
+            cmd, capture_output=True, text=True, cwd=self.repo_path
+        )
+        return result.stdout if result.returncode == 0 else ''
+
+    def get_commit_message(self, mode: str = 'staged') -> str:
+        """Get the commit message."""
+        if mode == 'commit':
+            result = subprocess.run(
+                ['git', 'log', '-1', '--format=%B'],
+                capture_output=True,
+                text=True,
+                cwd=self.repo_path,
+            )
+            return result.stdout if result.returncode == 0 else ''
+        # For staged changes, we can't get the message yet
+        return ''
+
+    def read_file(self, filepath: str) -> Optional[str]:
+        """Read a file from the working directory."""
+        full_path = self.repo_path / filepath
+        try:
+            return full_path.read_text()
+        except Exception:
+            return None
+
+    def get_commits_in_range(self, range_spec: str) -> list[tuple[str, str]]:
+        """Get list of commits in a range. Returns [(sha, subject), ...]."""
+        result = subprocess.run(
+            ['git', 'log', '--format=%H %s', '--reverse', range_spec],
+            capture_output=True,
+            text=True,
+            cwd=self.repo_path,
+        )
+        if result.returncode != 0:
+            return []
+        commits = []
+        for line in result.stdout.strip().split('\n'):
+            if line:
+                parts = line.split(' ', 1)
+                sha = parts[0]
+                subject = parts[1] if len(parts) > 1 else ''
+                commits.append((sha, subject))
+        return commits
+
+    def get_changed_files_for_commit(self, commit: str) -> list[str]:
+        """Get list of changed files for a specific commit."""
+        result = subprocess.run(
+            ['git', 'diff', '--name-only', f'{commit}~1', commit],
+            capture_output=True,
+            text=True,
+            cwd=self.repo_path,
+        )
+        if result.returncode != 0:
+            # Maybe first commit, try without parent
+            result = subprocess.run(
+                ['git', 'diff-tree', '--no-commit-id', '--name-only', '-r', commit],
+                capture_output=True,
+                text=True,
+                cwd=self.repo_path,
+            )
+        if result.returncode != 0:
+            return []
+        return [f for f in result.stdout.strip().split('\n') if f]
+
+    def get_commit_message_for_sha(self, commit: str) -> str:
+        """Get the commit message for a specific commit SHA."""
+        result = subprocess.run(
+            ['git', 'log', '-1', '--format=%B', commit],
+            capture_output=True,
+            text=True,
+            cwd=self.repo_path,
+        )
+        return result.stdout if result.returncode == 0 else ''
+
+    def read_file_at_commit(self, filepath: str, commit: str) -> Optional[str]:
+        """Read a file at a specific commit."""
+        result = subprocess.run(
+            ['git', 'show', f'{commit}:{filepath}'],
+            capture_output=True,
+            text=True,
+            cwd=self.repo_path,
+        )
+        if result.returncode == 0:
+            return result.stdout
+        return None
+
+    # =========================================================================
+    # Check 1: Release Notes
+    # =========================================================================
+    def check_release_notes(self, changed_files: list[str]):
+        """Check if changes warrant a release note."""
+        # File patterns that typically need release notes
+        code_patterns = [
+            r'\.py$',
+            r'\.j2$',
+            r'\.yml$',
+            r'\.yaml$',
+            r'Dockerfile',
+        ]
+
+        # File patterns that are documentation/config only
+        exempt_patterns = [
+            r'^doc/',
+            r'^\.github/',
+            r'^tox\.ini$',
+            r'^setup\.cfg$',
+            r'^requirements.*\.txt$',
+            r'^test-requirements.*\.txt$',
+            r'^releasenotes/',
+            r'^\.pre-commit',
+        ]
+
+        has_code_changes = False
+        has_release_note = False
+
+        for f in changed_files:
+            # Check for release note
+            if f.startswith('releasenotes/notes/'):
+                has_release_note = True
+
+            # Check if exempt
+            exempt = any(re.search(p, f) for p in exempt_patterns)
+            if exempt:
+                continue
+
+            # Check if code change
+            if any(re.search(p, f) for p in code_patterns):
+                has_code_changes = True
+
+        if has_code_changes and not has_release_note:
+            self.add_issue(
+                Severity.WARNING,
+                'COMMIT',
+                None,
+                'Code changes detected but no release note found.',
+                'Consider adding a release note using: '
+                'reno new <slug> --edit\n'
+                '  Release notes should describe the change from a '
+                "user's perspective.",
+            )
+
+    # =========================================================================
+    # Check 2: Bug References
+    # =========================================================================
+    def check_bug_reference(self, commit_message: str, changed_files: list[str]):
+        """Check for bug references on significant changes."""
+        if not commit_message:
+            return
+
+        # Check if there's a bug reference
+        has_bug_ref = any(
+            re.search(p, commit_message, re.IGNORECASE)
+            for p in self.BUG_PATTERNS
+        )
+
+        if has_bug_ref:
+            return
+
+        # Determine if this is a significant change
+        exempt_prefixes = ['doc:', 'docs:', 'trivial:', 'typo:']
+        first_line = commit_message.split('\n')[0].lower()
+        is_trivial = any(first_line.startswith(p) for p in exempt_prefixes)
+
+        if is_trivial:
+            return
+
+        # Count non-trivial file changes
+        significant_files = 0
+        for f in changed_files:
+            if not re.match(r'^(doc/|\.github/|test)', f):
+                significant_files += 1
+
+        if significant_files >= 3:
+            self.add_issue(
+                Severity.INFO,
+                'COMMIT',
+                None,
+                'Significant changes without bug reference.',
+                'Consider filing a bug at '
+                'https://bugs.launchpad.net/kolla or '
+                'https://bugs.launchpad.net/kolla-ansible\n'
+                '  Add to commit message: Closes-Bug: #NNNNNN',
+            )
+
+    # =========================================================================
+    # Check 3: Commit Message Quality
+    # =========================================================================
+    def check_commit_message(self, commit_message: str):
+        """Check commit message formatting and content."""
+        if not commit_message:
+            return
+
+        lines = commit_message.split('\n')
+        if not lines:
+            return
+
+        subject = lines[0]
+
+        # Check subject line length
+        if len(subject) > 72:
+            self.add_issue(
+                Severity.WARNING,
+                'COMMIT',
+                1,
+                f'Subject line too long ({len(subject)} chars, max 72).',
+                'Keep the subject line concise. Move details to the body.',
+            )
+        elif len(subject) > 50:
+            self.add_issue(
+                Severity.INFO,
+                'COMMIT',
+                1,
+                f'Subject line could be shorter ({len(subject)} chars, '
+                'ideal ≤50).',
+                None,
+            )
+
+        # Check for Trivial: misuse
+        if subject.lower().startswith('trivial:'):
+            # Count changed files and lines
+            self.add_issue(
+                Severity.WARNING,
+                'COMMIT',
+                1,
+                '"Trivial:" prefix may not be appropriate.',
+                'Only use "Trivial:" for truly trivial changes '
+                '(typos, whitespace).\n'
+                '  If this is a fix or feature, remove the prefix.',
+            )
+
+        # Check for Change-Id
+        if 'Change-Id:' not in commit_message:
+            self.add_issue(
+                Severity.INFO,
+                'COMMIT',
+                None,
+                'No Change-Id found.',
+                'The Gerrit commit-msg hook will add this automatically.\n'
+                '  Install hook: scp -p -P 29418 '
+                'review.opendev.org:hooks/commit-msg .git/hooks/',
+            )
+
+        # Check Depends-On usage
+        depends_on_match = re.search(
+            r'Depends-On:\s*https://review\.opendev\.org/c/openstack/([^/]+)',
+            commit_message,
+        )
+        if depends_on_match:
+            dep_project = depends_on_match.group(1)
+            if dep_project == self.project_name:
+                self.add_issue(
+                    Severity.WARNING,
+                    'COMMIT',
+                    None,
+                    f'Depends-On references the same project ({dep_project}).',
+                    'For dependencies within the same repository, '
+                    'rebase your changes instead.\n'
+                    '  Stack commits by rebasing: git rebase -i HEAD~N',
+                )
+
+    # =========================================================================
+    # Check 4: YAML Line Length
+    # =========================================================================
+    def check_yaml_line_length(self, filepath: str, content: str):
+        """Check YAML files for line length violations."""
+        if not filepath.endswith(('.yml', '.yaml')):
+            return
+
+        max_length = 160  # yamllint default
+        lines = content.split('\n')
+
+        for i, line in enumerate(lines, 1):
+            if len(line) > max_length:
+                self.add_issue(
+                    Severity.WARNING,
+                    filepath,
+                    i,
+                    f'Line exceeds {max_length} characters ({len(line)} chars).',
+                    'Consider breaking the line or using YAML '
+                    'multi-line syntax.',
+                )
+
+    # =========================================================================
+    # Check 5: Ansible changed_when
+    # =========================================================================
+    def check_changed_when(self, filepath: str, content: str):
+        """Check for incorrect changed_when usage in Ansible tasks."""
+        if not filepath.endswith(('.yml', '.yaml')):
+            return
+
+        # Look for tasks with command/shell and changed_when: true
+        # that are actually read-only
+        lines = content.split('\n')
+        in_task = False
+        task_start = 0
+        task_lines = []
+        task_name = ''
+
+        for i, line in enumerate(lines, 1):
+            # Detect task start
+            if re.match(r'\s*-\s+name:', line):
+                if in_task and task_lines:
+                    self._analyze_task(
+                        filepath, task_start, task_name, task_lines
+                    )
+                in_task = True
+                task_start = i
+                task_lines = [line]
+                match = re.search(r'name:\s*(.+)', line)
+                task_name = match.group(1) if match else 'unnamed'
+            elif in_task:
+                if line.strip() and not line.startswith(' ') and not line.startswith('\t'):
+                    # End of task block
+                    self._analyze_task(
+                        filepath, task_start, task_name, task_lines
+                    )
+                    in_task = False
+                    task_lines = []
+                else:
+                    task_lines.append(line)
+
+        # Handle last task
+        if in_task and task_lines:
+            self._analyze_task(filepath, task_start, task_name, task_lines)
+
+    def _analyze_task(
+        self, filepath: str, line_num: int, name: str, task_lines: list[str]
+    ):
+        """Analyze a single Ansible task for issues."""
+        task_content = '\n'.join(task_lines)
+
+        # Check for changed_when: true with read-only commands
+        if 'changed_when: true' in task_content or "changed_when: 'true'" in task_content:
+            # Look for command or shell
+            cmd_match = re.search(
+                r'(command|shell):\s*(.+)', task_content, re.MULTILINE
+            )
+            if cmd_match:
+                cmd = cmd_match.group(2).strip()
+                for read_only in self.READ_ONLY_COMMANDS:
+                    if read_only in cmd:
+                        self.add_issue(
+                            Severity.WARNING,
+                            filepath,
+                            line_num,
+                            f'Task "{name}" uses changed_when: true '
+                            'with a read-only command.',
+                            f'The command "{cmd[:50]}..." appears to be '
+                            'read-only.\n'
+                            '  Use changed_when: false instead.',
+                        )
+                        break
+
+    # =========================================================================
+    # Check 6: Jinja2 Template Issues
+    # =========================================================================
+    def check_jinja2_issues(self, filepath: str, content: str):
+        """Check for common Jinja2 template issues."""
+        if not filepath.endswith(('.yml', '.yaml', '.j2')):
+            return
+
+        lines = content.split('\n')
+
+        for i, line in enumerate(lines, 1):
+            # Check for {{} typo (missing space or extra brace)
+            if '{{} ' in line or '{{}' in line:
+                self.add_issue(
+                    Severity.ERROR,
+                    filepath,
+                    i,
+                    'Jinja2 syntax error: "{{}" found.',
+                    'Did you mean "{{ "? Check for typos in Jinja2 variables.',
+                )
+
+            # Check for missing space after {{
+            matches = re.findall(r'\{\{[^\s{]', line)
+            for match in matches:
+                if match != '{{-':  # {{- is valid for whitespace control
+                    self.add_issue(
+                        Severity.INFO,
+                        filepath,
+                        i,
+                        'Missing space after "{{" in Jinja2 expression.',
+                        'Add a space: "{{ variable }}" not "{{variable}}"',
+                    )
+                    break
+
+            # Check for missing space before }}
+            matches = re.findall(r'[^\s}]\}\}', line)
+            for match in matches:
+                if match[-3:] != '-}}':  # -}} is valid for whitespace control
+                    self.add_issue(
+                        Severity.INFO,
+                        filepath,
+                        i,
+                        'Missing space before "}}" in Jinja2 expression.',
+                        'Add a space: "{{ variable }}" not "{{variable}}"',
+                    )
+                    break
+
+    # =========================================================================
+    # Check 7: TODO Comments
+    # =========================================================================
+    def check_todo_comments(self, filepath: str, content: str):
+        """Check that TODO comments have release targets."""
+        lines = content.split('\n')
+
+        for i, line in enumerate(lines, 1):
+            # Look for TODO comments
+            if re.search(r'\bTODO\b', line, re.IGNORECASE):
+                # Check if it has a release target
+                has_release = re.search(
+                    r'(202[4-9]\.[12]|[A-Z]/202[4-9]|'
+                    r'master|epoxy|flamingo|gazpacho|dalmatian|caracal)',
+                    line,
+                    re.IGNORECASE,
+                )
+                if not has_release:
+                    self.add_issue(
+                        Severity.INFO,
+                        filepath,
+                        i,
+                        'TODO comment without release target.',
+                        'Add a release target: '
+                        'TODO(username): Remove in G/2026.1 release',
+                    )
+
+    # =========================================================================
+    # Check 8: File Mode Issues
+    # =========================================================================
+    def check_file_modes(self, filepath: str, content: str):
+        """Check for incorrect file mode settings in Ansible."""
+        if not filepath.endswith(('.yml', '.yaml')):
+            return
+
+        lines = content.split('\n')
+        in_file_or_copy = False
+        task_creates_dir = False
+
+        for i, line in enumerate(lines, 1):
+            # Track if we're in a file/copy/template task
+            if re.search(r'(file|copy|template):', line):
+                in_file_or_copy = True
+                task_creates_dir = False
+            elif in_file_or_copy:
+                if 'state: directory' in line:
+                    task_creates_dir = True
+                # Check for 0644 mode on directories
+                if task_creates_dir and re.search(r'mode:\s*["\']?0644', line):
+                    self.add_issue(
+                        Severity.WARNING,
+                        filepath,
+                        i,
+                        'Directory created with mode 0644.',
+                        'Directories typically need 0755 for traversal. '
+                        'Use mode: "0755" for directories.',
+                    )
+                # Reset on new task
+                if re.match(r'\s*-\s+', line):
+                    in_file_or_copy = False
+
+    # =========================================================================
+    # Main Run Method
+    # =========================================================================
+    def run(self, mode: str = 'staged') -> int:
+        """Run all checks and return exit code."""
+        changed_files = self.get_changed_files(mode)
+
+        if not changed_files:
+            print('No changes detected.')
+            return 0
+
+        print(f'Checking {len(changed_files)} changed files...\n')
+
+        # Get commit message for commit mode
+        commit_message = self.get_commit_message(mode)
+
+        # Run global checks
+        self.check_release_notes(changed_files)
+        if commit_message:
+            self.check_bug_reference(commit_message, changed_files)
+            self.check_commit_message(commit_message)
+
+        # Run per-file checks
+        for filepath in changed_files:
+            content = self.read_file(filepath)
+            if content is None:
+                continue
+
+            self.check_yaml_line_length(filepath, content)
+            self.check_changed_when(filepath, content)
+            self.check_jinja2_issues(filepath, content)
+            self.check_todo_comments(filepath, content)
+            self.check_file_modes(filepath, content)
+
+        # Report issues
+        return self._report_issues()
+
+    def run_stack(self, range_spec: str) -> int:
+        """Run checks on a stack of commits and return exit code."""
+        commits = self.get_commits_in_range(range_spec)
+
+        if not commits:
+            print(f'No commits found in range: {range_spec}')
+            return 0
+
+        print(f'Checking {len(commits)} stacked commits...\n')
+        print('=' * 60)
+
+        total_errors = 0
+        total_warnings = 0
+        total_infos = 0
+        commit_results = []
+
+        for i, (sha, subject) in enumerate(commits, 1):
+            # Reset issues for each commit
+            self.issues = []
+
+            print(f'\n[{i}/{len(commits)}] {sha[:8]} {subject[:50]}')
+            print('-' * 60)
+
+            changed_files = self.get_changed_files_for_commit(sha)
+            if not changed_files:
+                print('  No changed files.')
+                commit_results.append((sha, subject, 0, 0, 0))
+                continue
+
+            print(f'  {len(changed_files)} changed files')
+
+            # Get commit message
+            commit_message = self.get_commit_message_for_sha(sha)
+
+            # Run global checks
+            self.check_release_notes(changed_files)
+            if commit_message:
+                self.check_bug_reference(commit_message, changed_files)
+                self.check_commit_message(commit_message)
+
+            # Run per-file checks
+            for filepath in changed_files:
+                content = self.read_file_at_commit(filepath, sha)
+                if content is None:
+                    continue
+
+                self.check_yaml_line_length(filepath, content)
+                self.check_changed_when(filepath, content)
+                self.check_jinja2_issues(filepath, content)
+                self.check_todo_comments(filepath, content)
+                self.check_file_modes(filepath, content)
+
+            # Count issues for this commit
+            errors = len(
+                [x for x in self.issues if x.severity == Severity.ERROR]
+            )
+            warnings = len(
+                [x for x in self.issues if x.severity == Severity.WARNING]
+            )
+            infos = len(
+                [x for x in self.issues if x.severity == Severity.INFO]
+            )
+
+            total_errors += errors
+            total_warnings += warnings
+            total_infos += infos
+            commit_results.append((sha, subject, errors, warnings, infos))
+
+            # Print issues for this commit
+            if self.issues:
+                for issue in self.issues:
+                    self._print_issue(issue)
+            else:
+                print('  ✓ No issues')
+
+        # Print summary
+        print('\n' + '=' * 60)
+        print('STACK SUMMARY')
+        print('=' * 60)
+
+        for sha, subject, errors, warnings, infos in commit_results:
+            if errors > 0:
+                status = '✗'
+            elif warnings > 0:
+                status = '⚠'
+            else:
+                status = '✓'
+            issues_str = []
+            if errors:
+                issues_str.append(f'{errors}E')
+            if warnings:
+                issues_str.append(f'{warnings}W')
+            if infos:
+                issues_str.append(f'{infos}I')
+            issues_display = ' '.join(issues_str) if issues_str else 'clean'
+            print(f'  {status} {sha[:8]} [{issues_display:>10}] {subject[:40]}')
+
+        print('\n' + '-' * 60)
+        print(
+            f'Total: {total_errors} errors, {total_warnings} warnings, '
+            f'{total_infos} info across {len(commits)} commits'
+        )
+
+        if total_errors:
+            print('\n✗ Fix errors before pushing.')
+            return 1
+        elif total_warnings:
+            print('\n⚠ Consider addressing warnings before pushing.')
+            return 0
+        else:
+            print('\n✓ Stack looks good!')
+            return 0
+
+    def _report_issues(self) -> int:
+        """Report all issues found and return exit code."""
+        if not self.issues:
+            print('✓ No issues found!')
+            return 0
+
+        # Group by severity
+        errors = [i for i in self.issues if i.severity == Severity.ERROR]
+        warnings = [i for i in self.issues if i.severity == Severity.WARNING]
+        infos = [i for i in self.issues if i.severity == Severity.INFO]
+
+        # Print issues
+        for issue in self.issues:
+            self._print_issue(issue)
+
+        # Summary
+        print('\n' + '=' * 60)
+        print(
+            f'Summary: {len(errors)} errors, {len(warnings)} warnings, '
+            f'{len(infos)} info'
+        )
+
+        if errors:
+            print('\n✗ Fix errors before pushing.')
+            return 1
+        elif warnings:
+            print('\n⚠ Consider addressing warnings before pushing.')
+            return 0
+        else:
+            print('\n✓ Only informational messages. Ready to push.')
+            return 0
+
+    def _print_issue(self, issue: Issue):
+        """Print a single issue."""
+        # Color codes
+        colors = {
+            Severity.ERROR: '\033[91m',  # Red
+            Severity.WARNING: '\033[93m',  # Yellow
+            Severity.INFO: '\033[94m',  # Blue
+        }
+        reset = '\033[0m'
+
+        color = colors.get(issue.severity, '')
+        severity_str = issue.severity.value.upper()
+
+        location = issue.file
+        if issue.line:
+            location += f':{issue.line}'
+
+        print(f'{color}[{severity_str}]{reset} {location}')
+        print(f'  {issue.message}')
+        if issue.suggestion:
+            for line in issue.suggestion.split('\n'):
+                print(f'  → {line}')
+        print()
+
+
+def main():
+    parser = argparse.ArgumentParser(
+        description='Pre-push linter for OpenStack Gerrit submissions',
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog=__doc__,
+    )
+    parser.add_argument(
+        '--staged',
+        action='store_true',
+        default=True,
+        help='Check staged changes (default)',
+    )
+    parser.add_argument(
+        '--all',
+        action='store_true',
+        help='Check all uncommitted changes',
+    )
+    parser.add_argument(
+        '--commit',
+        action='store_true',
+        help='Check the most recent commit',
+    )
+    parser.add_argument(
+        '--stack',
+        '-s',
+        type=int,
+        metavar='N',
+        help='Check the last N commits (stacked patches)',
+    )
+    parser.add_argument(
+        '--range',
+        metavar='REF',
+        help='Check commits in range (e.g., origin/master..HEAD)',
+    )
+    parser.add_argument(
+        '--repo',
+        '-r',
+        default='.',
+        help='Path to git repository (default: current directory)',
+    )
+
+    args = parser.parse_args()
+
+    # Verify we're in a git repo
+    if not (Path(args.repo) / '.git').exists():
+        print(f'Error: {args.repo} is not a git repository')
+        sys.exit(1)
+
+    linter = GerritLinter(args.repo)
+    print(f'Project: {linter.project_name}')
+
+    # Determine mode and run
+    if args.stack:
+        print(f'Mode: stack (last {args.stack} commits)\n')
+        sys.exit(linter.run_stack(f'HEAD~{args.stack}..HEAD'))
+    elif args.range:
+        print(f'Mode: range ({args.range})\n')
+        sys.exit(linter.run_stack(args.range))
+    elif args.commit:
+        print('Mode: commit\n')
+        sys.exit(linter.run('commit'))
+    elif args.all:
+        print('Mode: all\n')
+        sys.exit(linter.run('all'))
+    else:
+        print('Mode: staged\n')
+        sys.exit(linter.run('staged'))
+
+
+if __name__ == '__main__':
+    main()

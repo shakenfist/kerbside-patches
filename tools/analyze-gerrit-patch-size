@@ -1,0 +1,375 @@
+#!/usr/bin/env python3
+"""
+Analyze correlation between patch size/series length and review response.
+
+This script examines whether smaller patches or shorter series get reviewed
+faster or with fewer revision cycles.
+
+Usage:
+    analyze-gerrit-patch-size              # Analyze last 100 reviews
+    analyze-gerrit-patch-size --limit 200  # Analyze more reviews
+"""
+
+import argparse
+import json
+import subprocess
+import sys
+from collections import defaultdict
+from datetime import datetime, timezone
+
+
+def fetch_reviews(project: str, limit: int) -> list:
+    """Fetch reviews from Gerrit via SSH API."""
+    cmd = [
+        'ssh', '-p', '29418', 'review.opendev.org',
+        'gerrit', 'query',
+        '--format=JSON',
+        '--comments',
+        '--current-patch-set',
+        '--dependencies',
+        f'project:{project} status:merged limit:{limit}'
+    ]
+    result = subprocess.run(cmd, capture_output=True, text=True)
+    if result.returncode != 0:
+        print(f'Error fetching from {project}: {result.stderr}', file=sys.stderr)
+        return []
+
+    reviews = []
+    for line in result.stdout.strip().split('\n'):
+        if line:
+            data = json.loads(line)
+            if data.get('type') != 'stats':
+                reviews.append(data)
+    return reviews
+
+
+def get_series_info(reviews: list) -> dict:
+    """Group reviews by topic to identify series."""
+    topics = defaultdict(list)
+    for review in reviews:
+        topic = review.get('topic', '')
+        if topic:
+            topics[topic].append(review)
+    return topics
+
+
+def analyze_reviews(reviews: list):
+    """Analyze patch size and series correlations."""
+    # Categorize by size
+    size_buckets = {
+        'tiny': {'range': (0, 10), 'reviews': []},
+        'small': {'range': (11, 50), 'reviews': []},
+        'medium': {'range': (51, 200), 'reviews': []},
+        'large': {'range': (201, 500), 'reviews': []},
+        'huge': {'range': (501, float('inf')), 'reviews': []},
+    }
+
+    # Group by topic for series analysis
+    topics = get_series_info(reviews)
+    standalone_reviews = []
+    series_reviews = []
+
+    for review in reviews:
+        # Get patch size
+        ps = review.get('currentPatchSet', {})
+        insertions = ps.get('sizeInsertions', 0)
+        deletions = abs(ps.get('sizeDeletions', 0))
+        total_lines = insertions + deletions
+
+        # Categorize by size
+        for bucket_name, bucket in size_buckets.items():
+            low, high = bucket['range']
+            if low <= total_lines <= high:
+                bucket['reviews'].append(review)
+                break
+
+        # Track series vs standalone
+        topic = review.get('topic', '')
+        if topic and len(topics.get(topic, [])) > 1:
+            series_reviews.append(review)
+        else:
+            standalone_reviews.append(review)
+
+    return size_buckets, topics, standalone_reviews, series_reviews
+
+
+def calc_metrics(reviews: list) -> dict:
+    """Calculate review metrics for a set of reviews."""
+    if not reviews:
+        return {
+            'count': 0,
+            'avg_patchsets': 0,
+            'avg_hours_to_merge': 0,
+            'avg_hours_to_first_review': 0,
+        }
+
+    patchset_counts = []
+    hours_to_merge = []
+    hours_to_first_review = []
+
+    for review in reviews:
+        # Patch set count
+        ps = review.get('currentPatchSet', {})
+        ps_num = ps.get('number', 1)
+        patchset_counts.append(ps_num)
+
+        # Time to merge
+        created = review.get('createdOn', 0)
+        updated = review.get('lastUpdated', 0)
+        if created and updated:
+            hours = (updated - created) / 3600
+            hours_to_merge.append(hours)
+
+        # Time to first human review
+        first_review_ts = None
+        for comment in review.get('comments', []):
+            reviewer = comment.get('reviewer', {})
+            username = reviewer.get('username', '')
+            msg = comment.get('message', '')
+
+            # Skip bots and patch uploads
+            if username in ('zuul', 'jenkins'):
+                continue
+            if 'Uploaded patch set' in msg:
+                continue
+
+            ts = comment.get('timestamp', 0)
+            if ts and (first_review_ts is None or ts < first_review_ts):
+                first_review_ts = ts
+
+        if first_review_ts and created:
+            hours = (first_review_ts - created) / 3600
+            if hours > 0:
+                hours_to_first_review.append(hours)
+
+    return {
+        'count': len(reviews),
+        'avg_patchsets': sum(patchset_counts) / len(patchset_counts),
+        'median_patchsets': sorted(patchset_counts)[len(patchset_counts) // 2],
+        'avg_hours_to_merge': (
+            sum(hours_to_merge) / len(hours_to_merge) if hours_to_merge else 0
+        ),
+        'median_hours_to_merge': (
+            sorted(hours_to_merge)[len(hours_to_merge) // 2]
+            if hours_to_merge else 0
+        ),
+        'avg_hours_to_first_review': (
+            sum(hours_to_first_review) / len(hours_to_first_review)
+            if hours_to_first_review else 0
+        ),
+        'median_hours_to_first_review': (
+            sorted(hours_to_first_review)[len(hours_to_first_review) // 2]
+            if hours_to_first_review else 0
+        ),
+    }
+
+
+def print_results(size_buckets, topics, standalone, series):
+    """Print analysis results."""
+    print('=' * 70)
+    print('PATCH SIZE VS REVIEW METRICS')
+    print('=' * 70)
+    print(
+        f'{"Size":<10} {"Count":>6} {"Avg PS":>8} {"Med PS":>8} '
+        f'{"Med Hrs to Review":>18} {"Med Hrs to Merge":>18}'
+    )
+    print('-' * 70)
+
+    for bucket_name in ['tiny', 'small', 'medium', 'large', 'huge']:
+        bucket = size_buckets[bucket_name]
+        metrics = calc_metrics(bucket['reviews'])
+        if metrics['count'] > 0:
+            low, high = bucket['range']
+            range_str = f'{low}-{high}' if high != float('inf') else f'{low}+'
+            print(
+                f'{bucket_name:<10} {metrics["count"]:>6} '
+                f'{metrics["avg_patchsets"]:>8.1f} {metrics["median_patchsets"]:>8} '
+                f'{metrics["median_hours_to_first_review"]:>18.1f} '
+                f'{metrics["median_hours_to_merge"]:>18.1f}'
+            )
+
+    print('\n' + '=' * 70)
+    print('SERIES VS STANDALONE PATCHES')
+    print('=' * 70)
+
+    standalone_metrics = calc_metrics(standalone)
+    series_metrics = calc_metrics(series)
+
+    print(
+        f'{"Type":<15} {"Count":>6} {"Avg PS":>8} {"Med PS":>8} '
+        f'{"Med Hrs to Review":>18} {"Med Hrs to Merge":>18}'
+    )
+    print('-' * 70)
+    print(
+        f'{"Standalone":<15} {standalone_metrics["count"]:>6} '
+        f'{standalone_metrics["avg_patchsets"]:>8.1f} '
+        f'{standalone_metrics["median_patchsets"]:>8} '
+        f'{standalone_metrics["median_hours_to_first_review"]:>18.1f} '
+        f'{standalone_metrics["median_hours_to_merge"]:>18.1f}'
+    )
+    print(
+        f'{"In a series":<15} {series_metrics["count"]:>6} '
+        f'{series_metrics["avg_patchsets"]:>8.1f} '
+        f'{series_metrics["median_patchsets"]:>8} '
+        f'{series_metrics["median_hours_to_first_review"]:>18.1f} '
+        f'{series_metrics["median_hours_to_merge"]:>18.1f}'
+    )
+
+    print('\n' + '=' * 70)
+    print('SERIES LENGTH ANALYSIS')
+    print('=' * 70)
+
+    # Group series by length
+    series_by_length = defaultdict(list)
+    for topic, topic_reviews in topics.items():
+        if len(topic_reviews) > 1:
+            series_by_length[len(topic_reviews)].extend(topic_reviews)
+
+    print(
+        f'{"Series Length":>13} {"Reviews":>8} {"Avg PS":>8} '
+        f'{"Med Hrs to Review":>18} {"Med Hrs to Merge":>18}'
+    )
+    print('-' * 70)
+
+    for length in sorted(series_by_length.keys()):
+        reviews = series_by_length[length]
+        metrics = calc_metrics(reviews)
+        print(
+            f'{length:>13} {metrics["count"]:>8} '
+            f'{metrics["avg_patchsets"]:>8.1f} '
+            f'{metrics["median_hours_to_first_review"]:>18.1f} '
+            f'{metrics["median_hours_to_merge"]:>18.1f}'
+        )
+
+    # Top series examples
+    print('\n' + '=' * 70)
+    print('EXAMPLE SERIES (longest)')
+    print('=' * 70)
+
+    sorted_topics = sorted(topics.items(), key=lambda x: -len(x[1]))[:5]
+    for topic, topic_reviews in sorted_topics:
+        if len(topic_reviews) > 1:
+            print(f'\nTopic: {topic} ({len(topic_reviews)} patches)')
+            for r in topic_reviews[:3]:
+                subj = r.get('subject', '')[:50]
+                ps = r.get('currentPatchSet', {})
+                ins = ps.get('sizeInsertions', 0)
+                dels = abs(ps.get('sizeDeletions', 0))
+                print(f'  - {subj}... (+{ins}/-{dels})')
+            if len(topic_reviews) > 3:
+                print(f'  ... and {len(topic_reviews) - 3} more')
+
+    print('\n' + '=' * 70)
+    print('RECOMMENDATIONS')
+    print('=' * 70)
+
+    # Compare metrics
+    if standalone_metrics['count'] > 0 and series_metrics['count'] > 0:
+        review_diff = (
+            series_metrics['median_hours_to_first_review'] -
+            standalone_metrics['median_hours_to_first_review']
+        )
+        merge_diff = (
+            series_metrics['median_hours_to_merge'] -
+            standalone_metrics['median_hours_to_merge']
+        )
+        ps_diff = (
+            series_metrics['avg_patchsets'] -
+            standalone_metrics['avg_patchsets']
+        )
+
+        if review_diff > 0:
+            print(
+                f'Series patches take {review_diff:.1f} hours LONGER '
+                'to get first review'
+            )
+        else:
+            print(
+                f'Series patches get first review {-review_diff:.1f} hours '
+                'FASTER'
+            )
+
+        if merge_diff > 0:
+            print(
+                f'Series patches take {merge_diff:.1f} hours LONGER to merge'
+            )
+        else:
+            print(f'Series patches merge {-merge_diff:.1f} hours FASTER')
+
+        if ps_diff > 0:
+            print(
+                f'Series patches need {ps_diff:.1f} MORE patch set revisions '
+                'on average'
+            )
+        else:
+            print(
+                f'Series patches need {-ps_diff:.1f} FEWER patch set revisions'
+            )
+
+    # Size recommendations
+    print('\nBy patch size:')
+    tiny_m = calc_metrics(size_buckets['tiny']['reviews'])
+    large_m = calc_metrics(size_buckets['large']['reviews'])
+    if tiny_m['count'] > 0 and large_m['count'] > 0:
+        if tiny_m['median_patchsets'] < large_m['median_patchsets']:
+            print(
+                f'  Tiny patches need {tiny_m["median_patchsets"]:.0f} '
+                f'revisions vs {large_m["median_patchsets"]:.0f} for large'
+            )
+        review_ratio = (
+            large_m['median_hours_to_first_review'] /
+            tiny_m['median_hours_to_first_review']
+        ) if tiny_m['median_hours_to_first_review'] > 0 else 0
+        if review_ratio > 1:
+            print(
+                f'  Large patches take {review_ratio:.1f}x longer to get '
+                'first review'
+            )
+
+
+def main():
+    parser = argparse.ArgumentParser(
+        description='Analyze patch size and series length vs review response',
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog=__doc__,
+    )
+    parser.add_argument(
+        '--limit', '-n',
+        type=int,
+        default=100,
+        help='Number of reviews to fetch per project (default: 100)',
+    )
+    parser.add_argument(
+        '--project', '-p',
+        action='append',
+        dest='projects',
+        help='Project to analyze (can specify multiple). '
+             'Default: openstack/kolla and openstack/kolla-ansible',
+    )
+
+    args = parser.parse_args()
+
+    projects = args.projects or ['openstack/kolla', 'openstack/kolla-ansible']
+
+    print(f'Fetching reviews from: {", ".join(projects)}')
+    print(f'Limit per project: {args.limit}\n')
+
+    all_reviews = []
+    for project in projects:
+        print(f'Fetching {project}...', end=' ', flush=True)
+        reviews = fetch_reviews(project, args.limit)
+        print(f'{len(reviews)} reviews')
+        all_reviews.extend(reviews)
+
+    if not all_reviews:
+        print('No reviews found.')
+        sys.exit(1)
+
+    print(f'\nAnalyzing {len(all_reviews)} total reviews...\n')
+
+    size_buckets, topics, standalone, series = analyze_reviews(all_reviews)
+    print_results(size_buckets, topics, standalone, series)
+
+
+if __name__ == '__main__':
+    main()
