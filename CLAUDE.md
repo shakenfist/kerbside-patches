@@ -86,6 +86,14 @@ Located in `_patches/`:
 - `find_images`: GitLab Container Registry image finder (Python/Click CLI)
 - `bootstrap-kolla-ansible`: Kolla-Ansible deployment helper
 - `test-console`: SPICE console testing utility
+- `gerrit-pre-push-lint`: Pre-push linter for OpenStack Gerrit submissions
+- `analyze-gerrit-review-times`: Analyzes review timestamps to find optimal posting times
+- `analyze-gerrit-patch-size`: Analyzes patch size/series length vs review response
+- `analyze-gerrit-new-roles`: Analyzes patterns for new Ansible role additions
+
+### Documentation (`docs/`)
+- `gerrit-api.md`: Reference guide for OpenStack Gerrit SSH and REST APIs
+- `tactics.md`: Tactical advice for getting patches reviewed quickly
 
 ## Key Configuration
 
@@ -129,6 +137,54 @@ When editing `.patch` files in `_patches/`, you must update both the content AND
    - Kolla-Ansible runs `tox -elinters` which includes ansible-lint
 
 5. **Verify changes** by running `test-apply.sh` without `--skip-tests`
+
+## Pre-Push Linting for OpenStack Gerrit
+
+The `gerrit-pre-push-lint` tool checks for common issues that reviewers typically
+flag during code review of Kolla and Kolla-Ansible patches. Run this before
+pushing to Gerrit to catch issues early.
+
+### Usage
+
+```bash
+# In an OpenStack project checkout (e.g., kolla-ansible)
+cd /path/to/kolla-ansible
+
+# Check staged changes (default)
+/path/to/kerbside-patches/tools/gerrit-pre-push-lint
+
+# Check all uncommitted changes
+gerrit-pre-push-lint --all
+
+# Check stacked patches (last N commits)
+gerrit-pre-push-lint --stack 5
+
+# Check commits in a range
+gerrit-pre-push-lint --range origin/master..HEAD
+
+# Check the most recent commit
+gerrit-pre-push-lint --commit
+```
+
+### Checks Performed
+
+Based on analysis of actual Gerrit review comments:
+
+1. **Release Notes**: Warns if code changes lack release notes (use `reno new`)
+2. **Bug References**: Suggests adding bug tracking for significant changes
+3. **Commit Message Quality**: Checks subject line length, "Trivial:" misuse
+4. **YAML Line Length**: Flags lines exceeding 160 characters
+5. **Ansible changed_when**: Warns about `changed_when: true` on read-only commands
+6. **Jinja2 Issues**: Catches spacing errors and typos in templates
+7. **TODO Comments**: Warns if TODOs lack release version targets
+8. **Depends-On Usage**: Warns when Depends-On references the same repository
+9. **File Modes**: Catches incorrect mode settings (e.g., 0644 on directories)
+
+### Severity Levels
+
+- **ERROR**: Must fix before pushing
+- **WARNING**: Should address before pushing
+- **INFO**: Optional improvements
 
 ## CI/CD Automation
 

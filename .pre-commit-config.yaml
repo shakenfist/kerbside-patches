@@ -16,5 +16,5 @@ repos:
         name: shellcheck (extensionless scripts)
         files: ^(_build/|tools/)[^/.]+$
         types: [text]
-        exclude: '(find_images|spice-connect\.py|extract-commit-message|summarize_layers\.py|analyze-shared-patches\.py)$'
+        exclude: '(find_images|spice-connect\.py|extract-commit-message|summarize_layers\.py|analyze-shared-patches\.py|analyze-gerrit-new-roles|analyze-gerrit-patch-size|analyze-gerrit-review-times|gerrit-pre-push-lint)$'
         args: ['-x']

@@ -1,0 +1,311 @@
+#!/usr/bin/env python3
+"""
+Analyze how new Ansible role additions are structured and reviewed.
+
+This script examines historical patterns for adding new roles/services to
+Kolla-Ansible to identify successful strategies.
+
+Usage:
+    analyze-gerrit-new-roles              # Analyze recent role additions
+    analyze-gerrit-new-roles --limit 300  # Analyze more history
+"""
+
+import argparse
+import json
+import subprocess
+import sys
+from collections import defaultdict
+
+
+def fetch_reviews(project: str, limit: int) -> list:
+    """Fetch role-related reviews from Gerrit."""
+    cmd = [
+        'ssh', '-p', '29418', 'review.opendev.org',
+        'gerrit', 'query',
+        '--format=JSON',
+        '--comments',
+        '--current-patch-set',
+        '--commit-message',
+        f'project:{project} status:merged '
+        '(subject:"Add" OR subject:"new" OR subject:"Introduce" '
+        'OR subject:"role" OR subject:"service") '
+        f'limit:{limit}'
+    ]
+    result = subprocess.run(cmd, capture_output=True, text=True)
+    if result.returncode != 0:
+        print(f'Error: {result.stderr}', file=sys.stderr)
+        return []
+
+    reviews = []
+    for line in result.stdout.strip().split('\n'):
+        if line:
+            data = json.loads(line)
+            if data.get('type') != 'stats':
+                subject = data.get('subject', '').lower()
+                # Filter for role-related changes
+                if 'role' in subject or 'service' in subject or 'add ' in subject:
+                    reviews.append(data)
+    return reviews
+
+
+def analyze_reviews(reviews: list):
+    """Analyze role addition patterns."""
+    # Categorize by type
+    new_roles = []
+
+    for r in reviews:
+        subject = r.get('subject', '').lower()
+        if any(x in subject for x in ['add ', 'introduce', 'new ', 'initial']):
+            new_roles.append(r)
+
+    return new_roles
+
+
+def print_results(new_roles: list):
+    """Print analysis results."""
+    print('=' * 70)
+    print('NEW ROLE/SERVICE ADDITIONS (Recent Examples)')
+    print('=' * 70)
+
+    # Show recent examples
+    for r in sorted(new_roles, key=lambda x: -x.get('lastUpdated', 0))[:15]:
+        subject = r.get('subject', '')
+        ps = r.get('currentPatchSet', {})
+        ps_num = ps.get('number', 1)
+        insertions = ps.get('sizeInsertions', 0)
+        deletions = abs(ps.get('sizeDeletions', 0))
+        total = insertions + deletions
+
+        created = r.get('createdOn', 0)
+        merged = r.get('lastUpdated', 0)
+        days_to_merge = (merged - created) / 86400 if created and merged else 0
+
+        topic = r.get('topic', 'none')
+        url = r.get('url', '')
+
+        print(f'\n{subject[:65]}')
+        print(f'  Lines: +{insertions}/-{deletions} ({total} total)')
+        print(f'  Patch sets: {ps_num}, Days to merge: {days_to_merge:.1f}')
+        print(f'  Topic: {topic}')
+        print(f'  URL: {url}')
+
+    # Calculate stats
+    print('\n' + '=' * 70)
+    print('STATISTICS FOR NEW ROLE ADDITIONS')
+    print('=' * 70)
+
+    if new_roles:
+        sizes = []
+        patchsets = []
+        days = []
+
+        for r in new_roles:
+            ps = r.get('currentPatchSet', {})
+            sizes.append(
+                ps.get('sizeInsertions', 0) + abs(ps.get('sizeDeletions', 0))
+            )
+            patchsets.append(ps.get('number', 1))
+
+            created = r.get('createdOn', 0)
+            merged = r.get('lastUpdated', 0)
+            if created and merged:
+                days.append((merged - created) / 86400)
+
+        sizes.sort()
+        patchsets.sort()
+        days.sort()
+
+        n = len(new_roles)
+        print(f'Sample size: {n} reviews')
+        print(f'\nPatch size (lines changed):')
+        print(f'  Median: {sizes[n//2]}')
+        print(f'  Min: {min(sizes)}, Max: {max(sizes)}')
+        print(f'  Average: {sum(sizes)/n:.0f}')
+
+        print(f'\nPatch sets needed:')
+        print(f'  Median: {patchsets[n//2]}')
+        print(f'  Min: {min(patchsets)}, Max: {max(patchsets)}')
+        print(f'  Average: {sum(patchsets)/n:.1f}')
+
+        if days:
+            dn = len(days)
+            print(f'\nDays to merge:')
+            print(f'  Median: {days[dn//2]:.1f}')
+            print(f'  Min: {min(days):.1f}, Max: {max(days):.1f}')
+            print(f'  Average: {sum(days)/dn:.1f}')
+
+    # Series patterns
+    print('\n' + '=' * 70)
+    print('SERIES VS STANDALONE PATTERNS')
+    print('=' * 70)
+
+    topics = defaultdict(list)
+    for r in new_roles:
+        topic = r.get('topic', '')
+        if topic:
+            topics[topic].append(r)
+
+    series_count = sum(
+        1 for r in new_roles
+        if r.get('topic') and len(topics.get(r.get('topic', ''), [])) > 1
+    )
+    standalone_count = len(new_roles) - series_count
+
+    print(f'\nStandalone new roles: {standalone_count}')
+    print(f'New roles in series: {series_count}')
+
+    # Calculate metrics for each group
+    standalone = [
+        r for r in new_roles
+        if not r.get('topic') or len(topics.get(r.get('topic', ''), [])) == 1
+    ]
+    in_series = [
+        r for r in new_roles
+        if r.get('topic') and len(topics.get(r.get('topic', ''), [])) > 1
+    ]
+
+    for name, group in [('Standalone', standalone), ('In series', in_series)]:
+        if group:
+            ps_nums = [
+                r.get('currentPatchSet', {}).get('number', 1) for r in group
+            ]
+            merge_days = []
+            for r in group:
+                created = r.get('createdOn', 0)
+                merged = r.get('lastUpdated', 0)
+                if created and merged:
+                    merge_days.append((merged - created) / 86400)
+
+            ps_nums.sort()
+            merge_days.sort()
+            print(f'\n{name} ({len(group)} reviews):')
+            print(f'  Median patch sets: {ps_nums[len(ps_nums)//2]}')
+            if merge_days:
+                print(f'  Median days to merge: {merge_days[len(merge_days)//2]:.1f}')
+
+    # Show series examples
+    series_roles = [(t, rs) for t, rs in topics.items() if len(rs) > 1]
+    if series_roles:
+        print(f'\nExample series containing new roles:')
+        for topic, rs in sorted(series_roles, key=lambda x: -len(x[1]))[:5]:
+            print(f'\n  Topic: {topic} ({len(rs)} patches)')
+            for r in rs[:3]:
+                subj = r.get('subject', '')[:50]
+                ps = r.get('currentPatchSet', {})
+                ins = ps.get('sizeInsertions', 0)
+                print(f'    - {subj}... (+{ins})')
+            if len(rs) > 3:
+                print(f'    ... and {len(rs) - 3} more')
+
+    # Success patterns
+    print('\n' + '=' * 70)
+    print('SUCCESSFUL STRATEGIES (Large additions that merged smoothly)')
+    print('=' * 70)
+
+    quick_large = []
+    for r in new_roles:
+        ps = r.get('currentPatchSet', {})
+        size = ps.get('sizeInsertions', 0) + abs(ps.get('sizeDeletions', 0))
+        ps_num = ps.get('number', 1)
+
+        created = r.get('createdOn', 0)
+        merged = r.get('lastUpdated', 0)
+        days_to_merge = (merged - created) / 86400 if created and merged else 999
+
+        # Large (>200 lines) but merged in <60 days with few revisions
+        if size > 200 and days_to_merge < 60 and ps_num <= 6:
+            quick_large.append((r, size, ps_num, days_to_merge))
+
+    if quick_large:
+        print(
+            f'\nLarge additions (>200 lines) merged in <60 days '
+            f'with ≤6 revisions:'
+        )
+        for r, size, ps_num, days_merge in sorted(quick_large, key=lambda x: x[3])[:8]:
+            subject = r.get('subject', '')[:55]
+            topic = r.get('topic', '')
+            strategy = 'series' if topic else 'standalone'
+            print(f'\n  {subject}')
+            print(f'    {size} lines, {ps_num} revisions, {days_merge:.1f} days')
+            print(f'    Strategy: {strategy}')
+            if topic:
+                print(f'    Topic: {topic}')
+    else:
+        print('\nNo examples found matching criteria.')
+
+    print('\n' + '=' * 70)
+    print('RECOMMENDATIONS FOR NEW ROLE ADDITIONS')
+    print('=' * 70)
+    print('''
+Based on historical patterns:
+
+1. **Most new roles are submitted as standalone patches**
+   - Simpler to review as a complete unit
+   - Avoids coordination overhead of series
+
+2. **Expect multiple revision cycles**
+   - New roles typically need 3-8 patch sets
+   - Plan for iteration, especially on first submission
+
+3. **Breaking up a new role (when it makes sense):**
+   - Patch 1: Schema/config changes (globals.yml additions)
+   - Patch 2: Docker image definitions (if in Kolla)
+   - Patch 3: Ansible role (tasks, handlers, templates)
+   - Patch 4: Documentation updates
+
+4. **What reviewers look for in new roles:**
+   - Consistent structure with existing roles
+   - Proper defaults and documentation
+   - Integration with existing services
+   - Release notes
+
+5. **Pre-submission checklist:**
+   - [ ] Follow existing role structure exactly
+   - [ ] Include comprehensive defaults
+   - [ ] Add documentation in doc/source/
+   - [ ] Include release note
+   - [ ] Test with actual deployment if possible
+   - [ ] Reference any related specs/blueprints
+''')
+
+
+def main():
+    parser = argparse.ArgumentParser(
+        description='Analyze Gerrit patterns for new role additions',
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog=__doc__,
+    )
+    parser.add_argument(
+        '--limit', '-n',
+        type=int,
+        default=300,
+        help='Number of reviews to search (default: 300)',
+    )
+    parser.add_argument(
+        '--project', '-p',
+        default='openstack/kolla-ansible',
+        help='Project to analyze (default: openstack/kolla-ansible)',
+    )
+
+    args = parser.parse_args()
+
+    print(f'Fetching role-related reviews from {args.project}...')
+    reviews = fetch_reviews(args.project, args.limit)
+
+    if not reviews:
+        print('No role-related reviews found.')
+        sys.exit(1)
+
+    print(f'Found {len(reviews)} role/service related reviews\n')
+
+    new_roles = analyze_reviews(reviews)
+    print(f'Identified {len(new_roles)} new role/service additions\n')
+
+    if new_roles:
+        print_results(new_roles)
+    else:
+        print('No new role additions found in the results.')
+
+
+if __name__ == '__main__':
+    main()
