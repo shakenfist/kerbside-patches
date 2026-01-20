@@ -1,0 +1,3 @@
+Use bools in the nova-cell nova.conf template.
+
+Change-Id: I922c684cf6ce7e038e77a44ceedb97be88edc97a

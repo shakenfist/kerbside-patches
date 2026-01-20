@@ -1,6 +1,6 @@
-commit 322305ca53cb0e223d8443e65ea5dbf401551621
+commit 4826d583e6a955a59b51b6905365e5d053953c2f
 Author: Michael Still <mikal@stillhq.com>
-Date:   Mon Jan 19 19:00:21 2026 +1100
+Date:   Tue Jan 20 12:47:10 2026 +1100
 
     Cap bandit version for linting.
     
