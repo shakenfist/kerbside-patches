@@ -1,6 +1,6 @@
-commit b5e63d02274611f2620bb4bce9937da097a5dd94
+commit ce13987ad8ecb65e414573d0ee2ac0062c5135a6
 Author: Michael Still <mikal@stillhq.com>
-Date:   Mon Jan 19 19:00:21 2026 +1100
+Date:   Tue Jan 20 15:25:44 2026 +1100
 
     Allow setting of the new SPICE debug_logging option.
     
@@ -11,7 +11,7 @@ Date:   Mon Jan 19 19:00:21 2026 +1100
     Signed-off-by: Michael Still <mikal@stillhq.com>
 
 diff --git a/ansible/group_vars/all/nova.yml b/ansible/group_vars/all/nova.yml
-index 9bf3373e9..08b624226 100644
+index 24cfb9914..845ed12e8 100644
 --- a/ansible/group_vars/all/nova.yml
 +++ b/ansible/group_vars/all/nova.yml
 @@ -76,3 +76,4 @@ nova_spice_playback_compression: "yes"
@@ -20,7 +20,7 @@ index 9bf3373e9..08b624226 100644
  nova_spice_allow_concurrent: "yes"
 +nova_spice_debug_logging: "no"
 diff --git a/ansible/roles/nova-cell/templates/nova.conf.j2 b/ansible/roles/nova-cell/templates/nova.conf.j2
-index e7c2cc145..7d53c5635 100644
+index c32c3c660..8da5e6b66 100644
 --- a/ansible/roles/nova-cell/templates/nova.conf.j2
 +++ b/ansible/roles/nova-cell/templates/nova.conf.j2
 @@ -63,6 +63,7 @@ enabled = false
@@ -32,7 +32,7 @@ index e7c2cc145..7d53c5635 100644
  image_compression = {{ nova_spice_image_compression }}
  jpeg_compression = {{ nova_spice_jpeg_compression }}
 diff --git a/doc/source/reference/compute/nova-guide.rst b/doc/source/reference/compute/nova-guide.rst
-index dab4c2d93..e4784a2bb 100644
+index a491cb56a..4c7ba310e 100644
 --- a/doc/source/reference/compute/nova-guide.rst
 +++ b/doc/source/reference/compute/nova-guide.rst
 @@ -69,6 +69,8 @@ through to ``nova``:
