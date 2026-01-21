@@ -1,28 +1,26 @@
-commit d06bdf7e8c363caed2b26c0b8944197105de6288
+commit f9b2e1b8747e30dad6c941b5d32b850d8fea9bc6
 Author: Michael Still <mikal@stillhq.com>
 Date:   Tue Jan 20 12:47:11 2026 +1100
 
-    Use a routable IP for qemu SPICE consoles.
+    Use bools in the nova-cell nova.conf template.
     
-    We currently do this is the SPICE HTML5 transcoding
-    proxy, but spice-direct consoles need it as well. We
-    should therefore simply always configure it.
-    
-    Partially-Implements: #2131793 (spice-direct consoles)
-    Change-Id: Ic88a58d974b71e38bc91fd7dee9eef38a0bacb87
+    Change-Id: I922c684cf6ce7e038e77a44ceedb97be88edc97a
     Signed-off-by: Michael Still <mikal@stillhq.com>
 
 diff --git a/ansible/roles/nova-cell/templates/nova.conf.j2 b/ansible/roles/nova-cell/templates/nova.conf.j2
-index 62e50d608..130ef50db 100644
+index 15b7d7e87..8d0bbe33a 100644
 --- a/ansible/roles/nova-cell/templates/nova.conf.j2
 +++ b/ansible/roles/nova-cell/templates/nova.conf.j2
-@@ -67,8 +67,8 @@ jpeg_compression = {{ nova_spice_jpeg_compression }}
- zlib_compression = {{ nova_spice_zlib_compression }}
+@@ -71,10 +71,10 @@ zlib_compression = {{ nova_spice_zlib_compression }}
  playback_compression = {{ nova_spice_playback_compression | bool | lower }}
  streaming_mode = {{ nova_spice_streaming_mode }}
-+server_proxyclient_address = "{{ 'api' | kolla_address }}"
- {%     if nova_spice_html5 == 'yes' %}
--server_proxyclient_address = {{ api_interface_address }}
+ server_proxyclient_address = "{{ 'api' | kolla_address }}"
+-{%     if enable_kerbside == 'yes' %}
++{%     if enable_kerbside | bool %}
+ spice_direct_proxy_base_url = "https://{{ kolla_external_fqdn }}:13002/nova-console.vv"
+ {%     endif %}
+-{%     if nova_spice_html5 == 'yes' %}
++{%     if nova_spice_html5 | bool %}
  {%         if inventory_hostname in groups[nova_cell_compute_group] %}
  html5proxy_base_url = {{ nova_spicehtml5proxy_fqdn | kolla_url(public_protocol, nova_spicehtml5proxy_public_port, '/spice_auto.html') }}
  {%         endif %}
