@@ -11,16 +11,7 @@ diff --git a/ansible/roles/nova-cell/templates/nova.conf.j2 b/ansible/roles/nova
 index 15b7d7e87..8d0bbe33a 100644
 --- a/ansible/roles/nova-cell/templates/nova.conf.j2
 +++ b/ansible/roles/nova-cell/templates/nova.conf.j2
-@@ -51,7 +51,7 @@ novncproxy_host = {{ api_interface_address }}
- novncproxy_port = {{ nova_novncproxy_listen_port }}
- server_listen = {{ api_interface_address }}
- server_proxyclient_address = {{ api_interface_address }}
--{%         if enable_kerbside == 'yes' %}
-+{%         if enable_kerbside | bool %}
- spice_direct_proxy_base_url = "https://{{ kolla_external_fqdn }}:13002/nova-console.vv"
- {%         endif %}
- {%         if inventory_hostname in groups[nova_cell_compute_group] %}
-@@ -72,7 +72,7 @@ jpeg_compression = {{ nova_spice_jpeg_compression }}
+@@ -75,7 +75,7 @@ jpeg_compression = {{ nova_spice_jpeg_compression }}
  zlib_compression = {{ nova_spice_zlib_compression }}
  playback_compression = {{ nova_spice_playback_compression | bool | lower }}
  streaming_mode = {{ nova_spice_streaming_mode }}

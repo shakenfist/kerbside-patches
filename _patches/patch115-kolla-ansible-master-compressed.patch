@@ -1460,16 +1460,16 @@ diff --git a/ansible/roles/nova-cell/templates/nova.conf.j2 b/ansible/roles/nova
 index 6b3e7ef91..cb7625f29 100644
 --- a/ansible/roles/nova-cell/templates/nova.conf.j2
 +++ b/ansible/roles/nova-cell/templates/nova.conf.j2
-@@ -51,6 +51,9 @@ novncproxy_host = {{ api_interface_address }}
- novncproxy_port = {{ nova_novncproxy_listen_port }}
- server_listen = {{ api_interface_address }}
- server_proxyclient_address = {{ api_interface_address }}
-+{%         if enable_kerbside == 'yes' %}
+@@ -71,6 +71,9 @@ image_compression = {{ nova_spice_image_compression }}
+ jpeg_compression = {{ nova_spice_jpeg_compression }}
+ zlib_compression = {{ nova_spice_zlib_compression }}
+ playback_compression = {{ nova_spice_playback_compression | bool | lower }}
+ streaming_mode = {{ nova_spice_streaming_mode }}
++{%     if enable_kerbside | bool %}
 +spice_direct_proxy_base_url = "https://{{ kolla_external_fqdn }}:13002/nova-console.vv"
-+{%         endif %}
- {%         if inventory_hostname in groups[nova_cell_compute_group] %}
- novncproxy_base_url = {{ nova_novncproxy_fqdn | kolla_url(public_protocol,  nova_novncproxy_public_port, '/vnc_lite.html') }}
- {%         endif %}
++{%     endif %}
+ {%     if nova_spice_html5 | bool %}
+ server_proxyclient_address = {{ api_interface_address }}
 diff --git a/ansible/roles/nova/defaults/main.yml b/ansible/roles/nova/defaults/main.yml
 index 2fe3b3e52..c62b51565 100644
 --- a/ansible/roles/nova/defaults/main.yml
