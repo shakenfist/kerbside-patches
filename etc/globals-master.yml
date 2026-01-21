@@ -627,7 +627,7 @@ enable_proxysql: true
 nova_console: "spice"
 nova_spice_html5: false
 nova_spicehtml5proxy_fqdn: "10.0.2.2"
-nova_spice_require_secure: false
+nova_spice_require_secure: true
 nova_spice_debug_logging: false
 nova_spice_allow_concurrent: true
 enable_kerbside: true
