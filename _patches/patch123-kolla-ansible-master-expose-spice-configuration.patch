@@ -124,7 +124,7 @@ index 5e98a8c9f..4cebca4e4 100644
 +image_compression = {{ nova_spice_image_compression }}
 +jpeg_compression = {{ nova_spice_jpeg_compression }}
 +zlib_compression = {{ nova_spice_zlib_compression }}
-+playback_compression = {{ nova_spice_playback_compression | bool | lower }}
++playback_compression = {{ nova_spice_playback_compression }}
 +streaming_mode = {{ nova_spice_streaming_mode }}
 +{%     if nova_spice_html5 | bool %}
  server_proxyclient_address = {{ api_interface_address }}

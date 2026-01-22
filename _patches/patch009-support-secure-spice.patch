@@ -23,9 +23,9 @@ index 0e0252d26..35b4ea7bd 100644
 +++ b/ansible/group_vars/all.yml
 @@ -1214,6 +1214,7 @@ nova_spice_jpeg_compression: "auto"
  nova_spice_zlib_compression: "auto"
- nova_spice_playback_compression: "yes"
+ nova_spice_playback_compression: true
  nova_spice_streaming_mode: "filter"
-+nova_spice_require_secure: "no"
++nova_spice_require_secure: false
  
  
  #######################
@@ -66,7 +66,7 @@ index 4295482f7..e6f62f12c 100644
  enabled = false
  [spice]
  enabled = true
-+require_secure = {{ nova_spice_require_secure | bool | lower }}
++require_secure = {{ nova_spice_require_secure }}
  server_listen = {{ api_interface_address }}
  image_compression = {{ nova_spice_image_compression }}
  jpeg_compression = {{ nova_spice_jpeg_compression }}

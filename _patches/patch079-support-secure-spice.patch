@@ -23,9 +23,9 @@ index 3be5ee73b..17131a166 100644
 +++ b/ansible/group_vars/all/nova.yml
 @@ -74,3 +74,4 @@ nova_spice_jpeg_compression: "auto"
  nova_spice_zlib_compression: "auto"
- nova_spice_playback_compression: "yes"
+ nova_spice_playback_compression: true
  nova_spice_streaming_mode: "filter"
-+nova_spice_require_secure: "no"
++nova_spice_require_secure: false
 diff --git a/ansible/roles/nova-cell/templates/nova-libvirt.json.j2 b/ansible/roles/nova-cell/templates/nova-libvirt.json.j2
 index e81413b35..caf1176ea 100644
 --- a/ansible/roles/nova-cell/templates/nova-libvirt.json.j2
@@ -63,7 +63,7 @@ index 991f9ed1f..a4cccee29 100644
  enabled = false
  [spice]
  enabled = true
-+require_secure = {{ nova_spice_require_secure | bool | lower }}
++require_secure = {{ nova_spice_require_secure }}
  server_listen = {{ api_interface_address }}
  image_compression = {{ nova_spice_image_compression }}
  jpeg_compression = {{ nova_spice_jpeg_compression }}

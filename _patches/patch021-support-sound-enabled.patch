@@ -12,7 +12,7 @@ index ec147ca..492c4a5 100644
 --- a/ansible/group_vars/all.yml
 +++ b/ansible/group_vars/all.yml
 @@ -1057,6 +1057,7 @@ nova_spice_streaming_mode: "filter"
- nova_spice_require_secure: "no"
+ nova_spice_require_secure: false
  nova_spice_allow_concurrent: "yes"
  nova_spice_debug_logging: "no"
 +nova_spice_sound_enabled: "yes"
@@ -24,7 +24,7 @@ index c01c06c..0aa84fc 100644
 --- a/ansible/roles/nova-cell/templates/nova.conf.j2
 +++ b/ansible/roles/nova-cell/templates/nova.conf.j2
 @@ -61,6 +61,7 @@ enabled = true
- require_secure = {{ nova_spice_require_secure | bool | lower }}
+ require_secure = {{ nova_spice_require_secure }}
  allow_concurrent = {{ nova_spice_allow_concurrent | bool | lower }}
  debug_logging = {{ nova_spice_debug_logging | bool | lower }}
 +sound_enabled = {{ nova_spice_sound_enabled | bool | lower }}

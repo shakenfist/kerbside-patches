@@ -1447,7 +1447,7 @@ index 6b3e7ef91..6a7208c69 100644
 +++ b/ansible/roles/nova-cell/templates/nova.conf.j2
 @@ -69,7 +69,10 @@ jpeg_compression = {{ nova_spice_jpeg_compression }}
  zlib_compression = {{ nova_spice_zlib_compression }}
- playback_compression = {{ nova_spice_playback_compression | bool | lower }}
+ playback_compression = {{ nova_spice_playback_compression }}
  streaming_mode = {{ nova_spice_streaming_mode }}
 -{% if nova_spice_html5 == 'yes' %}
 +{% if enable_kerbside | bool %}
