@@ -4,6 +4,6 @@ We currently do this is the SPICE HTML5 transcoding
 proxy, but spice-direct consoles need it as well. We
 should therefore simply always configure it.
 
-Partially-Implements: #2131793 (spice-direct consoles)
+Partial-Bug: #2131793 (spice-direct consoles)
 Change-Id: Ic88a58d974b71e38bc91fd7dee9eef38a0bacb87
 Signed-off-by: Michael Still <mikal@stillhq.com>

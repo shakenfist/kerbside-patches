@@ -1,6 +1,6 @@
-commit 54f6241b7d586f9b7db6793a888e846112f8bea2
+commit 2e7ec489667b0603f8d3c8eb8879d92b4b891ce3
 Author: Michael Still <mikal@stillhq.com>
-Date:   Thu Jan 22 10:39:06 2026 +1100
+Date:   Fri Jan 23 08:26:31 2026 +1100
 
     Allow requiring secure channels with SPICE.
     
@@ -13,12 +13,12 @@ Date:   Thu Jan 22 10:39:06 2026 +1100
     to support TLS, and that TLS certificates have been configured in
     the nova_libvirt container.
     
-    Partially-Implements: #2131793 (spice-direct consoles)
+    Partial-Bug: #2131793 (spice-direct consoles)
     Change-Id: I4306725fb8433860baec8e01c51e9eae2beb3cc9
     Signed-off-by: Michael Still <mikal@stillhq.com>
 
 diff --git a/ansible/group_vars/all/nova.yml b/ansible/group_vars/all/nova.yml
-index 4b116200a..b5dd3e66b 100644
+index 4b116200a..9c98dc933 100644
 --- a/ansible/group_vars/all/nova.yml
 +++ b/ansible/group_vars/all/nova.yml
 @@ -74,3 +74,4 @@ nova_spice_jpeg_compression: "auto"
@@ -56,7 +56,7 @@ index e81413b35..caf1176ea 100644
      ]
  }
 diff --git a/ansible/roles/nova-cell/templates/nova.conf.j2 b/ansible/roles/nova-cell/templates/nova.conf.j2
-index 4cebca4e4..9428967d8 100644
+index 4f5c2f88d..6fb4641ad 100644
 --- a/ansible/roles/nova-cell/templates/nova.conf.j2
 +++ b/ansible/roles/nova-cell/templates/nova.conf.j2
 @@ -61,6 +61,7 @@ novncproxy_base_url = {{ nova_novncproxy_fqdn | kolla_url(public_protocol,  nova

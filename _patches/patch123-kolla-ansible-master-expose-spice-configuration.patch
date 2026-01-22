@@ -1,6 +1,6 @@
-commit 15e335e4f26476b10ac9c2f7434e7a5bd98e7091
+commit a3e93d9c420c68dcd03a21da7872e7b868b21302
 Author: Michael Still <mikal@stillhq.com>
-Date:   Thu Jan 22 10:39:06 2026 +1100
+Date:   Fri Jan 23 08:26:31 2026 +1100
 
     Add additional SPICE configuration options.
     
@@ -30,7 +30,7 @@ Date:   Thu Jan 22 10:39:06 2026 +1100
     All configuration options and their various values are documented
     by OpenStack Compute in their documentation.
     
-    Partially-Implements: #2131793 (spice-direct consoles)
+    Partial-Bug: #2131793 (spice-direct consoles)
     Change-Id: I07f6890f1c7c4e543667d3cbd7b3e82bd9ec83e3
     Signed-off-by: Michael Still <mikal@stillhq.com>
 
@@ -114,7 +114,7 @@ index 0ff2bcd70..f75ae3963 100644
              external: true
              external_fqdn: "{{ hostvars[groups[cell_proxy_group][0]]['nova_spicehtml5proxy_fqdn'] }}"
 diff --git a/ansible/roles/nova-cell/templates/nova.conf.j2 b/ansible/roles/nova-cell/templates/nova.conf.j2
-index 5e98a8c9f..4cebca4e4 100644
+index 5e98a8c9f..4f5c2f88d 100644
 --- a/ansible/roles/nova-cell/templates/nova.conf.j2
 +++ b/ansible/roles/nova-cell/templates/nova.conf.j2
 @@ -62,12 +62,19 @@ enabled = false
