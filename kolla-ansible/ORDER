@@ -4,3 +4,4 @@
 ../_patches/patch064-allow-rocky-10-builds.patch
 ../_patches/patch108-dry-up-logrotate-cron.patch
 ../_patches/patch115-kolla-ansible-master-compressed.patch
+../_patches/patch132-fix-kerbside-bootstrap-multinode.patch
