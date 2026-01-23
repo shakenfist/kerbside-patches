@@ -20,12 +20,12 @@ in 2023.1, and they are exposed as well:
 * nova_spice_image_compression: "auto_glz"
 * nova_spice_jpeg_compression: "auto"
 * nova_spice_zlib_compression: "auto"
-* nova_spice_playback_compression: "yes"
+* nova_spice_playback_compression: true
 * nova_spice_streaming_mode: "filter"
 
 All configuration options and their various values are documented
 by OpenStack Compute in their documentation.
 
-Partially-Implements: #2131793 (spice-direct consoles)
+Partial-Bug: #2131793 (spice-direct consoles)
 Change-Id: I07f6890f1c7c4e543667d3cbd7b3e82bd9ec83e3
 Signed-off-by: Michael Still <mikal@stillhq.com>

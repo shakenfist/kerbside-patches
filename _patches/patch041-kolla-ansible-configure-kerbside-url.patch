@@ -9,7 +9,7 @@ index c721ff7..b96d8e4 100644
 --- a/ansible/roles/nova-cell/templates/nova.conf.j2
 +++ b/ansible/roles/nova-cell/templates/nova.conf.j2
 @@ -74,6 +74,7 @@ zlib_compression = {{ nova_spice_zlib_compression }}
- playback_compression = {{ nova_spice_playback_compression | bool | lower }}
+ playback_compression = {{ nova_spice_playback_compression }}
  streaming_mode = {{ nova_spice_streaming_mode }}
  server_proxyclient_address = "{{ 'api' | kolla_address }}"
 +spice_direct_proxy_base_url = "http://{{ 'api' | kolla_address }}:13002/nova-console.vv"

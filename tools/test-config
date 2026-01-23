@@ -11,7 +11,10 @@ echo -e "${H1}Dump nova.conf for nova-compute${Color_Off}"
 echo -e "${H1}==================================================${Color_Off}"
 
 
-/srv/shakenfist/actions/tools/run_remote ${hypervisor} sudo cat /etc/kolla/nova-compute/nova.conf | tee /tmp/nova-compute.conf
+/srv/shakenfist/actions/tools/run_remote ${hypervisor} sudo cat /etc/kolla/nova-compute/nova.conf | \
+    tee /tmp/nova-compute.conf
+/srv/shakenfist/actions/tools/run_remote ${hypervisor} sudo cat /etc/kolla/nova-libvirt/qemu.conf | \
+    tee /tmp/qemu.conf
 
 echo
 echo -e "${H1}==================================================${Color_Off}"
@@ -19,11 +22,28 @@ echo -e "${H1}Ensure nova.conf has the right options set${Color_Off}"
 echo -e "${H1}==================================================${Color_Off}"
 
 failed=0
-for field in image_compression jpeg_compression zlib_compression playback_compression streaming_mode spice_direct_proxy_base_url; do
+for field in \
+        image_compression \
+        jpeg_compression \
+        zlib_compression \
+        playback_compression \
+        streaming_mode \
+        spice_direct_proxy_base_url; do
     search=$(grep -c "${field}" /tmp/nova-compute.conf || true)
-    echo -e "Searched for ${field} ${Arrow} ${search}"
+    echo -e "Searched nova.conf for ${field} ${Arrow} ${search}"
     if [ ${search} -lt 1 ]; then
         echo -e "${Red}Required field ${field} is not in nova.conf!${Color_Off}"
+        failed=1
+    fi
+done
+
+for field in \
+        spice_tls \
+        spice_tls_x509_cert_dir; do
+    search=$(grep -c "${field}" /tmp/qemu.conf || true)
+    echo -e "Searched qemu.conf for ${field} ${Arrow} ${search}"
+    if [ ${search} -lt 1 ]; then
+        echo -e "${Red}Required field ${field} is not in qemu.conf!${Color_Off}"
         failed=1
     fi
 done

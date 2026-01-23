@@ -1,6 +1,6 @@
-commit 1befd768f12c11f0b2d5dc467f8d6d1fc138e7bb
+commit 2e7ec489667b0603f8d3c8eb8879d92b4b891ce3
 Author: Michael Still <mikal@stillhq.com>
-Date:   Tue Jan 20 12:47:11 2026 +1100
+Date:   Fri Jan 23 08:26:31 2026 +1100
 
     Allow requiring secure channels with SPICE.
     
@@ -13,19 +13,19 @@ Date:   Tue Jan 20 12:47:11 2026 +1100
     to support TLS, and that TLS certificates have been configured in
     the nova_libvirt container.
     
-    Partially-Implements: #2131793 (spice-direct consoles)
+    Partial-Bug: #2131793 (spice-direct consoles)
     Change-Id: I4306725fb8433860baec8e01c51e9eae2beb3cc9
     Signed-off-by: Michael Still <mikal@stillhq.com>
 
 diff --git a/ansible/group_vars/all/nova.yml b/ansible/group_vars/all/nova.yml
-index 0b334b317..be9ceedb5 100644
+index 4b116200a..9c98dc933 100644
 --- a/ansible/group_vars/all/nova.yml
 +++ b/ansible/group_vars/all/nova.yml
 @@ -74,3 +74,4 @@ nova_spice_jpeg_compression: "auto"
  nova_spice_zlib_compression: "auto"
- nova_spice_playback_compression: "yes"
+ nova_spice_playback_compression: true
  nova_spice_streaming_mode: "filter"
-+nova_spice_require_secure: "no"
++nova_spice_require_secure: false
 diff --git a/ansible/roles/nova-cell/templates/nova-libvirt.json.j2 b/ansible/roles/nova-cell/templates/nova-libvirt.json.j2
 index e81413b35..caf1176ea 100644
 --- a/ansible/roles/nova-cell/templates/nova-libvirt.json.j2
@@ -56,14 +56,14 @@ index e81413b35..caf1176ea 100644
      ]
  }
 diff --git a/ansible/roles/nova-cell/templates/nova.conf.j2 b/ansible/roles/nova-cell/templates/nova.conf.j2
-index 130ef50db..c019f40a0 100644
+index 4f5c2f88d..6fb4641ad 100644
 --- a/ansible/roles/nova-cell/templates/nova.conf.j2
 +++ b/ansible/roles/nova-cell/templates/nova.conf.j2
 @@ -61,6 +61,7 @@ novncproxy_base_url = {{ nova_novncproxy_fqdn | kolla_url(public_protocol,  nova
  enabled = false
  [spice]
  enabled = true
-+require_secure = {{ nova_spice_require_secure | bool | lower }}
++require_secure = {{ nova_spice_require_secure }}
  server_listen = {{ api_interface_address }}
  image_compression = {{ nova_spice_image_compression }}
  jpeg_compression = {{ nova_spice_jpeg_compression }}
@@ -84,21 +84,16 @@ index 03b56479a..fb0010783 100644
  swtpm_user = "{{ swtpm_user }}"
  swtpm_group = "{{ swtpm_group }}"
 diff --git a/doc/source/reference/compute/nova-guide.rst b/doc/source/reference/compute/nova-guide.rst
-index f0ef31fcc..6225b0eab 100644
+index 87757f930..8a57bf28b 100644
 --- a/doc/source/reference/compute/nova-guide.rst
 +++ b/doc/source/reference/compute/nova-guide.rst
-@@ -45,10 +45,18 @@ Valid options are ``none``, ``novnc`` and ``spice``. Additionally,
- serial console support can be enabled by setting
- ``enable_nova_serialconsole_proxy`` to ``yes``.
- 
--``spice`` consoles have additional configuration options:
-+``spice`` consoles have additional configuration options used by Kolla Ansible:
+@@ -49,6 +49,14 @@ serial console support can be enabled by setting
  
  * nova_spice_html5: configures whether the HTML5 transcoding proxy used by
-   Horizon is enabled, and defaults to ``yes``.
+   Horizon is enabled, and defaults to ``true``.
 +* nova_spice_require_secure: configures whether SPICE connections require that
-+  the connection be secured by TLS. This defaults to ``no`` to remain
-+  compatible with previous installations. Note that ``yes`` implies
++  the connection be secured by TLS. This defaults to ``false`` to remain
++  compatible with previous installations. Note that ``true`` implies
 +  configuration and deployment of TLS certificates.
 +
 +Additionally ``spice`` has the following configuration options passed directly
@@ -107,3 +102,18 @@ index f0ef31fcc..6225b0eab 100644
  * nova_spice_image_compression: which compression algorithm to use for images
    when using the SPICE console type. Defaults to ``auto_glz``.
  * nova_spice_jpeg_compression: whether or not to use JPEG compression with
+diff --git a/releasenotes/notes/expose-spice-secure-6fb03214fa8ecc75.yaml b/releasenotes/notes/expose-spice-secure-6fb03214fa8ecc75.yaml
+new file mode 100644
+index 000000000..97273a86d
+--- /dev/null
++++ b/releasenotes/notes/expose-spice-secure-6fb03214fa8ecc75.yaml
+@@ -0,0 +1,9 @@
++---
++other:
++  - |
++    This release exposes additional configuration options for OpenStack
++    Compute consoles which utilize the SPICE protocol. You can now require
++    that such consoles use channels secured by TLS using the
++    ``nova_spice_require_secure`` configuration option. This option defaults
++    to ``false`` as it implies that TLS certificates have been distributed
++    to your ``nova-compute`` nodes.

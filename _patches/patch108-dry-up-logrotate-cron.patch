@@ -1,6 +1,6 @@
-commit d3460500cc1dfd9e409fdfad57bf40fece3e2415
+commit ddbf37512fb3a288cbaa3c7e8a0f075a85d362f8
 Author: Michael Still <mikal@stillhq.com>
-Date:   Tue Jan 20 12:47:11 2026 +1100
+Date:   Fri Jan 23 08:14:52 2026 +1100
 
     Simplify cron jobs for log rotate.
     
@@ -429,3 +429,16 @@ index 57eef45c6..000000000
 -"/var/log/kolla/zun/*.log"
 -{
 -}
+diff --git a/releasenotes/notes/simplified-cron-templates-5d4f1730bd562da1.yaml b/releasenotes/notes/simplified-cron-templates-5d4f1730bd562da1.yaml
+new file mode 100644
+index 000000000..d7e3b58f9
+--- /dev/null
++++ b/releasenotes/notes/simplified-cron-templates-5d4f1730bd562da1.yaml
+@@ -0,0 +1,7 @@
++
++other:
++  - |
++    The structure of the templates for log rotate cron jobs
++    has been simplified to reduce repetition. If you have local
++    changes which add to or modify these templates you may need
++    to update your modifications.

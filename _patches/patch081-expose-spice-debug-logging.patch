@@ -14,10 +14,10 @@ diff --git a/ansible/group_vars/all/nova.yml b/ansible/group_vars/all/nova.yml
 index 24cfb9914..845ed12e8 100644
 --- a/ansible/group_vars/all/nova.yml
 +++ b/ansible/group_vars/all/nova.yml
-@@ -76,3 +76,4 @@ nova_spice_playback_compression: "yes"
+@@ -76,3 +76,4 @@ nova_spice_playback_compression: true
  nova_spice_streaming_mode: "filter"
- nova_spice_require_secure: "no"
- nova_spice_allow_concurrent: "yes"
+ nova_spice_require_secure: false
+ nova_spice_allow_concurrent: true
 +nova_spice_debug_logging: "no"
 diff --git a/ansible/roles/nova-cell/templates/nova.conf.j2 b/ansible/roles/nova-cell/templates/nova.conf.j2
 index c32c3c660..8da5e6b66 100644
@@ -25,7 +25,7 @@ index c32c3c660..8da5e6b66 100644
 +++ b/ansible/roles/nova-cell/templates/nova.conf.j2
 @@ -63,6 +63,7 @@ enabled = false
  enabled = true
- require_secure = {{ nova_spice_require_secure | bool | lower }}
+ require_secure = {{ nova_spice_require_secure }}
  allow_concurrent = {{ nova_spice_allow_concurrent | bool | lower }}
 +debug_logging = {{ nova_spice_debug_logging | bool | lower }}
  server_listen = {{ api_interface_address }}

@@ -1,6 +1,6 @@
-commit 9a422a2bcdccf8725b1ac7c461167cbe4508c064
+commit 6d7963a2c1704935a15bb7f439b889f07b430e8f
 Author: Michael Still <mikal@stillhq.com>
-Date:   Tue Jan 20 05:16:12 2026 +1100
+Date:   Sat Jan 10 17:01:23 2026 +1100
 
     Allow concurrent sessions with SPICE.
     
@@ -13,38 +13,35 @@ Date:   Tue Jan 20 05:16:12 2026 +1100
     by adding the new configuration option
     `nova_spice_allow_concurrent`.
     
-    Change-Id: I1e890d294523186f87fc793085489596b30b6338
+    Change-Id: Id5fe10e650f52fe3a1970317924866b99ec9bcad
     Signed-off-by: Michael Still <mikal@stillhq.com>
 
-diff --git a/ansible/group_vars/all.yml b/ansible/group_vars/all.yml
-index 35b4ea7bd..49efb9f42 100644
---- a/ansible/group_vars/all.yml
-+++ b/ansible/group_vars/all.yml
-@@ -1215,6 +1215,7 @@ nova_spice_zlib_compression: "auto"
+diff --git a/ansible/group_vars/all/nova.yml b/ansible/group_vars/all/nova.yml
+index b5dd3e66b..b54f151dd 100644
+--- a/ansible/group_vars/all/nova.yml
++++ b/ansible/group_vars/all/nova.yml
+@@ -75,3 +75,4 @@ nova_spice_zlib_compression: "auto"
  nova_spice_playback_compression: true
  nova_spice_streaming_mode: "filter"
  nova_spice_require_secure: false
-+nova_spice_allow_concurrent: "yes"
- 
- 
- #######################
++nova_spice_allow_concurrent: true
 diff --git a/ansible/roles/nova-cell/templates/nova.conf.j2 b/ansible/roles/nova-cell/templates/nova.conf.j2
-index e6f62f12c..100beca19 100644
+index c019f40a0..e7c2cc145 100644
 --- a/ansible/roles/nova-cell/templates/nova.conf.j2
 +++ b/ansible/roles/nova-cell/templates/nova.conf.j2
-@@ -64,6 +64,7 @@ enabled = false
+@@ -62,6 +62,7 @@ enabled = false
  [spice]
  enabled = true
  require_secure = {{ nova_spice_require_secure }}
-+allow_concurrent = {{ nova_spice_allow_concurrent | bool | lower }}
++allow_concurrent = {{ nova_spice_allow_concurrent }}
  server_listen = {{ api_interface_address }}
  image_compression = {{ nova_spice_image_compression }}
  jpeg_compression = {{ nova_spice_jpeg_compression }}
 diff --git a/doc/source/reference/compute/nova-guide.rst b/doc/source/reference/compute/nova-guide.rst
-index 07e7ab762..d22933600 100644
+index 6225b0eab..dab4c2d93 100644
 --- a/doc/source/reference/compute/nova-guide.rst
 +++ b/doc/source/reference/compute/nova-guide.rst
-@@ -63,6 +63,8 @@ serial console support can be enabled by setting
+@@ -57,6 +57,8 @@ serial console support can be enabled by setting
  Additionally ``spice`` has the following configuration options passed directly
  through to ``nova``:
  

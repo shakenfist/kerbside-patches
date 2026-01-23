@@ -24,13 +24,13 @@ Date:   Tue Jan 20 15:25:43 2026 +1100
     * nova_spice_image_compression: "auto_glz"
     * nova_spice_jpeg_compression: "auto"
     * nova_spice_zlib_compression: "auto"
-    * nova_spice_playback_compression: "yes"
+    * nova_spice_playback_compression: true
     * nova_spice_streaming_mode: "filter"
     
     All configuration options and their various values are documented
     by OpenStack Compute in their documentation.
     
-    Partially-Implements: #2131793 (spice-direct consoles)
+    Partial-Bug: #2131793 (spice-direct consoles)
     Change-Id: I07f6890f1c7c4e543667d3cbd7b3e82bd9ec83e3
     Signed-off-by: Michael Still <mikal@stillhq.com>
 
@@ -56,11 +56,11 @@ index 48811be62..3be5ee73b 100644
 +nova_spicehtml5proxy_port: "6082"
 +nova_spicehtml5proxy_listen_port: "{{ nova_spicehtml5proxy_port }}"
 +nova_spicehtml5proxy_public_port: "{{ haproxy_single_external_frontend_public_port if haproxy_single_external_frontend | bool else nova_spicehtml5proxy_port }}"
-+nova_spice_html5: "yes"
++nova_spice_html5: true
 +nova_spice_image_compression: "auto_glz"
 +nova_spice_jpeg_compression: "auto"
 +nova_spice_zlib_compression: "auto"
-+nova_spice_playback_compression: "yes"
++nova_spice_playback_compression: true
 +nova_spice_streaming_mode: "filter"
 diff --git a/ansible/roles/loadbalancer/tasks/precheck.yml b/ansible/roles/loadbalancer/tasks/precheck.yml
 index 7d4fc4bbf..8680c33b5 100644
@@ -124,7 +124,7 @@ index 6e8877950..1f1d7aacc 100644
 +image_compression = {{ nova_spice_image_compression }}
 +jpeg_compression = {{ nova_spice_jpeg_compression }}
 +zlib_compression = {{ nova_spice_zlib_compression }}
-+playback_compression = {{ nova_spice_playback_compression | bool | lower }}
++playback_compression = {{ nova_spice_playback_compression }}
 +streaming_mode = {{ nova_spice_streaming_mode }}
 +{% if nova_spice_html5 == 'yes' %}
  server_proxyclient_address = {{ api_interface_address }}

@@ -1,6 +1,6 @@
-commit b840112838a1d61ab5428957da14625eb5243871
+commit a3e93d9c420c68dcd03a21da7872e7b868b21302
 Author: Michael Still <mikal@stillhq.com>
-Date:   Tue Jan 20 12:47:10 2026 +1100
+Date:   Fri Jan 23 08:26:31 2026 +1100
 
     Add additional SPICE configuration options.
     
@@ -24,20 +24,18 @@ Date:   Tue Jan 20 12:47:10 2026 +1100
     * nova_spice_image_compression: "auto_glz"
     * nova_spice_jpeg_compression: "auto"
     * nova_spice_zlib_compression: "auto"
-    * nova_spice_playback_compression: "yes"
+    * nova_spice_playback_compression: true
     * nova_spice_streaming_mode: "filter"
     
     All configuration options and their various values are documented
     by OpenStack Compute in their documentation.
     
-    Partially-Implements: #2131793 (spice-direct consoles)
+    Partial-Bug: #2131793 (spice-direct consoles)
     Change-Id: I07f6890f1c7c4e543667d3cbd7b3e82bd9ec83e3
-    Signed-off-by: Michael Still <mikal@stillhq.com>
-    Depends-On: https://review.opendev.org/c/openstack/kolla/+/972441
     Signed-off-by: Michael Still <mikal@stillhq.com>
 
 diff --git a/ansible/group_vars/all/nova.yml b/ansible/group_vars/all/nova.yml
-index f1996cd73..0b334b317 100644
+index f1996cd73..4b116200a 100644
 --- a/ansible/group_vars/all/nova.yml
 +++ b/ansible/group_vars/all/nova.yml
 @@ -58,12 +58,19 @@ nova_novncproxy_fqdn: "{{ kolla_external_fqdn }}"
@@ -58,11 +56,11 @@ index f1996cd73..0b334b317 100644
 +nova_spicehtml5proxy_port: "6082"
 +nova_spicehtml5proxy_listen_port: "{{ nova_spicehtml5proxy_port }}"
 +nova_spicehtml5proxy_public_port: "{{ haproxy_single_external_frontend_public_port if haproxy_single_external_frontend | bool else nova_spicehtml5proxy_port }}"
-+nova_spice_html5: "yes"
++nova_spice_html5: true
 +nova_spice_image_compression: "auto_glz"
 +nova_spice_jpeg_compression: "auto"
 +nova_spice_zlib_compression: "auto"
-+nova_spice_playback_compression: "yes"
++nova_spice_playback_compression: true
 +nova_spice_streaming_mode: "filter"
 diff --git a/ansible/roles/loadbalancer/tasks/precheck.yml b/ansible/roles/loadbalancer/tasks/precheck.yml
 index b997c671e..d62a1eaf4 100644
@@ -116,7 +114,7 @@ index 0ff2bcd70..f75ae3963 100644
              external: true
              external_fqdn: "{{ hostvars[groups[cell_proxy_group][0]]['nova_spicehtml5proxy_fqdn'] }}"
 diff --git a/ansible/roles/nova-cell/templates/nova.conf.j2 b/ansible/roles/nova-cell/templates/nova.conf.j2
-index 5e98a8c9f..62e50d608 100644
+index 5e98a8c9f..4f5c2f88d 100644
 --- a/ansible/roles/nova-cell/templates/nova.conf.j2
 +++ b/ansible/roles/nova-cell/templates/nova.conf.j2
 @@ -62,12 +62,19 @@ enabled = false
@@ -126,9 +124,9 @@ index 5e98a8c9f..62e50d608 100644
 +image_compression = {{ nova_spice_image_compression }}
 +jpeg_compression = {{ nova_spice_jpeg_compression }}
 +zlib_compression = {{ nova_spice_zlib_compression }}
-+playback_compression = {{ nova_spice_playback_compression | bool | lower }}
++playback_compression = {{ nova_spice_playback_compression }}
 +streaming_mode = {{ nova_spice_streaming_mode }}
-+{%     if nova_spice_html5 == 'yes' %}
++{%     if nova_spice_html5 | bool %}
  server_proxyclient_address = {{ api_interface_address }}
 -{%     if inventory_hostname in groups[nova_cell_compute_group] %}
 +{%         if inventory_hostname in groups[nova_cell_compute_group] %}
@@ -142,17 +140,17 @@ index 5e98a8c9f..62e50d608 100644
  [vnc]
  enabled = false
 diff --git a/doc/source/reference/compute/nova-guide.rst b/doc/source/reference/compute/nova-guide.rst
-index 8e083f241..f0ef31fcc 100644
+index 8e083f241..87757f930 100644
 --- a/doc/source/reference/compute/nova-guide.rst
 +++ b/doc/source/reference/compute/nova-guide.rst
 @@ -45,6 +45,21 @@ Valid options are ``none``, ``novnc`` and ``spice``. Additionally,
  serial console support can be enabled by setting
  ``enable_nova_serialconsole_proxy`` to ``yes``.
  
-+``spice`` consoles have additional configuration options:
++``spice`` consoles have additional configuration options used by Kolla Ansible:
 +
 +* nova_spice_html5: configures whether the HTML5 transcoding proxy used by
-+  Horizon is enabled, and defaults to ``yes``.
++  Horizon is enabled, and defaults to ``true``.
 +* nova_spice_image_compression: which compression algorithm to use for images
 +  when using the SPICE console type. Defaults to ``auto_glz``.
 +* nova_spice_jpeg_compression: whether or not to use JPEG compression with
@@ -160,10 +158,25 @@ index 8e083f241..f0ef31fcc 100644
 +* nova_spice_zlib_compression: whether or not to use zlib compression with
 +  SPICE consoles. Defaults to ``auto``.
 +* nova_spice_playback_compression: whether or not to use compression for video
-+  playback. Defaults to ``yes``.
++  playback. Defaults to ``true``.
 +* nova_spice_streaming_mode: what streaming mode to use with SPICE consoles.
 +  Defaults to ``filter``.
 +
  Cells
  =====
  
+diff --git a/releasenotes/notes/expose-additional-spice-configuration-6ea8eedf4545ff04.yaml b/releasenotes/notes/expose-additional-spice-configuration-6ea8eedf4545ff04.yaml
+new file mode 100644
+index 000000000..c03b60e0d
+--- /dev/null
++++ b/releasenotes/notes/expose-additional-spice-configuration-6ea8eedf4545ff04.yaml
+@@ -0,0 +1,9 @@
++---
++other:
++  - |
++    This release exposes additional configuration options for OpenStack
++    Compute consoles which utilize the SPICE protocol. These configuration
++    options have been defaulted to the previous implied values, so do not
++    need to be set if you're happy with the current behavior. The
++    Kolla-Ansible Nova guide has been updated with further details of these
++    new configuration options.

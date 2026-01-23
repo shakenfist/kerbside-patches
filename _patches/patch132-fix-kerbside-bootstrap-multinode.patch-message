@@ -1,0 +1,13 @@
+Fix kerbside_bootstrap config files for multinode deployments.
+
+In multinode deployments, the kerbside play may not include kerbside-api
+hosts (control nodes) if they are not in the enable_kerbside_True group.
+This causes the bootstrap config files to be created on the wrong hosts
+(kerbside-proxy nodes) instead of on the kerbside-api host where the
+bootstrap container actually runs.
+
+This patch adds delegate_to and run_once to ensure the bootstrap config
+files are always created on the first kerbside-api host, which is where
+the bootstrap container runs via its existing delegate_to directive.
+
+Signed-off-by: Michael Still <mikal@stillhq.com>

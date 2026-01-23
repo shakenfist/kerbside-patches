@@ -282,7 +282,7 @@ class GerritLinter:
                 None,
                 'Code changes detected but no release note found.',
                 'Consider adding a release note using: '
-                'reno new <slug> --edit\n'
+                'tox -e venv -- reno new <slug> --edit\n'
                 '  Release notes should describe the change from a '
                 "user's perspective.",
             )
