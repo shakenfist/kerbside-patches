@@ -1,54 +1,17 @@
-commit a5eda9bdc1cc66ac11c7449c9d22eff459f18d9d
+commit 5da723ef55680326fd72631c3534c8b721995b91
 Author: Michael Still <mikal@stillhq.com>
-Date:   Sat Jan 24 05:52:23 2026 +1100
+Date:   Sat Jan 24 05:52:45 2026 +1100
 
     Implement container image build for kerbside.
     
-    This change adds images for Kerbside. Kerbside is a SPICE protocol
-    native proxy used to expose the new spice-direct console type provided
-    by Openstack Compute. This allows high fidelity virtual desktop
-    experiences without requiring transcoding of the console into HTML5
-    in Horizon, or allowing users direct access to the console ports on
-    your hypervisors.
-
-    Sadly, Red Hat chose to remove SPICE support from qemu in RHEL9, and
-    Rocky Linux has followed along. You therefore _must_ run the Debian or
-    Ubuntu container images if you wish to use the ``spice-direct``
-    console type.
-
-    Architecturally Kerbside has two components -- an API service which
-    turns console access URLs from Nova into URLs to ``.vv` files, and
-    a proxy service which actually proxies the SPICE traffic. These are
-    handled as separate container images here because they're quite
-    different. One is a WSGI REST API, and the other is a daemon. It is
-    also likely that deployers would choose to host these on different
-    machines.
-
-    Finally, the proxy service needs to be special cased in load
-    balancing because it strongly expects to terminate TLS itself. The
-    haproxy is therefore configured as a layer 4 proxy in this case.
+    I am fairly sure this will need improvement, but its a starting
+    point at least.
     
     Change-Id: If60a70745462e1360cfadaab1a5a8d75b7fdeb21
-    Partial-Bug: #2131793 (spice-direct consoles)
+    Signed-off-by: Michael Still <mikal@stillhq.com>
+    Partially-Implements: #2131793 (spice-direct consoles)
     Signed-off-by: Michael Still <mikal@stillhq.com>
 
-diff --git a/doc/source/support_matrix.rst b/doc/source/support_matrix.rst
-index 445ed08c6..940a519d4 100644
---- a/doc/source/support_matrix.rst
-+++ b/doc/source/support_matrix.rst
-@@ -89,3 +89,12 @@ Currently unbuildable images
- 
- For a list of currently unbuildable images please look into
- ``kolla/image/unbuildable.py`` file - ``UNBUILDABLE_IMAGES`` dictionary.
-+
-+SPICE limitations
-+=================
-+
-+The new OpenStack Compute console type ``spice-direct`` requires that
-+SPICE support be compiled into the qemu running the instance. Sadly,
-+Red Hat chose to remove SPICE support from qemu in RHEL9, and Rocky
-+Linux has followed along. You therefore _must_ run the Debian or Ubuntu
-+container images if you wish to use the ``spice-direct`` console type.
 diff --git a/docker/kerbside/kerbside-api/Dockerfile.j2 b/docker/kerbside/kerbside-api/Dockerfile.j2
 new file mode 100644
 index 000000000..4e5e1f7a1
@@ -159,13 +122,13 @@ index 000000000..92ef80a22
 +# Make the log directory
 +mkdir -p /var/log/kolla/kerbside
 diff --git a/kolla/common/config.py b/kolla/common/config.py
-index b1f325188..ab7188bb7 100644
+index 2ec2194ac..90f97fcf8 100644
 --- a/kolla/common/config.py
 +++ b/kolla/common/config.py
-@@ -89,6 +89,7 @@ _PROFILE_OPTS = [
-                     'designate',
-                     'gnocchi',
+@@ -93,6 +93,7 @@ _PROFILE_OPTS = [
+                     'influxdb',
                      'ironic',
+                     'kafka',
 +                    'kerbside',
                      'kuryr',
                      'magnum',
@@ -186,7 +149,7 @@ index d999335da..5c4c607fa 100644
          'type': 'url',
          'location': ('$tarballs_base/openstack/kuryr/'
 diff --git a/kolla/common/users.py b/kolla/common/users.py
-index cbbc147b0..d1752d385 100644
+index de8fc315c..b3611c015 100644
 --- a/kolla/common/users.py
 +++ b/kolla/common/users.py
 @@ -350,4 +350,8 @@ USERS = {
@@ -198,18 +161,3 @@ index cbbc147b0..d1752d385 100644
 +        'gid': 42495,
 +     }
  }
-diff --git a/releasenotes/notes/add-kerbside-images-04d28d7e76e5bc1f.yaml b/releasenotes/notes/add-kerbside-images-04d28d7e76e5bc1f.yaml
-new file mode 100644
-index 000000000..78be07bb9
---- /dev/null
-+++ b/releasenotes/notes/add-kerbside-images-04d28d7e76e5bc1f.yaml
-@@ -0,0 +1,9 @@
-+---
-+features:
-+  - |
-+    This release adds images for Kerbside. Kerbside is a SPICE protocol
-+    native proxy used to expose the new spice-direct console type provided
-+    by Openstack Compute. This allows high fidelity virtual desktop
-+    experiences without requiring transcoding of the console into HTML5
-+    in Horizon, or allowing users direct access to the console ports on
-+    your hypervisors.

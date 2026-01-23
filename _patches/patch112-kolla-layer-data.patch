@@ -1,6 +1,6 @@
-commit d6f9c65c790329c3158a17548ac3ed89acb025cf
+commit cb93aea84353e736f2d61e5796e2130158568085
 Author: Michael Still <mikal@stillhq.com>
-Date:   Tue Dec 16 09:41:07 2025 +1100
+Date:   Sat Jan 24 05:52:23 2026 +1100
 
     Track the layers created for various images and their sizes.
     
@@ -8,10 +8,10 @@ Date:   Tue Dec 16 09:41:07 2025 +1100
     Signed-off-by: Michael Still <mikal@stillhq.com>
 
 diff --git a/kolla/common/config.py b/kolla/common/config.py
-index 653c84c53..ea9b8de41 100644
+index ab7188bb7..5d3bdadca 100644
 --- a/kolla/common/config.py
 +++ b/kolla/common/config.py
-@@ -271,7 +271,9 @@ _CLI_OPTS = [
+@@ -264,7 +264,9 @@ _CLI_OPTS = [
      cfg.StrOpt('engine', default='docker', choices=['docker', 'podman'],
                 help='Container engine to build images on.'),
      cfg.StrOpt('podman_base_url', default='unix:///run/podman/podman.sock',

@@ -1,16 +1,17 @@
-commit b0598b560022b0a22d9b8a7a3923a9c673091c2c
+commit d09bf89182c2c22de016c36cefb15fcf0e4d46be
 Author: Michael Still <mikal@stillhq.com>
-Date:   Fri Dec 12 09:32:01 2025 +1100
+Date:   Sat Jan 24 05:52:45 2026 +1100
 
     Track the layers created for various images and their sizes.
-
+    
     Change-Id: I21c4e6209fc4f29a8d58938b7c7a0d4f614f3484
     Signed-off-by: Michael Still <mikal@stillhq.com>
 
 diff --git a/kolla/common/config.py b/kolla/common/config.py
+index 90f97fcf8..e76eb261a 100644
 --- a/kolla/common/config.py
 +++ b/kolla/common/config.py
-@@ -270,7 +270,9 @@ _CLI_OPTS = [
+@@ -271,7 +271,9 @@ _CLI_OPTS = [
      cfg.StrOpt('engine', default='docker', choices=['docker', 'podman'],
                 help='Container engine to build images on.'),
      cfg.StrOpt('podman_base_url', default='unix:///run/podman/podman.sock',
@@ -19,9 +20,10 @@ diff --git a/kolla/common/config.py b/kolla/common/config.py
 +    cfg.StrOpt('layer-json-file',
 +               help='Emit information about the layers in each built image.')
  ]
-
+ 
  _BASE_OPTS = [
 diff --git a/kolla/image/kolla_worker.py b/kolla/image/kolla_worker.py
+index 723914f5a..353642c80 100644
 --- a/kolla/image/kolla_worker.py
 +++ b/kolla/image/kolla_worker.py
 @@ -57,6 +57,7 @@ class Image(object):
@@ -29,13 +31,13 @@ diff --git a/kolla/image/kolla_worker.py b/kolla/image/kolla_worker.py
          self.additions = []
          self.engine_client = engine_client
 +        self.layer_data = []
-
+ 
      def copy(self):
          c = Image(self.name, self.canonical_name, self.path,
-@@ -622,6 +623,26 @@ class KollaWorker(object):
+@@ -621,6 +622,26 @@ class KollaWorker(object):
                  # backwards-compatibility.
                  json_summary(sys.stdout)
-
+ 
 +        if self.conf.layer_json_file:
 +            layer_info = []
 +            for image in self.images:
@@ -57,15 +59,16 @@ diff --git a/kolla/image/kolla_worker.py b/kolla/image/kolla_worker.py
 +                sys.exit(1)
 +
          return results
-
+ 
      def get_image_statuses(self):
 diff --git a/kolla/image/tasks.py b/kolla/image/tasks.py
+index 39d759390..17dd8c804 100644
 --- a/kolla/image/tasks.py
 +++ b/kolla/image/tasks.py
 @@ -475,6 +475,17 @@ class BuildTask(EngineTask):
              self.logger.info('Built at %s (took %s)' %
                               (now, now - image.start))
-
+ 
 +            if self.conf.layer_json_file:
 +                try:
 +                    built_image = self.engine_client.images.get(
