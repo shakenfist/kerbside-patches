@@ -299,3 +299,14 @@ The configured hooks include:
 |----------|-------------|
 | `gerrit-api.md` | Reference guide for interacting with the OpenStack Gerrit instance at review.opendev.org. Covers both SSH API (for querying changes) and REST API (for fetching inline comments). Includes examples for batch fetching reviews and analyzing feedback patterns. |
 | `tactics.md` | Tactical advice for getting Kolla/Kolla-Ansible patches reviewed quickly. Based on analysis of reviewer activity patterns - optimal posting times, peak days, key reviewers and their timezones. |
+
+## Claude Code Skills (`.claude/skills/`)
+
+This repository includes Claude Code skills for common tasks:
+
+| Skill | Description |
+|-------|-------------|
+| `debug-ci.md` | Debug CI failures by fetching logs via `gh`, downloading clingwrap log bundle artifacts, extracting debug bundles, and tracing cascade failures from Ansible host exclusions. |
+| `check-patches.md` | Validate patches for syntax, consistency across releases (master/flamingo/epoxy), and common issues like variable scope mismatches between host groups. |
+| `extract-bundle.md` | Extract and analyze CI debug bundles, with key file locations and error search patterns. |
+| `rebase-patch.md` | Rebase patches to new upstream releases, ensuring consistency across all supported OpenStack versions. |
