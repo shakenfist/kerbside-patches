@@ -13,7 +13,7 @@ Ubuntu container images if you wish to use the ``spice-direct``
 console type.
 
 Architecturally Kerbside has two components -- an API service which
-turns console access URLs from Nova into URLs to ``.vv` files, and
+turns console access URLs from Nova into URLs to `.vv` files, and
 a proxy service which actually proxies the SPICE traffic. These are
 handled as separate container images here because they're quite
 different. One is a WSGI REST API, and the other is a daemon. It is

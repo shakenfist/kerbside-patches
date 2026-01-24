@@ -1,0 +1,215 @@
+commit 545bf972203fc60082d7635028a5ba343c4062a8
+Author: Michael Still <mikal@stillhq.com>
+Date:   Fri Jan 23 08:33:20 2026 +1100
+
+    Implement container image build for kerbside.
+
+    This change adds images for Kerbside. Kerbside is a SPICE protocol
+    native proxy used to expose the new spice-direct console type provided
+    by Openstack Compute. This allows high fidelity virtual desktop
+    experiences without requiring transcoding of the console into HTML5
+    in Horizon, or allowing users direct access to the console ports on
+    your hypervisors.
+
+    Sadly, Red Hat chose to remove SPICE support from qemu in RHEL9, and
+    Rocky Linux has followed along. You therefore _must_ run the Debian or
+    Ubuntu container images if you wish to use the ``spice-direct``
+    console type.
+
+    Architecturally Kerbside has two components -- an API service which
+    turns console access URLs from Nova into URLs to `.vv` files, and
+    a proxy service which actually proxies the SPICE traffic. These are
+    handled as separate container images here because they're quite
+    different. One is a WSGI REST API, and the other is a daemon. It is
+    also likely that deployers would choose to host these on different
+    machines.
+
+    Finally, the proxy service needs to be special cased in load
+    balancing because it strongly expects to terminate TLS itself. The
+    haproxy is therefore configured as a layer 4 proxy in this case.
+
+    Change-Id: If60a70745462e1360cfadaab1a5a8d75b7fdeb21
+    Partial-Bug: #2131793 (spice-direct consoles)
+    Signed-off-by: Michael Still <mikal@stillhq.com>
+
+diff --git a/doc/source/support_matrix.rst b/doc/source/support_matrix.rst
+index 445ed08c6..940a519d4 100644
+--- a/doc/source/support_matrix.rst
++++ b/doc/source/support_matrix.rst
+@@ -89,3 +89,12 @@ Currently unbuildable images
+
+ For a list of currently unbuildable images please look into
+ ``kolla/image/unbuildable.py`` file - ``UNBUILDABLE_IMAGES`` dictionary.
++
++SPICE limitations
++=================
++
++The new OpenStack Compute console type ``spice-direct`` requires that
++SPICE support be compiled into the qemu running the instance. Sadly,
++Red Hat chose to remove SPICE support from qemu in RHEL9, and Rocky
++Linux has followed along. You therefore _must_ run the Debian or Ubuntu
++container images if you wish to use the ``spice-direct`` console type.
+diff --git a/docker/kerbside/kerbside-api/Dockerfile.j2 b/docker/kerbside/kerbside-api/Dockerfile.j2
+new file mode 100644
+index 000000000..4e5e1f7a1
+--- /dev/null
++++ b/docker/kerbside/kerbside-api/Dockerfile.j2
+@@ -0,0 +1,9 @@
++FROM {{ namespace }}/{{ image_prefix }}kerbside-base:{{ tag }}
++{% block labels %}
++LABEL maintainer="{{ maintainer }}" name="{{ image_name }}" build-date="{{ build_date }}"
++{% endblock %}
++
++COPY extend_start.sh /usr/local/bin/kolla_extend_start
++RUN chmod 644 /usr/local/bin/kolla_extend_start
++
++USER kerbside
+diff --git a/docker/kerbside/kerbside-api/extend_start.sh b/docker/kerbside/kerbside-api/extend_start.sh
+new file mode 100644
+index 000000000..9b917b374
+--- /dev/null
++++ b/docker/kerbside/kerbside-api/extend_start.sh
+@@ -0,0 +1,6 @@
++#!/bin/bash
++
++# Make the log directory
++mkdir -p /var/log/kolla/kerbside
++
++. /usr/local/bin/kolla_httpd_setup
+diff --git a/docker/kerbside/kerbside-base/Dockerfile.j2 b/docker/kerbside/kerbside-base/Dockerfile.j2
+new file mode 100644
+index 000000000..6ede9496c
+--- /dev/null
++++ b/docker/kerbside/kerbside-base/Dockerfile.j2
+@@ -0,0 +1,51 @@
++FROM {{ namespace }}/{{ image_prefix }}openstack-base:{{ tag }}
++{% block labels %}
++LABEL maintainer="{{ maintainer }}" name="{{ image_name }}" build-date="{{ build_date }}"
++{% endblock %}
++
++{% block kerbside_header %}{% endblock %}
++
++{% import "macros.j2" as macros with context %}
++{{ macros.configure_user(name='kerbside', groups='kerbside') }}
++
++{{ macros.configure_user(name='kerbside', groups='kerbside') }}
++
++{% if base_package_type == 'rpm' %}
++    {% set kerbside_packages = [
++        'mariadb-devel',
++        'pkgconfig'
++    ] %}
++{% elif base_package_type == 'deb' %}
++    {% set kerbside_packages = [
++        'libmariadb-dev-compat',
++        'pkg-config'
++    ] %}
++{% endif %}
++{{ macros.install_packages(kerbside_packages | customizable("packages")) }}
++
++# We currently carry a customized version of openstacksdk until our changes are
++# merged upstream. This is handled as a plugin for now. This is also how you
++# would add support to kerbside for other clouds like Shaken Fist or oVirt.
++ADD plugins-archive /
++
++{% set kerbside_pip_packages = [
++    '/kerbside'
++] %}
++
++{% set kerbside_plugins_pip_packages = [
++    '/plugins/*'
++] %}
++
++# Note that we disable upper-constraints for kerbside, because it comes from an
++# alternate universe which requires more modern dependencies that you get with
++# 2025.1. This should change as OpenStack releases newer versions.
++ADD kerbside-base-archive /kerbside-source
++RUN ln -s kerbside-source/* kerbside \
++    && if [ "$(ls /plugins)" ]; then \
++           {{ macros.install_pip(kerbside_plugins_pip_packages) }}; \
++       fi \
++    && {{ macros.install_pip(kerbside_pip_packages | customizable("pip_packages"), false) }} \
++    && rm -f /etc/machine-id
++
++{% block kerbside_footer %}{% endblock %}
++{% block footer %}{% endblock %}
+diff --git a/docker/kerbside/kerbside-proxy/Dockerfile.j2 b/docker/kerbside/kerbside-proxy/Dockerfile.j2
+new file mode 100644
+index 000000000..4e5e1f7a1
+--- /dev/null
++++ b/docker/kerbside/kerbside-proxy/Dockerfile.j2
+@@ -0,0 +1,9 @@
++FROM {{ namespace }}/{{ image_prefix }}kerbside-base:{{ tag }}
++{% block labels %}
++LABEL maintainer="{{ maintainer }}" name="{{ image_name }}" build-date="{{ build_date }}"
++{% endblock %}
++
++COPY extend_start.sh /usr/local/bin/kolla_extend_start
++RUN chmod 644 /usr/local/bin/kolla_extend_start
++
++USER kerbside
+diff --git a/docker/kerbside/kerbside-proxy/extend_start.sh b/docker/kerbside/kerbside-proxy/extend_start.sh
+new file mode 100644
+index 000000000..92ef80a22
+--- /dev/null
++++ b/docker/kerbside/kerbside-proxy/extend_start.sh
+@@ -0,0 +1,4 @@
++#!/bin/bash
++
++# Make the log directory
++mkdir -p /var/log/kolla/kerbside
+diff --git a/kolla/common/config.py b/kolla/common/config.py
+index 999939301..a2800838a 100644
+--- a/kolla/common/config.py
++++ b/kolla/common/config.py
+@@ -89,6 +89,7 @@ _PROFILE_OPTS = [
+                     'gnocchi',
+                     'ironic',
+                     'kuryr',
++                    'kerbside',
+                     'magnum',
+                     'manila',
+                     'masakari',
+diff --git a/kolla/common/sources.py b/kolla/common/sources.py
+index d999335da..5c4c607fa 100644
+--- a/kolla/common/sources.py
++++ b/kolla/common/sources.py
+@@ -156,6 +156,10 @@ SOURCES = {
+         'type': 'url',
+         'location': ('$tarballs_base/openstack/keystone/'
+                      'keystone-${openstack_branch}.tar.gz')},
++    'kerbside-base': {
++        'type': 'url',
++        'location': ('https://shakenfist.com/kerbside/releases/'
++                     'kerbside-${openstack_branch}.tar.gz')},
+     'kuryr-base': {
+         'type': 'url',
+         'location': ('$tarballs_base/openstack/kuryr/'
+diff --git a/kolla/common/users.py b/kolla/common/users.py
+index ec21b0658..acde40533 100644
+--- a/kolla/common/users.py
++++ b/kolla/common/users.py
+@@ -350,4 +350,8 @@ USERS = {
+         'uid': 42494,
+         'gid': 42494,
+     },
++    'kerbside-user': {
++        'uid': 42495,
++        'gid': 42495,
++     }
+ }
+diff --git a/releasenotes/notes/add-kerbside-images-04d28d7e76e5bc1f.yaml b/releasenotes/notes/add-kerbside-images-04d28d7e76e5bc1f.yaml
+new file mode 100644
+index 000000000..78be07bb9
+--- /dev/null
++++ b/releasenotes/notes/add-kerbside-images-04d28d7e76e5bc1f.yaml
+@@ -0,0 +1,9 @@
++---
++features:
++  - |
++    This release adds images for Kerbside. Kerbside is a SPICE protocol
++    native proxy used to expose the new spice-direct console type provided
++    by Openstack Compute. This allows high fidelity virtual desktop
++    experiences without requiring transcoding of the console into HTML5
++    in Horizon, or allowing users direct access to the console ports on
++    your hypervisors.
