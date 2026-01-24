@@ -13,7 +13,7 @@ The remainder of the patches are ancillary changes -- support for new Nova API
 microversions in clients, things which helped me debug along the way, and that
 sort of thing.
 
-These patches last successfully applied via CI on 20 January 2026. When this occurs,
+These patches last successfully applied via CI on 23 January 2026. When this occurs,
 the SHAs the patches were applied to for each project are recorded in the
 relevant config.yaml file, and will be used for patch applications until
 updated.
@@ -241,6 +241,15 @@ directories. This section documents each script and its purpose.
 | `gather-logs` | Collects logs from Kolla containers for debugging. |
 | `spice-connect.py` | Python script for testing SPICE console connections programmatically. |
 
+### Pre-Push Linting for Gerrit
+
+| Script | Description |
+|--------|-------------|
+| `gerrit-pre-push-lint` | Pre-push linter for OpenStack Gerrit submissions. Checks for common issues that reviewers flag during code review (missing release notes, bug references, YAML line length, Jinja2 issues, etc.). Supports checking stacked patches with `--stack N` or `--range origin/master..HEAD`. |
+| `analyze-gerrit-review-times` | Analyzes Gerrit review timestamps to find optimal posting times. Fetches recent merged reviews and shows when reviewers are most active by hour and day of week. |
+| `analyze-gerrit-patch-size` | Analyzes correlation between patch size, series length, and review response. Shows how patch complexity affects time to review, merge, and number of revision cycles needed. |
+| `analyze-gerrit-new-roles` | Analyzes historical patterns for new Ansible role additions. Shows successful strategies, series vs standalone patterns, and recommendations for getting new roles merged. |
+
 ### Certificate and Network Configuration
 
 | Script | Description |
@@ -283,3 +292,21 @@ The configured hooks include:
 | `extract-commit-message` | Extracts commit messages from patch files. |
 | `find_changes` | Lists changed files for review. |
 | `upgrade-python` | Helper for upgrading Python dependencies. |
+
+## Documentation (`docs/`)
+
+| Document | Description |
+|----------|-------------|
+| `gerrit-api.md` | Reference guide for interacting with the OpenStack Gerrit instance at review.opendev.org. Covers both SSH API (for querying changes) and REST API (for fetching inline comments). Includes examples for batch fetching reviews and analyzing feedback patterns. |
+| `tactics.md` | Tactical advice for getting Kolla/Kolla-Ansible patches reviewed quickly. Based on analysis of reviewer activity patterns - optimal posting times, peak days, key reviewers and their timezones. |
+
+## Claude Code Skills (`.claude/skills/`)
+
+This repository includes Claude Code skills for common tasks:
+
+| Skill | Description |
+|-------|-------------|
+| `debug-ci.md` | Debug CI failures by fetching logs via `gh`, downloading clingwrap log bundle artifacts, extracting debug bundles, and tracing cascade failures from Ansible host exclusions. |
+| `check-patches.md` | Validate patches for syntax, consistency across releases (master/flamingo/epoxy), and common issues like variable scope mismatches between host groups. |
+| `extract-bundle.md` | Extract and analyze CI debug bundles, with key file locations and error search patterns. |
+| `rebase-patch.md` | Rebase patches to new upstream releases, ensuring consistency across all supported OpenStack versions. |

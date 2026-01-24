@@ -751,8 +751,8 @@ index 000000000..0b1931665
 +  ansible.builtin.set_fact:
 +    spice_cacert: "{{ lookup('ansible.builtin.file', node_custom_config + '/nova/nova-libvirt/cacert.pem') }}"
 +  when:
-+    - inventory_hostname in groups["kerbside-proxy"]
-+    - kerbside_services["kerbside_proxy"].enabled | bool
++    - inventory_hostname in groups["kerbside-proxy"] or inventory_hostname in groups["kerbside-api"]
++    - kerbside_services["kerbside_proxy"].enabled | bool or kerbside_services["kerbside_api"].enabled | bool
 +    - nova_spice_require_secure | bool
 +
 +- name: Copying over kerbside bootstrap configuration
