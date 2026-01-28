@@ -5,6 +5,8 @@ on:
   pull_request:
     branches:
       - develop
+    paths-ignore:
+      - 'data/**'
 
 jobs:
   lint:
@@ -889,3 +891,114 @@ jobs:
           retention-days: 90
           if-no-files-found: error
           path: /tmp/bundle.zip
+
+  collect_layer_data:
+    name: "Collect layer data and create PR"
+    needs: [build_images, test_installs]
+    runs-on: [self-hosted, vm, 'debian-12', 'm']
+    if: github.event_name == 'pull_request' && success()
+
+    steps:
+      - name: Set environment variables
+        run: |
+          {
+            echo "DATESTAMP=$(date '+%Y%m%d-%H%M')"
+            echo "RUN_ID=${{ github.run_id }}"
+          } >> $GITHUB_ENV
+
+      - name: Checkout kerbside-patches
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.DAILY_REBASE_TOKEN }}
+
+      - name: Download build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: "build-*"
+          path: /tmp/build-artifacts
+
+      - name: Collect layers.json files and prepare PR
+        env:
+          GITHUB_TOKEN: ${{ secrets.DAILY_REBASE_TOKEN }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          PR_TITLE: ${{ github.event.pull_request.title }}
+        run: |
+          echo "Available artifacts:"
+          ls -la /tmp/build-artifacts/ || echo "No artifacts directory"
+
+          # Check if we have any layers.json files
+          found_layers=false
+          for dir in /tmp/build-artifacts/build-*/; do
+              if [ -f "${dir}layers.json" ]; then
+                  found_layers=true
+                  break
+              fi
+          done
+
+          if [ "${found_layers}" != "true" ]; then
+              echo "No layers.json files found, skipping PR creation"
+              exit 0
+          fi
+
+          # Create a branch for the layer data (include run_id for uniqueness)
+          branch_name="layer-data-${DATESTAMP}-run${RUN_ID}"
+          git checkout -b "${branch_name}"
+
+          # Copy layers.json files with unique names
+          for dir in /tmp/build-artifacts/build-*/; do
+              if [ -f "${dir}layers.json" ]; then
+                  # Extract build name from directory path
+                  build_name=$(basename "${dir}")
+                  # Include datestamp for time/sorting and run_id for uniqueness
+                  dest_name="layers-${DATESTAMP}-run${RUN_ID}-${build_name}.json"
+
+                  echo "Copying ${dir}layers.json to data/${dest_name}"
+                  cp "${dir}layers.json" "data/${dest_name}"
+              fi
+          done
+
+          # Check if there are changes to commit
+          if [ -z "$(git status --porcelain data/)" ]; then
+              echo "No changes to commit"
+              exit 0
+          fi
+
+          # Configure git and commit
+          git config --global user.name "shakenfist-bot"
+          git config --global user.email "bot@shakenfist.com"
+
+          git add data/
+          git commit -m "Add layer data from build run ${RUN_ID}.
+
+          This commit adds layers.json data from a successful functional
+          test build. This data is collected for analysis purposes.
+
+          Source PR: #${PR_NUMBER}
+          Build date: ${DATESTAMP}
+          Run ID: ${RUN_ID}
+
+          Assisted-By: CI Automation
+          Co-Authored-By: shakenfist-bot <bot@shakenfist.com>"
+
+          # Push the branch
+          git push -f origin "${branch_name}"
+          sleep 5
+
+          # Create PR
+          pr_body="This PR adds layer data collected from build run ${RUN_ID}.
+
+          **Source:** PR #${PR_NUMBER} - ${PR_TITLE}
+          **Build date:** ${DATESTAMP}
+          **Run ID:** ${RUN_ID}
+
+          This data is automatically collected for analysis purposes."
+
+          gh pr create \
+              --assignee mikalstill \
+              --title "Layer data from ${DATESTAMP} (run ${RUN_ID})" \
+              --body "${pr_body}" \
+              --head "${branch_name}" \
+              --label "layer-data"
+
+          echo "Pull request created."

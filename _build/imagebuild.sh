@@ -131,6 +131,7 @@ for target in ${build_targets}; do
     echo -e "    --tag ${image_tag} \\"
     echo -e "    --namespace kolla \\"
     echo -e "    --summary-json-file ${topdir}/archive/build.json \\"
+    echo -e "    --layer-json-file ${topdir}/archive/layers.json \\"
     echo -e "    ${kolla_build_args} 2>&1 | \\"
     echo -e "    tee --append ${topdir}/archive/build.log | \\"
     echo -e "    ts \"%b %d %H:%M:%S ${target}\""
@@ -142,6 +143,7 @@ for target in ${build_targets}; do
         --namespace kolla \
         --tag ${image_tag} \
         --summary-json-file ${topdir}/archive/build.json \
+        --layer-json-file ${topdir}/archive/layers.json \
         ${kolla_build_args} 2>&1 | \
         tee --append ${topdir}/archive/build.log | \
         ts "%b %d %H:%M:%S ${target}"
