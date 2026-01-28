@@ -1,0 +1,11 @@
+repo: https://opendev.org/openstack/kolla
+source_branch: master
+destination_branch: repeatable-builds
+shallow_clone: false
+directory: kolla
+release: master-wave-6
+depends_on: ''
+source_sha: f6f52cdcc2857bde404a4abe7d772f96cd0d61a8
+previous_source_sha: 800dfaebf02126f8751e3f5aa85569d0c9f5a2a4
+skip_rebase: true
+skip_claude: true
