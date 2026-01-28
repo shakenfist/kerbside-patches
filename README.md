@@ -175,6 +175,23 @@ more details. Then I deploy like this:
 sudo kolla-ansible -i /etc/kolla/inventory deploy
 ```
 
+# Layer Data Collection
+
+The CI workflow automatically collects `layers.json` data from successful builds
+and proposes a PR to add this data to the `data/` directory. This allows tracking
+of container layer changes over time.
+
+Files in `data/` are named with the format:
+`layers-YYYYMMDD-HHMM-runNNNN-{build-name}.json`
+
+This includes:
+- Datestamp with hours/minutes for sorting and time-based analysis
+- GitHub Actions run ID for uniqueness
+- Build configuration name (e.g., `build-debian-2025.1`)
+
+The workflow is configured to skip functional tests when only files in `data/`
+are changed, preventing infinite loops when layer data PRs are merged.
+
 # Script Reference
 
 This repository contains numerous helper scripts in the `_build/` and `tools/`
