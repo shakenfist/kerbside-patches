@@ -895,7 +895,7 @@ jobs:
   collect_layer_data:
     name: "Collect layer data and create PR"
     needs: [build_images, test_installs]
-    runs-on: [self-hosted, vm, 'debian-12', 'm']
+    runs-on: [self-hosted, static]
     if: github.event_name == 'pull_request' && success()
 
     steps:

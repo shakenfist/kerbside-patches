@@ -9,6 +9,7 @@ self-hosted-runner:
     - xl
     - m
     - claude-code
+    - static
 
 # Ignore certain shellcheck rules from run: blocks in workflow files.
 # These are overly pedantic for CI workflow scripts where the inputs are
