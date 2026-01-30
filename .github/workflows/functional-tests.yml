@@ -894,8 +894,8 @@ jobs:
 
   collect_layer_data:
     name: "Collect layer data and create PR"
-    needs: [build_images, test_installs]
-    runs-on: [self-hosted, vm, 'debian-12', 'm']
+    needs: [build_images]
+    runs-on: [self-hosted, static]
     if: github.event_name == 'pull_request' && success()
 
     steps:
@@ -998,7 +998,6 @@ jobs:
               --assignee mikalstill \
               --title "Layer data from ${DATESTAMP} (run ${RUN_ID})" \
               --body "${pr_body}" \
-              --head "${branch_name}" \
-              --label "layer-data"
+              --head "${branch_name}"
 
           echo "Pull request created."
