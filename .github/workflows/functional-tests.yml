@@ -943,6 +943,7 @@ jobs:
 
           # Create a branch for the layer data (include run_id for uniqueness)
           branch_name="layer-data-${DATESTAMP}-run${RUN_ID}"
+          git checkout develop
           git checkout -b "${branch_name}"
 
           # Copy layers.json files with unique names
