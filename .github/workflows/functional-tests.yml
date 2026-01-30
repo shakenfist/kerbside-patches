@@ -998,7 +998,6 @@ jobs:
               --assignee mikalstill \
               --title "Layer data from ${DATESTAMP} (run ${RUN_ID})" \
               --body "${pr_body}" \
-              --head "${branch_name}" \
-              --label "layer-data"
+              --head "${branch_name}"
 
           echo "Pull request created."
