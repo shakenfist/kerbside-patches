@@ -10,6 +10,7 @@ on:
       - develop
       - v*-releases
     paths-ignore:
+      - 'data/**'
       - 'docs/**'
 
 jobs:

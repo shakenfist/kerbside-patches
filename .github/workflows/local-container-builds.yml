@@ -13,6 +13,9 @@ on:
   pull_request:
     branches:
       - develop
+    paths-ignore:
+      - 'data/**'
+      - 'docs/**'
 
 jobs:
   local_build_matrix:

@@ -7,6 +7,7 @@ on:
       - develop
     paths-ignore:
       - 'data/**'
+      - 'docs/**'
 
 jobs:
   lint:
