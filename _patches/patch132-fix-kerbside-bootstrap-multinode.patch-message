@@ -10,4 +10,5 @@ This patch adds delegate_to and run_once to ensure the bootstrap config
 files are always created on the first kerbside-api host, which is where
 the bootstrap container runs via its existing delegate_to directive.
 
+Change-Id: I31949ac97ac10127fbb33397c00b47366c2114f6
 Signed-off-by: Michael Still <mikal@stillhq.com>

@@ -1,6 +1,6 @@
-commit 6198a0ed77938f21ba9cfda70b3341ef2277522b
+commit 74153ea740d041b69710553ba75db77b387f8921
 Author: Michael Still <mikal@stillhq.com>
-Date:   Tue Jan 20 15:25:44 2026 +1100
+Date:   Mon Feb 2 10:05:35 2026 +1100
 
     Allow requiring secure channels with SPICE.
     
@@ -18,7 +18,7 @@ Date:   Tue Jan 20 15:25:44 2026 +1100
     Signed-off-by: Michael Still <mikal@stillhq.com>
 
 diff --git a/ansible/group_vars/all/nova.yml b/ansible/group_vars/all/nova.yml
-index 3be5ee73b..17131a166 100644
+index cc6626681..58fcacce2 100644
 --- a/ansible/group_vars/all/nova.yml
 +++ b/ansible/group_vars/all/nova.yml
 @@ -74,3 +74,4 @@ nova_spice_jpeg_compression: "auto"
@@ -56,7 +56,7 @@ index e81413b35..caf1176ea 100644
      ]
  }
 diff --git a/ansible/roles/nova-cell/templates/nova.conf.j2 b/ansible/roles/nova-cell/templates/nova.conf.j2
-index 991f9ed1f..a4cccee29 100644
+index aba37d44a..5c82a7544 100644
 --- a/ansible/roles/nova-cell/templates/nova.conf.j2
 +++ b/ansible/roles/nova-cell/templates/nova.conf.j2
 @@ -61,6 +61,7 @@ novncproxy_base_url = {{ nova_novncproxy_fqdn | kolla_url(public_protocol,  nova
