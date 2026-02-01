@@ -955,8 +955,9 @@ jobs:
                   # Include datestamp for time/sorting and run_id for uniqueness
                   dest_name="layers-${DATESTAMP}-run${RUN_ID}-${build_name}.json"
 
-                  echo "Copying ${dir}layers.json to data/${dest_name}"
+                  echo "Compressing ${dir}layers.json to data/${dest_name}"
                   cp "${dir}layers.json" "data/${dest_name}"
+                  gzip "data/${dest_name}" "data/${dest_name}.gz"
               fi
           done
 
