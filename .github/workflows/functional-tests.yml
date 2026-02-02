@@ -765,7 +765,7 @@ jobs:
           echo "Running console tests..."
           ./tools/test-console
 
-      - name: Collect logs
+      - name: Verify containers are healthy
         if: always()
         run: |
           . $GITHUB_ENV
