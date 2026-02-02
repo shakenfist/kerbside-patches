@@ -8,6 +8,7 @@ on:
     paths-ignore:
       - 'data/**'
       - 'docs/**'
+      - README.md
 
 jobs:
   lint:
