@@ -765,6 +765,41 @@ jobs:
           echo "Running console tests..."
           ./tools/test-console
 
+      - name: Verify containers are healthy
+        if: always()
+        run: |
+          . $GITHUB_ENV
+          . ci-environment.sh
+
+          failed=0
+          for node in ${nodes}; do
+              node_address=${!node}
+
+              echo
+              echo "Check docker containers on ${node}"
+              echo
+
+              ssh -i /srv/github/id_ci -o StrictHostKeyChecking=no \
+                  -o UserKnownHostsFile=/dev/null \
+                  ${{ matrix.test.baseuser }}@${node_address} \
+                  "sudo docker ps"
+              echo
+
+              unhealthy=$(ssh -i /srv/github/id_ci -o StrictHostKeyChecking=no \
+                  -o UserKnownHostsFile=/dev/null \
+                  ${{ matrix.test.baseuser }}@${node_address} \
+                  "sudo docker ps | grep -ci unhealthy || true")
+              echo "Unhealthy: ${unhealthy}"
+              if [ ${unhealthy} -gt 0 ]; then
+                  failed=1
+              fi
+          done
+
+          if [ ${failed} -gt 0 ]; then
+              echo "...detected unhealthy docker containers"
+              exit 1
+          fi
+
       - name: Collect logs
         if: always()
         run: |

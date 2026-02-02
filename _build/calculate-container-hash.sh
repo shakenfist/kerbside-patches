@@ -55,4 +55,4 @@ for dir in ${*}; do
     fi
 done
 
-echo "v15-${unique}" | sha1sum | cut -f 1 -d " " | sed -rn 's/^(........).*/\1/gp'
+echo "v16-${unique}" | sha1sum | cut -f 1 -d " " | sed -rn 's/^(........).*/\1/gp'
