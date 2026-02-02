@@ -1,6 +1,6 @@
-commit fcda7f5435f11d0290dded1d82818d836a087014
+commit 3f6fffdc8d1fad495b367f4a14da8f36c153e108
 Author: Michael Still <mikal@stillhq.com>
-Date:   Tue Jan 27 18:46:27 2026 +1100
+Date:   Tue Feb 3 08:34:37 2026 +1100
 
     Implement container image build for kerbside.
     
@@ -158,7 +158,7 @@ index b1f325188..ab7188bb7 100644
                      'magnum',
                      'manila',
 diff --git a/kolla/common/sources.py b/kolla/common/sources.py
-index d999335da..5c4c607fa 100644
+index d999335da..89867c25b 100644
 --- a/kolla/common/sources.py
 +++ b/kolla/common/sources.py
 @@ -156,6 +156,10 @@ SOURCES = {
@@ -166,9 +166,9 @@ index d999335da..5c4c607fa 100644
          'location': ('$tarballs_base/openstack/keystone/'
                       'keystone-${openstack_branch}.tar.gz')},
 +    'kerbside-base': {
-+        'type': 'url',
-+        'location': ('https://github.com/shakenfist/kerbside/'
-+                     'archive/refs/tags/v0.1.tar.gz')},
++        'type': 'git',
++        'reference': 'develop',
++        'location': ('https://github.com/shakenfist/kerbside')},
      'kuryr-base': {
          'type': 'url',
          'location': ('$tarballs_base/openstack/kuryr/'
