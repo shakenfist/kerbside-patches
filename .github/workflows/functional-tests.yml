@@ -15,6 +15,9 @@ jobs:
     name: "Lint shell scripts and workflows"
     runs-on: [self-hosted, vm, debian-12, s]
     timeout-minutes: 5
+    concurrency:
+      group: ${{ github.workflow }}-${{ github.ref }}-lint
+      cancel-in-progress: true
     steps:
       - name: Checkout kerbside-patches
         uses: actions/checkout@v4
