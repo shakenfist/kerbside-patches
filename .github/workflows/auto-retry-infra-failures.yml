@@ -111,6 +111,7 @@ jobs:
           _This is an automated action. If the retry also fails with infrastructure issues, manual intervention may be needed._"
 
           # Remove leading whitespace from each line (caused by YAML indentation)
+          # shellcheck disable=SC2001
           COMMENT_BODY=$(echo "$COMMENT_BODY" | sed 's/^          //')
 
           echo "Commenting on PR #$PR_NUMBER..."
