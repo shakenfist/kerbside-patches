@@ -1,6 +1,6 @@
-commit cb93aea84353e736f2d61e5796e2130158568085
+commit 502a8adac7c4ed5de5e82e126495fd0f0f8c1a1a
 Author: Michael Still <mikal@stillhq.com>
-Date:   Sat Jan 24 05:52:23 2026 +1100
+Date:   Tue Feb 3 08:34:37 2026 +1100
 
     Track the layers created for various images and their sizes.
     

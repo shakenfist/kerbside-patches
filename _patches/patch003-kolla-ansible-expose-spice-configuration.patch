@@ -1,6 +1,6 @@
-commit 46c99b6c6166e4f6d67eef38ef2f8d94173acdc3
+commit df74de801ad974a22974a52aae357dae7e30617a
 Author: Michael Still <mikal@stillhq.com>
-Date:   Tue Jan 20 05:16:12 2026 +1100
+Date:   Mon Feb 2 10:05:39 2026 +1100
 
     Add additional SPICE configuration options.
     
@@ -34,7 +34,7 @@ Date:   Tue Jan 20 05:16:12 2026 +1100
     Signed-off-by: Michael Still <mikal@stillhq.com>
 
 diff --git a/ansible/group_vars/all.yml b/ansible/group_vars/all.yml
-index f09e5240d..0e0252d26 100644
+index f09e5240d..9d4604eb4 100644
 --- a/ansible/group_vars/all.yml
 +++ b/ansible/group_vars/all.yml
 @@ -1207,6 +1207,15 @@ nova_safety_upgrade: "no"
@@ -105,7 +105,7 @@ index 16b6e53cb..119815832 100644
              external: true
              external_fqdn: "{{ hostvars[groups[cell_proxy_group][0]]['nova_spicehtml5proxy_fqdn'] }}"
 diff --git a/ansible/roles/nova-cell/templates/nova.conf.j2 b/ansible/roles/nova-cell/templates/nova.conf.j2
-index 4aa7781ce..acebea545 100644
+index 4aa7781ce..a3ae02b33 100644
 --- a/ansible/roles/nova-cell/templates/nova.conf.j2
 +++ b/ansible/roles/nova-cell/templates/nova.conf.j2
 @@ -64,12 +64,19 @@ enabled = false

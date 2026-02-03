@@ -1,6 +1,6 @@
-commit 9a422a2bcdccf8725b1ac7c461167cbe4508c064
+commit e6da0876ccd98a322b5cca3ecbf13491793a02f1
 Author: Michael Still <mikal@stillhq.com>
-Date:   Tue Jan 20 05:16:12 2026 +1100
+Date:   Mon Feb 2 10:05:39 2026 +1100
 
     Allow concurrent sessions with SPICE.
     
@@ -17,10 +17,10 @@ Date:   Tue Jan 20 05:16:12 2026 +1100
     Signed-off-by: Michael Still <mikal@stillhq.com>
 
 diff --git a/ansible/group_vars/all.yml b/ansible/group_vars/all.yml
-index 35b4ea7bd..49efb9f42 100644
+index 8cd63519f..c52d27671 100644
 --- a/ansible/group_vars/all.yml
 +++ b/ansible/group_vars/all.yml
-@@ -1215,6 +1215,7 @@ nova_spice_zlib_compression: "auto"
+@@ -1231,6 +1231,7 @@ nova_spice_zlib_compression: "auto"
  nova_spice_playback_compression: true
  nova_spice_streaming_mode: "filter"
  nova_spice_require_secure: false
@@ -29,7 +29,7 @@ index 35b4ea7bd..49efb9f42 100644
  
  #######################
 diff --git a/ansible/roles/nova-cell/templates/nova.conf.j2 b/ansible/roles/nova-cell/templates/nova.conf.j2
-index e6f62f12c..100beca19 100644
+index 1bfdd59d5..6e2a2a7ab 100644
 --- a/ansible/roles/nova-cell/templates/nova.conf.j2
 +++ b/ansible/roles/nova-cell/templates/nova.conf.j2
 @@ -64,6 +64,7 @@ enabled = false

@@ -1,6 +1,6 @@
-commit d6bbaa59fe55405c9b9f26fef128e472963330b5
+commit 8d784623844c1ce31c8cac61777694e5f3bc5ef0
 Author: Michael Still <mikal@stillhq.com>
-Date:   Tue Jan 20 15:25:44 2026 +1100
+Date:   Mon Feb 2 10:05:35 2026 +1100
 
     Deploy Kerbside with Kolla-Ansible.
     
@@ -355,7 +355,7 @@ index 367210639..104c9b858 100644
 +export KERBSIDE_API_URL='{{ kerbside_api_url }}'
 +{% endif %}
 diff --git a/ansible/roles/cron/tasks/config.yml b/ansible/roles/cron/tasks/config.yml
-index caebee58c..83ce78bfc 100644
+index d90187d23..7f9809b29 100644
 --- a/ansible/roles/cron/tasks/config.yml
 +++ b/ansible/roles/cron/tasks/config.yml
 @@ -54,6 +54,7 @@
@@ -708,7 +708,7 @@ index 000000000..b7e2f7c29
 +    name: service-check-containers
 diff --git a/ansible/roles/kerbside/tasks/config.yml b/ansible/roles/kerbside/tasks/config.yml
 new file mode 100644
-index 000000000..ac03c2337
+index 000000000..84d871122
 --- /dev/null
 +++ b/ansible/roles/kerbside/tasks/config.yml
 @@ -0,0 +1,164 @@
@@ -1442,10 +1442,10 @@ index 8680c33b5..dd0840a10 100644
    wait_for:
      host: "{{ kolla_internal_vip_address }}"
 diff --git a/ansible/roles/nova-cell/templates/nova.conf.j2 b/ansible/roles/nova-cell/templates/nova.conf.j2
-index 6b3e7ef91..6a7208c69 100644
+index 5c82a7544..a49c3c767 100644
 --- a/ansible/roles/nova-cell/templates/nova.conf.j2
 +++ b/ansible/roles/nova-cell/templates/nova.conf.j2
-@@ -69,7 +69,10 @@ jpeg_compression = {{ nova_spice_jpeg_compression }}
+@@ -68,7 +68,10 @@ jpeg_compression = {{ nova_spice_jpeg_compression }}
  zlib_compression = {{ nova_spice_zlib_compression }}
  playback_compression = {{ nova_spice_playback_compression }}
  streaming_mode = {{ nova_spice_streaming_mode }}

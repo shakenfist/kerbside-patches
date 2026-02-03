@@ -1,34 +1,36 @@
-commit 0000000000000000000000000000000000000000
+commit b38e5f1d9201fdaf71bc0d4bb55f970c4f8ddb0d
 Author: Michael Still <mikal@stillhq.com>
-Date:   Thu Jan 23 12:00:00 2026 +1100
+Date:   Mon Feb 2 10:05:55 2026 +1100
 
     Fix kerbside_bootstrap config files for multinode deployments.
-
+    
     In multinode deployments, the kerbside play may not include kerbside-api
     hosts (control nodes) if they are not in the enable_kerbside_True group.
     This causes the bootstrap config files to be created on the wrong hosts
     (kerbside-proxy nodes) instead of on the kerbside-api host where the
     bootstrap container actually runs.
-
+    
     This patch adds delegate_to and run_once to ensure the bootstrap config
     files are always created on the first kerbside-api host, which is where
     the bootstrap container runs via its existing delegate_to directive.
-
+    
+    Change-Id: I31949ac97ac10127fbb33397c00b47366c2114f6
     Signed-off-by: Michael Still <mikal@stillhq.com>
 
 diff --git a/ansible/roles/kerbside/tasks/config.yml b/ansible/roles/kerbside/tasks/config.yml
+index f7cfbae7f..02532780a 100644
 --- a/ansible/roles/kerbside/tasks/config.yml
 +++ b/ansible/roles/kerbside/tasks/config.yml
-@@ -16,6 +16,8 @@
+@@ -17,6 +17,8 @@
      owner: "{{ config_owner_user }}"
      group: "{{ config_owner_group }}"
      mode: "0770"
 +  delegate_to: "{{ groups['kerbside-api'][0] }}"
 +  run_once: true
-
+ 
  - name: Ensuring shared config directory exists
    become: true
-@@ -42,9 +44,8 @@
+@@ -43,9 +45,8 @@
      src: "{{ role_path }}/templates/kerbside.ini.j2"
      dest: "{{ node_config_directory }}/kerbside_bootstrap/kerbside.ini"
      mode: "0660"
@@ -37,10 +39,10 @@ diff --git a/ansible/roles/kerbside/tasks/config.yml b/ansible/roles/kerbside/ta
 -    - kerbside_services["kerbside_api"].enabled | bool
 +  delegate_to: "{{ groups['kerbside-api'][0] }}"
 +  run_once: true
-
+ 
  - name: Copying over kerbside API configuration
    vars:
-@@ -82,9 +83,8 @@
+@@ -83,9 +84,8 @@
      src: "{{ role_path }}/files/kerbside_alembic_wrapper"
      dest: "{{ node_config_directory }}/kerbside_bootstrap/kerbside_alembic_wrapper"
      mode: "0700"
@@ -49,15 +51,15 @@ diff --git a/ansible/roles/kerbside/tasks/config.yml b/ansible/roles/kerbside/ta
 -    - kerbside_services["kerbside_api"].enabled | bool
 +  delegate_to: "{{ groups['kerbside-api'][0] }}"
 +  run_once: true
-
+ 
  - name: Copying over kerbside sources.yaml for API container
    become: true
-@@ -116,6 +116,8 @@
+@@ -120,6 +120,8 @@
      src: "kerbside_bootstrap.json.j2"
      dest: "{{ node_config_directory }}/kerbside_bootstrap/config.json"
      mode: "0660"
 +  delegate_to: "{{ groups['kerbside-api'][0] }}"
 +  run_once: true
-
+ 
  - name: Copying over config.json files for services
    become: true

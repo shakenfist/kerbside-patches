@@ -1,6 +1,6 @@
-commit 0544e2802528c26d7ac660ccaa0f1f15300169f2
+commit 1386724b346d89016591ddc2acdf27089b230869
 Author: Michael Still <mikal@stillhq.com>
-Date:   Tue Jan 20 05:16:12 2026 +1100
+Date:   Mon Feb 2 10:05:39 2026 +1100
 
     Move kerbside proxy into its own role.
     
@@ -22,7 +22,7 @@ index 772aa2f5c..04cbc8759 100644
  - name: Apply role certificates
    hosts: localhost
 diff --git a/ansible/group_vars/all.yml b/ansible/group_vars/all.yml
-index 2303dd0af..bf42adb85 100644
+index 4a9730030..8cd63519f 100644
 --- a/ansible/group_vars/all.yml
 +++ b/ansible/group_vars/all.yml
 @@ -880,6 +880,7 @@ enable_ironic_inspector: "no"
@@ -735,7 +735,7 @@ index 000000000..b7e2f7c29
 +    name: service-check-containers
 diff --git a/ansible/roles/kerbside/tasks/config.yml b/ansible/roles/kerbside/tasks/config.yml
 new file mode 100644
-index 000000000..ac03c2337
+index 000000000..84d871122
 --- /dev/null
 +++ b/ansible/roles/kerbside/tasks/config.yml
 @@ -0,0 +1,164 @@
@@ -1469,10 +1469,10 @@ index 8a2966d7c..a2b1392bf 100644
    wait_for:
      host: "{{ kolla_internal_vip_address }}"
 diff --git a/ansible/roles/nova-cell/templates/nova.conf.j2 b/ansible/roles/nova-cell/templates/nova.conf.j2
-index 47b876bb5..409354554 100644
+index 63a407c26..1bfdd59d5 100644
 --- a/ansible/roles/nova-cell/templates/nova.conf.j2
 +++ b/ansible/roles/nova-cell/templates/nova.conf.j2
-@@ -71,7 +71,10 @@ jpeg_compression = {{ nova_spice_jpeg_compression }}
+@@ -70,7 +70,10 @@ jpeg_compression = {{ nova_spice_jpeg_compression }}
  zlib_compression = {{ nova_spice_zlib_compression }}
  playback_compression = {{ nova_spice_playback_compression }}
  streaming_mode = {{ nova_spice_streaming_mode }}

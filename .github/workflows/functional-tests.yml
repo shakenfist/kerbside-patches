@@ -13,7 +13,7 @@ on:
 jobs:
   lint:
     name: "Lint shell scripts and workflows"
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, vm, debian-12, s]
     timeout-minutes: 5
     steps:
       - name: Checkout kerbside-patches
@@ -21,12 +21,13 @@ jobs:
 
       - name: Install pre-commit and shellcheck
         run: |
-          pip install pre-commit
+          python3 -mvenv pre-commit
+          pre-commit/bin/pip3 install pre-commit
           sudo apt-get update
           sudo apt-get install -y shellcheck
 
       - name: Run pre-commit
-        run: pre-commit run --all-files
+        run: pre-commit/bin/pre-commit run --all-files
 
   assemble_source:
     name: "Assemble source for ${{ matrix.test.release }}"

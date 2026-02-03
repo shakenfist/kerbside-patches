@@ -1,6 +1,6 @@
-commit 6d7963a2c1704935a15bb7f439b889f07b430e8f
+commit 3d9b3d26e7ca13936204c721a4c148ce2c5831cf
 Author: Michael Still <mikal@stillhq.com>
-Date:   Sat Jan 10 17:01:23 2026 +1100
+Date:   Mon Feb 2 10:05:55 2026 +1100
 
     Allow concurrent sessions with SPICE.
     
@@ -17,7 +17,7 @@ Date:   Sat Jan 10 17:01:23 2026 +1100
     Signed-off-by: Michael Still <mikal@stillhq.com>
 
 diff --git a/ansible/group_vars/all/nova.yml b/ansible/group_vars/all/nova.yml
-index b5dd3e66b..b54f151dd 100644
+index 9c98dc933..7efa84210 100644
 --- a/ansible/group_vars/all/nova.yml
 +++ b/ansible/group_vars/all/nova.yml
 @@ -75,3 +75,4 @@ nova_spice_zlib_compression: "auto"
@@ -26,7 +26,7 @@ index b5dd3e66b..b54f151dd 100644
  nova_spice_require_secure: false
 +nova_spice_allow_concurrent: true
 diff --git a/ansible/roles/nova-cell/templates/nova.conf.j2 b/ansible/roles/nova-cell/templates/nova.conf.j2
-index c019f40a0..e7c2cc145 100644
+index a4e181273..cbbccad4e 100644
 --- a/ansible/roles/nova-cell/templates/nova.conf.j2
 +++ b/ansible/roles/nova-cell/templates/nova.conf.j2
 @@ -62,6 +62,7 @@ enabled = false
@@ -38,7 +38,7 @@ index c019f40a0..e7c2cc145 100644
  image_compression = {{ nova_spice_image_compression }}
  jpeg_compression = {{ nova_spice_jpeg_compression }}
 diff --git a/doc/source/reference/compute/nova-guide.rst b/doc/source/reference/compute/nova-guide.rst
-index 6225b0eab..dab4c2d93 100644
+index 8a57bf28b..1638bc29b 100644
 --- a/doc/source/reference/compute/nova-guide.rst
 +++ b/doc/source/reference/compute/nova-guide.rst
 @@ -57,6 +57,8 @@ serial console support can be enabled by setting

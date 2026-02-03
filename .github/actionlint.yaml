@@ -8,6 +8,7 @@ self-hosted-runner:
     - debian-12
     - xl
     - m
+    - s
     - claude-code
     - static
 
