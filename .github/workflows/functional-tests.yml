@@ -15,6 +15,9 @@ jobs:
     name: "Lint shell scripts and workflows"
     runs-on: [self-hosted, vm, debian-12, s]
     timeout-minutes: 5
+    concurrency:
+      group: ${{ github.workflow }}-${{ github.ref }}-lint
+      cancel-in-progress: true
     steps:
       - name: Checkout kerbside-patches
         uses: actions/checkout@v4
@@ -306,6 +309,10 @@ jobs:
           mkdir ${archive_path}
 
           echo ${{ steps.build_images.outputs.image_tag }} > ${archive_path}/image_tag
+
+          # Record the run attempt so collect_layer_data can filter out stale artifacts
+          # from previous attempts when a single job is retried
+          echo "${{ github.run_attempt }}" > ${archive_path}/run_attempt
 
           if [ -e kerbside-patches/archive/build.log ]; then
               cp kerbside-patches/archive/build.log ${archive_path}/
@@ -961,22 +968,53 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.DAILY_REBASE_TOKEN }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
           PR_TITLE: ${{ github.event.pull_request.title }}
+          CURRENT_ATTEMPT: ${{ github.run_attempt }}
         run: |
           echo "Available artifacts:"
           ls -la /tmp/build-artifacts/ || echo "No artifacts directory"
+          echo
+          echo "Current run attempt: ${CURRENT_ATTEMPT}"
 
-          # Check if we have any layers.json files
-          found_layers=false
+          # Filter artifacts to only include those from the current run attempt.
+          # This prevents including stale layer data from previous attempts when
+          # a single matrix job is retried.
+          included_builds=""
+          excluded_builds=""
+
           for dir in /tmp/build-artifacts/build-*/; do
+              build_name=$(basename "${dir}")
+
+              # Check if this artifact was generated in the current attempt
+              if [ -f "${dir}run_attempt" ]; then
+                  artifact_attempt=$(cat "${dir}run_attempt")
+                  if [ "${artifact_attempt}" != "${CURRENT_ATTEMPT}" ]; then
+                      echo "Skipping ${build_name}: from attempt ${artifact_attempt}, current is ${CURRENT_ATTEMPT}"
+                      excluded_builds="${excluded_builds}- ${build_name} (attempt ${artifact_attempt})\n"
+                      continue
+                  fi
+              else
+                  echo "Skipping ${build_name}: no run_attempt file (legacy artifact)"
+                  excluded_builds="${excluded_builds}- ${build_name} (no attempt marker)\n"
+                  continue
+              fi
+
               if [ -f "${dir}layers.json" ]; then
-                  found_layers=true
-                  break
+                  included_builds="${included_builds}- ${build_name}\n"
               fi
           done
 
-          if [ "${found_layers}" != "true" ]; then
-              echo "No layers.json files found, skipping PR creation"
+          # Check if we have any layers to include
+          if [ -z "${included_builds}" ]; then
+              echo "No layers.json files from current attempt found, skipping PR creation"
               exit 0
+          fi
+
+          echo
+          echo "Builds to include:"
+          echo -e "${included_builds}"
+          if [ -n "${excluded_builds}" ]; then
+              echo "Builds excluded (from previous attempts):"
+              echo -e "${excluded_builds}"
           fi
 
           # Create a branch for the layer data (include run_id for uniqueness)
@@ -984,17 +1022,24 @@ jobs:
           git checkout develop
           git checkout -b "${branch_name}"
 
-          # Copy layers.json files with unique names
+          # Copy layers.json files with unique names (only from current attempt)
           for dir in /tmp/build-artifacts/build-*/; do
+              # Re-check run_attempt filter
+              if [ -f "${dir}run_attempt" ]; then
+                  artifact_attempt=$(cat "${dir}run_attempt")
+                  if [ "${artifact_attempt}" != "${CURRENT_ATTEMPT}" ]; then
+                      continue
+                  fi
+              else
+                  continue
+              fi
+
               if [ -f "${dir}layers.json" ]; then
-                  # Extract build name from directory path
                   build_name=$(basename "${dir}")
-                  # Include datestamp for time/sorting and run_id for uniqueness
                   dest_name="layers-${DATESTAMP}-run${RUN_ID}-${build_name}.json"
 
-                  echo "Compressing ${dir}layers.json to data/${dest_name}"
-                  cp "${dir}layers.json" "data/${dest_name}"
-                  gzip "data/${dest_name}" "data/${dest_name}.gz"
+                  echo "Compressing ${dir}layers.json to data/${dest_name}.gz"
+                  gzip -c "${dir}layers.json" > "data/${dest_name}.gz"
               fi
           done
 
@@ -1017,6 +1062,7 @@ jobs:
           Source PR: #${PR_NUMBER}
           Build date: ${DATESTAMP}
           Run ID: ${RUN_ID}
+          Run attempt: ${CURRENT_ATTEMPT}
 
           Assisted-By: CI Automation
           Co-Authored-By: shakenfist-bot <bot@shakenfist.com>"
@@ -1025,18 +1071,35 @@ jobs:
           git push -f origin "${branch_name}"
           sleep 5
 
-          # Create PR
+          # Build PR body with explanation of included/excluded builds
           pr_body="This PR adds layer data collected from build run ${RUN_ID}.
 
           **Source:** PR #${PR_NUMBER} - ${PR_TITLE}
           **Build date:** ${DATESTAMP}
           **Run ID:** ${RUN_ID}
+          **Run attempt:** ${CURRENT_ATTEMPT}
 
-          This data is automatically collected for analysis purposes."
+          ### Builds included
+
+          ${included_builds}
+
+          These builds completed in the current workflow run attempt."
+
+          if [ -n "${excluded_builds}" ]; then
+              pr_body="${pr_body}
+
+          ### Builds excluded
+
+          ${excluded_builds}
+          
+          These builds were from previous run attempts (e.g., cached artifacts from
+          before a job retry). Their layer data was not included to avoid duplicating
+          data that was already collected in earlier PRs."
+          fi
 
           gh pr create \
               --assignee mikalstill \
-              --title "Layer data from ${DATESTAMP} (run ${RUN_ID})" \
+              --title "Layer data from ${DATESTAMP} (run ${RUN_ID}, attempt ${CURRENT_ATTEMPT})" \
               --body "${pr_body}" \
               --head "${branch_name}"
 
