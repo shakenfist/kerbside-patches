@@ -1,0 +1,123 @@
+name: Auto-retry infrastructure failures
+
+# This workflow monitors CI runs and automatically retries jobs that fail
+# due to infrastructure issues (e.g., self-hosted runner losing connection).
+# It does NOT retry jobs that fail due to actual test failures.
+
+on:
+  workflow_run:
+    workflows:
+      - "Build test clouds"
+      - "Ensure local container builds work"
+    types: [completed]
+
+jobs:
+  check-and-retry:
+    if: github.event.workflow_run.conclusion == 'failure'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check for infrastructure failures and retry
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -e
+
+          RUN_ID="${{ github.event.workflow_run.id }}"
+          REPO="${{ github.repository }}"
+          RUN_URL="${{ github.event.workflow_run.html_url }}"
+          WORKFLOW_NAME="${{ github.event.workflow_run.name }}"
+
+          echo "Checking run $RUN_ID for infrastructure failures..."
+
+          # Infrastructure failure patterns to match in job annotations
+          INFRA_PATTERNS=(
+            "self-hosted runner lost communication"
+            "runner has received a shutdown signal"
+            "runner process exited"
+            "No space left on device"
+            "runner is offline"
+            "Job cancelled because the runner went offline"
+          )
+
+          # Get PR number if this was a PR-triggered run
+          PR_NUMBER=$(gh api "repos/$REPO/actions/runs/$RUN_ID" \
+            --jq '.pull_requests[0].number // empty')
+
+          if [ -z "$PR_NUMBER" ]; then
+            echo "Not a PR run, skipping (run_id: $RUN_ID)"
+            exit 0
+          fi
+
+          echo "PR number: $PR_NUMBER"
+
+          # Get all failed jobs
+          FAILED_JOBS=$(gh api "repos/$REPO/actions/runs/$RUN_ID/jobs" \
+            --jq '.jobs[] | select(.conclusion == "failure") | "\(.id)|\(.name)"')
+
+          if [ -z "$FAILED_JOBS" ]; then
+            echo "No failed jobs found"
+            exit 0
+          fi
+
+          # Track which jobs have infrastructure failures
+          INFRA_FAILED_JOBS=""
+
+          while IFS='|' read -r JOB_ID JOB_NAME; do
+            [ -z "$JOB_ID" ] && continue
+            echo "Checking job '$JOB_NAME' (id: $JOB_ID)..."
+
+            # Get annotations for this job
+            ANNOTATIONS=$(gh api "repos/$REPO/check-runs/$JOB_ID/annotations" \
+              --jq '.[].message' 2>/dev/null || echo "")
+
+            for PATTERN in "${INFRA_PATTERNS[@]}"; do
+              if echo "$ANNOTATIONS" | grep -qi "$PATTERN"; then
+                echo "  -> Found infrastructure failure matching: $PATTERN"
+                INFRA_FAILED_JOBS="$INFRA_FAILED_JOBS$JOB_NAME\n"
+                break
+              fi
+            done
+          done <<< "$FAILED_JOBS"
+
+          if [ -z "$INFRA_FAILED_JOBS" ]; then
+            echo "No infrastructure failures detected, not retrying"
+            exit 0
+          fi
+
+          # Check if we've already retried this run by looking for our comment
+          RETRY_MARKER="<!-- auto-retry-infra: $RUN_ID -->"
+          EXISTING_COMMENT=$(gh api "repos/$REPO/issues/$PR_NUMBER/comments" \
+            --jq ".[] | select(.body | contains(\"$RETRY_MARKER\")) | .id" \
+            | head -1)
+
+          if [ -n "$EXISTING_COMMENT" ]; then
+            echo "::warning::Already retried run $RUN_ID, not retrying again"
+            exit 0
+          fi
+
+          # Format the list of failed jobs for the comment
+          JOBS_LIST=$(echo -e "$INFRA_FAILED_JOBS" | sed '/^$/d' | sed 's/^/- /')
+
+          # Build comment body
+          COMMENT_BODY="${RETRY_MARKER}
+          **Auto-retry triggered for infrastructure failure**
+
+          The following job(s) in workflow **${WORKFLOW_NAME}** failed due to infrastructure issues (not test failures):
+
+          ${JOBS_LIST}
+
+          Automatically retrying the failed jobs. [View run](${RUN_URL})
+
+          _This is an automated action. If the retry also fails with infrastructure issues, manual intervention may be needed._"
+
+          # Remove leading whitespace from each line (caused by YAML indentation)
+          COMMENT_BODY=$(echo "$COMMENT_BODY" | sed 's/^          //')
+
+          echo "Commenting on PR #$PR_NUMBER..."
+          gh pr comment "$PR_NUMBER" --repo "$REPO" --body "$COMMENT_BODY"
+
+          # Trigger rerun of failed jobs only
+          echo "Triggering rerun of failed jobs..."
+          gh run rerun "$RUN_ID" --failed --repo "$REPO"
+
+          echo "Done! Retried run $RUN_ID"
