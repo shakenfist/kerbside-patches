@@ -255,6 +255,7 @@ def analyze_build_progression(data_dir, verbose=False):
             'total_layers': total_layers,
             'new_layers': len(new_layers),
             'recycled_layers': len(recycled_layers),
+            'recycled_layers_info': recycled_layers,
             'new_size': new_size,
             'recycled_size': recycled_size,
             'total_size': total_size,
@@ -310,6 +311,24 @@ def analyze_build_progression(data_dir, verbose=False):
             print(f'  Recycled layer size: {format_size(r["recycled_size"])}')
             print(f'  Total layer size: {format_size(r["total_size"])}')
 
+            # Show commands that produced recycled layers
+            if r['recycled_layers_info']:
+                print(f'  Recycled layer commands:')
+                # Sort by size descending to show largest recycled layers first
+                sorted_recycled = sorted(
+                    r['recycled_layers_info'].items(),
+                    key=lambda x: x[1]['size'],
+                    reverse=True
+                )
+                for layer_id, info in sorted_recycled:
+                    short_id = (layer_id.split(':')[1][:12]
+                                if ':' in layer_id else layer_id[:12])
+                    created_by = info['created_by']
+                    if len(created_by) > 60:
+                        created_by = created_by[:60] + '...'
+                    print(f'    {short_id}: {format_size(info["size"]):>10}  '
+                          f'{created_by}')
+
 
 def main():
     parser = argparse.ArgumentParser(
@@ -327,7 +346,8 @@ def main():
     parser.add_argument(
         '-v', '--verbose',
         action='store_true',
-        help='Show details of largest layers or per-build details'
+        help='Show details of largest layers, per-build details, and '
+             'commands that produced recycled layers'
     )
     args = parser.parse_args()
 
