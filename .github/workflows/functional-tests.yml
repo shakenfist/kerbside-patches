@@ -1003,6 +1003,7 @@ jobs:
           # a single matrix job is retried.
           included_builds=""
           excluded_builds=""
+          NL=$'\n'
 
           for dir in /tmp/build-artifacts/build-*/; do
               build_name=$(basename "${dir}")
@@ -1012,17 +1013,17 @@ jobs:
                   artifact_attempt=$(cat "${dir}run_attempt")
                   if [ "${artifact_attempt}" != "${CURRENT_ATTEMPT}" ]; then
                       echo "Skipping ${build_name}: from attempt ${artifact_attempt}, current is ${CURRENT_ATTEMPT}"
-                      excluded_builds="${excluded_builds}- ${build_name} (attempt ${artifact_attempt})\n"
+                      excluded_builds="${excluded_builds}- ${build_name} (attempt ${artifact_attempt})${NL}"
                       continue
                   fi
               else
                   echo "Skipping ${build_name}: no run_attempt file (legacy artifact)"
-                  excluded_builds="${excluded_builds}- ${build_name} (no attempt marker)\n"
+                  excluded_builds="${excluded_builds}- ${build_name} (no attempt marker)${NL}"
                   continue
               fi
 
               if [ -f "${dir}layers.json" ]; then
-                  included_builds="${included_builds}- ${build_name}\n"
+                  included_builds="${included_builds}- ${build_name}${NL}"
               fi
           done
 
@@ -1034,10 +1035,10 @@ jobs:
 
           echo
           echo "Builds to include:"
-          echo -e "${included_builds}"
+          echo "${included_builds}"
           if [ -n "${excluded_builds}" ]; then
               echo "Builds excluded (from previous attempts):"
-              echo -e "${excluded_builds}"
+              echo "${excluded_builds}"
           fi
 
           # Create a branch for the layer data (include run_id for uniqueness)
