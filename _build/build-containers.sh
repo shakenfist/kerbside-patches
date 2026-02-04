@@ -108,7 +108,7 @@ for target in ${build_targets}; do
             echo
             echo -e "${H2}Install occystrap for registry push${Color_Off}"
             python3 -mvenv /tmp/occystrap
-            /tmp/occystrap/bip/pip3 install occystrap
+            /tmp/occystrap/bin/pip3 install occystrap
 
             echo
             echo -e "${H2}Pushing to the CI registry${Color_Off}"
