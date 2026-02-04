@@ -1,0 +1,31 @@
+commit 9fd5d1cee81b4b78695acfc131d2f1374eec09b9
+Author: Michael Still <mikal@stillhq.com>
+Date:   Wed Feb 4 17:49:34 2026 +1100
+
+    Show selected config source in task name.
+    
+    Include the resolved with_first_found item in the
+    wsgi config copy task name so the play output shows
+    which config file was selected.
+    
+    Prompt: Would the same trick work for the highlighted
+    task where we use a slightly different first_found
+    syntax?
+    
+    Change-Id: If68e810fa2fdd5ac34ac75b8f9f4dd2bef41e63a
+    Signed-off-by: Michael Still <mikal@stillhq.com>
+    Co-Authored-By: Claude Opus 4.5 <noreply@anthropic.com>
+
+diff --git a/ansible/roles/kerbside/tasks/config.yml b/ansible/roles/kerbside/tasks/config.yml
+index 02532780a..fab91c7de 100644
+--- a/ansible/roles/kerbside/tasks/config.yml
++++ b/ansible/roles/kerbside/tasks/config.yml
+@@ -131,7 +131,7 @@
+     mode: "0660"
+   with_dict: "{{ kerbside_services | select_services_enabled_and_mapped_to_host }}"
+ 
+-- name: Copying over kerbside-wsgi.conf
++- name: "Copying over kerbside-wsgi.conf ({{ item }})"
+   vars:
+     service: "{{ kerbside_services['kerbside_api'] }}"
+   become: true

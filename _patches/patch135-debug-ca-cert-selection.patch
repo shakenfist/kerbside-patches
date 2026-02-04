@@ -1,0 +1,32 @@
+commit ea3938b6c69fde2244dc827343b0937b08698e0e
+Author: Michael Still <mikal@stillhq.com>
+Date:   Wed Feb 4 17:48:10 2026 +1100
+
+    Show selected CA cert in task name.
+    
+    Include the resolved kerbside_ca_cert variable in the
+    Ansible task name so the play output shows which CA
+    certificate was selected by the first_found lookup.
+    
+    Prompt: With the highlighted ansible task is there a nice
+    way to emit a debug message specifying which cert was
+    selected as the value for kerbside_ca_cert without
+    re-writing into more than one task?
+    
+    Change-Id: I177929522a8ed3c8372c57e2a456eff1370564f5
+    Signed-off-by: Michael Still <mikal@stillhq.com>
+    Co-Authored-By: Claude Opus 4.5 <noreply@anthropic.com>
+
+diff --git a/ansible/roles/kerbside/tasks/copy-certs.yml b/ansible/roles/kerbside/tasks/copy-certs.yml
+index 713904d33..7748db1de 100644
+--- a/ansible/roles/kerbside/tasks/copy-certs.yml
++++ b/ansible/roles/kerbside/tasks/copy-certs.yml
+@@ -5,7 +5,7 @@
+   vars:
+     project_services: "{{ kerbside_services }}"
+ 
+-- name: "Copy CA certificate"
++- name: "Copy CA certificate ({{ kerbside_ca_cert }})"
+   vars:
+     certs:
+       - "{{ kolla_certificates_dir }}/{{ inventory_hostname }}/{{ project_name }}-ca.pem"
