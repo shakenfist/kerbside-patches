@@ -2,6 +2,11 @@ name: Build test clouds
 
 on:
   workflow_dispatch:
+    inputs:
+      data_prefix:
+        description: 'Prefix for layer data filenames'
+        required: false
+        default: 'layers'
   pull_request:
     branches:
       - develop
@@ -965,6 +970,8 @@ jobs:
     needs: [build_images]
     runs-on: [self-hosted, static]
     if: github.event_name == 'pull_request' && success()
+    env:
+      DATA_PREFIX: ${{ inputs.data_prefix || 'layers' }}
 
     steps:
       - name: Set environment variables
@@ -1042,7 +1049,7 @@ jobs:
           fi
 
           # Create a branch for the layer data (include run_id for uniqueness)
-          branch_name="layer-data-${DATESTAMP}-run${RUN_ID}"
+          branch_name="${DATA_PREFIX}-data-${DATESTAMP}-run${RUN_ID}"
           git checkout develop
           git checkout -b "${branch_name}"
 
@@ -1060,7 +1067,7 @@ jobs:
 
               if [ -f "${dir}layers.json" ]; then
                   build_name=$(basename "${dir}")
-                  dest_name="layers-${DATESTAMP}-run${RUN_ID}-${build_name}.json"
+                  dest_name="${DATA_PREFIX}-${DATESTAMP}-run${RUN_ID}-${build_name}.json"
 
                   echo "Compressing ${dir}layers.json to data/${dest_name}.gz"
                   gzip -c "${dir}layers.json" > "data/${dest_name}.gz"
@@ -1123,7 +1130,7 @@ jobs:
 
           gh pr create \
               --assignee mikalstill \
-              --title "Layer data from ${DATESTAMP} (run ${RUN_ID}, attempt ${CURRENT_ATTEMPT})" \
+              --title "${DATA_PREFIX} data from ${DATESTAMP} (run ${RUN_ID}, attempt ${CURRENT_ATTEMPT})" \
               --body "${pr_body}" \
               --head "${branch_name}"
 

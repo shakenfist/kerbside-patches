@@ -53,15 +53,20 @@ def load_layers(json_file):
     return unique_layers
 
 
-def parse_build_info(filename):
+def parse_build_info(filename, prefix='layers'):
     """Parse build info from filename.
 
-    Expected format: layers-YYYYMMDD-HHMM-runNNNN-build-DISTRO-VERSION.json[.gz]
+    Expected format:
+    {prefix}-YYYYMMDD-HHMM-runNNNN-build-DISTRO-VERSION.json[.gz]
 
-    Returns a tuple of (datetime_str, run_id, build_type) or None if not parseable.
+    Returns a tuple of (datetime_str, run_id, build_type)
+    or None if not parseable.
     """
     basename = os.path.basename(filename)
-    pattern = r'layers-(\d{8})-(\d{4})-(run\d+)-(.+)\.json(?:\.gz)?$'
+    pattern = (
+        re.escape(prefix)
+        + r'-(\d{8})-(\d{4})-(run\d+)-(.+)\.json(?:\.gz)?$'
+    )
     match = re.match(pattern, basename)
     if match:
         date_str = match.group(1)
@@ -169,22 +174,24 @@ def print_overlap_report(file_layers):
             print(f'Size of common layers: {format_size(common_size)}')
 
 
-def enumerate_builds(data_dir):
+def enumerate_builds(data_dir, prefix='layers'):
     """Enumerate all builds in a data directory.
 
-    Returns a dict mapping (datetime_str, run_id) to list of files for that build,
-    sorted chronologically.
+    Returns a dict mapping (datetime_str, run_id) to list of
+    files for that build, sorted chronologically.
     """
     builds = defaultdict(list)
+    filter_prefix = prefix + '-'
 
     for filename in os.listdir(data_dir):
-        if not filename.startswith('layers-'):
+        if not filename.startswith(filter_prefix):
             continue
-        if not (filename.endswith('.json') or filename.endswith('.json.gz')):
+        if not (filename.endswith('.json')
+                or filename.endswith('.json.gz')):
             continue
 
         filepath = os.path.join(data_dir, filename)
-        build_info = parse_build_info(filename)
+        build_info = parse_build_info(filename, prefix)
         if build_info:
             datetime_str, run_id, build_type = build_info
             build_key = (datetime_str, run_id)
@@ -198,13 +205,14 @@ def enumerate_builds(data_dir):
     return sorted_builds
 
 
-def analyze_build_progression(data_dir, verbose=False):
+def analyze_build_progression(data_dir, prefix='layers',
+                              verbose=False):
     """Analyze layer reuse across builds in chronological order.
 
-    For each build, reports how many layers are new vs. recycled from
-    previous builds.
+    For each build, reports how many layers are new vs. recycled
+    from previous builds.
     """
-    builds = enumerate_builds(data_dir)
+    builds = enumerate_builds(data_dir, prefix)
 
     if not builds:
         print(f'No builds found in {data_dir}')
@@ -341,7 +349,14 @@ def main():
     )
     parser.add_argument(
         '-d', '--data-dir',
-        help='Analyze all builds in a data directory chronologically'
+        help=('Analyze all builds in a data directory'
+              ' chronologically')
+    )
+    parser.add_argument(
+        '-p', '--prefix',
+        default='layers',
+        help=('Filename prefix to filter on'
+              ' (default: layers)')
     )
     parser.add_argument(
         '-v', '--verbose',
@@ -353,7 +368,9 @@ def main():
 
     # If data directory specified, run build progression analysis
     if args.data_dir:
-        analyze_build_progression(args.data_dir, args.verbose)
+        analyze_build_progression(
+            args.data_dir, args.prefix, args.verbose
+        )
         return
 
     # Otherwise, analyze individual files

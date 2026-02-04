@@ -182,9 +182,15 @@ and proposes a PR to add this data to the `data/` directory. This allows trackin
 of container layer changes over time.
 
 Files in `data/` are named with the format:
-`layers-YYYYMMDD-HHMM-runNNNN-{build-name}.json`
+`{prefix}-YYYYMMDD-HHMM-runNNNN-{build-name}.json.gz`
+
+The default prefix is `layers`. A different prefix can be used for optimization
+experiments by setting `data_prefix` when triggering the workflow manually, or by
+passing `--prefix` to `summarize_layers.py`.
 
 This includes:
+- Configurable prefix for experiment identification (default: `layers`)
+- Gzip compression to save storage space
 - Datestamp with hours/minutes for sorting and time-based analysis
 - GitHub Actions run ID for uniqueness
 - Build configuration name (e.g., `build-debian-2025.1`)
@@ -257,6 +263,12 @@ directories. This section documents each script and its purpose.
 | `inspect-kerbside` | Inspects the state of Kerbside deployment (containers, databases, logs). |
 | `gather-logs` | Collects logs from Kolla containers for debugging. |
 | `spice-connect.py` | Python script for testing SPICE console connections programmatically. |
+
+### Layer Analysis Tools
+
+| Script | Description |
+|--------|-------------|
+| `summarize_layers.py` | Analyzes Docker image layer data collected from CI builds. Supports both individual file analysis and chronological build progression analysis with `-d data/` to track layer reuse across builds. Use `--prefix` to filter by filename prefix (default: `layers`) for different optimization experiments. Shows new vs recycled layers per build, helping identify layer caching efficiency. |
 
 ### Pre-Push Linting for Gerrit
 
