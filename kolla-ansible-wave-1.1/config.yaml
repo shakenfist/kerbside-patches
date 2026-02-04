@@ -5,7 +5,7 @@ shallow_clone: false
 directory: kolla-ansible
 release: master-wave-1.1
 depends_on: ''
-source_sha: 684df6660429bd649238c14af94a3c2156b07995
-previous_source_sha: 2157483456a1c0b2a9d67f600c08e47b807b4edd
+source_sha: cc644361f5fed4d29f41057370060e15a9669bd8
+previous_source_sha: 684df6660429bd649238c14af94a3c2156b07995
 skip_rebase: true
 skip_claude: true
