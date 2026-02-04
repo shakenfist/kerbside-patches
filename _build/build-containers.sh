@@ -106,14 +106,24 @@ for target in ${build_targets}; do
 
         if [ ${use_ci_registry} == "true" ]; then
             echo
+            echo -e "${H2}Install occystrap for registry push${Color_Off}"
+            python3 -mvenv /tmp/occystrap
+            /tmp/occystrap/bip/pip3 install occystrap
+
+            echo
             echo -e "${H2}Pushing to the CI registry${Color_Off}"
+            filters=""
+            # -f normalize-timestamps
+            # -f "exclude:pattern=**/.git"
+
             for image in $(docker image list --format json | \
-                jq --slurp -r ".[] | select(.Tag == \"${complete_image_tag}\") | .Repository"); do
+                    jq --slurp -r ".[] | select(.Tag == \"${complete_image_tag}\") | .Repository"); do
                 registry_image=$(echo ${image} | sed 's/^kolla\///')
-                echo -e "    ${image}:${complete_image_tag} ${Arrow} ${ci_registry}/${registry_project}/${image}:${complete_image_tag}"
-                docker image tag ${image}:${complete_image_tag} \
-                    ${ci_registry}/${registry_project}/${registry_image}:${complete_image_tag}
-                docker image push ${ci_registry}/${registry_project}/${registry_image}:${complete_image_tag}
+                echo -e "    ${image}:${complete_image_tag} ${Arrow} occystrap${filters} ${Arrow} ${ci_registry}/${registry_project}/${image}:${complete_image_tag}"
+                /tmp/occystrap/bip/occystrap \
+                    docker://${image}:${complete_image_tag} \
+                    registry://${ci_registry}/${registry_project}/${registry_image}:${complete_image_tag} \
+                    ${filters}
             done
         fi
     fi
