@@ -177,23 +177,26 @@ sudo kolla-ansible -i /etc/kolla/inventory deploy
 
 # Layer Data Collection
 
-The CI workflow automatically collects `layers.json` data from successful builds
-and proposes a PR to add this data to the `data/` directory. This allows tracking
-of container layer changes over time.
+The CI workflow collects layer metadata at each stage of
+the occystrap image processing pipeline and proposes a PR to add
+this data to the `data/` directory. This allows tracking of
+container layer optimization over time.
 
-Files in `data/` are named with the format:
-`{prefix}-YYYYMMDD-HHMM-runNNNN-{build-name}.json.gz`
+During the build, each image is pushed through occystrap with
+inspect filters placed between optimization filters:
 
-The default prefix is `layers`. A different prefix can be used for optimization
-experiments by setting `data_prefix` when triggering the workflow manually, or by
-passing `--prefix` to `summarize_layers.py`.
+1. **as-built** -- layers as produced by kolla-build
+2. **post-normalize** -- after timestamp normalization
+3. **post-exclude** -- after excluding `.git` directories
 
-This includes:
-- Configurable prefix for experiment identification (default: `layers`)
-- Gzip compression to save storage space
-- Datestamp with hours/minutes for sorting and time-based analysis
-- GitHub Actions run ID for uniqueness
-- Build configuration name (e.g., `build-debian-2025.1`)
+Each inspect filter writes a JSONL file per image. These files
+are packaged into a tarball (`layers.tar.gz`) and stored in
+`data/` with the naming format:
+`{prefix}-YYYYMMDD-HHMM-runNNNN-{build-name}.tar.gz`
+
+Use `tools/summarize_layers.py` to analyze the collected data.
+Pass `--compare-stages` to compare layer counts and sizes across
+pipeline stages within a single tarball.
 
 The workflow is configured to skip functional tests when only files in `data/`
 are changed, preventing infinite loops when layer data PRs are merged.
@@ -268,7 +271,7 @@ directories. This section documents each script and its purpose.
 
 | Script | Description |
 |--------|-------------|
-| `summarize_layers.py` | Analyzes Docker image layer data collected from CI builds. Supports both individual file analysis and chronological build progression analysis with `-d data/` to track layer reuse across builds. Use `--prefix` to filter by filename prefix (default: `layers`) for different optimization experiments. Shows new vs recycled layers per build, helping identify layer caching efficiency. |
+| `summarize_layers.py` | Analyzes Docker image layer data collected from CI builds. Layer data is stored as `.tar.gz` tarballs containing per-image JSONL files organized by pipeline stage. Use `-d data/` for chronological build progression analysis, `--stage` to select a pipeline stage (default: `post-exclude`), and `--compare-stages` to compare the effect of each optimization filter. |
 
 ### Pre-Push Linting for Gerrit
 

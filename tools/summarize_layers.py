@@ -1,18 +1,25 @@
 #!/usr/bin/env python3
-"""Summarize the total size of unique layers in Docker image layers JSON files.
+"""Summarize the total size of unique layers in Docker image layer data.
 
-Supports multiple files with overlap analysis between them, including
-chronological build analysis to track layer reuse over time.
+Layer data is stored as tarballs containing per-image JSONL files,
+organized by pipeline stage (as-built, post-normalize, post-exclude).
+
+Supports chronological build progression analysis and per-stage
+comparison to measure the effect of image optimization filters.
 """
 
 import argparse
-import gzip
 import json
 import os
 import re
 import sys
+import tarfile as tarfile_module
 from collections import defaultdict
 from itertools import combinations
+
+
+KNOWN_STAGES = ['as-built', 'post-normalize', 'post-exclude']
+DEFAULT_STAGE = 'post-exclude'
 
 
 def format_size(size_bytes):
@@ -24,40 +31,88 @@ def format_size(size_bytes):
     return f'{size_bytes:.2f} PB'
 
 
-def load_layers(json_file):
-    """Load and extract unique layers from a JSON file.
+def _extract_layers_from_images(images):
+    """Extract unique layers from a list of image dicts.
 
-    Supports both plain JSON and gzip-compressed JSON files.
     Returns a dict mapping layer_id to layer info.
     """
-    if json_file.endswith('.gz'):
-        with gzip.open(json_file, 'rt', encoding='utf-8') as f:
-            data = json.load(f)
-    else:
-        with open(json_file, 'r') as f:
-            data = json.load(f)
-
     unique_layers = {}
-
-    for image in data:
+    for image in images:
         for layer in image.get('layers', []):
             layer_id = layer.get('Id')
             size = layer.get('Size', 0)
             if layer_id and layer_id not in unique_layers:
                 unique_layers[layer_id] = {
                     'size': size,
-                    'created_by': layer.get('CreatedBy', ''),
+                    'created_by': layer.get(
+                        'CreatedBy', ''),
                     'tags': layer.get('Tags')
                 }
-
     return unique_layers
+
+
+def load_layers(tarball_path, stage=None):
+    """Load unique layers from a tarball of JSONL files.
+
+    The tarball contains per-image files like:
+        layers/kolla-nova-api-as-built.jsonl
+        layers/kolla-nova-api-post-normalize.jsonl
+        layers/kolla-nova-api-post-exclude.jsonl
+
+    Args:
+        tarball_path: Path to the .tar.gz file.
+        stage: Filter to files matching this stage.
+            If None, loads all JSONL files.
+
+    Returns:
+        Dict mapping layer_id to layer info.
+    """
+    images = []
+    with tarfile_module.open(tarball_path, 'r:gz') as tar:
+        for member in tar.getmembers():
+            if not member.name.endswith('.jsonl'):
+                continue
+            if stage and not member.name.endswith(
+                    f'-{stage}.jsonl'):
+                continue
+            f = tar.extractfile(member)
+            if f is None:
+                continue
+            for line in f:
+                line = line.decode('utf-8').strip()
+                if line:
+                    images.append(json.loads(line))
+    return _extract_layers_from_images(images)
+
+
+def list_tarball_stages(tarball_path):
+    """List the pipeline stages present in a tarball.
+
+    Returns a list of stage name strings, ordered by
+    pipeline position.
+    """
+    stages = set()
+    with tarfile_module.open(tarball_path, 'r:gz') as tar:
+        for member in tar.getmembers():
+            if not member.name.endswith('.jsonl'):
+                continue
+            for known in KNOWN_STAGES:
+                if member.name.endswith(
+                        f'-{known}.jsonl'):
+                    stages.add(known)
+                    break
+    return sorted(stages, key=lambda s: (
+        KNOWN_STAGES.index(s)
+        if s in KNOWN_STAGES
+        else len(KNOWN_STAGES)
+    ))
 
 
 def parse_build_info(filename, prefix='layers'):
     """Parse build info from filename.
 
     Expected format:
-    {prefix}-YYYYMMDD-HHMM-runNNNN-build-DISTRO-VERSION.json[.gz]
+    {prefix}-YYYYMMDD-HHMM-runNNNN-build-TYPE.tar.gz
 
     Returns a tuple of (datetime_str, run_id, build_type)
     or None if not parseable.
@@ -65,7 +120,7 @@ def parse_build_info(filename, prefix='layers'):
     basename = os.path.basename(filename)
     pattern = (
         re.escape(prefix)
-        + r'-(\d{8})-(\d{4})-(run\d+)-(.+)\.json(?:\.gz)?$'
+        + r'-(\d{8})-(\d{4})-(run\d+)-(.+)\.tar\.gz$'
     )
     match = re.match(pattern, basename)
     if match:
@@ -78,14 +133,21 @@ def parse_build_info(filename, prefix='layers'):
     return None
 
 
-def summarize_single_file(unique_layers, filename, verbose=False):
+def summarize_single_file(unique_layers, filename,
+                          verbose=False):
     """Print summary for a single file's layers."""
-    total_size = sum(layer['size'] for layer in unique_layers.values())
-    non_zero_layers = sum(1 for layer in unique_layers.values() if layer['size'] > 0)
+    total_size = sum(
+        layer['size'] for layer in unique_layers.values())
+    non_zero_layers = sum(
+        1 for layer in unique_layers.values()
+        if layer['size'] > 0)
 
     print(f'Total unique layers: {len(unique_layers)}')
     print(f'Layers with non-zero size: {non_zero_layers}')
-    print(f'Total unique layer size: {format_size(total_size)} ({total_size:,} bytes)')
+    print(
+        f'Total unique layer size: '
+        f'{format_size(total_size)} '
+        f'({total_size:,} bytes)')
 
     if verbose:
         print('\nLargest layers:')
@@ -96,20 +158,71 @@ def summarize_single_file(unique_layers, filename, verbose=False):
         )
         for layer_id, info in sorted_layers[:20]:
             if info['size'] > 0:
-                short_id = (layer_id.split(':')[1][:12]
-                            if ':' in layer_id else layer_id[:12])
+                short_id = (
+                    layer_id.split(':')[1][:12]
+                    if ':' in layer_id
+                    else layer_id[:12])
                 created_by = info['created_by']
                 if len(created_by) > 60:
                     created_by = created_by[:60] + '...'
-                print(f'  {short_id}: {format_size(info["size"]):>10}  {created_by}')
+                print(
+                    f'  {short_id}: '
+                    f'{format_size(info["size"]):>10}'
+                    f'  {created_by}')
+
+
+def summarize_tarball_stages(tarball_path, verbose=False):
+    """Print per-stage summary for a tarball.
+
+    Shows how each pipeline stage affects layer count and
+    total size, including deltas between consecutive stages.
+    """
+    stages = list_tarball_stages(tarball_path)
+    if not stages:
+        print('No stages found in tarball.')
+        return
+
+    print(f'Pipeline stages: {", ".join(stages)}')
+    print()
+
+    prev_layers = None
+    for stage in stages:
+        layers = load_layers(tarball_path, stage)
+        total_size = sum(
+            l['size'] for l in layers.values())
+        non_zero = sum(
+            1 for l in layers.values() if l['size'] > 0)
+
+        print(f'  {stage}:')
+        print(f'    Unique layers: {len(layers)}')
+        print(f'    Non-zero size: {non_zero}')
+        print(
+            f'    Total size: '
+            f'{format_size(total_size)}')
+
+        if prev_layers is not None:
+            prev_size = sum(
+                l['size'] for l in prev_layers.values())
+            size_diff = total_size - prev_size
+            shared = (
+                set(layers.keys())
+                & set(prev_layers.keys()))
+            changed = (
+                set(layers.keys())
+                - set(prev_layers.keys()))
+            print(
+                f'    vs previous: '
+                f'{len(shared)} shared, '
+                f'{len(changed)} changed, '
+                f'size delta '
+                f'{format_size(size_diff)}')
+
+        prev_layers = layers
+        print()
 
 
 def print_overlap_report(file_layers):
-    """Print a report on layer overlap between files.
-
-    Args:
-        file_layers: dict mapping filename to set of layer IDs
-    """
+    """Print a report on layer overlap between files."""
     filenames = list(file_layers.keys())
 
     if len(filenames) < 2:
@@ -119,8 +232,9 @@ def print_overlap_report(file_layers):
     print('LAYER OVERLAP REPORT')
     print('=' * 70)
 
-    # Pairwise overlap
-    print('\nPairwise overlap (shared layers between each pair of files):')
+    print(
+        '\nPairwise overlap '
+        '(shared layers between each pair):')
     print('-' * 70)
 
     for file1, file2 in combinations(filenames, 2):
@@ -137,16 +251,26 @@ def print_overlap_report(file_layers):
 
         print(f'\n{name1} <-> {name2}:')
         print(f'  Shared layers: {len(shared)}')
-        print(f'  Shared size: {format_size(shared_size)} ({shared_size:,} bytes)')
-        print(f'  Only in {name1}: {len(layers1 - layers2)}')
-        print(f'  Only in {name2}: {len(layers2 - layers1)}')
+        print(
+            f'  Shared size: '
+            f'{format_size(shared_size)} '
+            f'({shared_size:,} bytes)')
+        print(
+            f'  Only in {name1}: '
+            f'{len(layers1 - layers2)}')
+        print(
+            f'  Only in {name2}: '
+            f'{len(layers2 - layers1)}')
 
         if layers1 or layers2:
             union = layers1 | layers2
-            overlap_pct = (len(shared) / len(union)) * 100 if union else 0
-            print(f'  Overlap percentage: {overlap_pct:.1f}%')
+            overlap_pct = (
+                (len(shared) / len(union)) * 100
+                if union else 0)
+            print(
+                f'  Overlap percentage: '
+                f'{overlap_pct:.1f}%')
 
-    # Summary across all files
     if len(filenames) > 2:
         print('\n' + '-' * 70)
         print('Multi-file summary:')
@@ -160,18 +284,24 @@ def print_overlap_report(file_layers):
             *[data['ids'] for data in file_layers.values()]
         )
 
-        print(f'\nTotal unique layers across all files: {len(all_layers)}')
-        print(f'Layers common to ALL files: {len(common_to_all)}')
+        print(
+            f'\nTotal unique layers across all files: '
+            f'{len(all_layers)}')
+        print(
+            f'Layers common to ALL files: '
+            f'{len(common_to_all)}')
 
         if common_to_all:
-            # Use first file's info for size calculation
             first_file = filenames[0]
             common_size = sum(
-                file_layers[first_file]['info'][lid]['size']
+                file_layers[first_file]['info']
+                [lid]['size']
                 for lid in common_to_all
                 if lid in file_layers[first_file]['info']
             )
-            print(f'Size of common layers: {format_size(common_size)}')
+            print(
+                f'Size of common layers: '
+                f'{format_size(common_size)}')
 
 
 def enumerate_builds(data_dir, prefix='layers'):
@@ -186,8 +316,7 @@ def enumerate_builds(data_dir, prefix='layers'):
     for filename in os.listdir(data_dir):
         if not filename.startswith(filter_prefix):
             continue
-        if not (filename.endswith('.json')
-                or filename.endswith('.json.gz')):
+        if not filename.endswith('.tar.gz'):
             continue
 
         filepath = os.path.join(data_dir, filename)
@@ -200,43 +329,49 @@ def enumerate_builds(data_dir, prefix='layers'):
                 'build_type': build_type
             })
 
-    # Sort by datetime (keys are already sortable as YYYYMMDD-HHMM)
-    sorted_builds = dict(sorted(builds.items(), key=lambda x: x[0]))
+    sorted_builds = dict(
+        sorted(builds.items(), key=lambda x: x[0]))
     return sorted_builds
 
 
 def analyze_build_progression(data_dir, prefix='layers',
-                              verbose=False):
-    """Analyze layer reuse across builds in chronological order.
+                              stage=None, verbose=False):
+    """Analyze layer reuse across builds chronologically.
 
-    For each build, reports how many layers are new vs. recycled
-    from previous builds.
+    For each build, reports how many layers are new vs.
+    recycled from previous builds.
     """
+    if stage is None:
+        stage = DEFAULT_STAGE
+
     builds = enumerate_builds(data_dir, prefix)
 
     if not builds:
         print(f'No builds found in {data_dir}')
         return
 
+    print(f'Pipeline stage: {stage}')
+    print()
+
     print('=' * 78)
     print('BUILD PROGRESSION ANALYSIS')
     print('=' * 78)
-    print(f'\nFound {len(builds)} builds in chronological order:\n')
+    print(
+        f'\nFound {len(builds)} builds '
+        f'in chronological order:\n')
 
-    # Track all layers seen across builds
-    all_seen_layers = {}  # layer_id -> layer_info (including size)
+    all_seen_layers = {}
     build_results = []
 
     for build_key, files in builds.items():
         datetime_str, run_id = build_key
 
-        # Load all layers for this build
         build_layers = {}
         for file_info in files:
-            layers = load_layers(file_info['path'])
+            layers = load_layers(
+                file_info['path'], stage)
             build_layers.update(layers)
 
-        # Calculate new vs recycled layers
         new_layers = {}
         recycled_layers = {}
 
@@ -246,17 +381,22 @@ def analyze_build_progression(data_dir, prefix='layers',
             else:
                 new_layers[layer_id] = layer_info
 
-        # Calculate sizes
-        new_size = sum(layer['size'] for layer in new_layers.values())
-        recycled_size = sum(layer['size'] for layer in recycled_layers.values())
+        new_size = sum(
+            layer['size']
+            for layer in new_layers.values())
+        recycled_size = sum(
+            layer['size']
+            for layer in recycled_layers.values())
         total_size = new_size + recycled_size
 
-        # Calculate percentages
         total_layers = len(build_layers)
-        new_pct = (len(new_layers) / total_layers * 100) if total_layers else 0
-        recycled_pct = (len(recycled_layers) / total_layers * 100) if total_layers else 0
+        new_pct = (
+            (len(new_layers) / total_layers * 100)
+            if total_layers else 0)
+        recycled_pct = (
+            (len(recycled_layers) / total_layers * 100)
+            if total_layers else 0)
 
-        # Store results
         result = {
             'datetime': datetime_str,
             'run_id': run_id,
@@ -273,144 +413,225 @@ def analyze_build_progression(data_dir, prefix='layers',
         }
         build_results.append(result)
 
-        # Update seen layers for next iteration
         all_seen_layers.update(build_layers)
 
-    # Print results as a table
-    print(f'{"Build DateTime":<20} {"Run ID":<18} {"Files":>5} {"Total":>6} '
-          f'{"New":>6} {"Recyc":>6} {"New %":>7} {"New Size":>12}')
+    print(
+        f'{"Build DateTime":<20} {"Run ID":<18} '
+        f'{"Files":>5} {"Total":>6} '
+        f'{"New":>6} {"Recyc":>6} '
+        f'{"New %":>7} {"New Size":>12}')
     print('-' * 78)
 
     for r in build_results:
-        print(f'{r["datetime"]:<20} {r["run_id"]:<18} {r["files"]:>5} '
-              f'{r["total_layers"]:>6} {r["new_layers"]:>6} '
-              f'{r["recycled_layers"]:>6} {r["new_pct"]:>6.1f}% '
-              f'{format_size(r["new_size"]):>12}')
+        print(
+            f'{r["datetime"]:<20} {r["run_id"]:<18} '
+            f'{r["files"]:>5} '
+            f'{r["total_layers"]:>6} '
+            f'{r["new_layers"]:>6} '
+            f'{r["recycled_layers"]:>6} '
+            f'{r["new_pct"]:>6.1f}% '
+            f'{format_size(r["new_size"]):>12}')
 
     print('-' * 78)
 
-    # Summary statistics
     total_unique = len(all_seen_layers)
-    total_unique_size = sum(layer['size'] for layer in all_seen_layers.values())
+    total_unique_size = sum(
+        layer['size']
+        for layer in all_seen_layers.values())
 
     print(f'\nSummary:')
-    print(f'  Total unique layers across all builds: {total_unique}')
-    print(f'  Total unique layer size: {format_size(total_unique_size)}')
+    print(
+        f'  Total unique layers across all builds: '
+        f'{total_unique}')
+    print(
+        f'  Total unique layer size: '
+        f'{format_size(total_unique_size)}')
 
     if len(build_results) > 1:
-        # Calculate average reuse after first build
         later_builds = build_results[1:]
-        avg_new_pct = sum(r['new_pct'] for r in later_builds) / len(later_builds)
-        avg_recycled_pct = sum(r['recycled_pct'] for r in later_builds) / len(later_builds)
-        print(f'  Average new layers after first build: {avg_new_pct:.1f}%')
-        print(f'  Average recycled layers after first build: {avg_recycled_pct:.1f}%')
+        avg_new_pct = sum(
+            r['new_pct']
+            for r in later_builds) / len(later_builds)
+        avg_recycled_pct = sum(
+            r['recycled_pct']
+            for r in later_builds) / len(later_builds)
+        print(
+            f'  Average new layers after first build: '
+            f'{avg_new_pct:.1f}%')
+        print(
+            f'  Average recycled layers after first '
+            f'build: {avg_recycled_pct:.1f}%')
 
     if verbose:
         print('\n' + '-' * 78)
         print('Per-build details:')
         print('-' * 78)
         for r in build_results:
-            print(f'\n{r["datetime"]} ({r["run_id"]}):')
-            print(f'  Files in build: {r["files"]}')
-            print(f'  Total layers: {r["total_layers"]}')
-            print(f'  New layers: {r["new_layers"]} ({r["new_pct"]:.1f}%)')
-            print(f'  Recycled layers: {r["recycled_layers"]} ({r["recycled_pct"]:.1f}%)')
-            print(f'  New layer size: {format_size(r["new_size"])}')
-            print(f'  Recycled layer size: {format_size(r["recycled_size"])}')
-            print(f'  Total layer size: {format_size(r["total_size"])}')
+            print(
+                f'\n{r["datetime"]} '
+                f'({r["run_id"]}):')
+            print(
+                f'  Files in build: {r["files"]}')
+            print(
+                f'  Total layers: '
+                f'{r["total_layers"]}')
+            print(
+                f'  New layers: {r["new_layers"]} '
+                f'({r["new_pct"]:.1f}%)')
+            print(
+                f'  Recycled layers: '
+                f'{r["recycled_layers"]} '
+                f'({r["recycled_pct"]:.1f}%)')
+            print(
+                f'  New layer size: '
+                f'{format_size(r["new_size"])}')
+            print(
+                f'  Recycled layer size: '
+                f'{format_size(r["recycled_size"])}')
+            print(
+                f'  Total layer size: '
+                f'{format_size(r["total_size"])}')
 
-            # Show commands that produced recycled layers
             if r['recycled_layers_info']:
-                print(f'  Recycled layer commands:')
-                # Sort by size descending to show largest recycled layers first
+                print('  Recycled layer commands:')
                 sorted_recycled = sorted(
                     r['recycled_layers_info'].items(),
                     key=lambda x: x[1]['size'],
                     reverse=True
                 )
                 for layer_id, info in sorted_recycled:
-                    short_id = (layer_id.split(':')[1][:12]
-                                if ':' in layer_id else layer_id[:12])
+                    short_id = (
+                        layer_id.split(':')[1][:12]
+                        if ':' in layer_id
+                        else layer_id[:12])
                     created_by = info['created_by']
                     if len(created_by) > 60:
-                        created_by = created_by[:60] + '...'
-                    print(f'    {short_id}: {format_size(info["size"]):>10}  '
-                          f'{created_by}')
+                        created_by = (
+                            created_by[:60] + '...')
+                    print(
+                        f'    {short_id}: '
+                        f'{format_size(info["size"]):>10}'
+                        f'  {created_by}')
 
 
 def main():
     parser = argparse.ArgumentParser(
-        description='Summarize unique Docker image layers from JSON files.'
+        description=(
+            'Summarize unique Docker image layers '
+            'from layer data tarballs.')
     )
     parser.add_argument(
-        'json_files',
+        'files',
         nargs='*',
-        help='Path(s) to JSON file(s) to analyze individually'
+        help='Path(s) to layer data .tar.gz files'
     )
     parser.add_argument(
         '-d', '--data-dir',
-        help=('Analyze all builds in a data directory'
-              ' chronologically')
+        help=(
+            'Analyze all builds in a data directory '
+            'chronologically')
     )
     parser.add_argument(
         '-p', '--prefix',
         default='layers',
-        help=('Filename prefix to filter on'
-              ' (default: layers)')
+        help=(
+            'Filename prefix to filter on '
+            '(default: layers)')
+    )
+    parser.add_argument(
+        '-s', '--stage',
+        default=None,
+        help=(
+            'Pipeline stage to analyze '
+            f'({", ".join(KNOWN_STAGES)}). '
+            f'Default for --data-dir: {DEFAULT_STAGE}')
+    )
+    parser.add_argument(
+        '--compare-stages',
+        action='store_true',
+        help=(
+            'Compare pipeline stages within each '
+            'tarball')
     )
     parser.add_argument(
         '-v', '--verbose',
         action='store_true',
-        help='Show details of largest layers, per-build details, and '
-             'commands that produced recycled layers'
+        help=(
+            'Show largest layers, per-build details, '
+            'and recycled layer commands')
     )
     args = parser.parse_args()
 
-    # If data directory specified, run build progression analysis
     if args.data_dir:
         analyze_build_progression(
-            args.data_dir, args.prefix, args.verbose
+            args.data_dir, args.prefix,
+            stage=args.stage, verbose=args.verbose
         )
         return
 
-    # Otherwise, analyze individual files
-    if not args.json_files:
-        # Default to data directory if it exists
-        script_dir = os.path.dirname(os.path.abspath(__file__))
-        data_dir = os.path.join(os.path.dirname(script_dir), 'data')
+    if not args.files:
+        script_dir = os.path.dirname(
+            os.path.abspath(__file__))
+        data_dir = os.path.join(
+            os.path.dirname(script_dir), 'data')
         if os.path.isdir(data_dir):
-            print(f'No files specified. Use -d {data_dir} to analyze all builds.')
-            print('Or specify individual files as arguments.')
+            print(
+                f'No files specified. '
+                f'Use -d {data_dir} to analyze '
+                f'all builds.')
+            print(
+                'Or specify individual .tar.gz '
+                'files as arguments.')
             sys.exit(1)
         else:
-            print('Error: No files specified and no data directory found.')
+            print(
+                'Error: No files specified and '
+                'no data directory found.')
             sys.exit(1)
 
     file_layers = {}
 
-    for json_file in args.json_files:
+    for filepath in args.files:
         try:
-            unique_layers = load_layers(json_file)
-            file_layers[json_file] = {
+            if args.compare_stages:
+                print('=' * 70)
+                print(f'FILE: {filepath}')
+                print('=' * 70)
+                summarize_tarball_stages(
+                    filepath, args.verbose)
+                print()
+                continue
+
+            unique_layers = load_layers(
+                filepath, args.stage)
+            file_layers[filepath] = {
                 'ids': set(unique_layers.keys()),
                 'info': unique_layers
             }
 
             print('=' * 70)
-            print(f'FILE: {json_file}')
+            print(f'FILE: {filepath}')
+            if args.stage:
+                print(f'STAGE: {args.stage}')
             print('=' * 70)
-            summarize_single_file(unique_layers, json_file, args.verbose)
+            summarize_single_file(
+                unique_layers, filepath,
+                args.verbose)
             print()
 
         except FileNotFoundError:
-            print(f'Error: File not found: {json_file}', file=sys.stderr)
+            print(
+                f'Error: File not found: {filepath}',
+                file=sys.stderr)
             sys.exit(1)
         except json.JSONDecodeError as e:
-            print(f'Error: Invalid JSON in {json_file}: {e}', file=sys.stderr)
+            print(
+                f'Error: Invalid JSON in '
+                f'{filepath}: {e}',
+                file=sys.stderr)
             sys.exit(1)
 
-    # Print overlap report if multiple files
-    if len(args.json_files) > 1:
+    if len(file_layers) > 1:
         print_overlap_report(file_layers)
 
 

@@ -292,14 +292,21 @@ jobs:
               echo "File not found"
           fi
 
-      - name: Dump layers.json
+      - name: Dump layer data summary
         if: always()
         run: |
           . $GITHUB_ENV
-          if [ -e kerbside-patches/archive/layers.json ]; then
-              python3 -m json.tool < kerbside-patches/archive/layers.json
+          if [ -d kerbside-patches/archive/layers ]; then
+              echo "Layer data files:"
+              ls -lh kerbside-patches/archive/layers/
+              echo
+              echo "Line counts per stage:"
+              for stage in as-built post-normalize post-exclude; do
+                  count=$(cat kerbside-patches/archive/layers/*-${stage}.jsonl 2>/dev/null | wc -l || echo 0)
+                  echo "  ${stage}: ${count} images"
+              done
           else
-              echo "File not found"
+              echo "No layer data directory found"
           fi
 
       # We have the output of the build job and its config, regardless of success or failure
@@ -325,8 +332,8 @@ jobs:
           if [ -e kerbside-patches/archive/build.json ]; then
               cp kerbside-patches/archive/build.json ${archive_path}/
           fi
-          if [ -e kerbside-patches/archive/layers.json ]; then
-              cp kerbside-patches/archive/layers.json ${archive_path}/
+          if [ -e kerbside-patches/archive/layers.tar.gz ]; then
+              cp kerbside-patches/archive/layers.tar.gz ${archive_path}/
           fi
           if [ -e kerbside-patches/archive/kolla-build.conf ]; then
               cp kerbside-patches/archive/kolla-build.conf ${archive_path}/
@@ -993,7 +1000,7 @@ jobs:
           pattern: "build-*"
           path: /tmp/build-artifacts
 
-      - name: Collect layers.json files and prepare PR
+      - name: Collect layer data and prepare PR
         env:
           GITHUB_TOKEN: ${{ secrets.DAILY_REBASE_TOKEN }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
@@ -1029,14 +1036,14 @@ jobs:
                   continue
               fi
 
-              if [ -f "${dir}layers.json" ]; then
+              if [ -f "${dir}layers.tar.gz" ]; then
                   included_builds="${included_builds}- ${build_name}${NL}"
               fi
           done
 
           # Check if we have any layers to include
           if [ -z "${included_builds}" ]; then
-              echo "No layers.json files from current attempt found, skipping PR creation"
+              echo "No layers.tar.gz files from current attempt found, skipping PR creation"
               exit 0
           fi
 
@@ -1053,7 +1060,7 @@ jobs:
           git checkout develop
           git checkout -b "${branch_name}"
 
-          # Copy layers.json files with unique names (only from current attempt)
+          # Copy layer tarballs with unique names (only from current attempt)
           for dir in /tmp/build-artifacts/build-*/; do
               # Re-check run_attempt filter
               if [ -f "${dir}run_attempt" ]; then
@@ -1065,12 +1072,12 @@ jobs:
                   continue
               fi
 
-              if [ -f "${dir}layers.json" ]; then
+              if [ -f "${dir}layers.tar.gz" ]; then
                   build_name=$(basename "${dir}")
-                  dest_name="${DATA_PREFIX}-${DATESTAMP}-run${RUN_ID}-${build_name}.json"
+                  dest_name="${DATA_PREFIX}-${DATESTAMP}-run${RUN_ID}-${build_name}.tar.gz"
 
-                  echo "Compressing ${dir}layers.json to data/${dest_name}.gz"
-                  gzip -c "${dir}layers.json" > "data/${dest_name}.gz"
+                  echo "Copying ${dir}layers.tar.gz to data/${dest_name}"
+                  cp "${dir}layers.tar.gz" "data/${dest_name}"
               fi
           done
 
@@ -1087,7 +1094,7 @@ jobs:
           git add data/
           git commit -m "Add layer data from build run ${RUN_ID}.
 
-          This commit adds layers.json data from a successful functional
+          This commit adds layer data from a successful functional
           test build. This data is collected for analysis purposes.
 
           Source PR: #${PR_NUMBER}

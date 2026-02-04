@@ -112,19 +112,35 @@ for target in ${build_targets}; do
 
             echo
             echo -e "${H2}Pushing to the CI registry${Color_Off}"
-            filters=""
-            # -f normalize-timestamps
-            # -f "exclude:pattern=**/.git"
+
+            # Layer metadata is collected at each pipeline stage
+            # via inspect filters. Per-image files allow comparing
+            # the effect of each filter on individual images.
+            layers_dir="${topdir}/archive/layers"
+            mkdir -p "${layers_dir}"
+            rm -f "${layers_dir}"/*.jsonl
 
             for image in $(docker image list --format json | \
                     jq --slurp -r ".[] | select(.Tag == \"${complete_image_tag}\") | .Repository"); do
                 registry_image=$(echo ${image} | sed 's/^kolla\///')
-                echo -e "    ${image}:${complete_image_tag} ${Arrow} occystrap${filters} ${Arrow} ${ci_registry}/${registry_project}/${image}:${complete_image_tag}"
-                /tmp/occystrap/bip/occystrap \
+                safe_name=$(echo ${image} | tr '/' '-')
+
+                echo -e "    ${image}:${complete_image_tag} ${Arrow} occystrap ${Arrow} ${ci_registry}/${registry_project}/${image}:${complete_image_tag}"
+                /tmp/occystrap/bin/occystrap process \
                     docker://${image}:${complete_image_tag} \
                     registry://${ci_registry}/${registry_project}/${registry_image}:${complete_image_tag} \
-                    ${filters}
+                    -f "inspect:file=${layers_dir}/${safe_name}-as-built.jsonl" \
+                    -f normalize-timestamps \
+                    -f "inspect:file=${layers_dir}/${safe_name}-post-normalize.jsonl" \
+                    -f "exclude:pattern=**/.git" \
+                    -f "inspect:file=${layers_dir}/${safe_name}-post-exclude.jsonl"
             done
+
+            # Package layer data for artifact collection
+            echo
+            echo -e "${H2}Packaging layer data${Color_Off}"
+            tar czf "${topdir}/archive/layers.tar.gz" \
+                -C "${topdir}/archive" layers/
         fi
     fi
 done
