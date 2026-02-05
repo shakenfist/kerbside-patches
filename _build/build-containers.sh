@@ -127,8 +127,8 @@ for target in ${build_targets}; do
 
                 echo -e "    ${image}:${complete_image_tag} ${Arrow} occystrap ${Arrow} ${ci_registry}/${registry_project}/${image}:${complete_image_tag}"
                 /tmp/occystrap/bin/occystrap process \
-                    docker://${image}:${complete_image_tag} \
-                    registry://${ci_registry}/${registry_project}/${registry_image}:${complete_image_tag} \
+                    "docker://${image}:${complete_image_tag}" \
+                    "registry://${ci_registry}/${registry_project}/${registry_image}:${complete_image_tag}?insecure=true" \
                     -f "inspect:file=${layers_dir}/${safe_name}-as-built.jsonl" \
                     -f normalize-timestamps \
                     -f "inspect:file=${layers_dir}/${safe_name}-post-normalize.jsonl" \
