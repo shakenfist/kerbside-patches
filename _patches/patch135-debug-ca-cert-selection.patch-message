@@ -1,0 +1,14 @@
+Show selected CA cert in task name.
+
+Include the resolved kerbside_ca_cert variable in the
+Ansible task name so the play output shows which CA
+certificate was selected by the first_found lookup.
+
+Prompt: With the highlighted ansible task is there a nice
+way to emit a debug message specifying which cert was
+selected as the value for kerbside_ca_cert without
+re-writing into more than one task?
+
+Change-Id: I177929522a8ed3c8372c57e2a456eff1370564f5
+Signed-off-by: Michael Still <mikal@stillhq.com>
+Co-Authored-By: Claude Opus 4.5 <noreply@anthropic.com>

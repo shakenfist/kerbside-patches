@@ -1,0 +1,13 @@
+Show selected config source in task name.
+
+Include the resolved with_first_found item in the
+wsgi config copy task name so the play output shows
+which config file was selected.
+
+Prompt: Would the same trick work for the highlighted
+task where we use a slightly different first_found
+syntax?
+
+Change-Id: If68e810fa2fdd5ac34ac75b8f9f4dd2bef41e63a
+Signed-off-by: Michael Still <mikal@stillhq.com>
+Co-Authored-By: Claude Opus 4.5 <noreply@anthropic.com>
