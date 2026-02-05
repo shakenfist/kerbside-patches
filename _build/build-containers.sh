@@ -126,7 +126,10 @@ for target in ${build_targets}; do
                 safe_name=$(echo ${image} | tr '/' '-')
 
                 echo -e "    ${image}:${complete_image_tag} ${Arrow} occystrap ${Arrow} ${ci_registry}/${registry_project}/${image}:${complete_image_tag}"
-                /tmp/occystrap/bin/occystrap process \
+                /tmp/occystrap/bin/occystrap \
+                    --username ${registry_username} \
+                    --password ${registry_token} \
+                    process \
                     "docker://${image}:${complete_image_tag}" \
                     "registry://${ci_registry}/${registry_project}/${registry_image}:${complete_image_tag}?insecure=true" \
                     -f "inspect:file=${layers_dir}/${safe_name}-as-built.jsonl" \
