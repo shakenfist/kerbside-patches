@@ -133,14 +133,6 @@ jobs:
             'container_distro_version': 'bookworm'
           },
           {
-            'name': 'build-debian-bookworm-master',
-            'release': 'master',
-            'base': 'debian:12',
-            'baseuser': 'debian',
-            'container_distro': 'debian',
-            'container_distro_version': 'bookworm'
-          },
-          {
             'name': 'build-debian-trixie-master',
             'release': 'master',
             'base': 'debian:12',
@@ -398,8 +390,8 @@ jobs:
       matrix:
         test: [
           {
-            'name': '2025.1-debian12-debian12-aio',
-            'description': 'OpenStack 2025.1 debian containers on debian 12 all-in-one',
+            'name': '2025.1-h-debian12-c-debian12-aio',
+            'description': '2025.1 debian 12 images on debian 12 all-in-one',
             'release': '2025.1',
             'base': 'debian:12',
             'baseuser': 'debian',
@@ -410,8 +402,8 @@ jobs:
             'enable_kerbside': 'true'
           },
           {
-            'name': '2025.2-debian12-debian12-aio',
-            'description': 'OpenStack 2025.2 debian containers on debian 12 all-in-one',
+            'name': '2025.2-h-debian12-c-debian12-aio',
+            'description': '2025.2 debian 12 images on debian 12 all-in-one',
             'release': '2025.2',
             'base': 'debian:12',
             'baseuser': 'debian',
@@ -422,8 +414,8 @@ jobs:
             'enable_kerbside': 'true'
           },
           {
-            'name': 'master-debian12-ubuntu2404-aio',
-            'description': 'OpenStack master ubuntu 24.04 containers on debian 12 all-in-one',
+            'name': 'master-h-debian12-c-ubuntu2404-aio',
+            'description': 'master ubuntu 24.04 images on debian 12 all-in-one',
             'release': 'master',
             'base': 'debian:12',
             'baseuser': 'debian',
@@ -434,52 +426,49 @@ jobs:
             'enable_kerbside': 'true'
           },
           {
-            'name': 'master-debian12-debian12-aio-nokerbside',
-            'description': 'OpenStack master debian containers on debian 12 all-in-one with no kerbside',
+            'name': 'master-h-debian12-c-debian13-aio-nokerbside',
+            'description': 'master debian 13 images on debian 12 all-in-one with no kerbside',
             'release': 'master',
             'base': 'debian:12',
             'baseuser': 'debian',
             'topology': 'all-in-one',
             'runs_on': 'debian-12',
             'container_distro': 'debian',
-            'container_distro_version': 'bookworm',
+            'container_distro_version': 'trixie',
             'enable_kerbside': 'false'
           },
           {
-            'name': 'master-debian12-debian12-aio',
-            'description': 'OpenStack master debian containers on debian 12 all-in-one',
+            'name': 'master-h-debian12-c-debian12-aio',
+            'description': 'master debian 13 images on debian 12 all-in-one',
             'release': 'master',
             'base': 'debian:12',
             'baseuser': 'debian',
             'topology': 'all-in-one',
             'runs_on': 'debian-12',
             'container_distro': 'debian',
-            'container_distro_version': 'bookworm',
-            'enable_kerbside': 'true'
+            'container_distro_version': 'trixie'
           },
           {
-            'name': 'master-rocky10-debian12-aio',
-            'description': 'OpenStack master debian containers on Rocky 10 all-in-one',
+            'name': 'master-h-rocky10-c-debian-13-aio',
+            'description': 'master debian 13 images on rocky 10 all-in-one',
             'release': 'master',
             'base': 'rocky:10',
             'baseuser': 'cloud-user',
             'topology': 'all-in-one',
             'runs_on': 'debian-12',
             'container_distro': 'debian',
-            'container_distro_version': 'bookworm',
-            'enable_kerbside': 'true'
+            'container_distro_version': 'trixie'
           },
           {
-            'name': 'master-debian12-debian12-multi',
-            'description': 'OpenStack master debian containers on debian 12 multinode',
+            'name': 'master-h-debian12-c-debian12-multi',
+            'description': 'master debian 13 images on debian 12 multinode',
             'release': 'master',
             'base': 'debian:12',
             'baseuser': 'debian',
             'topology': 'multinode-2',
             'runs_on': 'debian-12',
             'container_distro': 'debian',
-            'container_distro_version': 'bookworm',
-            'enable_kerbside': 'true'
+            'container_distro_version': 'trixie'
           },
         ]
     runs-on: [self-hosted, vm, '${{ matrix.test.runs_on }}']
@@ -649,7 +638,7 @@ jobs:
               ${{ matrix.test.baseuser }}@10.0.2.2 \
               'cd /srv/shakenfist/kerbside-patches; sudo ./tools/ka deploy -i /etc/kolla/inventory'
 
-      - name: Install patched OpenStack clients
+      - name: Install patched clients
         run: |
           . $GITHUB_ENV
           ssh -i /srv/github/id_ci -o StrictHostKeyChecking=no \
@@ -777,7 +766,7 @@ jobs:
           . /tmp/admin-openrc.sh
 
           echo
-          echo "Install openstack client..."
+          echo "Install client..."
           sudo mkdir -p /srv/kolla-ansible
           sudo chown -R debian:debian /srv/kolla-ansible
           python3 -mvenv /srv/kolla-ansible/venv
@@ -798,7 +787,7 @@ jobs:
 
           echo
           echo "Images in cloud:"
-          openstack image list
+          image list
 
           export baseuser=${{ matrix.test.baseuser }}
 
@@ -821,7 +810,7 @@ jobs:
               node_address=${!node}
 
               echo
-              echo "Check docker containers on ${node}"
+              echo "Check docker images on ${node}"
               echo
 
               ssh -i /srv/github/id_ci -o StrictHostKeyChecking=no \
