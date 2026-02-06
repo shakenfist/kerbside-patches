@@ -107,7 +107,9 @@ for target in ${build_targets}; do
     echo
     echo -e "${H2}Customize build configuration${Color_Off}"
     cat etc/kolla-build-${target}.conf.in | \
-        sed -e "s|TOPSRCDIR|${topsrcdir}|g" -e "s|DISTRO|${distro}|g" > ${topdir}/archive/kolla-build.conf
+        sed -e "s|TOPSRCDIR|${topsrcdir}|g" \
+            -e "s|DISTRO_VERSION|${distro_version}|g" \
+            -e "s|DISTRO|${distro}|g" > ${topdir}/archive/kolla-build.conf
 
     if [ $(wc -c ${topdir}/archive/kolla-build.conf | cut -f 1 -d " ") -lt 1 ]; then
         echo

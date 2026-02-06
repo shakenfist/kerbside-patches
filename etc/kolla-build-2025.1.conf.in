@@ -1,5 +1,6 @@
 [DEFAULT]
 base = DISTRO
+base_tag = DISTRO_VERSION
 debug = true
 push = false
 

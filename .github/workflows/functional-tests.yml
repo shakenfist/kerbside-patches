@@ -277,6 +277,7 @@ jobs:
               --build-targets "${{ matrix.test.release }}" \
               --build-images all \
               --distro ${{ matrix.test.container_distro}} \
+              --distro-version ${{ matrix.test.container_distro_version }} \
               --image-tag ${hash} \
               --dont-fetch-images
 

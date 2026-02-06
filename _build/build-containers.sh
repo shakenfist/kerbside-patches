@@ -21,19 +21,6 @@ if [ ! -z ${registry_username} ]; then
 fi
 
 for target in ${build_targets}; do
-    if [ ${distro} == "debian" ]; then
-        # NOTE(mikal): the trixie changes have not yet merged upstream
-        # if [ ${target} == "master" ]; then
-        #     distro_version="trixie"
-        # else
-        distro_version="bookworm"
-        # fi
-    elif [ ${distro} == "ubuntu" ]; then
-        distro_version="noble"
-    else
-        echo "Unknown distro: ${distro}!"
-        exit 1
-    fi
     complete_image_tag="${target}-${distro}-${distro_version}-${image_tag}"
 
     echo
@@ -86,7 +73,15 @@ for target in ${build_targets}; do
 
         ./_build/imagebuild.sh --build-targets "${target}" \
                 --build-images "${build_images}" \
+                --distro "${distro}" \
+                --distro-version "${distro_version}" \
                 --image-tag "${complete_image_tag}" || true
+
+        # Guard against errors in base distro version selection
+        if [ $(grep -c "${distro_version}" ${topdir}/archive/build.log || true) -eq 0 ]; then
+            banner "No references to the correct distro version in build log. We likely did not use the correct base image version!"
+            exit 1
+        fi
 
         if [ $(grep -c "kolla-build failed!" ${topdir}/archive/build.log || true) -gt 0 ]; then
             echo
@@ -94,6 +89,8 @@ for target in ${build_targets}; do
             echo -e "${H2}Retry build once.${Color_Off}"
             ./_build/imagebuild.sh --build-targets "${target}" \
                 --build-images "${build_images}" \
+                --distro "${distro}" \
+                --distro-version "${distro_version}" \
                 --image-tag "${complete_image_tag}"
         fi
 

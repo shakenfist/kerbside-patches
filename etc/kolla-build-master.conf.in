@@ -1,5 +1,6 @@
 [DEFAULT]
 base = DISTRO
+base_tag = DISTRO_VERSION
 base_image = mirror.gcr.io/library/DISTRO
 debug = true
 push = false
