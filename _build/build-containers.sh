@@ -123,7 +123,7 @@ for target in ${build_targets}; do
                 safe_name=$(echo ${image} | tr '/' '-')
 
                 echo -e "    ${image}:${complete_image_tag} ${Arrow} occystrap ${Arrow} ${ci_registry}/${registry_project}/${image}:${complete_image_tag}"
-                /tmp/occystrap/bin/occystrap \
+                http_proxy='' https_proxy='' HTTP_PROXY='' HTTPS_PROXY='' all_proxy='' ALL_PROXY='' /tmp/occystrap/bin/occystrap \
                     --username ${registry_username} \
                     --password ${registry_token} \
                     process \
