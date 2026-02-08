@@ -42,6 +42,16 @@ if [ "${NAME}" == "Rocky Linux" ]; then
     sudo dnf config-manager --add-repo \
         https://download.docker.com/linux/centos/docker-ce.repo
     sudo dnf install -y docker-ce docker-ce-cli containerd.io
+
+    # Enable containerd snapshotter for OCI format tarballs
+    if [ -f /etc/docker/daemon.json ]; then
+        sudo jq '. + {"features": (.features // {} + {"containerd-snapshotter": true})}' \
+            /etc/docker/daemon.json | sudo sponge /etc/docker/daemon.json
+    else
+        echo '{"features":{"containerd-snapshotter":true}}' | \
+            sudo tee /etc/docker/daemon.json > /dev/null
+    fi
+
     sudo systemctl start docker
     echo
 else
@@ -71,6 +81,16 @@ else
 
     sudo apt-get install -y docker-ce docker-ce-cli containerd.io \
         docker-buildx-plugin docker-compose-plugin
+
+    # Enable containerd snapshotter for OCI format tarballs
+    if [ -f /etc/docker/daemon.json ]; then
+        sudo jq '. + {"features": (.features // {} + {"containerd-snapshotter": true})}' \
+            /etc/docker/daemon.json | sudo sponge /etc/docker/daemon.json
+    else
+        echo '{"features":{"containerd-snapshotter":true}}' | \
+            sudo tee /etc/docker/daemon.json > /dev/null
+    fi
+
     sudo systemctl start docker
     echo
 fi
