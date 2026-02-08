@@ -124,6 +124,8 @@ for target in ${build_targets}; do
 
                 echo -e "    ${image}:${complete_image_tag} ${Arrow} occystrap ${Arrow} ${ci_registry}/${registry_project}/${image}:${complete_image_tag}"
                 http_proxy='' https_proxy='' HTTP_PROXY='' HTTPS_PROXY='' all_proxy='' ALL_PROXY='' /tmp/occystrap/bin/occystrap \
+                    --parallel 8 \
+                    --compression zstd \
                     --username ${registry_username} \
                     --password ${registry_token} \
                     process \
