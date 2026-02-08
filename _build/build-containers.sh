@@ -128,6 +128,7 @@ for target in ${build_targets}; do
                     --compression zstd \
                     --username ${registry_username} \
                     --password ${registry_token} \
+                    --layer-cache "${topdir}/archive/occystrap-layer-cache.json" \
                     process \
                     "docker://${image}:${complete_image_tag}" \
                     "registry://${ci_registry}/${registry_project}/${registry_image}:${complete_image_tag}?insecure=true" \

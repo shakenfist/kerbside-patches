@@ -331,6 +331,17 @@ jobs:
           if [ -e kerbside-patches/archive/kolla-build.conf ]; then
               cp kerbside-patches/archive/kolla-build.conf ${archive_path}/
           fi
+          if [ -e kerbside-patches/archive/occystrap-layer-cache.json ]; then
+              cp kerbside-patches/archive/archive/occystrap-layer-cache.json ${archive_path}/
+          fi
+
+          # System details for debugging
+          docker info > ${archive_path}/docker-info.txt
+          if [ -e /etc/docker/daemon.json ]; then
+              cp /etc/docker/daemon.json ${archive_path}/
+          else
+              echo "No daemon.json found" > ${archive_path}/daemon.json
+          fi
 
       - uses: actions/upload-artifact@v4
         if: always()
