@@ -1,2 +1,3 @@
 ../_patches/patch047-kolla-fluentd-enable-syslog.patch
 ../_patches/patch133-kolla-flamingo-compressed.patch
+../_patches/patch137-horizon-requires-setuptools.patch
