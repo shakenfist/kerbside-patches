@@ -1,3 +1,4 @@
 ../_patches/patch047-kolla-fluentd-enable-syslog.patch
 ../_patches/patch093-kolla-master-compressed.patch
 ../_patches/patch112-kolla-layer-data.patch
+../_patches/patch137-horizon-requires-setuptools.patch

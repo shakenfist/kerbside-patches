@@ -1,3 +1,4 @@
 ../_patches/patch047-kolla-fluentd-enable-syslog.patch
 ../_patches/patch094-kolla-epoxy-compressed.patch
 ../_patches/patch118-kolla-epoxy-layer-data.patch
+../_patches/patch137-horizon-requires-setuptools.patch
