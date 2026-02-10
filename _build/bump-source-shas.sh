@@ -106,7 +106,7 @@ for project in ${projects}; do
         short_new=$(echo "${source_sha}" | cut -c1-9)
         {
             echo "${project} updated from ${short_old} to ${short_new}"
-            git log --oneline "${current_source_sha}..${source_sha}" \
+            git log --no-merges --oneline "${current_source_sha}..${source_sha}" \
                 | sed 's/^/    /'
             echo
         } >> "${changelog_path}"
