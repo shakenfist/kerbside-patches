@@ -31,12 +31,14 @@ function banner {
 banner "Setup HTTP CI registry"
 
 sudo mkdir -p /etc/docker/
-sudo rm -f /etc/docker/daemon.json
-cat - <<EOF | sudo tee /etc/docker/daemon.json
-{
-    "insecure-registries" : [ "192.168.1.12:4000" ]
-}
-EOF
+if [ -f /etc/docker/daemon.json ]; then
+    sudo jq '. + {"insecure-registries": (."insecure-registries" // [] + ["192.168.1.12:4000"])}' \
+        /etc/docker/daemon.json | sudo sponge /etc/docker/daemon.json
+else
+    echo '{"insecure-registries":["192.168.1.12:4000"]}' | \
+        sudo tee /etc/docker/daemon.json > /dev/null
+fi
+
 sudo systemctl restart docker
 sleep 10
 
