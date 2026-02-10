@@ -5,6 +5,7 @@
 # Usage:
 #   bump-source-shas.sh [N]           # Set to HEAD~(N-1), default N=1 (HEAD)
 #   bump-source-shas.sh --forward N   # Step forward N commits from current SHA
+#   bump-source-shas.sh --changelog F # Write per-project commit summary to F
 #
 # Examples:
 #   bump-source-shas.sh               # Update to latest HEAD
@@ -12,9 +13,11 @@
 #   bump-source-shas.sh 5             # Update to HEAD~4 (5 back from tip)
 #   bump-source-shas.sh --forward 1   # Step forward 1 commit from current
 #   bump-source-shas.sh --forward 10  # Step forward 10 commits from current
+#   bump-source-shas.sh --changelog /tmp/changes.md
 
 mode="rewind"
 count=1
+changelog_path=""
 
 # Parse arguments
 while [[ $# -gt 0 ]]; do
@@ -24,8 +27,12 @@ while [[ $# -gt 0 ]]; do
             count="$2"
             shift 2
             ;;
+        --changelog|-c)
+            changelog_path="$2"
+            shift 2
+            ;;
         --help|-h)
-            head -15 "$0" | tail -13
+            head -17 "$0" | tail -15
             exit 0
             ;;
         *)
@@ -35,6 +42,11 @@ while [[ $# -gt 0 ]]; do
             ;;
     esac
 done
+
+# Initialize changelog file if requested
+if [ -n "${changelog_path}" ]; then
+    true > "${changelog_path}"
+fi
 
 if [ "${mode}" = "rewind" ]; then
     echo "Mode: rewind - will set to HEAD~$((count - 1)) (${count} back from tip)"
@@ -85,6 +97,19 @@ for project in ${projects}; do
         else
             source_sha=$(echo "${commits_ahead}" | head -${count} | tail -1)
         fi
+    fi
+
+    # Generate changelog before deleting the clone
+    if [ -n "${changelog_path}" ] \
+            && [ "${source_sha}" != "${current_source_sha}" ]; then
+        short_old=$(echo "${current_source_sha}" | cut -c1-9)
+        short_new=$(echo "${source_sha}" | cut -c1-9)
+        {
+            echo "${project} updated from ${short_old} to ${short_new}"
+            git log --oneline "${current_source_sha}..${source_sha}" \
+                | sed 's/^/    /'
+            echo
+        } >> "${changelog_path}"
     fi
 
     cd ${cwd}

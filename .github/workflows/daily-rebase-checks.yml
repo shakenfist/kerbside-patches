@@ -45,7 +45,8 @@ jobs:
           sed "s/%%date%%/${DATEPRETTY}/" README.md.tmpl > README.md
 
           # Lock in new daily SHAs
-          _build/bump-source-shas.sh 1
+          _build/bump-source-shas.sh 1 \
+              --changelog ${GITHUB_WORKSPACE}/sha-changelog.txt
 
           echo
           echo "Changes..."
@@ -124,6 +125,17 @@ jobs:
           git push -f origin daily-rebase-${DATESTAMP}
           sleep 10
 
+          # Build upstream changes summary
+          changelog=""
+          if [ -s ${GITHUB_WORKSPACE}/sha-changelog.txt ]; then
+            changelog="
+
+          **Upstream changes:**
+          \`\`\`
+          $(cat ${GITHUB_WORKSPACE}/sha-changelog.txt)
+          \`\`\`"
+          fi
+
           # Determine PR body based on what happened
           if [ "${{ steps.rebase.outputs.patches_failed }}" == "true" ]; then
             if [ "${{ steps.rebase.outputs.fix_succeeded }}" == "true" ]; then
@@ -132,17 +144,17 @@ jobs:
           **Note:** Some patches failed to apply with the new upstream SHAs.
           Claude Code automatically fixed the patches.
 
-          Please review the patch changes carefully before merging."
+          Please review the patch changes carefully before merging.${changelog}"
             else
               pr_body="A daily rebase was attempted.
 
           **Warning:** Some patches failed to apply and Claude Code was
           unable to fix them automatically. Manual intervention is required.
 
-          See the workflow logs for details about which patches failed."
+          See the workflow logs for details about which patches failed.${changelog}"
             fi
           else
-            pr_body="A daily rebase was attempted. All patches applied successfully."
+            pr_body="A daily rebase was attempted. All patches applied successfully.${changelog}"
           fi
 
           echo "Create a PR..."
