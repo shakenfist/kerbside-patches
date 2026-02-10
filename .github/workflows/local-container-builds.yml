@@ -83,7 +83,7 @@ jobs:
         run: |
           . $GITHUB_ENV
           cd kerbside-patches
-          ./_build/assemble-source.sh --use-ci-patches ${{ matrix.test.release }}
+          ./_build/assemble-source.sh --use-ci-patches --no-tarball ${{ matrix.test.release }}
 
       - name: Build containers with no local OCI registry
         run: |

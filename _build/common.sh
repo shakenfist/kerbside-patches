@@ -56,6 +56,8 @@ registry_token=""
 
 # Should we enable kerbside?
 enable_kerbside="true"
+# Should we skip tarballing the source directories?
+no_tarball="false"
 
 # Should we build a compact archive using occystrap?
 compact_archive="false"
@@ -80,6 +82,12 @@ while [[ ${found_arg} -gt 0 ]]; do
         --compact-archive)
             export skip_tests="true"
             echo "Will create a compact archive."
+            shift
+            found_arg=1
+            ;;
+        --no-tarball)
+            export no_tarball="true"
+            echo "Will not tar up source directories."
             shift
             found_arg=1
             ;;
