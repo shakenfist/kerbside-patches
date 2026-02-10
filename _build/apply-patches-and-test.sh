@@ -309,14 +309,7 @@ for target in .tox .stestr; do
     fi
 done
 
-# Compress for later stages. Its important we use relative paths here or it
-# gets fiddly to extract later...
-pushd ${topsrcdir} > /dev/null
-tar czf ${directory}.tgz ${directory}
-ls -lrth ${topsrcdir}/${directory}.tgz
-
 echo -e "${H2}Success for branch ${source_branch}!${Color_Off}"
 echo ""
-popd > /dev/null
 
 trap - EXIT

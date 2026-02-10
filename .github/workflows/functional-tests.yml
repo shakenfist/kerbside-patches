@@ -90,17 +90,6 @@ jobs:
           cd kerbside-patches
           ./_build/assemble-source.sh --use-ci-patches ${{ matrix.test.release }}
 
-      - name: Archive patched source
-        if: success()
-        run: |
-          . $GITHUB_ENV
-          cd kerbside-patches
-
-          mkdir /tmp/bundle
-          mv src/*.tgz /tmp/bundle/
-          cd /tmp
-          zip -r bundle.zip bundle
-
       - uses: actions/upload-artifact@v4
         id: upload_source
         if: success()
@@ -108,7 +97,7 @@ jobs:
           name: source-${{ matrix.test.release }}
           retention-days: 90
           if-no-files-found: error
-          path: /tmp/bundle.zip
+          path: kerbside-patches/src
 
   build_images:
     name: "Images for ${{ matrix.test.release }} on ${{ matrix.test.container_distro }} ${{ matrix.test.container_distro_version }}"
@@ -185,6 +174,9 @@ jobs:
           # This is terrible, but its easier than reloading groups
           sudo chmod ugo+rw /var/run/docker.sock
 
+      - name: Dump docker daemon.json
+        run: cat /etc/docker/daemon.json
+
       - name: Ensure CI OCI registry works
         env:
           CI_REGISTRY_TOKEN: ${{ secrets.CI_REGISTRY_TOKEN }}
@@ -223,21 +215,9 @@ jobs:
           echo "Contents of ${GITHUB_WORKSPACE}"
           ls -lrt
 
-          echo
-          echo "Extract source"
-          unzip bundle.zip
-          rm bundle.zip
-          ls -lrt
-          
-          echo
-          echo "Contents of bundle"
-          cd bundle
-          ls -lrt
-
           mkdir -p ${GITHUB_WORKSPACE}/kerbside-patches/src
-          for item in *.tgz; do
+          for item in src/*.tgz; do
               echo "Extracting ${item}"
-              cp ${item} ${GITHUB_WORKSPACE}/kerbside-patches/src/
               tar xzf ${item} -C ${GITHUB_WORKSPACE}/kerbside-patches/src/
           done
 
@@ -332,7 +312,7 @@ jobs:
               cp kerbside-patches/archive/kolla-build.conf ${archive_path}/
           fi
           if [ -e kerbside-patches/archive/occystrap-layer-cache.json ]; then
-              cp kerbside-patches/archive/archive/occystrap-layer-cache.json ${archive_path}/
+              cp kerbside-patches/archive/occystrap-layer-cache.json ${archive_path}/
           fi
 
           # System details for debugging

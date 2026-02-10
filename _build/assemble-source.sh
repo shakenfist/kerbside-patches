@@ -95,6 +95,7 @@ cd src
 for project in *; do
     echo -e "${H2}${project}${Color_Off}"
     tar czf ${project}.tgz ${project}
+    rm -rf ${project}
 done
 
 echo

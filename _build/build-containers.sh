@@ -20,6 +20,12 @@ if [ ! -z ${registry_username} ]; then
         ${ci_registry} --username ${registry_username} --password-stdin
 fi
 
+echo
+echo -e "${H1}==================================================${Color_Off}"
+echo -e "${H1}Contents of src directory${Color_Off}"
+ls -lrth ${topsrcdir}
+echo -e "${H1}==================================================${Color_Off}"
+
 for target in ${build_targets}; do
     complete_image_tag="${target}-${distro}-${distro_version}-${image_tag}"
 
