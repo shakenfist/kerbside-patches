@@ -1,0 +1,37 @@
+From 4cdf881631eb0a671b9f70d5afefa6ead1949118 Mon Sep 17 00:00:00 2001
+From: Bartosz Bezak <bartosz@stackhpc.com>
+Date: Mon, 9 Feb 2026 11:16:54 +0100
+Subject: [PATCH] horizon: pin setuptools <82
+
+setuptools 82 removed pkg_resources [1]
+
+[1] https://setuptools.pypa.io/en/stable/history.html#v82-0-0
+
+Related-Bug: #2141293
+
+Change-Id: Iced7662f7e58b9f094306e9a6c4f1b5a79f48b17
+Signed-off-by: Bartosz Bezak <bartosz@stackhpc.com>
+---
+ docker/horizon/Dockerfile.j2 | 7 +++++--
+ 1 file changed, 5 insertions(+), 2 deletions(-)
+
+diff --git a/docker/horizon/Dockerfile.j2 b/docker/horizon/Dockerfile.j2
+index d28565aa0..8defc3145 100644
+--- a/docker/horizon/Dockerfile.j2
++++ b/docker/horizon/Dockerfile.j2
+@@ -50,10 +50,14 @@ COPY extend_start.sh /usr/local/bin/kolla_extend_start
+ # because we are using different distros with different python version and we need to
+ # know to which path symlink should point to.
+ # NOTE(mnasiadka): pinning setuptools due to https://bugs.launchpad.net/horizon/+bug/2007574
++# NOTE(bbezak): pin setuptools for pip build isolation due to
++# https://bugs.launchpad.net/horizon/+bug/2141293
+ RUN ln -s horizon-source/* horizon \
+     && {{ macros.install_pip(['setuptools==67.2.*','pip==25.2.*']) }} \
+     && {{ macros.upper_constraints_remove("horizon") }} \
+-    && {{ macros.install_pip(horizon_pip_packages | customizable("pip_packages")) }} \
++    && echo "setuptools<82" > /tmp/horizon-build-constraints.txt \
++    && PIP_BUILD_CONSTRAINT=/tmp/horizon-build-constraints.txt \
++       {{ macros.install_pip(horizon_pip_packages | customizable("pip_packages")) }} \
+     && mkdir -p /etc/openstack-dashboard \
+     && cp -r /horizon/openstack_dashboard/conf/* /etc/openstack-dashboard/ \
+     && cp /horizon/openstack_dashboard/local/local_settings.py.example /etc/openstack-dashboard/local_settings.py \

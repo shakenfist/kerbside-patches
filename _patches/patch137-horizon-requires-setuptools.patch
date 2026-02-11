@@ -1,0 +1,22 @@
+commit 7578b8d8eadb51be25d8cb212a8a9955e1aa52ae
+Author: Michael Still <mikal@stillhq.com>
+Date:   Mon Feb 9 19:38:40 2026 +1100
+
+    setuptools v82.0.0 removes pkg_resources.
+    
+    Change-Id: I376d72709a86887f9c1deaadd933c28a8c4bfdf7
+    Signed-off-by: Michael Still <mikal@stillhq.com>
+
+diff --git a/docker/macros.j2 b/docker/macros.j2
+index 34d67335c..0c99da044 100644
+--- a/docker/macros.j2
++++ b/docker/macros.j2
+@@ -34,6 +34,8 @@
+ 
+ {% macro install_pip(packages, constraints=true, python_version='3') %}
+ {%- if packages is sequence and packages|length > 0 -%}
++{# We pin the upper bound of setuptools because they dropped pkg_resources. -#}
++{%- set packages = packages + ['"setuptools<82.0.0"'] -%}
+     python{{ python_version }} -m pip --no-cache-dir install --upgrade{{ ' ' }}
+     {%- if constraints %}-c /requirements/upper-constraints.txt {% endif -%}
+     {{ packages | join(' ') }}

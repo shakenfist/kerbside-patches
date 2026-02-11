@@ -1,0 +1,4 @@
+setuptools v82.0.0 removes pkg_resources.
+
+Change-Id: I376d72709a86887f9c1deaadd933c28a8c4bfdf7
+Signed-off-by: Michael Still <mikal@stillhq.com>
