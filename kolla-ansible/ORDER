@@ -7,3 +7,4 @@
 ../_patches/patch134-kolla-ansible-master-allow-concurrent-spice-connections.patch
 ../_patches/patch135-debug-ca-cert-selection.patch
 ../_patches/patch136-debug-wsgi-config-selection.patch
+../_patches/patch141-fix-ca-path.patch

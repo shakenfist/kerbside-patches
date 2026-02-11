@@ -1,0 +1,21 @@
+commit 7f76ea781a61371e861d7392f693ba962ea5a06e
+Author: Michael Still <mikal@stillhq.com>
+Date:   Tue Feb 10 11:48:55 2026 +1100
+
+    Correct root CA cert path.
+    
+    Change-Id: I5e61d1ecfede81adba906a23897efdd1a78507ad
+
+diff --git a/ansible/roles/kerbside/tasks/copy-certs.yml b/ansible/roles/kerbside/tasks/copy-certs.yml
+index 7748db1de..6e4ec915f 100644
+--- a/ansible/roles/kerbside/tasks/copy-certs.yml
++++ b/ansible/roles/kerbside/tasks/copy-certs.yml
+@@ -11,7 +11,7 @@
+       - "{{ kolla_certificates_dir }}/{{ inventory_hostname }}/{{ project_name }}-ca.pem"
+       - "{{ kolla_certificates_dir }}/{{ inventory_hostname }}-ca.pem"
+       - "{{ kolla_certificates_dir }}/{{ project_name }}-ca.pem"
+-      - "{{ kolla_certificates_dir }}/ca-certificates/root.crt"
++      - "{{ kolla_certificates_dir }}/ca/root.crt"
+     kerbside_ca_cert: "{{ lookup('first_found', certs) }}"
+   copy:
+     src: "{{ kerbside_ca_cert }}"
