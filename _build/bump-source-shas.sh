@@ -99,9 +99,12 @@ for project in ${projects}; do
         fi
     fi
 
-    # Generate changelog before deleting the clone
+    # Generate changelog before deleting the clone (skip for directories
+    # with skip_rebase=true to avoid duplicate entries from wave dirs)
+    skip_rebase=$(yq -r '.skip_rebase // false' ${project}/config.yaml)
     if [ -n "${changelog_path}" ] \
-            && [ "${source_sha}" != "${current_source_sha}" ]; then
+            && [ "${source_sha}" != "${current_source_sha}" ] \
+            && [ "${skip_rebase}" != "true" ]; then
         short_old=$(echo "${current_source_sha}" | cut -c1-9)
         short_new=$(echo "${source_sha}" | cut -c1-9)
         {
