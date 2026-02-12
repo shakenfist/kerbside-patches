@@ -51,6 +51,9 @@ registry_project="openstack/kolla-images"
 registry_username=""
 registry_token=""
 
+# Should we enable kerbside?
+enable_kerbside="true"
+
 # Should we build a compact archive using occystrap?
 compact_archive="false"
 
@@ -105,6 +108,12 @@ while [[ ${found_arg} -gt 0 ]]; do
             export image_tag="$2"
             echo "Setting image tag to ${image_tag}."
             shift; shift;
+            found_arg=1
+            ;;
+        --disable-kerbside)
+            export enable_kerbside="false"
+            echo "Will disable kerbside."
+            shift
             found_arg=1
             ;;
         --dont-fetch-images)

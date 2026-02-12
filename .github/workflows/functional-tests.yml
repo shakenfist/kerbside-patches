@@ -385,7 +385,7 @@ jobs:
       matrix:
         test: [
           {
-            'name': '2025.1-debian12-aio',
+            'name': '2025.1-debian12-debian12-aio',
             'description': 'OpenStack 2025.1 debian containers on debian 12 all-in-one',
             'release': '2025.1',
             'base': 'debian:12',
@@ -393,10 +393,11 @@ jobs:
             'topology': 'all-in-one',
             'runs_on': 'debian-12',
             'container_distro': 'debian',
-            'container_distro_version': 'bookworm'
+            'container_distro_version': 'bookworm',
+            'enable_kerbside': 'true'
           },
           {
-            'name': '2025.2-debian12-aio',
+            'name': '2025.2-debian12-debian12-aio',
             'description': 'OpenStack 2025.2 debian containers on debian 12 all-in-one',
             'release': '2025.2',
             'base': 'debian:12',
@@ -404,10 +405,11 @@ jobs:
             'topology': 'all-in-one',
             'runs_on': 'debian-12',
             'container_distro': 'debian',
-            'container_distro_version': 'bookworm'
+            'container_distro_version': 'bookworm',
+            'enable_kerbside': 'true'
           },
           {
-            'name': 'master-debian12-aio',
+            'name': 'master-debian12-ubuntu2404-aio',
             'description': 'OpenStack master ubuntu 24.04 containers on debian 12 all-in-one',
             'release': 'master',
             'base': 'debian:12',
@@ -415,10 +417,23 @@ jobs:
             'topology': 'all-in-one',
             'runs_on': 'debian-12',
             'container_distro': 'ubuntu',
-            'container_distro_version': 'noble'
+            'container_distro_version': 'noble',
+            'enable_kerbside': 'true'
           },
           {
-            'name': 'master-ubuntu2404-aio',
+            'name': 'master-debian12-debian12-aio-nokerbside',
+            'description': 'OpenStack master debian containers on debian 12 all-in-one with no kerbside',
+            'release': 'master',
+            'base': 'debian:12',
+            'baseuser': 'debian',
+            'topology': 'all-in-one',
+            'runs_on': 'debian-12',
+            'container_distro': 'debian',
+            'container_distro_version': 'bookworm',
+            'enable_kerbside': 'false'
+          },
+          {
+            'name': 'master-debian12-debian12-aio',
             'description': 'OpenStack master debian containers on debian 12 all-in-one',
             'release': 'master',
             'base': 'debian:12',
@@ -426,10 +441,11 @@ jobs:
             'topology': 'all-in-one',
             'runs_on': 'debian-12',
             'container_distro': 'debian',
-            'container_distro_version': 'bookworm'
+            'container_distro_version': 'bookworm',
+            'enable_kerbside': 'true'
           },
           {
-            'name': 'master-rocky10-aio',
+            'name': 'master-rocky10-debian12-aio',
             'description': 'OpenStack master debian containers on Rocky 10 all-in-one',
             'release': 'master',
             'base': 'rocky:10',
@@ -437,10 +453,11 @@ jobs:
             'topology': 'all-in-one',
             'runs_on': 'debian-12',
             'container_distro': 'debian',
-            'container_distro_version': 'bookworm'
+            'container_distro_version': 'bookworm',
+            'enable_kerbside': 'true'
           },
           {
-            'name': 'master-debian12-multi',
+            'name': 'master-debian12-debian12-multi',
             'description': 'OpenStack master debian containers on debian 12 multinode',
             'release': 'master',
             'base': 'debian:12',
@@ -448,7 +465,8 @@ jobs:
             'topology': 'multinode-2',
             'runs_on': 'debian-12',
             'container_distro': 'debian',
-            'container_distro_version': 'bookworm'
+            'container_distro_version': 'bookworm',
+            'enable_kerbside': 'true'
           },
         ]
     runs-on: [self-hosted, vm, '${{ matrix.test.runs_on }}']
@@ -583,7 +601,12 @@ jobs:
               script="${script} --registry-token ${CI_REGISTRY_TOKEN}"
               script="${script} --image-tag ${{ steps.incoming.outputs.image_tag }}"
               script="${script} --build-targets ${{ matrix.test.release }}"
-              script="${script} --topology ${{ matrix.test.topology }};"
+
+          if [ ${{ matrix.test.enable_kerbside }} != "true" ]; then
+              script="${script} --disable-kerbside"
+          fi
+
+          script="${script} --topology ${{ matrix.test.topology }};"
 
           ssh -i /srv/github/id_ci -o StrictHostKeyChecking=no \
               -o UserKnownHostsFile=/dev/null \
