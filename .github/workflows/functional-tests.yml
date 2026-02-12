@@ -496,11 +496,6 @@ jobs:
         with:
           pattern: "buildresult-${{ matrix.test.release }}-${{ matrix.test.container_distro }}-${{ matrix.test.container_distro_version }}*"
 
-      - name: Download source
-        uses: actions/download-artifact@v4
-        with:
-          pattern: "source-${{ matrix.test.release }}*"
-
       - name: Log incoming results
         id: incoming
         run: |
@@ -546,42 +541,36 @@ jobs:
               ${{ matrix.test.baseuser }}@10.0.2.2 \
               'sudo getent ahostsv4 kolla'
 
-      - name: Extract source from image build step
+      - name: Download artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: source-${{ matrix.test.release }}
+
+      - name: Move source to correct location
         run: |
           . $GITHUB_ENV
 
-          echo "State of workspace:"
+          echo "Contents of ${GITHUB_WORKSPACE}"
           ls -lrt
 
-          echo "Extracting source from build step..."
-          cd source-${{ matrix.test.release }}
-          unzip bundle.zip
-          cd bundle
-          ls -lrth
-
-          echo
-          echo "Using that source to bootstrap kerbside-patches src directory..."
-          sudo mkdir -p /srv/shakenfist/kerbside-patches/src
-          sudo chown -R debian:debian /srv/shakenfist
-          mv ./*.tgz /srv/shakenfist/kerbside-patches/src
-          cd /srv/shakenfist/kerbside-patches/src
-
-          echo
-          echo "Extract source..."
-          for item in ./*.tgz; do
-              tar xzf "${item}"
-              echo "    Extracted ${item}"
+          mkdir -p ${GITHUB_WORKSPACE}/kerbside-patches/src
+          for item in src/*.tgz; do
+              echo "Extracting ${item}"
+              tar xzf ${item} -C ${GITHUB_WORKSPACE}/kerbside-patches/src/
           done
 
           echo
-          echo "State of source..."
-          ls -lrt
+          echo "Contents of ${GITHUB_WORKSPACE}/kerbside-patches/src/"
+          ls -lrt ${GITHUB_WORKSPACE}/kerbside-patches/src/
+
+          echo
+          echo "Done"
 
           echo
           echo "Copy source to target node..."
 
           # I use tar here because some of the entries are symlinks
-          cd /srv/shakenfist/kerbside-patches
+          cd ${GITHUB_WORKSPACE}/kerbside-patches
           tar czf - src | ssh -i /srv/github/id_ci \
               -o StrictHostKeyChecking=no \
               -o UserKnownHostsFile=/dev/null \
