@@ -9,6 +9,11 @@ if [ -e /srv/shakenfist/kerbside-patches-tools/bin/activate ]; then
     . /srv/shakenfist/kerbside-patches-tools/bin/activate
 fi
 
+# Improve pip reliability for CI environments with flaky
+# connectivity to PyPI.
+export PIP_RETRIES=${PIP_RETRIES:-5}
+export PIP_DEFAULT_TIMEOUT=${PIP_DEFAULT_TIMEOUT:-120}
+
 ##############################################################################
 # Command line parsing                                                       #
 ##############################################################################
@@ -276,6 +281,13 @@ function install_test_environment {
     sleep 60
 
     echo -e "    ${Arrow} Attempt #2${Color_Off}"
+    if tox -e${1} --notest; then
+        return
+    fi
+
+    sleep 60
+
+    echo -e "    ${Arrow} Attempt #3${Color_Off}"
     if tox -e${1} --notest; then
         return
     fi
