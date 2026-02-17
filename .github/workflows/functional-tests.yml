@@ -772,7 +772,7 @@ jobs:
 
           echo
           echo "Images in cloud:"
-          image list
+          openstack image list
 
           export baseuser=${{ matrix.test.baseuser }}
 
