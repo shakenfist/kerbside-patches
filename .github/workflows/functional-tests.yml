@@ -951,7 +951,7 @@ jobs:
     name: "Collect layer data and create PR"
     needs: [build_images]
     runs-on: [self-hosted, static]
-    if: github.event_name == 'pull_request' && success()
+    if: github.event_name == 'pull_request' && !cancelled()
     env:
       DATA_PREFIX: ${{ inputs.data_prefix || 'layers' }}
 
