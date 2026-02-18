@@ -19,7 +19,7 @@ jobs:
   lint:
     name: "Lint shell scripts and workflows"
     runs-on: [self-hosted, vm, debian-12, s]
-    timeout-minutes: 5
+    timeout-minutes: 30
     concurrency:
       group: ${{ github.workflow }}-${{ github.ref }}-lint
       cancel-in-progress: true
