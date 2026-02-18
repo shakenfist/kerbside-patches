@@ -136,7 +136,7 @@ for target in ${build_targets}; do
                     --password ${registry_token} \
                     --layer-cache "${topdir}/archive/occystrap-layer-cache.json" \
                     process \
-                    "docker://${image}:${complete_image_tag}" \
+                    "dockerpush://${image}:${complete_image_tag}" \
                     "registry://${ci_registry}/${registry_project}/${registry_image}:${complete_image_tag}?insecure=true" \
                     -f "inspect:file=${layers_dir}/${safe_name}-as-built.jsonl" \
                     -f normalize-timestamps \
