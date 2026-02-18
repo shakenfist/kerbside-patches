@@ -122,7 +122,8 @@ for target in ${build_targets}; do
 
     kolla_build_args=${build_images}
     if [ "${build_images}" == "all" ]; then
-        kolla_build_args="^(?!skyline)(.*)"
+        # "^(?!skyline)(.*)"
+        kolla_build_args=""
     fi
 
     echo -e "${H3}${venvdir}/bin/kolla-build \\"
