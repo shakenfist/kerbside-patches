@@ -1,5 +1,11 @@
 #!/bin/bash -e
 
+# Configure pip to use local PyPI mirror
+sudo tee /etc/pip.conf > /dev/null <<'PIPCONF'
+[global]
+index-url = https://devpi.home.stillhq.com/root/pypi/+simple/
+PIPCONF
+
 sudo apt-get update
 sudo apt-get dist-upgrade -y
 

@@ -3,6 +3,12 @@
 . /etc/os-release
 echo "Claimed OS name: ${NAME}"
 
+# Configure pip to use local PyPI mirror
+sudo tee /etc/pip.conf > /dev/null <<'PIPCONF'
+[global]
+index-url = https://devpi.home.stillhq.com/root/pypi/+simple/
+PIPCONF
+
 echo
 echo -e "${H2}Early bootstrapping${Color_Off}"
 if [ "${NAME}" == "Rocky Linux" ]; then
