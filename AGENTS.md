@@ -56,6 +56,19 @@ It is large and has several jobs:
 - `deploy` -- deploys with kolla-ansible and runs tests
 - `collect_layer_data` -- aggregates layer data from builds
 
+**Runner types and constraints:**
+
+- `vm` runners -- ephemeral VMs with full sudo access
+- `metal` runners -- persistent bare-metal machines without
+  passwordless sudo for the CI user
+- `static` runners -- persistent machines without passwordless
+  sudo for the CI user
+
+When adding steps that need elevated privileges, guard them
+with `if: "!contains(matrix.test.infrastructure, 'metal')"`
+or use user-level alternatives (e.g. `~/.config/pip/pip.conf`
+instead of `/etc/pip.conf`).
+
 ### Documentation
 
 - **Do not edit README.md directly.** Edit `README.md.tmpl`

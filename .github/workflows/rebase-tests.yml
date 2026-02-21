@@ -72,7 +72,8 @@ jobs:
 
       - name: Configure pip to use local PyPI mirror
         run: |
-          sudo tee /etc/pip.conf > /dev/null <<'PIPCONF'
+          mkdir -p ~/.config/pip
+          cat > ~/.config/pip/pip.conf <<'PIPCONF'
           [global]
           index-url = https://devpi.home.stillhq.com/root/pypi/+simple/
           PIPCONF
