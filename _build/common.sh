@@ -9,6 +9,11 @@ if [ -e /srv/shakenfist/kerbside-patches-tools/bin/activate ]; then
     . /srv/shakenfist/kerbside-patches-tools/bin/activate
 fi
 
+# Improve pip reliability for CI environments with flaky
+# connectivity to PyPI.
+export PIP_RETRIES=${PIP_RETRIES:-5}
+export PIP_DEFAULT_TIMEOUT=${PIP_DEFAULT_TIMEOUT:-120}
+
 ##############################################################################
 # Command line parsing                                                       #
 ##############################################################################
@@ -18,6 +23,9 @@ build_targets="2023.1 2023.2 2024.1 master"
 
 # Which base distribution to use for container images.
 distro="debian"
+
+# Which version of the base distribution to use for container images.
+distro_version="bookworm"
 
 # Which images to build. Kerbside only requires customized nova-compute,
 # nova-libvirt, nova-api, and kerbside container images but it can make sense
@@ -53,6 +61,8 @@ registry_token=""
 
 # Should we enable kerbside?
 enable_kerbside="true"
+# Should we skip tarballing the source directories?
+no_tarball="false"
 
 # Should we build a compact archive using occystrap?
 compact_archive="false"
@@ -80,6 +90,12 @@ while [[ ${found_arg} -gt 0 ]]; do
             shift
             found_arg=1
             ;;
+        --no-tarball)
+            export no_tarball="true"
+            echo "Will not tar up source directories."
+            shift
+            found_arg=1
+            ;;
         --defer-tests)
             export defer_tests="true"
             echo "Will defer testing."
@@ -101,6 +117,12 @@ while [[ ${found_arg} -gt 0 ]]; do
         --distro)
             export distro="$2"
             echo "Setting base distribution to ${distro}."
+            shift; shift
+            found_arg=1
+            ;;
+        --distro-version)
+            export distro_version="$2"
+            echo "Setting base distribution version to ${distro_version}."
             shift; shift
             found_arg=1
             ;;
@@ -259,6 +281,13 @@ function install_test_environment {
     sleep 60
 
     echo -e "    ${Arrow} Attempt #2${Color_Off}"
+    if tox -e${1} --notest; then
+        return
+    fi
+
+    sleep 60
+
+    echo -e "    ${Arrow} Attempt #3${Color_Off}"
     if tox -e${1} --notest; then
         return
     fi

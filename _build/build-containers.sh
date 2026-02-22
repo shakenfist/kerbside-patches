@@ -20,20 +20,13 @@ if [ ! -z ${registry_username} ]; then
         ${ci_registry} --username ${registry_username} --password-stdin
 fi
 
+echo
+echo -e "${H1}==================================================${Color_Off}"
+echo -e "${H1}Contents of src directory${Color_Off}"
+ls -lrth ${topsrcdir}
+echo -e "${H1}==================================================${Color_Off}"
+
 for target in ${build_targets}; do
-    if [ ${distro} == "debian" ]; then
-        # NOTE(mikal): the trixie changes have not yet merged upstream
-        # if [ ${target} == "master" ]; then
-        #     distro_version="trixie"
-        # else
-        distro_version="bookworm"
-        # fi
-    elif [ ${distro} == "ubuntu" ]; then
-        distro_version="noble"
-    else
-        echo "Unknown distro: ${distro}!"
-        exit 1
-    fi
     complete_image_tag="${target}-${distro}-${distro_version}-${image_tag}"
 
     echo
@@ -86,7 +79,15 @@ for target in ${build_targets}; do
 
         ./_build/imagebuild.sh --build-targets "${target}" \
                 --build-images "${build_images}" \
+                --distro "${distro}" \
+                --distro-version "${distro_version}" \
                 --image-tag "${complete_image_tag}" || true
+
+        # Guard against errors in base distro version selection
+        if [ $(grep -c "${distro_version}" ${topdir}/archive/build.log || true) -eq 0 ]; then
+            banner "No references to the correct distro version in build log. We likely did not use the correct base image version!"
+            exit 1
+        fi
 
         if [ $(grep -c "kolla-build failed!" ${topdir}/archive/build.log || true) -gt 0 ]; then
             echo
@@ -94,6 +95,8 @@ for target in ${build_targets}; do
             echo -e "${H2}Retry build once.${Color_Off}"
             ./_build/imagebuild.sh --build-targets "${target}" \
                 --build-images "${build_images}" \
+                --distro "${distro}" \
+                --distro-version "${distro_version}" \
                 --image-tag "${complete_image_tag}"
         fi
 
@@ -106,15 +109,47 @@ for target in ${build_targets}; do
 
         if [ ${use_ci_registry} == "true" ]; then
             echo
+            echo -e "${H2}Install occystrap for registry push${Color_Off}"
+            python3 -mvenv /tmp/occystrap
+            /tmp/occystrap/bin/pip3 install occystrap
+
+            echo
             echo -e "${H2}Pushing to the CI registry${Color_Off}"
+
+            # Layer metadata is collected at each pipeline stage
+            # via inspect filters. Per-image files allow comparing
+            # the effect of each filter on individual images.
+            layers_dir="${topdir}/archive/layers"
+            mkdir -p "${layers_dir}"
+            rm -f "${layers_dir}"/*.jsonl
+
             for image in $(docker image list --format json | \
-                jq --slurp -r ".[] | select(.Tag == \"${complete_image_tag}\") | .Repository"); do
+                    jq --slurp -r ".[] | select(.Tag == \"${complete_image_tag}\") | .Repository"); do
                 registry_image=$(echo ${image} | sed 's/^kolla\///')
-                echo -e "    ${image}:${complete_image_tag} ${Arrow} ${ci_registry}/${registry_project}/${image}:${complete_image_tag}"
-                docker image tag ${image}:${complete_image_tag} \
-                    ${ci_registry}/${registry_project}/${registry_image}:${complete_image_tag}
-                docker image push ${ci_registry}/${registry_project}/${registry_image}:${complete_image_tag}
+                safe_name=$(echo ${image} | tr '/' '-')
+
+                echo -e "    ${image}:${complete_image_tag} ${Arrow} occystrap ${Arrow} ${ci_registry}/${registry_project}/${image}:${complete_image_tag}"
+                http_proxy='' https_proxy='' HTTP_PROXY='' HTTPS_PROXY='' all_proxy='' ALL_PROXY='' /tmp/occystrap/bin/occystrap \
+                    --parallel 8 \
+                    --compression zstd \
+                    --username ${registry_username} \
+                    --password ${registry_token} \
+                    --layer-cache "${topdir}/archive/occystrap-layer-cache.json" \
+                    process \
+                    "dockerpush://${image}:${complete_image_tag}" \
+                    "registry://${ci_registry}/${registry_project}/${registry_image}:${complete_image_tag}?insecure=true" \
+                    -f "inspect:file=${layers_dir}/${safe_name}-as-built.jsonl" \
+                    -f normalize-timestamps \
+                    -f "inspect:file=${layers_dir}/${safe_name}-post-normalize.jsonl" \
+                    -f "exclude:pattern=**/.git" \
+                    -f "inspect:file=${layers_dir}/${safe_name}-post-exclude.jsonl"
             done
+
+            # Package layer data for artifact collection
+            echo
+            echo -e "${H2}Packaging layer data${Color_Off}"
+            tar czf "${topdir}/archive/layers.tar.gz" \
+                -C "${topdir}/archive" layers/
         fi
     fi
 done

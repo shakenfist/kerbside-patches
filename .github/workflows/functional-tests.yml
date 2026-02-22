@@ -2,6 +2,11 @@ name: Build test clouds
 
 on:
   workflow_dispatch:
+    inputs:
+      data_prefix:
+        description: 'Prefix for layer data filenames'
+        required: false
+        default: 'layers'
   pull_request:
     branches:
       - develop
@@ -14,13 +19,21 @@ jobs:
   lint:
     name: "Lint shell scripts and workflows"
     runs-on: [self-hosted, vm, debian-12, s]
-    timeout-minutes: 5
+    timeout-minutes: 30
     concurrency:
       group: ${{ github.workflow }}-${{ github.ref }}-lint
       cancel-in-progress: true
     steps:
       - name: Checkout kerbside-patches
         uses: actions/checkout@v4
+
+      - name: Configure pip to use local PyPI mirror
+        run: |
+          mkdir -p ~/.config/pip
+          cat > ~/.config/pip/pip.conf <<'PIPCONF'
+          [global]
+          index-url = https://devpi.home.stillhq.com/root/pypi/+simple/
+          PIPCONF
 
       - name: Install pre-commit and shellcheck
         run: |
@@ -85,16 +98,10 @@ jobs:
           cd kerbside-patches
           ./_build/assemble-source.sh --use-ci-patches ${{ matrix.test.release }}
 
-      - name: Archive patched source
-        if: success()
-        run: |
-          . $GITHUB_ENV
-          cd kerbside-patches
-
-          mkdir /tmp/bundle
-          mv src/*.tgz /tmp/bundle/
-          cd /tmp
-          zip -r bundle.zip bundle
+          # We need a sub directory to make the code more obvious on artifact fetch
+          cd src
+          mkdir src
+          mv ./*.tgz src/
 
       - uses: actions/upload-artifact@v4
         id: upload_source
@@ -103,7 +110,7 @@ jobs:
           name: source-${{ matrix.test.release }}
           retention-days: 90
           if-no-files-found: error
-          path: /tmp/bundle.zip
+          path: kerbside-patches/src
 
   build_images:
     name: "Images for ${{ matrix.test.release }} on ${{ matrix.test.container_distro }} ${{ matrix.test.container_distro_version }}"
@@ -122,14 +129,6 @@ jobs:
           {
             'name': 'build-debian-2025.2',
             'release': '2025.2',
-            'base': 'debian:12',
-            'baseuser': 'debian',
-            'container_distro': 'debian',
-            'container_distro_version': 'bookworm'
-          },
-          {
-            'name': 'build-debian-bookworm-master',
-            'release': 'master',
             'base': 'debian:12',
             'baseuser': 'debian',
             'container_distro': 'debian',
@@ -188,6 +187,9 @@ jobs:
           # This is terrible, but its easier than reloading groups
           sudo chmod ugo+rw /var/run/docker.sock
 
+      - name: Dump docker daemon.json
+        run: cat /etc/docker/daemon.json
+
       - name: Ensure CI OCI registry works
         env:
           CI_REGISTRY_TOKEN: ${{ secrets.CI_REGISTRY_TOKEN }}
@@ -226,21 +228,9 @@ jobs:
           echo "Contents of ${GITHUB_WORKSPACE}"
           ls -lrt
 
-          echo
-          echo "Extract source"
-          unzip bundle.zip
-          rm bundle.zip
-          ls -lrt
-          
-          echo
-          echo "Contents of bundle"
-          cd bundle
-          ls -lrt
-
           mkdir -p ${GITHUB_WORKSPACE}/kerbside-patches/src
-          for item in *.tgz; do
+          for item in src/*.tgz; do
               echo "Extracting ${item}"
-              cp ${item} ${GITHUB_WORKSPACE}/kerbside-patches/src/
               tar xzf ${item} -C ${GITHUB_WORKSPACE}/kerbside-patches/src/
           done
 
@@ -272,6 +262,7 @@ jobs:
               --build-targets "${{ matrix.test.release }}" \
               --build-images all \
               --distro ${{ matrix.test.container_distro}} \
+              --distro-version ${{ matrix.test.container_distro_version }} \
               --image-tag ${hash} \
               --dont-fetch-images
 
@@ -287,14 +278,21 @@ jobs:
               echo "File not found"
           fi
 
-      - name: Dump layers.json
+      - name: Dump layer data summary
         if: always()
         run: |
           . $GITHUB_ENV
-          if [ -e kerbside-patches/archive/layers.json ]; then
-              python3 -m json.tool < kerbside-patches/archive/layers.json
+          if [ -d kerbside-patches/archive/layers ]; then
+              echo "Layer data files:"
+              ls -lh kerbside-patches/archive/layers/
+              echo
+              echo "Line counts per stage:"
+              for stage in as-built post-normalize post-exclude; do
+                  count=$(cat kerbside-patches/archive/layers/*-${stage}.jsonl 2>/dev/null | wc -l || echo 0)
+                  echo "  ${stage}: ${count} images"
+              done
           else
-              echo "File not found"
+              echo "No layer data directory found"
           fi
 
       # We have the output of the build job and its config, regardless of success or failure
@@ -320,11 +318,22 @@ jobs:
           if [ -e kerbside-patches/archive/build.json ]; then
               cp kerbside-patches/archive/build.json ${archive_path}/
           fi
-          if [ -e kerbside-patches/archive/layers.json ]; then
-              cp kerbside-patches/archive/layers.json ${archive_path}/
+          if [ -e kerbside-patches/archive/layers.tar.gz ]; then
+              cp kerbside-patches/archive/layers.tar.gz ${archive_path}/
           fi
           if [ -e kerbside-patches/archive/kolla-build.conf ]; then
               cp kerbside-patches/archive/kolla-build.conf ${archive_path}/
+          fi
+          if [ -e kerbside-patches/archive/occystrap-layer-cache.json ]; then
+              cp kerbside-patches/archive/occystrap-layer-cache.json ${archive_path}/
+          fi
+
+          # System details for debugging
+          docker info > ${archive_path}/docker-info.txt
+          if [ -e /etc/docker/daemon.json ]; then
+              cp /etc/docker/daemon.json ${archive_path}/
+          else
+              echo "No daemon.json found" > ${archive_path}/daemon.json
           fi
 
       - uses: actions/upload-artifact@v4
@@ -385,8 +394,8 @@ jobs:
       matrix:
         test: [
           {
-            'name': '2025.1-debian12-debian12-aio',
-            'description': 'OpenStack 2025.1 debian containers on debian 12 all-in-one',
+            'name': '2025.1-h-debian12-c-debian12-aio',
+            'description': '2025.1 debian 12 images on debian 12 all-in-one',
             'release': '2025.1',
             'base': 'debian:12',
             'baseuser': 'debian',
@@ -397,8 +406,8 @@ jobs:
             'enable_kerbside': 'true'
           },
           {
-            'name': '2025.2-debian12-debian12-aio',
-            'description': 'OpenStack 2025.2 debian containers on debian 12 all-in-one',
+            'name': '2025.2-h-debian12-c-debian12-aio',
+            'description': '2025.2 debian 12 images on debian 12 all-in-one',
             'release': '2025.2',
             'base': 'debian:12',
             'baseuser': 'debian',
@@ -409,8 +418,8 @@ jobs:
             'enable_kerbside': 'true'
           },
           {
-            'name': 'master-debian12-ubuntu2404-aio',
-            'description': 'OpenStack master ubuntu 24.04 containers on debian 12 all-in-one',
+            'name': 'master-h-debian12-c-ubuntu2404-aio',
+            'description': 'master ubuntu 24.04 images on debian 12 all-in-one',
             'release': 'master',
             'base': 'debian:12',
             'baseuser': 'debian',
@@ -421,52 +430,49 @@ jobs:
             'enable_kerbside': 'true'
           },
           {
-            'name': 'master-debian12-debian12-aio-nokerbside',
-            'description': 'OpenStack master debian containers on debian 12 all-in-one with no kerbside',
+            'name': 'master-h-debian12-c-debian13-aio-nokerbside',
+            'description': 'master debian 13 images on debian 12 all-in-one with no kerbside',
             'release': 'master',
             'base': 'debian:12',
             'baseuser': 'debian',
             'topology': 'all-in-one',
             'runs_on': 'debian-12',
             'container_distro': 'debian',
-            'container_distro_version': 'bookworm',
+            'container_distro_version': 'trixie',
             'enable_kerbside': 'false'
           },
           {
-            'name': 'master-debian12-debian12-aio',
-            'description': 'OpenStack master debian containers on debian 12 all-in-one',
+            'name': 'master-h-debian12-c-debian12-aio',
+            'description': 'master debian 13 images on debian 12 all-in-one',
             'release': 'master',
             'base': 'debian:12',
             'baseuser': 'debian',
             'topology': 'all-in-one',
             'runs_on': 'debian-12',
             'container_distro': 'debian',
-            'container_distro_version': 'bookworm',
-            'enable_kerbside': 'true'
+            'container_distro_version': 'trixie'
           },
           {
-            'name': 'master-rocky10-debian12-aio',
-            'description': 'OpenStack master debian containers on Rocky 10 all-in-one',
+            'name': 'master-h-rocky10-c-debian-13-aio',
+            'description': 'master debian 13 images on rocky 10 all-in-one',
             'release': 'master',
             'base': 'rocky:10',
             'baseuser': 'cloud-user',
             'topology': 'all-in-one',
             'runs_on': 'debian-12',
             'container_distro': 'debian',
-            'container_distro_version': 'bookworm',
-            'enable_kerbside': 'true'
+            'container_distro_version': 'trixie'
           },
           {
-            'name': 'master-debian12-debian12-multi',
-            'description': 'OpenStack master debian containers on debian 12 multinode',
+            'name': 'master-h-debian12-c-debian12-multi',
+            'description': 'master debian 13 images on debian 12 multinode',
             'release': 'master',
             'base': 'debian:12',
             'baseuser': 'debian',
             'topology': 'multinode-2',
             'runs_on': 'debian-12',
             'container_distro': 'debian',
-            'container_distro_version': 'bookworm',
-            'enable_kerbside': 'true'
+            'container_distro_version': 'trixie'
           },
         ]
     runs-on: [self-hosted, vm, '${{ matrix.test.runs_on }}']
@@ -497,11 +503,6 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           pattern: "buildresult-${{ matrix.test.release }}-${{ matrix.test.container_distro }}-${{ matrix.test.container_distro_version }}*"
-
-      - name: Download source
-        uses: actions/download-artifact@v4
-        with:
-          pattern: "source-${{ matrix.test.release }}*"
 
       - name: Log incoming results
         id: incoming
@@ -548,42 +549,36 @@ jobs:
               ${{ matrix.test.baseuser }}@10.0.2.2 \
               'sudo getent ahostsv4 kolla'
 
-      - name: Extract source from image build step
+      - name: Download artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: source-${{ matrix.test.release }}
+
+      - name: Move source to correct location
         run: |
           . $GITHUB_ENV
 
-          echo "State of workspace:"
+          echo "Contents of ${GITHUB_WORKSPACE}"
           ls -lrt
 
-          echo "Extracting source from build step..."
-          cd source-${{ matrix.test.release }}
-          unzip bundle.zip
-          cd bundle
-          ls -lrth
-
-          echo
-          echo "Using that source to bootstrap kerbside-patches src directory..."
-          sudo mkdir -p /srv/shakenfist/kerbside-patches/src
-          sudo chown -R debian:debian /srv/shakenfist
-          mv ./*.tgz /srv/shakenfist/kerbside-patches/src
-          cd /srv/shakenfist/kerbside-patches/src
-
-          echo
-          echo "Extract source..."
-          for item in ./*.tgz; do
-              tar xzf "${item}"
-              echo "    Extracted ${item}"
+          mkdir -p ${GITHUB_WORKSPACE}/kerbside-patches/src
+          for item in src/*.tgz; do
+              echo "Extracting ${item}"
+              tar xzf ${item} -C ${GITHUB_WORKSPACE}/kerbside-patches/src/
           done
 
           echo
-          echo "State of source..."
-          ls -lrt
+          echo "Contents of ${GITHUB_WORKSPACE}/kerbside-patches/src/"
+          ls -lrt ${GITHUB_WORKSPACE}/kerbside-patches/src/
+
+          echo
+          echo "Done"
 
           echo
           echo "Copy source to target node..."
 
           # I use tar here because some of the entries are symlinks
-          cd /srv/shakenfist/kerbside-patches
+          cd ${GITHUB_WORKSPACE}/kerbside-patches
           tar czf - src | ssh -i /srv/github/id_ci \
               -o StrictHostKeyChecking=no \
               -o UserKnownHostsFile=/dev/null \
@@ -636,7 +631,7 @@ jobs:
               ${{ matrix.test.baseuser }}@10.0.2.2 \
               'cd /srv/shakenfist/kerbside-patches; sudo ./tools/ka deploy -i /etc/kolla/inventory'
 
-      - name: Install patched OpenStack clients
+      - name: Install patched clients
         run: |
           . $GITHUB_ENV
           ssh -i /srv/github/id_ci -o StrictHostKeyChecking=no \
@@ -764,7 +759,7 @@ jobs:
           . /tmp/admin-openrc.sh
 
           echo
-          echo "Install openstack client..."
+          echo "Install client..."
           sudo mkdir -p /srv/kolla-ansible
           sudo chown -R debian:debian /srv/kolla-ansible
           python3 -mvenv /srv/kolla-ansible/venv
@@ -808,7 +803,7 @@ jobs:
               node_address=${!node}
 
               echo
-              echo "Check docker containers on ${node}"
+              echo "Check docker images on ${node}"
               echo
 
               ssh -i /srv/github/id_ci -o StrictHostKeyChecking=no \
@@ -964,7 +959,9 @@ jobs:
     name: "Collect layer data and create PR"
     needs: [build_images]
     runs-on: [self-hosted, static]
-    if: github.event_name == 'pull_request' && success()
+    if: github.event_name == 'pull_request' && !cancelled()
+    env:
+      DATA_PREFIX: ${{ inputs.data_prefix || 'layers' }}
 
     steps:
       - name: Set environment variables
@@ -986,7 +983,7 @@ jobs:
           pattern: "build-*"
           path: /tmp/build-artifacts
 
-      - name: Collect layers.json files and prepare PR
+      - name: Collect layer data and prepare PR
         env:
           GITHUB_TOKEN: ${{ secrets.DAILY_REBASE_TOKEN }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
@@ -1003,6 +1000,7 @@ jobs:
           # a single matrix job is retried.
           included_builds=""
           excluded_builds=""
+          NL=$'\n'
 
           for dir in /tmp/build-artifacts/build-*/; do
               build_name=$(basename "${dir}")
@@ -1012,40 +1010,40 @@ jobs:
                   artifact_attempt=$(cat "${dir}run_attempt")
                   if [ "${artifact_attempt}" != "${CURRENT_ATTEMPT}" ]; then
                       echo "Skipping ${build_name}: from attempt ${artifact_attempt}, current is ${CURRENT_ATTEMPT}"
-                      excluded_builds="${excluded_builds}- ${build_name} (attempt ${artifact_attempt})\n"
+                      excluded_builds="${excluded_builds}- ${build_name} (attempt ${artifact_attempt})${NL}"
                       continue
                   fi
               else
                   echo "Skipping ${build_name}: no run_attempt file (legacy artifact)"
-                  excluded_builds="${excluded_builds}- ${build_name} (no attempt marker)\n"
+                  excluded_builds="${excluded_builds}- ${build_name} (no attempt marker)${NL}"
                   continue
               fi
 
-              if [ -f "${dir}layers.json" ]; then
-                  included_builds="${included_builds}- ${build_name}\n"
+              if [ -f "${dir}layers.tar.gz" ]; then
+                  included_builds="${included_builds}- ${build_name}${NL}"
               fi
           done
 
           # Check if we have any layers to include
           if [ -z "${included_builds}" ]; then
-              echo "No layers.json files from current attempt found, skipping PR creation"
+              echo "No layers.tar.gz files from current attempt found, skipping PR creation"
               exit 0
           fi
 
           echo
           echo "Builds to include:"
-          echo -e "${included_builds}"
+          echo "${included_builds}"
           if [ -n "${excluded_builds}" ]; then
               echo "Builds excluded (from previous attempts):"
-              echo -e "${excluded_builds}"
+              echo "${excluded_builds}"
           fi
 
           # Create a branch for the layer data (include run_id for uniqueness)
-          branch_name="layer-data-${DATESTAMP}-run${RUN_ID}"
+          branch_name="${DATA_PREFIX}-data-${DATESTAMP}-run${RUN_ID}"
           git checkout develop
           git checkout -b "${branch_name}"
 
-          # Copy layers.json files with unique names (only from current attempt)
+          # Copy layer tarballs with unique names (only from current attempt)
           for dir in /tmp/build-artifacts/build-*/; do
               # Re-check run_attempt filter
               if [ -f "${dir}run_attempt" ]; then
@@ -1057,12 +1055,12 @@ jobs:
                   continue
               fi
 
-              if [ -f "${dir}layers.json" ]; then
+              if [ -f "${dir}layers.tar.gz" ]; then
                   build_name=$(basename "${dir}")
-                  dest_name="layers-${DATESTAMP}-run${RUN_ID}-${build_name}.json"
+                  dest_name="${DATA_PREFIX}-${DATESTAMP}-run${RUN_ID}-${build_name}.tar.gz"
 
-                  echo "Compressing ${dir}layers.json to data/${dest_name}.gz"
-                  gzip -c "${dir}layers.json" > "data/${dest_name}.gz"
+                  echo "Copying ${dir}layers.tar.gz to data/${dest_name}"
+                  cp "${dir}layers.tar.gz" "data/${dest_name}"
               fi
           done
 
@@ -1079,7 +1077,7 @@ jobs:
           git add data/
           git commit -m "Add layer data from build run ${RUN_ID}.
 
-          This commit adds layers.json data from a successful functional
+          This commit adds layer data from a successful functional
           test build. This data is collected for analysis purposes.
 
           Source PR: #${PR_NUMBER}
@@ -1122,7 +1120,7 @@ jobs:
 
           gh pr create \
               --assignee mikalstill \
-              --title "Layer data from ${DATESTAMP} (run ${RUN_ID}, attempt ${CURRENT_ATTEMPT})" \
+              --title "${DATA_PREFIX} data from ${DATESTAMP} (run ${RUN_ID}, attempt ${CURRENT_ATTEMPT})" \
               --body "${pr_body}" \
               --head "${branch_name}"
 

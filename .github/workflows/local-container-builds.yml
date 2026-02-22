@@ -25,13 +25,19 @@ jobs:
       matrix:
         test: [
           {
-              'release': '2025.1'
+              'release': '2025.1',
+              'container_distro': 'debian',
+              'container_distro_version': 'bookworm'
           },
           {
-              'release': '2025.2'
+              'release': '2025.2',
+              'container_distro': 'debian',
+              'container_distro_version': 'bookworm'
           },
           {
-              'release': 'master'
+              'release': 'master',
+              'container_distro': 'debian',
+              'container_distro_version': 'trixie'
           },
         ]
     runs-on: [self-hosted, vm, 'debian-12', 'xl']
@@ -77,7 +83,7 @@ jobs:
         run: |
           . $GITHUB_ENV
           cd kerbside-patches
-          ./_build/assemble-source.sh --use-ci-patches ${{ matrix.test.release }}
+          ./_build/assemble-source.sh --use-ci-patches --no-tarball ${{ matrix.test.release }}
 
       - name: Build containers with no local OCI registry
         run: |
@@ -86,5 +92,6 @@ jobs:
           ./_build/build-containers.sh \
               --build-targets ${{ matrix.test.release }} \
               --build-images all \
-              --distro debian \
+              --distro ${{ matrix.test.container_distro}} \
+              --distro-version ${{ matrix.test.container_distro_version }} \
               --image-tag local

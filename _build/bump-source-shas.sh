@@ -63,6 +63,7 @@ for project in ${projects}; do
     source_branch=$(yq -r .source_branch ${project}/config.yaml)
     current_source_sha=$(yq -r .source_sha ${project}/config.yaml)
     directory=$(yq -r .directory ${project}/config.yaml)
+    skip_rebase=$(yq -r '.skip_rebase // false' ${project}/config.yaml)
 
     echo
     echo "Processing ${project}..."
@@ -101,7 +102,6 @@ for project in ${projects}; do
 
     # Generate changelog before deleting the clone (skip for directories
     # with skip_rebase=true to avoid duplicate entries from wave dirs)
-    skip_rebase=$(yq -r '.skip_rebase // false' ${project}/config.yaml)
     if [ -n "${changelog_path}" ] \
             && [ "${source_sha}" != "${current_source_sha}" ] \
             && [ "${skip_rebase}" != "true" ]; then

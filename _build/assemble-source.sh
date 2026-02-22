@@ -87,15 +87,22 @@ for required in kolla kolla-ansible nova; do
     fi
 done
 
-echo
-echo
-echo -e "${H1}Tar up the various source directories${Color_Off}"
-echo
-cd src
-for project in *; do
-    echo -e "${H2}${project}${Color_Off}"
-    tar czf ${project}.tgz ${project}
-done
+if [ "${no_tarball}" == "true" ]; then
+    echo
+    echo
+    echo -e "${H1}Skipping tarball creation (--no-tarball)${Color_Off}"
+else
+    echo
+    echo
+    echo -e "${H1}Tar up the various source directories${Color_Off}"
+    echo
+    cd src
+    for project in *; do
+        echo -e "${H2}${project}${Color_Off}"
+        tar czf ${project}.tgz ${project}
+        rm -rf ${project}
+    done
+fi
 
 echo
 

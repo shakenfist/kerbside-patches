@@ -70,6 +70,14 @@ jobs:
           path: kerbside-patches
           fetch-depth: 0
 
+      - name: Configure pip to use local PyPI mirror
+        run: |
+          mkdir -p ~/.config/pip
+          cat > ~/.config/pip/pip.conf <<'PIPCONF'
+          [global]
+          index-url = https://devpi.home.stillhq.com/root/pypi/+simple/
+          PIPCONF
+
       - name: Log targets
         run: |
           echo "Testing targets are: ${{ matrix.test.targets }}"
@@ -188,6 +196,7 @@ jobs:
 
           if [ ${{ matrix.test.baseuser }} == "debian" ]; then
             script="set -x;"
+            script="${script} printf '[global]\nindex-url = https://devpi.home.stillhq.com/root/pypi/+simple/\n' | sudo tee /etc/pip.conf > /dev/null;"
             script="${script} sudo apt-get update;"
             script="${script} sudo apt-get dist-upgrade -y;"
             script="${script} sudo pip3 install --break-system-packages yq tox;"
@@ -200,6 +209,7 @@ jobs:
               "${script}"
           else
             script="set -x;"
+            script="${script} printf '[global]\nindex-url = https://devpi.home.stillhq.com/root/pypi/+simple/\n' | sudo tee /etc/pip.conf > /dev/null;"
             script="${script} sudo dnf update -y;"
             script="${script} sudo dnf install -y epel-release;"
             script="${script} sudo dnf config-manager --set-enabled crb;"

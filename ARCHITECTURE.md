@@ -139,7 +139,9 @@ The main CI workflow (`functional-tests.yml`) runs on PRs:
 2. **deploy** -- deploys OpenStack via kolla-ansible and
    runs functional tests (VM creation, console access)
 3. **collect_layer_data** -- aggregates layer tarballs and
-   proposes a PR to store them in `data/`
+   proposes a PR to store them in `data/`. Runs even when
+   some builds fail (uses `!cancelled()`) so that layer
+   data from successful builds is still collected.
 
 ### Daily Rebase
 
