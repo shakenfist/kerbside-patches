@@ -209,12 +209,12 @@ jobs:
           echo
           echo "Log into regisry..."
           echo ${CI_REGISTRY_TOKEN} | docker login \
-              192.168.1.15:5050 --username kolla-imgs --password-stdin
+              gitlab.home.stillhq.com:5050 --username kolla-imgs --password-stdin
 
           echo
           echo "Push to registry..."
-          docker image tag heartbeat:latest 192.168.1.15:5050/openstack/kolla-images/ci_heartbeat:${identifier}
-          docker image push 192.168.1.15:5050/openstack/kolla-images/ci_heartbeat:${identifier}
+          docker image tag heartbeat:latest gitlab.home.stillhq.com:5050/openstack/kolla-images/ci_heartbeat:${identifier}
+          docker image push gitlab.home.stillhq.com:5050/openstack/kolla-images/ci_heartbeat:${identifier}
 
       - name: Download artifacts
         uses: actions/download-artifact@v4
