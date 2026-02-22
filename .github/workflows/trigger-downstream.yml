@@ -1,0 +1,19 @@
+name: Trigger downstream CI
+
+on:
+  push:
+    branches:
+      - develop
+
+jobs:
+  trigger-kerbside:
+    runs-on: [self-hosted, static]
+    timeout-minutes: 5
+    steps:
+      - name: Trigger kerbside cloud compatibility tests
+        env:
+          GITHUB_TOKEN: ${{ secrets.DAILY_REBASE_TOKEN }}
+        run: |
+          gh workflow run "Test cloud compatibility" \
+              --repo shakenfist/kerbside \
+              -f target='["kolla-ansible-master-debian-12"]'

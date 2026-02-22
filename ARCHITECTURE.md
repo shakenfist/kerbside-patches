@@ -13,6 +13,8 @@ kerbside-patches/
         workflows/
             functional-tests.yml  # CI: build, deploy, test
             daily-rebase-checks.yml  # Daily upstream rebase
+            trigger-downstream.yml  # Trigger kerbside CI on develop push
+            local-container-builds.yml  # Test local builds work
     _build/                  # Build and CI scripts
         common.sh            # Shared functions and CLI parsing
         assemble-source.sh   # Clone repos, apply patches
