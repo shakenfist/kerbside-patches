@@ -244,7 +244,7 @@ directories. This section documents each script and its purpose.
 |--------|-------------|
 | `setup-local-build-environment.sh` | Installs build dependencies on Debian systems (Docker, Python packages, etc.). |
 | `install-build-dependencies.sh` | Installs Python build dependencies in the current environment. |
-| `add-insecure-ci-registry.sh` | Configures Docker to allow insecure registry access for CI environments. |
+| `add-insecure-ci-registry.sh` | No-op kept for compatibility. The CI registry is now served over HTTPS. |
 | `calculate-container-hash.sh <dirs...>` | Calculates a unique hash for container builds based on source content and date. Used to avoid redundant rebuilds in CI. |
 
 ## Deployment Tools (`tools/`)

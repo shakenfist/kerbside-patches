@@ -91,8 +91,8 @@ kolla_internal_vip_address: "10.0.2.2"
 ################
 
 # Custom docker registry settings:
-docker_registry: 192.168.1.12:4000
-docker_registry_insecure: yes
+docker_registry: 192.168.1.15:5050
+docker_registry_insecure: no
 docker_registry_username: kolla-imgs
 
 # Namespace of images:
