@@ -13,6 +13,13 @@ for target in ${build_targets}; do
     declare -a directories
     directories+=(kerbside)
 
+    # Ensure kerbside source is available (assemble-source.sh tars and
+    # removes directories)
+    if [ ! -d ${topsrcdir}/kerbside ] && [ -f ${topsrcdir}/kerbside.tgz ]; then
+        echo "Extracting kerbside archive"
+        tar xzf ${topsrcdir}/kerbside.tgz -C ${topsrcdir}/
+    fi
+
     projects=$(find . -type f -name "config.yaml" | cut -f 2 -d "/")
     for project in ${projects}; do
         echo -e "${H3}Considering ${project}${Color_Off}"
