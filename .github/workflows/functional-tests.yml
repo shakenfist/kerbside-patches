@@ -1015,6 +1015,9 @@ jobs:
           git checkout develop
           git checkout -b "${branch_name}"
 
+          # Ensure data/ exists
+          mkdir data
+
           # Copy layer tarballs with unique names (only from current attempt)
           mkdir -p data
           for dir in /tmp/build-artifacts/build-*/; do
