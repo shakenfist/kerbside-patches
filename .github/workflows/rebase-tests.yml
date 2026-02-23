@@ -58,6 +58,10 @@ jobs:
       group: ${{ github.workflow }}-${{ github.ref }}-${{ matrix.test.name }}
       cancel-in-progress: true
 
+    defaults:
+      run:
+        shell: bash --noprofile --norc -eo pipefail {0}
+
     steps:
       - name: Set environment variables
         run: |
@@ -147,7 +151,7 @@ jobs:
 
           Green='\033[0;32m'        # Green
           Color_Off='\033[0m'       # Text Reset
-
+          
           for target in ${{ matrix.test.targets }}; do
             project=$( echo ${target} | cut -f 1 -d ":" )
             branch=$( echo ${target} | cut -f 2 -d ":" )

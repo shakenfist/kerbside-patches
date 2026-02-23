@@ -1,0 +1,48 @@
+commit a58909a147c0accea057e434cd34a8005fc93312
+Author: Michael Still <mikal@stillhq.com>
+Date:   Tue Feb 24 09:33:45 2026 +1100
+
+    Patch upper constraints.
+    
+    Change-Id: I5e106df95ff2a9735947c06c31d63c8786b4e404
+
+diff --git a/tox.ini b/tox.ini
+index 7e9beb8ef..16d59fe8e 100644
+--- a/tox.ini
++++ b/tox.ini
+@@ -9,7 +9,7 @@ usedevelop = True
+ allowlist_externals = bash
+                       find
+                       rm
+-deps = -c{env:TOX_CONSTRAINTS_FILE:https://releases.openstack.org/constraints/upper/master}
++deps = -c{env:TOX_CONSTRAINTS_FILE:../requirements/upper-constraints.txt}
+        -r{toxinidir}/requirements.txt
+        -r{toxinidir}/test-requirements.txt
+        podman>=4.3.0,<5
+@@ -42,7 +42,7 @@ commands =
+ 
+ [testenv:venv]
+ deps =
+-  -c{env:TOX_CONSTRAINTS_FILE:https://releases.openstack.org/constraints/upper/master}
++  -c{env:TOX_CONSTRAINTS_FILE:../requirements/upper-constraints.txt}
+   -r{toxinidir}/requirements.txt
+   -r{toxinidir}/doc/requirements.txt
+ commands = {posargs}
+@@ -50,7 +50,7 @@ commands = {posargs}
+ [testenv:docs]
+ skip_install = true
+ deps =
+-  -c{env:TOX_CONSTRAINTS_FILE:https://releases.openstack.org/constraints/upper/master}
++  -c{env:TOX_CONSTRAINTS_FILE:../requirements/upper-constraints.txt}
+   -r{toxinidir}/doc/requirements.txt
+ commands =
+   rm -rf doc/build/html
+@@ -97,7 +97,7 @@ setenv =
+   ANSIBLE_ROLES_PATH = {toxinidir}/ansible/roles
+ 
+ deps =
+-  -c{env:TOX_CONSTRAINTS_FILE:https://releases.openstack.org/constraints/upper/master}
++  -c{env:TOX_CONSTRAINTS_FILE:../requirements/upper-constraints.txt}
+   -r{toxinidir}/requirements.txt
+   -r{toxinidir}/lint-requirements.txt
+ allowlist_externals = bash
