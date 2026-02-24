@@ -1044,6 +1044,7 @@ jobs:
           git checkout -b "${branch_name}"
 
           # Copy layer tarballs with unique names (only from current attempt)
+          mkdir -p data
           for dir in /tmp/build-artifacts/build-*/; do
               # Re-check run_attempt filter
               if [ -f "${dir}run_attempt" ]; then
