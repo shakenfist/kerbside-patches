@@ -12,7 +12,7 @@ index 0dec758..1e386b7 100644
 +++ b/upper-constraints.txt
 @@ -195,7 +195,7 @@ django_compressor===4.6.0
  awscurl===0.36
- python-novaclient===18.11.0
+ python-novaclient===18.12.0
  pact===1.12.0
 -bcrypt===5.0.0
 +bcrypt===4.3.0
