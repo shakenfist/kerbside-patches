@@ -255,12 +255,25 @@ jobs:
               requirements requirements-2* \
               etc src _build tools )
 
+          # I aggressively filter the images built here for performance
+          # and reliability reasons in my homelab CI. _All_ images are
+          # built in the "ensure local builds" CI jobs to ensure coverage.
+          build_regexp="^(base|collectd|cron|dnsmasq|etcd|fluentd"
+          build_regexp="${build_regexp}|glance|grafana|hacluster"
+          build_regexp="${build_regexp}|haproxy|horizon|httpd|iscsid"
+          build_regexp="${build_regexp}|keepalived|kerbside|keystone"
+          build_regexp="${build_regexp}|kolla|memcached|multipathd"
+          build_regexp="${build_regexp}|neutron|nova|openstack"
+          build_regexp="${build_regexp}|openvswitch|placement"
+          build_regexp="${build_regexp}|prometheus|proxysql|rabbitmq"
+          build_regexp="${build_regexp}|telegraf|tgtd|valkey)"
+
           ./_build/build-containers.sh \
               --use-ci-registry \
               --registry-username kolla-imgs \
               --registry-token "${CI_REGISTRY_TOKEN}" \
               --build-targets "${{ matrix.test.release }}" \
-              --build-images all \
+              --build-images "${build_regexp}" \
               --distro ${{ matrix.test.container_distro}} \
               --distro-version ${{ matrix.test.container_distro_version }} \
               --image-tag ${hash} \
