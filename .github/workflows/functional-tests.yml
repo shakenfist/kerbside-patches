@@ -308,6 +308,14 @@ jobs:
               echo "No layer data directory found"
           fi
 
+      - name: Collect Docker daemon diagnostics
+        if: always()
+        run: |
+          . $GITHUB_ENV
+          clingwrap gather \
+              --target openstack-kolla-ansible \
+              --output /tmp/clingwrap-bundle.zip
+
       # We have the output of the build job and its config, regardless of success or failure
       - name: Archive build config and logs
         if: always()
@@ -324,6 +332,10 @@ jobs:
           # Record the run attempt so collect_layer_data can filter out stale artifacts
           # from previous attempts when a single job is retried
           echo "${{ github.run_attempt }}" > ${archive_path}/run_attempt
+
+          if [ -e /tmp/clingwrap-bundle.zip ]; then
+              cp /tmp/clingwrap-bundle.zip ${archive_path}/
+          fi
 
           if [ -e kerbside-patches/archive/build.log ]; then
               cp kerbside-patches/archive/build.log ${archive_path}/

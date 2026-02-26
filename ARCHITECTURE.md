@@ -135,7 +135,11 @@ Data flow:
 The main CI workflow (`functional-tests.yml`) runs on PRs:
 
 1. **build** (matrix) -- builds container images for each
-   target release and distro combination
+   target release and distro combination. After the build,
+   clingwrap collects Docker daemon diagnostics (using the
+   `openstack-kolla-ansible` target) to help debug build
+   failures such as Docker daemon hangs. The diagnostics
+   bundle is included in the build artifact.
 2. **deploy** -- deploys OpenStack via kolla-ansible and
    runs functional tests (VM creation, console access)
 3. **collect_layer_data** -- aggregates layer tarballs and
