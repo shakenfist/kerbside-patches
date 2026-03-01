@@ -27,25 +27,29 @@ Build scripts live in `_build/`. Key files:
 
 - `common.sh` -- shared functions and CLI argument parsing
 - `build-containers.sh` -- orchestrates image builds and
-  pushes via occystrap
-- `imagebuild.sh` -- runs kolla-build
+  pushes via occystrap (proxy or sequential mode)
+- `imagebuild.sh` -- runs kolla-build (supports `--push`
+  and `--registry` for proxy mode)
 - `imagearchive.sh` -- archives images with SBOMs
 
-The image push pipeline in `build-containers.sh` uses
-occystrap with inspect filters between optimization filters
-to collect layer metadata.
+In CI, `--use-proxy` starts an occystrap filtering proxy
+on localhost:5050 before building. kolla-build pushes
+images directly to the proxy, which filters and forwards
+to the CI registry. If the proxy fails to start, the
+build falls back to the sequential `occystrap process`
+push loop.
 
 ### Working with Layer Data
 
-Layer metadata is collected during CI builds via occystrap's
-inspect filter. Data flows:
+Layer metadata is collected during CI builds via occystrap.
+In proxy mode, a single JSONL file captures all images. In
+sequential mode, per-image per-stage JSONL files are produced
+via occystrap's inspect filter. Data flows:
 
-1. Per-image JSONL files written at each pipeline stage
+1. JSONL files written during push
 2. Files packaged into `layers.tar.gz` tarball
 3. Tarballs stored in `data/` via automated PR
 4. `tools/summarize_layers.py` analyzes the tarballs
-
-Pipeline stages: `as-built`, `post-normalize`, `post-exclude`
 
 ### Modifying GitHub Actions Workflows
 

@@ -71,6 +71,9 @@ compact_archive="false"
 # to ignore them
 dont_fetch_images="false"
 
+# Should we use the occystrap filtering proxy for image pushes?
+use_proxy="false"
+
 # If we are building a cloud, what inventory should we use?
 topology="all-in-one"
 
@@ -198,6 +201,12 @@ while [[ ${found_arg} -gt 0 ]]; do
             shift; shift
             found_arg=1
 	        ;;
+        --use-proxy)
+            export use_proxy="true"
+            echo "Will use occystrap proxy for image pushes."
+            shift
+            found_arg=1
+            ;;
         --update-patches)
             export update_patches="true"
             echo "Will update patches to match what was applied."

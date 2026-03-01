@@ -86,17 +86,49 @@ filename.
 
 ### Build Flow
 
+The build pipeline supports two modes for pushing images to
+the CI registry:
+
+**Proxy mode** (`--use-proxy`, default in CI):
+
 ```
 assemble-source.sh (clone + patch)
     |
     v
-imagebuild.sh (kolla-build)
+build-containers.sh starts occystrap proxy (background)
     |
     v
-build-containers.sh (push via occystrap)
+imagebuild.sh (kolla-build --push --registry 127.0.0.1:5050)
+    images pushed to proxy as they finish building
     |
     v
-occystrap pipeline:
+occystrap proxy filters + forwards to CI registry:
+    normalize-timestamps -> exclude .git -> registry push
+    |
+    v
+build-containers.sh stops proxy (SIGTERM, graceful drain)
+```
+
+Build and push overlap: kolla-build pushes each image to the
+local proxy as it finishes, and the proxy filters and forwards
+to the CI registry concurrently. The proxy's layer cache
+provides cross-image deduplication.
+
+When using the proxy, kolla-build's `--namespace` is set to
+the CI registry project path (`openstack/kolla-images`) so
+that images land at the correct path in the downstream
+registry.
+
+**Sequential mode** (fallback):
+
+```
+assemble-source.sh (clone + patch)
+    |
+    v
+imagebuild.sh (kolla-build, push=false)
+    |
+    v
+build-containers.sh pushes each image via occystrap process:
     inspect (as-built)
         -> normalize-timestamps
     inspect (post-normalize)
@@ -107,12 +139,13 @@ occystrap pipeline:
 
 ### Layer Data Collection
 
-The occystrap inspect filter records layer metadata (digest,
-size, history) at each pipeline stage. This produces per-image
-JSONL files that are packaged into a tarball.
+Layer metadata is collected during image pushes. In proxy
+mode, a single JSONL file captures all images. In sequential
+mode, per-image per-stage JSONL files are produced via
+occystrap's inspect filter.
 
 Data flow:
-1. occystrap writes per-image JSONL files during push
+1. JSONL files written during push
 2. Files are tarred into `layers.tar.gz`
 3. CI uploads as build artifact
 4. `collect_layer_data` job aggregates across matrix builds

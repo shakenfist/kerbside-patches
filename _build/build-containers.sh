@@ -20,6 +20,103 @@ if [ ! -z ${registry_username} ]; then
         ${ci_registry} --username ${registry_username} --password-stdin
 fi
 
+##############################################################################
+# Proxy helper functions                                                     #
+##############################################################################
+
+PROXY_PID=""
+
+start_occystrap_proxy() {
+    local layers_dir="${1}"
+    local cache_file="${2}"
+
+    echo -e "${H2}Starting occystrap proxy${Color_Off}"
+    echo -e "${H3}Downstream: ${ci_registry}${Color_Off}"
+    echo -e "${H3}Layer cache: ${cache_file}${Color_Off}"
+
+    http_proxy='' https_proxy='' HTTP_PROXY='' \
+    HTTPS_PROXY='' all_proxy='' ALL_PROXY='' \
+    /tmp/occystrap/bin/occystrap \
+        --compression zstd \
+        --username "${registry_username}" \
+        --password "${registry_token}" \
+        --layer-cache "${cache_file}" \
+        proxy \
+        --downstream "${ci_registry}" \
+        --concurrency 4 \
+        -f normalize-timestamps \
+        -f "exclude:pattern=**/.git" \
+        &
+    PROXY_PID=$!
+
+    # Wait for proxy to be ready
+    local max_wait=30
+    local waited=0
+    while [ ${waited} -lt ${max_wait} ]; do
+        if curl -sf http://127.0.0.1:5050/v2/ > /dev/null 2>&1
+        then
+            echo -e "${H3}Proxy is ready (PID ${PROXY_PID})${Color_Off}"
+            return 0
+        fi
+        # Check if proxy process died
+        if ! kill -0 ${PROXY_PID} 2>/dev/null; then
+            echo "Proxy process died during startup"
+            PROXY_PID=""
+            return 1
+        fi
+        sleep 1
+        waited=$((waited + 1))
+    done
+    echo "Proxy failed to start within ${max_wait}s"
+    kill ${PROXY_PID} 2>/dev/null || true
+    PROXY_PID=""
+    return 1
+}
+
+stop_occystrap_proxy() {
+    if [ -n "${PROXY_PID}" ] \
+        && kill -0 ${PROXY_PID} 2>/dev/null
+    then
+        echo
+        echo -e "${H2}Stopping occystrap proxy (PID ${PROXY_PID})${Color_Off}"
+        kill -TERM ${PROXY_PID}
+        wait ${PROXY_PID} || true
+        echo -e "${H3}Proxy stopped.${Color_Off}"
+    fi
+    PROXY_PID=""
+}
+
+##############################################################################
+# Install occystrap and start proxy if requested                             #
+##############################################################################
+
+proxy_running="false"
+if [ "${use_proxy}" == "true" ] \
+    && [ "${use_ci_registry}" == "true" ]
+then
+    echo
+    echo -e "${H2}Install occystrap for proxy${Color_Off}"
+    python3 -mvenv /tmp/occystrap
+    /tmp/occystrap/bin/pip3 install occystrap
+
+    layers_dir="${topdir}/archive/layers"
+    mkdir -p "${layers_dir}"
+    rm -f "${layers_dir}"/*.jsonl
+
+    if start_occystrap_proxy \
+            "${layers_dir}" \
+            "${topdir}/archive/occystrap-layer-cache.json"
+    then
+        proxy_running="true"
+        # Ensure proxy is stopped on exit
+        original_trap=$(trap -p EXIT)
+        trap 'stop_occystrap_proxy; on_exit' EXIT
+    else
+        echo -e "${Red}WARNING: Proxy failed to start."
+        echo -e "Falling back to sequential push.${Color_Off}"
+    fi
+fi
+
 echo
 echo -e "${H1}==================================================${Color_Off}"
 echo -e "${H1}Contents of src directory${Color_Off}"
@@ -77,11 +174,17 @@ for target in ${build_targets}; do
         mkdir -p ${topdir}/archive/
         rm -f ${topdir}/archive/images
 
+        proxy_args=""
+        if [ "${proxy_running}" == "true" ]; then
+            proxy_args="--use-proxy"
+        fi
+
         ./_build/imagebuild.sh --build-targets "${target}" \
                 --build-images "${build_images}" \
                 --distro "${distro}" \
                 --distro-version "${distro_version}" \
-                --image-tag "${complete_image_tag}" || true
+                --image-tag "${complete_image_tag}" \
+                ${proxy_args} || true
 
         # Guard against errors in base distro version selection
         if [ $(grep -c "${distro_version}" ${topdir}/archive/build.log || true) -eq 0 ]; then
@@ -97,7 +200,8 @@ for target in ${build_targets}; do
                 --build-images "${build_images}" \
                 --distro "${distro}" \
                 --distro-version "${distro_version}" \
-                --image-tag "${complete_image_tag}"
+                --image-tag "${complete_image_tag}" \
+                ${proxy_args}
         fi
 
         cat ${topdir}/archive/images | sort | uniq > ${topdir}/archive/images.uniq
@@ -107,7 +211,12 @@ for target in ${build_targets}; do
         echo -e "${H2}Built images${Color_Off}"
         docker image list
 
-        if [ ${use_ci_registry} == "true" ]; then
+        # When using the proxy, kolla-build already pushed images
+        # during the build. When not using the proxy, push images
+        # sequentially via occystrap process (fallback path).
+        if [ "${proxy_running}" != "true" ] \
+            && [ "${use_ci_registry}" == "true" ]
+        then
             echo
             echo -e "${H2}Install occystrap for registry push${Color_Off}"
             python3 -mvenv /tmp/occystrap
@@ -153,6 +262,19 @@ for target in ${build_targets}; do
         fi
     fi
 done
+
+# Stop the proxy after all targets are built and package layer data
+if [ "${proxy_running}" == "true" ]; then
+    stop_occystrap_proxy
+
+    layers_dir="${topdir}/archive/layers"
+    if [ -d "${layers_dir}" ]; then
+        echo
+        echo -e "${H2}Packaging layer data${Color_Off}"
+        tar czf "${topdir}/archive/layers.tar.gz" \
+            -C "${topdir}/archive" layers/
+    fi
+fi
 
 echo
 trap - EXIT

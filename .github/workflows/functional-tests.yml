@@ -270,6 +270,7 @@ jobs:
 
           ./_build/build-containers.sh \
               --use-ci-registry \
+              --use-proxy \
               --registry-username kolla-imgs \
               --registry-token "${CI_REGISTRY_TOKEN}" \
               --build-targets "${{ matrix.test.release }}" \
@@ -299,11 +300,8 @@ jobs:
               echo "Layer data files:"
               ls -lh kerbside-patches/archive/layers/
               echo
-              echo "Line counts per stage:"
-              for stage in as-built post-normalize post-exclude; do
-                  count=$(cat kerbside-patches/archive/layers/*-${stage}.jsonl 2>/dev/null | wc -l || echo 0)
-                  echo "  ${stage}: ${count} images"
-              done
+              echo "Line counts:"
+              wc -l kerbside-patches/archive/layers/*.jsonl 2>/dev/null || echo "No JSONL files"
           else
               echo "No layer data directory found"
           fi
