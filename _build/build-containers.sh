@@ -102,7 +102,7 @@ then
     # push path is used, which correctly honors insecure-registries.
     echo
     echo -e "${H2}Configure Docker for local proxy${Color_Off}"
-    echo '{"insecure-registries": ["127.0.0.1:5050"]}' | \
+    echo '{"insecure-registries": ["127.0.0.1:5050"], "features": {"containerd-snapshotter": false}}' | \
         sudo tee /etc/docker/daemon.json > /dev/null
     echo "daemon.json:"
     cat /etc/docker/daemon.json
