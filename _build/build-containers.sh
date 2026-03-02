@@ -109,6 +109,11 @@ then
     sudo systemctl restart docker
     echo -e "${H3}Docker restarted without containerd-snapshotter${Color_Off}"
 
+    # Verify Docker loaded the insecure-registries config
+    echo
+    echo -e "${H3}Docker info (post-restart)${Color_Off}"
+    docker info 2>&1 | grep -iA5 "Insecure\|Storage\|Snapshotter\|Server Version"
+
     echo
     echo -e "${H2}Install occystrap for proxy${Color_Off}"
     python3 -mvenv /tmp/occystrap
