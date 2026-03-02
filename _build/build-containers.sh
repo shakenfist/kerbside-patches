@@ -34,8 +34,8 @@ start_occystrap_proxy() {
     echo -e "${H3}Downstream: ${ci_registry}${Color_Off}"
     echo -e "${H3}Layer cache: ${cache_file}${Color_Off}"
 
-    http_proxy='' https_proxy='' HTTP_PROXY='' \
-    HTTPS_PROXY='' all_proxy='' ALL_PROXY='' \
+    http_proxy='' HTTP_PROXY='' https_proxy='' HTTPS_PROXY='' \
+    all_proxy='' ALL_PROXY='' \
     /tmp/occystrap/bin/occystrap \
         --compression zstd \
         --username "${registry_username}" \
@@ -53,7 +53,9 @@ start_occystrap_proxy() {
     local max_wait=30
     local waited=0
     while [ ${waited} -lt ${max_wait} ]; do
-        if curl -sf http://127.0.0.1:5050/v2/ > /dev/null 2>&1
+        if http_proxy='' HTTP_PROXY='' https_proxy='' \
+            HTTPS_PROXY='' all_proxy='' ALL_PROXY='' \
+            curl -sf http://127.0.0.1:5050/v2/ > /dev/null 2>&1
         then
             echo -e "${H3}Proxy is ready (PID ${PROXY_PID})${Color_Off}"
             return 0
@@ -238,7 +240,7 @@ for target in ${build_targets}; do
                 safe_name=$(echo ${image} | tr '/' '-')
 
                 echo -e "    ${image}:${complete_image_tag} ${Arrow} occystrap ${Arrow} ${ci_registry}/${registry_project}/${image}:${complete_image_tag}"
-                http_proxy='' https_proxy='' HTTP_PROXY='' HTTPS_PROXY='' all_proxy='' ALL_PROXY='' /tmp/occystrap/bin/occystrap \
+                http_proxy='' HTTP_PROXY='' https_proxy='' HTTPS_PROXY='' all_proxy='' ALL_PROXY='' /tmp/occystrap/bin/occystrap \
                     --parallel 8 \
                     --compression zstd \
                     --username ${registry_username} \

@@ -262,9 +262,9 @@ jobs:
           build_regexp="${build_regexp}|glance|grafana|hacluster"
           build_regexp="${build_regexp}|haproxy|horizon|httpd|iscsid"
           build_regexp="${build_regexp}|keepalived|kerbside|keystone"
-          build_regexp="${build_regexp}|kolla|memcached|multipathd"
-          build_regexp="${build_regexp}|neutron|nova|openstack"
-          build_regexp="${build_regexp}|openvswitch|placement"
+          build_regexp="${build_regexp}|kolla|mariadb|memcached"
+          build_regexp="${build_regexp}|multipathd|neutron|nova"
+          build_regexp="${build_regexp}|openstack|openvswitch|placement"
           build_regexp="${build_regexp}|prometheus|proxysql|rabbitmq"
           build_regexp="${build_regexp}|telegraf|tgtd|valkey)"
 
