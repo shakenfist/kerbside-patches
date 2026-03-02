@@ -97,11 +97,14 @@ if [ "${use_proxy}" == "true" ] \
     && [ "${use_ci_registry}" == "true" ]
 then
     # The containerd snapshotter (containerd-snapshotter: true in
-    # daemon.json) does not honor Docker's insecure-registries setting.
-    # Configure containerd's host-based registry config so that pushes
-    # to 127.0.0.1:5050 use plain HTTP.
+    # daemon.json) does not honor Docker's insecure-registries setting
+    # for push operations. Configure containerd's host-based registry
+    # config so that pushes to 127.0.0.1:5050 use plain HTTP, and
+    # tell containerd where to find the config.
     echo
     echo -e "${H2}Configure Docker/containerd for local proxy${Color_Off}"
+
+    # 1. Create containerd host config for the proxy address.
     sudo mkdir -p /etc/containerd/certs.d/127.0.0.1:5050
     cat <<'TOML' | sudo tee /etc/containerd/certs.d/127.0.0.1:5050/hosts.toml > /dev/null
 server = "http://127.0.0.1:5050"
@@ -112,20 +115,39 @@ TOML
     echo "hosts.toml:"
     cat /etc/containerd/certs.d/127.0.0.1:5050/hosts.toml
 
-    # Also add insecure-registries to daemon.json as a fallback,
-    # and point Docker at containerd's cert directory.
+    # 2. Tell containerd where the host configs live.
+    #    containerd 2.x uses io.containerd.cri.v1.images.
+    echo
+    echo -e "${H3}Patching containerd config${Color_Off}"
+    if [ ! -f /etc/containerd/config.toml ]; then
+        sudo containerd config default | sudo tee /etc/containerd/config.toml > /dev/null
+    fi
+    if ! grep -q 'config_path.*certs.d' /etc/containerd/config.toml; then
+        # Append registry config for both containerd 1.x and 2.x paths
+        cat <<'CTRD' | sudo tee -a /etc/containerd/config.toml > /dev/null
+
+[plugins."io.containerd.cri.v1.images".registry]
+  config_path = "/etc/containerd/certs.d"
+CTRD
+    fi
+    sudo systemctl restart containerd
+    echo -e "${H3}containerd restarted with registry config_path${Color_Off}"
+
+    # 3. Add insecure-registries to daemon.json as a belt-and-braces
+    #    fallback for any code path that does not go via containerd.
+    echo
     if [ -f /etc/docker/daemon.json ]; then
-        jq '. + {"insecure-registries": ((.["insecure-registries"] // []) + ["127.0.0.1:5050"] | unique)} + {"registry-config-dir": "/etc/containerd/certs.d"}' \
+        jq '. + {"insecure-registries": ((.["insecure-registries"] // []) + ["127.0.0.1:5050"] | unique)}' \
             /etc/docker/daemon.json > /tmp/daemon.json.tmp
         sudo mv /tmp/daemon.json.tmp /etc/docker/daemon.json
     else
-        echo '{"insecure-registries": ["127.0.0.1:5050"], "registry-config-dir": "/etc/containerd/certs.d"}' | \
+        echo '{"insecure-registries": ["127.0.0.1:5050"]}' | \
             sudo tee /etc/docker/daemon.json > /dev/null
     fi
     echo "daemon.json:"
     cat /etc/docker/daemon.json
     sudo systemctl restart docker
-    echo -e "${H3}Docker restarted with containerd host config for 127.0.0.1:5050${Color_Off}"
+    echo -e "${H3}Docker restarted with insecure registry 127.0.0.1:5050${Color_Off}"
 
     echo
     echo -e "${H2}Install occystrap for proxy${Color_Off}"
