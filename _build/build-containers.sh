@@ -96,6 +96,25 @@ proxy_running="false"
 if [ "${use_proxy}" == "true" ] \
     && [ "${use_ci_registry}" == "true" ]
 then
+    # The containerd snapshotter (containerd-snapshotter: true in
+    # daemon.json) does not honor Docker's localhost exception for
+    # insecure registries. Add 127.0.0.1:5050 explicitly so that
+    # docker push uses HTTP for the local proxy.
+    echo
+    echo -e "${H2}Configure Docker for local proxy${Color_Off}"
+    if [ -f /etc/docker/daemon.json ]; then
+        jq '. + {"insecure-registries": ((.["insecure-registries"] // []) + ["127.0.0.1:5050"] | unique)}' \
+            /etc/docker/daemon.json > /tmp/daemon.json.tmp
+        sudo mv /tmp/daemon.json.tmp /etc/docker/daemon.json
+    else
+        echo '{"insecure-registries": ["127.0.0.1:5050"]}' | \
+            sudo tee /etc/docker/daemon.json > /dev/null
+    fi
+    echo "daemon.json:"
+    cat /etc/docker/daemon.json
+    sudo systemctl restart docker
+    echo -e "${H3}Docker restarted with insecure registry 127.0.0.1:5050${Color_Off}"
+
     echo
     echo -e "${H2}Install occystrap for proxy${Color_Off}"
     python3 -mvenv /tmp/occystrap
