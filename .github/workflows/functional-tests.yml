@@ -209,12 +209,12 @@ jobs:
           echo
           echo "Log into regisry..."
           echo ${CI_REGISTRY_TOKEN} | docker login \
-              192.168.1.12:4000 --username kolla-imgs --password-stdin
+              gitlab.home.stillhq.com:5050 --username kolla-imgs --password-stdin
 
           echo
           echo "Push to registry..."
-          docker image tag heartbeat:latest 192.168.1.12:4000/openstack/kolla-images/ci_heartbeat:${identifier}
-          docker image push 192.168.1.12:4000/openstack/kolla-images/ci_heartbeat:${identifier}
+          docker image tag heartbeat:latest gitlab.home.stillhq.com:5050/openstack/kolla-images/ci_heartbeat:${identifier}
+          docker image push gitlab.home.stillhq.com:5050/openstack/kolla-images/ci_heartbeat:${identifier}
 
       - name: Download artifacts
         uses: actions/download-artifact@v4
@@ -255,12 +255,26 @@ jobs:
               requirements requirements-2* \
               etc src _build tools )
 
+          # I aggressively filter the images built here for performance
+          # and reliability reasons in my homelab CI. _All_ images are
+          # built in the "ensure local builds" CI jobs to ensure coverage.
+          build_regexp="^(base|collectd|cron|dnsmasq|etcd|fluentd"
+          build_regexp="${build_regexp}|glance|grafana|hacluster"
+          build_regexp="${build_regexp}|haproxy|horizon|httpd|iscsid"
+          build_regexp="${build_regexp}|keepalived|kerbside|keystone"
+          build_regexp="${build_regexp}|kolla|mariadb|memcached"
+          build_regexp="${build_regexp}|multipathd|neutron|nova"
+          build_regexp="${build_regexp}|openstack|openvswitch|placement"
+          build_regexp="${build_regexp}|prometheus|proxysql|rabbitmq"
+          build_regexp="${build_regexp}|telegraf|tgtd|valkey)"
+
           ./_build/build-containers.sh \
               --use-ci-registry \
+              --use-proxy \
               --registry-username kolla-imgs \
               --registry-token "${CI_REGISTRY_TOKEN}" \
               --build-targets "${{ matrix.test.release }}" \
-              --build-images all \
+              --build-images "${build_regexp}" \
               --distro ${{ matrix.test.container_distro}} \
               --distro-version ${{ matrix.test.container_distro_version }} \
               --image-tag ${hash} \
@@ -286,14 +300,19 @@ jobs:
               echo "Layer data files:"
               ls -lh kerbside-patches/archive/layers/
               echo
-              echo "Line counts per stage:"
-              for stage in as-built post-normalize post-exclude; do
-                  count=$(cat kerbside-patches/archive/layers/*-${stage}.jsonl 2>/dev/null | wc -l || echo 0)
-                  echo "  ${stage}: ${count} images"
-              done
+              echo "Line counts:"
+              wc -l kerbside-patches/archive/layers/*.jsonl 2>/dev/null || echo "No JSONL files"
           else
               echo "No layer data directory found"
           fi
+
+      - name: Collect Docker daemon diagnostics
+        if: always()
+        run: |
+          . $GITHUB_ENV
+          clingwrap gather \
+              --target openstack-kolla-ansible \
+              --output /tmp/clingwrap-bundle.zip
 
       # We have the output of the build job and its config, regardless of success or failure
       - name: Archive build config and logs
@@ -311,6 +330,10 @@ jobs:
           # Record the run attempt so collect_layer_data can filter out stale artifacts
           # from previous attempts when a single job is retried
           echo "${{ github.run_attempt }}" > ${archive_path}/run_attempt
+
+          if [ -e /tmp/clingwrap-bundle.zip ]; then
+              cp /tmp/clingwrap-bundle.zip ${archive_path}/
+          fi
 
           if [ -e kerbside-patches/archive/build.log ]; then
               cp kerbside-patches/archive/build.log ${archive_path}/
@@ -1044,6 +1067,7 @@ jobs:
           git checkout -b "${branch_name}"
 
           # Copy layer tarballs with unique names (only from current attempt)
+          mkdir -p data
           for dir in /tmp/build-artifacts/build-*/; do
               # Re-check run_attempt filter
               if [ -f "${dir}run_attempt" ]; then

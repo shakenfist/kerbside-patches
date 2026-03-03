@@ -13,7 +13,7 @@ The remainder of the patches are ancillary changes -- support for new Nova API
 microversions in clients, things which helped me debug along the way, and that
 sort of thing.
 
-These patches last successfully applied via CI on 21 February 2026. When this occurs,
+These patches last successfully applied via CI on 3 March 2026. When this occurs,
 the SHAs the patches were applied to for each project are recorded in the
 relevant config.yaml file, and will be used for patch applications until
 updated.
@@ -177,21 +177,21 @@ sudo kolla-ansible -i /etc/kolla/inventory deploy
 
 # Layer Data Collection
 
-The CI workflow collects layer metadata at each stage of
-the occystrap image processing pipeline and proposes a PR to add
-this data to the `data/` directory. This allows tracking of
-container layer optimization over time.
+The CI workflow collects layer metadata during the occystrap
+image push pipeline and proposes a PR to add this data to the
+`data/` directory. This allows tracking of container layer
+optimization over time.
 
-During the build, each image is pushed through occystrap with
-inspect filters placed between optimization filters:
+In CI, the build uses an occystrap filtering proxy
+(`--use-proxy`). kolla-build pushes images directly to the
+local proxy as they finish building, and the proxy applies
+filters (normalize-timestamps, exclude `.git`) before
+forwarding to the CI registry. This overlaps build and push
+for faster CI runs.
 
-1. **as-built** -- layers as produced by kolla-build
-2. **post-normalize** -- after timestamp normalization
-3. **post-exclude** -- after excluding `.git` directories
-
-Each inspect filter writes a JSONL file per image. These files
-are packaged into a tarball (`layers.tar.gz`) and stored in
-`data/` with the naming format:
+Layer metadata JSONL files are packaged into a tarball
+(`layers.tar.gz`) and stored in `data/` with the naming
+format:
 `{prefix}-YYYYMMDD-HHMM-runNNNN-{build-name}.tar.gz`
 
 Use `tools/summarize_layers.py` to analyze the collected data.
@@ -266,12 +266,6 @@ directories. This section documents each script and its purpose.
 | `inspect-kerbside` | Inspects the state of Kerbside deployment (containers, databases, logs). |
 | `gather-logs` | Collects logs from Kolla containers for debugging. |
 | `spice-connect.py` | Python script for testing SPICE console connections programmatically. |
-
-### Layer Analysis Tools
-
-| Script | Description |
-|--------|-------------|
-| `summarize_layers.py` | Analyzes Docker image layer data collected from CI builds. Layer data is stored as `.tar.gz` tarballs containing per-image JSONL files organized by pipeline stage. Use `-d data/` for chronological build progression analysis, `--stage` to select a pipeline stage (default: `post-exclude`), and `--compare-stages` to compare the effect of each optimization filter. |
 
 ### Pre-Push Linting for Gerrit
 

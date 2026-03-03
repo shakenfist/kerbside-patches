@@ -1,0 +1,21 @@
+commit 32a0ba3614ff935d957fa14484e8257be2b71d6d
+Author: Michael Still <mikal@stillhq.com>
+Date:   Thu Feb 26 13:32:29 2026 +1100
+
+    Tweak testtools upper constraint.
+    
+    Change-Id: I86296afb2be61d3e71fb797dfc89b244b152f11d
+
+diff --git a/upper-constraints.txt b/upper-constraints.txt
+index b90599cf..8adff449 100644
+--- a/upper-constraints.txt
++++ b/upper-constraints.txt
+@@ -332,7 +332,7 @@ asgiref===3.11.1
+ XStatic-JQuery.TableSorter===2.14.5.3
+ pifpaf===3.4.0
+ blockdiag===3.0.0
+-testtools===2.8.4
++testtools===2.8.2
+ infi.dtypes.iqn===0.4.0
+ jsonpath-ng===1.7.0
+ XStatic-tv4===1.2.7.1

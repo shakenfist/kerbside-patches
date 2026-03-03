@@ -1,0 +1,3 @@
+Pin bcrypt to a version which works with kolla-ansible.
+
+Change-Id: I91c4928c639b2ed1cbc585973742aedc6569adb5

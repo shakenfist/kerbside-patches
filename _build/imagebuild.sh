@@ -128,12 +128,26 @@ for target in ${build_targets}; do
         kolla_build_args=""
     fi
 
+    # When using the proxy, kolla-build pushes directly to the local
+    # proxy which forwards to the CI registry. The namespace must match
+    # the CI registry project path so images land at the correct
+    # location.
+    kolla_namespace="kolla"
+    kolla_extra_args=""
+    if [ "${use_proxy}" == "true" ]; then
+        kolla_namespace="${registry_project}"
+        kolla_extra_args="--push --registry 127.0.0.1:5050"
+    fi
+
     echo -e "${H3}${venvdir}/bin/kolla-build \\"
     echo -e "    --debug \\"
     echo -e "    --config-file \"${topdir}/archive/kolla-build.conf\" \\"
     echo -e "    --tag ${image_tag} \\"
-    echo -e "    --namespace kolla \\"
+    echo -e "    --namespace ${kolla_namespace} \\"
     echo -e "    --summary-json-file ${topdir}/archive/build.json \\"
+    if [ -n "${kolla_extra_args}" ]; then
+        echo -e "    ${kolla_extra_args} \\"
+    fi
     echo -e "    ${kolla_build_args} 2>&1 | \\"
     echo -e "    tee --append ${topdir}/archive/build.log | \\"
     echo -e "    ts \"%b %d %H:%M:%S ${target}\""
@@ -142,9 +156,10 @@ for target in ${build_targets}; do
     ${venvdir}/bin/kolla-build \
         --debug \
         --config-file "${topdir}/archive/kolla-build.conf" \
-        --namespace kolla \
+        --namespace ${kolla_namespace} \
         --tag ${image_tag} \
         --summary-json-file ${topdir}/archive/build.json \
+        ${kolla_extra_args} \
         ${kolla_build_args} 2>&1 | \
         tee --append ${topdir}/archive/build.log | \
         ts "%b %d %H:%M:%S ${target}"
