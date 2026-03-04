@@ -13,7 +13,7 @@ The remainder of the patches are ancillary changes -- support for new Nova API
 microversions in clients, things which helped me debug along the way, and that
 sort of thing.
 
-These patches last successfully applied via CI on 3 March 2026. When this occurs,
+These patches last successfully applied via CI on 4 March 2026. When this occurs,
 the SHAs the patches were applied to for each project are recorded in the
 relevant config.yaml file, and will be used for patch applications until
 updated.
@@ -244,7 +244,7 @@ directories. This section documents each script and its purpose.
 |--------|-------------|
 | `setup-local-build-environment.sh` | Installs build dependencies on Debian systems (Docker, Python packages, etc.). |
 | `install-build-dependencies.sh` | Installs Python build dependencies in the current environment. |
-| `add-insecure-ci-registry.sh` | Configures Docker to allow insecure registry access for CI environments. |
+| `add-insecure-ci-registry.sh` | No-op kept for compatibility. The CI registry is now served over HTTPS. |
 | `calculate-container-hash.sh <dirs...>` | Calculates a unique hash for container builds based on source content and date. Used to avoid redundant rebuilds in CI. |
 
 ## Deployment Tools (`tools/`)
@@ -266,6 +266,12 @@ directories. This section documents each script and its purpose.
 | `inspect-kerbside` | Inspects the state of Kerbside deployment (containers, databases, logs). |
 | `gather-logs` | Collects logs from Kolla containers for debugging. |
 | `spice-connect.py` | Python script for testing SPICE console connections programmatically. |
+
+### Layer Analysis Tools
+
+| Script | Description |
+|--------|-------------|
+| `summarize_layers.py` | Analyzes Docker image layer data collected from CI builds. Layer data is stored as `.tar.gz` tarballs containing per-image JSONL files organized by pipeline stage. Use `-d data/` for chronological build progression analysis, `--stage` to select a pipeline stage (default: `post-exclude`), and `--compare-stages` to compare the effect of each optimization filter. |
 
 ### Pre-Push Linting for Gerrit
 
