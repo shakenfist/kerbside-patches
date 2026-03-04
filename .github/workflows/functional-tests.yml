@@ -608,59 +608,16 @@ jobs:
               ${{ matrix.test.baseuser }}@10.0.2.2 \
               "cd /srv/shakenfist/kerbside-patches && tar xzf -"
 
-      - name: Bootstrap Kolla-Ansible
-        env:
-          CI_REGISTRY_TOKEN: ${{ secrets.CI_REGISTRY_TOKEN }}
-        run: |
-          . $GITHUB_ENV
-
-          script="cd /srv/shakenfist/kerbside-patches;"
-          script="${script} sudo ./tools/bootstrap-kolla-ansible"
-              script="${script} --registry-token ${CI_REGISTRY_TOKEN}"
-              script="${script} --image-tag ${{ steps.incoming.outputs.image_tag }}"
-              script="${script} --build-targets ${{ matrix.test.release }}"
-
-          if [ ${{ matrix.test.enable_kerbside }} != "true" ]; then
-              script="${script} --disable-kerbside"
-          fi
-
-          script="${script} --topology ${{ matrix.test.topology }};"
-
-          ssh -i /srv/github/id_ci -o StrictHostKeyChecking=no \
-              -o UserKnownHostsFile=/dev/null \
-              ${{ matrix.test.baseuser }}@10.0.2.2 "${script}"
-
-      - name: Run pre-checks
-        run: |
-          . $GITHUB_ENV
-          ssh -i /srv/github/id_ci -o StrictHostKeyChecking=no \
-              -o UserKnownHostsFile=/dev/null \
-              ${{ matrix.test.baseuser }}@10.0.2.2 \
-              'cd /srv/shakenfist/kerbside-patches; sudo ./tools/ka prechecks -i /etc/kolla/inventory'
-
-      - name: Pull images
-        run: |
-          . $GITHUB_ENV
-          ssh -i /srv/github/id_ci -o StrictHostKeyChecking=no \
-              -o UserKnownHostsFile=/dev/null \
-              ${{ matrix.test.baseuser }}@10.0.2.2 \
-              'cd /srv/shakenfist/kerbside-patches; sudo ./tools/ka pull -i /etc/kolla/inventory'
-
-      - name: Deploy
-        run: |
-          . $GITHUB_ENV
-          ssh -i /srv/github/id_ci -o StrictHostKeyChecking=no \
-              -o UserKnownHostsFile=/dev/null \
-              ${{ matrix.test.baseuser }}@10.0.2.2 \
-              'cd /srv/shakenfist/kerbside-patches; sudo ./tools/ka deploy -i /etc/kolla/inventory'
-
-      - name: Install patched clients
-        run: |
-          . $GITHUB_ENV
-          ssh -i /srv/github/id_ci -o StrictHostKeyChecking=no \
-              -o UserKnownHostsFile=/dev/null \
-              ${{ matrix.test.baseuser }}@10.0.2.2 \
-              'cd /srv/shakenfist/kerbside-patches; sudo ./tools/install-openstack-clients'
+      - name: Deploy Kolla-Ansible
+        uses: shakenfist/actions/deploy-kolla-ansible@main
+        with:
+          base_user: ${{ matrix.test.baseuser }}
+          image_tag: ${{ steps.incoming.outputs.image_tag }}
+          build_targets: ${{ matrix.test.release }}
+          topology: ${{ matrix.test.topology }}
+          registry_token: ${{ secrets.CI_REGISTRY_TOKEN }}
+          enable_kerbside: ${{ matrix.test.enable_kerbside }}
+          use_ci_registry: 'true'
 
       - name: Dump internal VIP CA cert details
         if: always()
@@ -679,14 +636,6 @@ jobs:
               -o UserKnownHostsFile=/dev/null \
               ${{ matrix.test.baseuser }}@10.0.2.2 \
               'sudo openssl storeutl -noout -text -certs /etc/kolla/certificates/ca/root.crt'
-
-      - name: Post install Kolla-Ansible setup
-        run: |
-          . $GITHUB_ENV
-          ssh -i /srv/github/id_ci -o StrictHostKeyChecking=no \
-              -o UserKnownHostsFile=/dev/null \
-              ${{ matrix.test.baseuser }}@10.0.2.2 \
-              'cd /srv/shakenfist/kerbside-patches; sudo ./tools/postinstall-kolla-ansible --use-ci-registry'
 
       - name: Verify that the haproxy is configured correctly for the Kerbside API
         run: |
@@ -1065,6 +1014,9 @@ jobs:
           branch_name="${DATA_PREFIX}-data-${DATESTAMP}-run${RUN_ID}"
           git checkout develop
           git checkout -b "${branch_name}"
+
+          # Ensure data/ exists
+          mkdir data
 
           # Copy layer tarballs with unique names (only from current attempt)
           mkdir -p data

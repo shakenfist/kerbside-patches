@@ -56,9 +56,22 @@ via occystrap's inspect filter. Data flows:
 The main workflow is `.github/workflows/functional-tests.yml`.
 It is large and has several jobs:
 
-- `build` -- builds container images (matrix strategy)
-- `deploy` -- deploys with kolla-ansible and runs tests
+- `build_images` -- builds container images (matrix strategy)
+- `test_installs` -- deploys with kolla-ansible and runs tests
 - `collect_layer_data` -- aggregates layer data from builds
+
+The deploy steps (bootstrap, prechecks, pull, deploy,
+install-clients, post-install) are shared with kerbside's
+CI via the `shakenfist/actions/deploy-kolla-ansible` composite
+action. Changes to the deploy flow should be made in that
+action, not inlined in the workflow.
+
+Other workflows:
+- `trigger-downstream.yml` -- triggers kerbside CI on push
+  to develop (e.g. after daily rebase PR merges)
+- `local-container-builds.yml` -- tests local builds work
+- `daily-rebase-checks.yml` -- daily upstream rebase with
+  Claude-assisted patch fixing
 
 **Runner types and constraints:**
 

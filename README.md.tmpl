@@ -267,6 +267,12 @@ directories. This section documents each script and its purpose.
 | `gather-logs` | Collects logs from Kolla containers for debugging. |
 | `spice-connect.py` | Python script for testing SPICE console connections programmatically. |
 
+### Layer Analysis Tools
+
+| Script | Description |
+|--------|-------------|
+| `summarize_layers.py` | Analyzes Docker image layer data collected from CI builds. Layer data is stored as `.tar.gz` tarballs containing per-image JSONL files organized by pipeline stage. Use `-d data/` for chronological build progression analysis, `--stage` to select a pipeline stage (default: `post-exclude`), and `--compare-stages` to compare the effect of each optimization filter. |
+
 ### Pre-Push Linting for Gerrit
 
 | Script | Description |
