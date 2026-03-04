@@ -3,20 +3,13 @@ Author: Michael Still <mikal@stillhq.com>
 Date:   Mon Feb 9 18:35:54 2026 +1100
 
     Setuptools released v82.0.0 which does not have pkg_resources.
-    
+
+    Pin setuptools in test-requirements.txt as well. The requirements.txt
+    pin is already present upstream.
+
     Change-Id: I55851cb5d8f0bb089bd9f49e70bb18a5f270573a
     Signed-off-by: Michael Still <mikal@stillhq.com>
 
-diff --git a/requirements.txt b/requirements.txt
-index 49aa8e1f3..ed0102d27 100644
---- a/requirements.txt
-+++ b/requirements.txt
-@@ -2,4 +2,4 @@ pbr!=2.1.0,>=2.0.0 # Apache-2.0
- Jinja2>=3.0.1 # BSD License (3 clause)
- GitPython>=1.0.1 # BSD License (3 clause)
- oslo.config>=5.1.0 # Apache-2.0
--setuptools>=64.0.0 # PSF/ZPL
-+setuptools>=64.0.0,<82.0.0 # PSF/ZPL
 diff --git a/test-requirements.txt b/test-requirements.txt
 index 25be6288e..63fdfa4cc 100644
 --- a/test-requirements.txt

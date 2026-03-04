@@ -1,4 +1,7 @@
 Setuptools released v82.0.0 which does not have pkg_resources.
 
+Pin setuptools in test-requirements.txt as well. The requirements.txt
+pin is already present upstream.
+
 Change-Id: I55851cb5d8f0bb089bd9f49e70bb18a5f270573a
 Signed-off-by: Michael Still <mikal@stillhq.com>
