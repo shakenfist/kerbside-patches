@@ -253,7 +253,7 @@ directories. This section documents each script and its purpose.
 
 | Script | Description |
 |--------|-------------|
-| `bootstrap-kolla-ansible` | Bootstraps Kolla-Ansible into a virtualenv and prepares for deployment. |
+| `bootstrap-kolla-ansible` | Bootstraps Kolla-Ansible into a virtualenv and prepares for deployment. When `--use-ci-registry` is not passed, strips CI registry settings from `globals.yml` so Kolla-Ansible uses local images. |
 | `postinstall-kolla-ansible` | Post-installation tasks after Kolla-Ansible deployment. |
 | `install-openstack-clients` | Installs patched OpenStack clients (openstacksdk, python-openstackclient) from source. |
 | `ka` | Shortcut wrapper for running kolla-ansible commands. |
