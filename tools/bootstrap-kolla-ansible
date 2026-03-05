@@ -159,10 +159,14 @@ echo -e "${H2}Generate passwords${Color_Off}"
 kolla-genpwd
 echo
 
-echo -e "${H2}Add docker registry password${Color_Off}"
-grep -v "docker_registry_password" /etc/kolla/passwords.yml > /etc/kolla/passwords.yml.new
-echo "docker_registry_password: ${registry_token}" >> /etc/kolla/passwords.yml.new
-mv /etc/kolla/passwords.yml.new /etc/kolla/passwords.yml
+if [ -n "${registry_token}" ]; then
+    echo -e "${H2}Add docker registry password${Color_Off}"
+    grep -v "docker_registry_password" /etc/kolla/passwords.yml > /etc/kolla/passwords.yml.new
+    echo "docker_registry_password: ${registry_token}" >> /etc/kolla/passwords.yml.new
+    mv /etc/kolla/passwords.yml.new /etc/kolla/passwords.yml
+else
+    echo -e "${H2}No registry token provided, keeping genpwd docker registry password${Color_Off}"
+fi
 echo
 
 echo -e "${H2}Make certificates${Color_Off}"
