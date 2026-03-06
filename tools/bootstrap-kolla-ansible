@@ -106,6 +106,7 @@ if [ "${use_ci_registry}" != "true" ]; then
     sed -i '/^docker_registry:/d' /etc/kolla/globals.yml
     sed -i '/^docker_registry_insecure:/d' /etc/kolla/globals.yml
     sed -i '/^docker_registry_username:/d' /etc/kolla/globals.yml
+    sed -i 's|^docker_namespace:.*|docker_namespace: "kolla"|' /etc/kolla/globals.yml
 fi
 echo
 
