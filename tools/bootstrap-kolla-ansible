@@ -103,7 +103,13 @@ cat etc/globals-${target_release}.yml | \
 
 if [ "${use_ci_registry}" != "true" ]; then
     echo -e "${H2}Not using CI registry, removing registry settings${Color_Off}"
-    sed -i '/^docker_registry:/d' /etc/kolla/globals.yml
+    # Set docker_registry to empty string rather than removing it. When
+    # removed, kolla-ansible defaults to "quay.io" and tries to pull
+    # locally-built images from the remote registry. An empty string
+    # causes kolla-ansible to omit the registry prefix entirely (see
+    # docker_image_url in kolla-ansible group_vars), so image references
+    # become just "kolla/<image>:<tag>" which resolve to local images.
+    sed -i 's|^docker_registry:.*|docker_registry: ""|' /etc/kolla/globals.yml
     sed -i '/^docker_registry_insecure:/d' /etc/kolla/globals.yml
     sed -i '/^docker_registry_username:/d' /etc/kolla/globals.yml
     sed -i 's|^docker_namespace:.*|docker_namespace: "kolla"|' /etc/kolla/globals.yml
