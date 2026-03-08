@@ -762,7 +762,7 @@ jobs:
 
           echo
           echo "Running console tests..."
-          ./tools/test-console
+          ./tools/test-console /tmp/kolla-ca.pem
 
       - name: Verify containers are healthy
         if: always()
