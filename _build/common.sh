@@ -316,6 +316,16 @@ function run_tests {
         return
     fi
 
+    # Use local constraints file if available to avoid transient DNS
+    # failures when tox fetches the remote constraints URL.
+    if [ -z "${TOX_CONSTRAINTS_FILE}" ]; then
+        local_constraints="${topsrcdir}/requirements/upper-constraints.txt"
+        if [ -e "${local_constraints}" ]; then
+            export TOX_CONSTRAINTS_FILE="${local_constraints}"
+            echo -e "${H3}Using local constraints: ${local_constraints}${Color_Off}"
+        fi
+    fi
+
     echo -e "${H3}Working in ${topsrcdir}/${directory} on branch ${1}${Color_Off}"
 
     if [ ! -e tox.ini ]; then
