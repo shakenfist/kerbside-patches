@@ -1,10 +1,11 @@
-commit a58909a147c0accea057e434cd34a8005fc93312
+commit f983220081fc74b5f08658a875277f853dc0f333
 Author: Michael Still <mikal@stillhq.com>
-Date:   Tue Feb 24 09:33:45 2026 +1100
+Date:   Sun Mar 15 09:44:23 2026 +1100
 
     Patch upper constraints.
     
     Change-Id: I5e106df95ff2a9735947c06c31d63c8786b4e404
+    Signed-off-by: Michael Still <mikal@stillhq.com>
 
 diff --git a/tox.ini b/tox.ini
 index 7e9beb8ef..16d59fe8e 100644

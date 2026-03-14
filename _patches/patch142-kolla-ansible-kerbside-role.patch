@@ -1,19 +1,19 @@
-commit 03b107df1ba658e049cdc8becb7abce88c16f4a4
+commit 1985fc69b3eeb30d740676d75779ff2c6b75ff00
 Author: Michael Still <mikal@stillhq.com>
-Date:   Mon Feb 16 14:30:54 2026 +1100
+Date:   Sun Mar 15 09:44:23 2026 +1100
 
     Deploy Kerbside with Kolla-Ansible.
-
+    
     This change implements the Kerbside Kolla-Ansible deployment role. It is a
     fairly large change, but I couldn't find a meaningful way to break it up
     into smaller chunks.
-
+    
     The basic idea is that there is a proxy sitting in front of the Nova
     hypervisors that can talk the SPICE protocol to clients, lookup where the
     console is on the relevant hypervisor, and then build a SPICE connection
     to that hypervisor. It then shovels SPICE packets back and forth between
     the two.
-
+    
     That proxy is called Kerbside and it consists of two components which
     each have their own Kolla container. kerbside-api handles business logic
     and is a uwsgi app. kerbside-proxy is the SPICE native component. Because
@@ -63,7 +63,7 @@ index 000000000..da4d90b1e
 +kerbside_safety_upgrade: false
 +kerbside_enable_tls_backend: true
 diff --git a/ansible/inventory/all-in-one b/ansible/inventory/all-in-one
-index e4b5fb495..a69403660 100644
+index ce3b26f16..0394e0d94 100644
 --- a/ansible/inventory/all-in-one
 +++ b/ansible/inventory/all-in-one
 @@ -18,6 +18,9 @@ localhost       ansible_connection=local
@@ -84,20 +84,10 @@ index e4b5fb495..a69403660 100644
  
  [collectd:children]
  compute
-@@ -50,6 +54,7 @@ control
- monitoring
- network
- storage
-+vdiproxy
+@@ -585,3 +589,10 @@ letsencrypt
  
- [hacluster:children]
- control
-@@ -230,6 +235,16 @@ nova
- [nova-serialproxy:children]
- nova
- 
-+[kerbside-proxy:children]
-+nova
+ [letsencrypt-lego:children]
+ letsencrypt
 +
 +# Kerbside
 +[kerbside-api:children]
@@ -105,12 +95,8 @@ index e4b5fb495..a69403660 100644
 +
 +[kerbside-proxy:children]
 +vdiproxy
-+
- # Neutron
- [ironic-neutron-agent:children]
- neutron
 diff --git a/ansible/inventory/multinode b/ansible/inventory/multinode
-index 3a3db6f29..8fa6a9889 100644
+index 40db78c1e..5c42bc287 100644
 --- a/ansible/inventory/multinode
 +++ b/ansible/inventory/multinode
 @@ -29,6 +29,10 @@ monitoring01
@@ -140,20 +126,10 @@ index 3a3db6f29..8fa6a9889 100644
  
  [collectd:children]
  compute
-@@ -74,6 +80,7 @@ control
- monitoring
- network
- storage
-+vdiproxy
+@@ -603,3 +609,10 @@ letsencrypt
  
- [hacluster:children]
- control
-@@ -248,6 +255,16 @@ nova
- [nova-serialproxy:children]
- nova
- 
-+[kerbside-proxy:children]
-+nova
+ [letsencrypt-lego:children]
+ letsencrypt
 +
 +# Kerbside
 +[kerbside-api:children]
@@ -161,10 +137,6 @@ index 3a3db6f29..8fa6a9889 100644
 +
 +[kerbside-proxy:children]
 +vdiproxy
-+
- # Neutron
- [ironic-neutron-agent:children]
- neutron
 diff --git a/ansible/nova.yml b/ansible/nova.yml
 index 95eb6a141..196e456bd 100644
 --- a/ansible/nova.yml
@@ -377,12 +349,12 @@ index 367210639..104c9b858 100644
 +export KERBSIDE_API_URL='{{ kerbside_api_url }}'
 +{% endif %}
 diff --git a/ansible/roles/cron/tasks/config.yml b/ansible/roles/cron/tasks/config.yml
-index 83a95f9a6..3808f1c5b 100644
+index f45908c04..8324a3b78 100644
 --- a/ansible/roles/cron/tasks/config.yml
 +++ b/ansible/roles/cron/tasks/config.yml
-@@ -54,6 +54,7 @@
+@@ -53,6 +53,7 @@
+       - { name: "heat", enabled: "{{ enable_heat | bool }}" }
        - { name: "horizon", enabled: "{{ enable_horizon | bool }}" }
-       - { name: "influxdb", enabled: "{{ enable_influxdb | bool }}" }
        - { name: "ironic", enabled: "{{ enable_ironic | bool }}" }
 +      - { name: "kerbside", enabled: "{{ enable_kerbside | bool }}" }
        - { name: "keystone", enabled: "{{ enable_keystone | bool }}" }
@@ -1504,18 +1476,18 @@ index 2fe3b3e52..c62b51565 100644
  # OpenStack
  ####################
 diff --git a/ansible/site.yml b/ansible/site.yml
-index 9cec91e08..25c31500d 100644
+index 4167c041b..3b408af2f 100644
 --- a/ansible/site.yml
 +++ b/ansible/site.yml
-@@ -44,6 +44,7 @@
-         - enable_influxdb_{{ enable_influxdb | bool }}
+@@ -43,6 +43,7 @@
+         - enable_horizon_{{ enable_horizon | bool }}
          - enable_ironic_{{ enable_ironic | bool }}
          - enable_iscsid_{{ enable_iscsid | bool }}
 +        - enable_kerbside_{{ enable_kerbside | bool }}
          - enable_keystone_{{ enable_keystone | bool }}
          - enable_kuryr_{{ enable_kuryr | bool }}
          - enable_letsencrypt_{{ enable_letsencrypt | bool }}
-@@ -253,6 +254,12 @@
+@@ -245,6 +246,12 @@
              tasks_from: loadbalancer
            tags: keystone
            when: enable_keystone | bool
@@ -1543,20 +1515,6 @@ index 1120754a8..c42395908 100644
  kuryr_keystone_password:
  
  nova_database_password:
-diff --git a/tests/templates/inventory.j2 b/tests/templates/inventory.j2
-index b5bb76907..154633447 100644
---- a/tests/templates/inventory.j2
-+++ b/tests/templates/inventory.j2
-@@ -300,6 +300,9 @@ nova
- [nova-serialproxy:children]
- nova
- 
-+[kerbside:children]
-+nova
-+
- # Neutron
- [ironic-neutron-agent:children]
- neutron
 diff --git a/releasenotes/notes/deploy-kerbside-d7048c80e03cff33.yaml b/releasenotes/notes/deploy-kerbside-d7048c80e03cff33.yaml
 new file mode 100644
 index 000000000..b9e99e15a
@@ -1581,3 +1539,17 @@ index 000000000..b9e99e15a
 +    Kolla and Kolla-Ansible now support deploying Kerbside to provide access
 +    to spice-direct consoles. This functionality is enabled by setting
 +    ``enable_kerbside`` to ``true`` in globals.yml.
+diff --git a/tests/templates/inventory.j2 b/tests/templates/inventory.j2
+index 0751557a3..d194f3c99 100644
+--- a/tests/templates/inventory.j2
++++ b/tests/templates/inventory.j2
+@@ -296,6 +296,9 @@ nova
+ [nova-serialproxy:children]
+ nova
+ 
++[kerbside:children]
++nova
++
+ # Neutron
+ [ironic-neutron-agent:children]
+ neutron

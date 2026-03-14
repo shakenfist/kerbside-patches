@@ -1,6 +1,6 @@
-commit a1b289b48cc86c22ac2547b1c28c559ab7f6c669
+commit 8237c8e14570bb117638c7dd140555bb10f0bfda
 Author: Michael Still <mikal@stillhq.com>
-Date:   Mon Feb 16 14:21:05 2026 +1100
+Date:   Sun Mar 15 09:44:23 2026 +1100
 
     Add additional SPICE configuration options.
     
@@ -75,7 +75,7 @@ index b997c671e..d62a1eaf4 100644
      - haproxy_stat.find('nova_spicehtml5proxy') == -1
      - haproxy_vip_prechecks
 diff --git a/ansible/roles/nova-cell/defaults/main.yml b/ansible/roles/nova-cell/defaults/main.yml
-index aa1d57180..953a61790 100644
+index ce66c7015..6979408e9 100644
 --- a/ansible/roles/nova-cell/defaults/main.yml
 +++ b/ansible/roles/nova-cell/defaults/main.yml
 @@ -33,7 +33,7 @@ nova_cell_services:
