@@ -394,7 +394,7 @@ new file mode 100644
 index 000000000..5d9b565de
 --- /dev/null
 +++ b/ansible/roles/kerbside/defaults/main.yml
-@@ -0,0 +1,157 @@
+@@ -0,0 +1,161 @@
 +---
 +kerbside_services:
 +  kerbside_api:
@@ -486,7 +486,11 @@ index 000000000..5d9b565de
 +kerbside_healthcheck_start_period: "{{ default_container_healthcheck_start_period }}"
 +kerbside_healthcheck_timeout: "{{ default_container_healthcheck_timeout }}"
 +
-+kerbside_api_healthcheck_test: ["CMD-SHELL", "healthcheck_curl {{ 'https' if kerbside_enable_tls_backend | bool else 'http' }}://{{ api_interface_address | put_address_in_context('url') }}:{{ kerbside_api_listen_port }} "]
++kerbside_api_healthcheck_test:
++  - "CMD-SHELL"
++  - >-
++    healthcheck_curl {{ 'https' if kerbside_enable_tls_backend | bool else 'http' }}://{{
++    api_interface_address | put_address_in_context('url') }}:{{ kerbside_api_listen_port }}
 +kerbside_proxy_healthcheck_test: ["CMD-SHELL", "healthcheck_listen kerbside {{ kerbside_vdi_secure_listen_port }}"]
 +
 +kerbside_healthcheck_api:
