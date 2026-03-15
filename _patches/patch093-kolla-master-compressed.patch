@@ -1,6 +1,6 @@
-commit bb89bff00402d5dda660cbdd606410afefd83f65
+commit 2cd0e857e5a0b399ffc5596dec71117929108680
 Author: Michael Still <mikal@stillhq.com>
-Date:   Mon Feb 16 14:21:58 2026 +1100
+Date:   Sun Mar 15 09:44:33 2026 +1100
 
     Implement container image build for kerbside.
     
@@ -33,10 +33,10 @@ Date:   Mon Feb 16 14:21:58 2026 +1100
     Signed-off-by: Michael Still <mikal@stillhq.com>
 
 diff --git a/doc/source/support_matrix.rst b/doc/source/support_matrix.rst
-index 445ed08c6..940a519d4 100644
+index 31c67e70a..b1ab1e671 100644
 --- a/doc/source/support_matrix.rst
 +++ b/doc/source/support_matrix.rst
-@@ -89,3 +89,12 @@ Currently unbuildable images
+@@ -105,3 +105,12 @@ Currently unbuildable images
  
  For a list of currently unbuildable images please look into
  ``kolla/image/unbuildable.py`` file - ``UNBUILDABLE_IMAGES`` dictionary.
