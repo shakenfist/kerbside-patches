@@ -1,6 +1,6 @@
-commit 1985fc69b3eeb30d740676d75779ff2c6b75ff00
+commit b6d6a82b14f38d5059c1e9bf3bf944413af6f385
 Author: Michael Still <mikal@stillhq.com>
-Date:   Sun Mar 15 09:44:23 2026 +1100
+Date:   Wed Mar 18 05:34:59 2026 +1100
 
     Deploy Kerbside with Kolla-Ansible.
     
@@ -391,7 +391,7 @@ index 66a1897a2..9d1897309 100644
      pattern .+
 diff --git a/ansible/roles/kerbside/defaults/main.yml b/ansible/roles/kerbside/defaults/main.yml
 new file mode 100644
-index 000000000..5d9b565de
+index 000000000..8d9029b52
 --- /dev/null
 +++ b/ansible/roles/kerbside/defaults/main.yml
 @@ -0,0 +1,161 @@
@@ -1454,10 +1454,10 @@ index d62a1eaf4..3665bf29d 100644
    wait_for:
      host: "{{ kolla_internal_vip_address }}"
 diff --git a/ansible/roles/nova-cell/templates/nova.conf.j2 b/ansible/roles/nova-cell/templates/nova.conf.j2
-index e9f153283..cbbccad4e 100644
+index 6fb4641ad..a4e181273 100644
 --- a/ansible/roles/nova-cell/templates/nova.conf.j2
 +++ b/ansible/roles/nova-cell/templates/nova.conf.j2
-@@ -69,6 +69,9 @@ jpeg_compression = {{ nova_spice_jpeg_compression }}
+@@ -68,6 +68,9 @@ jpeg_compression = {{ nova_spice_jpeg_compression }}
  zlib_compression = {{ nova_spice_zlib_compression }}
  playback_compression = {{ nova_spice_playback_compression }}
  streaming_mode = {{ nova_spice_streaming_mode }}
