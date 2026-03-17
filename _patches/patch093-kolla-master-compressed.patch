@@ -1,6 +1,6 @@
-commit 2cd0e857e5a0b399ffc5596dec71117929108680
+commit 69c3f8c5670b1d526c3f6f8e356b159678f00bfd
 Author: Michael Still <mikal@stillhq.com>
-Date:   Sun Mar 15 09:44:33 2026 +1100
+Date:   Wed Mar 18 05:35:12 2026 +1100
 
     Implement container image build for kerbside.
     
@@ -158,7 +158,7 @@ index b1f325188..ab7188bb7 100644
                      'magnum',
                      'manila',
 diff --git a/kolla/common/sources.py b/kolla/common/sources.py
-index d999335da..ea12b3524 100644
+index 0ef76cfe7..77ac901ac 100644
 --- a/kolla/common/sources.py
 +++ b/kolla/common/sources.py
 @@ -156,6 +156,10 @@ SOURCES = {
