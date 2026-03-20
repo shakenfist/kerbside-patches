@@ -1,0 +1,23 @@
+Deploy Kerbside with Kolla-Ansible.
+
+This change implements the Kerbside Kolla-Ansible deployment role. It is a
+fairly large change, but I couldn't find a meaningful way to break it up
+into smaller chunks.
+
+The basic idea is that there is a proxy sitting in front of the Nova
+hypervisors that can talk the SPICE protocol to clients, lookup where the
+console is on the relevant hypervisor, and then build a SPICE connection
+to that hypervisor. It then shovels SPICE packets back and forth between
+the two.
+
+That proxy is called Kerbside and it consists of two components which
+each have their own Kolla container. kerbside-api handles business logic
+and is a uwsgi app. kerbside-proxy is the SPICE native component. Because
+kerbside-proxy is not talking HTTP to clients, and expects TLS encrypted
+traffic on the secure port, it uses the frontend certificates to do TLS
+itself, and haproxy simply acts as a layer four load balancer.
+
+Change-Id: I73a7a0b521085fd4023b08ab6f8a137d53a8712a
+Depends-On: https://review.opendev.org/c/openstack/kolla/+/975495
+Closes-Bug: #2131793
+Signed-off-by: Michael Still <mikal@stillhq.com>

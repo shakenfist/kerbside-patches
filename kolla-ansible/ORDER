@@ -3,4 +3,4 @@
 ../_patches/patch064-allow-rocky-10-builds.patch
 ../_patches/patch108-dry-up-logrotate-cron.patch
 ../_patches/patch134-kolla-ansible-master-allow-concurrent-spice-connections.patch
-../_patches/patch142-kolla-ansible-kerbside-role.patch
+../_patches/patch146-kolla-ansible-master-kolla-ansible-kerbside-role.patch
