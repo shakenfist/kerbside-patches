@@ -242,6 +242,36 @@ Options:
 - `--ci`: CI mode with machine-readable output (used by GitHub Actions)
 - `--output-dir DIR`: Directory for output files (default: temp dir)
 
+### Automated Lint Fixer
+
+The `rebase-tests.yml` PR workflow includes an automated lint fixer that
+triggers when ansible-lint fails on kolla-ansible patches. It uses Claude Code
+to fix lint errors in patch files (the same indirection a human would do:
+lint errors reference patched source files, but fixes go into `_patches/`).
+
+**Architecture:**
+1. `lint_check` job runs `tools/check-kolla-ansible-lint.sh` in parallel
+   with the full test matrix (lightweight, ~2-5 min)
+2. If lint fails and the last commit wasn't from the bot, `automated_lint_fixer`
+   triggers on the `claude-code` runner
+3. `tools/fix-lint-with-claude.sh` re-runs linters, builds a prompt explaining
+   the patch-file indirection, runs Claude, verifies, commits, and pushes
+
+**Usage (interactive):**
+```bash
+# Check linters only (no Claude, no commit)
+tools/check-kolla-ansible-lint.sh
+
+# Fix lint errors interactively
+tools/fix-lint-with-claude.sh --interactive --no-push
+
+# Fix lint errors in headless mode (like CI)
+tools/fix-lint-with-claude.sh --ci
+```
+
+A `check_bot_commit` guard prevents infinite loops (same pattern as
+shakenfist/shakenfist's automated delinter).
+
 ### CI Scripts for Patch Testing
 
 ```bash

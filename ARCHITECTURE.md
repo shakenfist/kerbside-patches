@@ -182,6 +182,22 @@ The main CI workflow (`functional-tests.yml`) runs on PRs:
    some builds fail (uses `!cancelled()`) so that layer
    data from successful builds is still collected.
 
+### Rebase Tests Workflow
+
+The `rebase-tests.yml` workflow runs on PRs and includes:
+
+1. **lint_check** -- lightweight job that applies patches
+   and runs `tox -elinters` for kolla-ansible projects.
+   Runs in parallel with the full test matrix.
+2. **functional_matrix** -- deep tests that apply patches
+   with full test suites on rocky and debian runners
+3. **automated_lint_fixer** -- triggers when `lint_check`
+   fails and last commit is not from the bot. Uses Claude
+   Code to fix ansible-lint errors in patch files.
+4. **check_bot_commit** -- prevents infinite loops by
+   skipping automated fixers when the last commit was
+   from the bot (same pattern as shakenfist).
+
 ### Daily Rebase
 
 `daily-rebase-checks.yml` runs daily to keep patches current

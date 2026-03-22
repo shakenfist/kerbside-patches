@@ -316,13 +316,36 @@ function run_tests {
         return
     fi
 
-    # Use local constraints file if available to avoid transient DNS
-    # failures when tox fetches the remote constraints URL.
+    # Use local constraints file to avoid transient DNS failures when
+    # tox fetches the remote constraints URL. Projects that depend on
+    # "requirements" already have a local copy; for others we download
+    # it with retries.
     if [ -z "${TOX_CONSTRAINTS_FILE}" ]; then
         local_constraints="${topsrcdir}/requirements/upper-constraints.txt"
         if [ -e "${local_constraints}" ]; then
             export TOX_CONSTRAINTS_FILE="${local_constraints}"
             echo -e "${H3}Using local constraints: ${local_constraints}${Color_Off}"
+        else
+            # Extract the release from the branch (e.g. stable/2025.1 -> 2025.1)
+            release_name="${2##*/}"
+            constraints_url="https://releases.openstack.org/constraints/upper/${release_name}"
+            downloaded="${topsrcdir}/upper-constraints-${release_name}.txt"
+
+            echo -e "${H3}Downloading constraints from ${constraints_url}${Color_Off}"
+            for attempt in 1 2 3; do
+                if curl -fsSL --retry 3 --retry-delay 5 \
+                        "${constraints_url}" -o "${downloaded}" 2>/dev/null; then
+                    export TOX_CONSTRAINTS_FILE="${downloaded}"
+                    echo -e "${H3}Using downloaded constraints: ${downloaded}${Color_Off}"
+                    break
+                fi
+                echo -e "${H3}Download attempt ${attempt} failed, retrying in 10s...${Color_Off}"
+                sleep 10
+            done
+
+            if [ -z "${TOX_CONSTRAINTS_FILE}" ]; then
+                echo -e "${YELLOW}WARNING: Could not download constraints, tox will fetch remotely${Color_Off}"
+            fi
         fi
     fi
 

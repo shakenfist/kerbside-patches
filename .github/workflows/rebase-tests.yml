@@ -14,6 +14,97 @@ on:
       - 'docs/**'
 
 jobs:
+  # Guard against infinite loops: skip automated fixers if the last
+  # commit was from the bot.
+  check_bot_commit:
+    name: "Check bot commit"
+    runs-on: [self-hosted, debian-12-metal]
+    outputs:
+      is_bot: ${{ steps.check.outputs.is_bot }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Check if last commit was from bot
+        id: check
+        run: |
+          LAST_AUTHOR_EMAIL=$(git log -1 --format='%ae')
+          echo "Last commit author: $LAST_AUTHOR_EMAIL"
+          if [ "$LAST_AUTHOR_EMAIL" = "bot@shakenfist.com" ]; then
+            echo "is_bot=true" >> $GITHUB_OUTPUT
+          else
+            echo "is_bot=false" >> $GITHUB_OUTPUT
+          fi
+
+  # Lightweight lint-only check that runs in parallel with the full
+  # test matrix. Applies patches (without tests) and runs ansible-lint
+  # via tox -elinters. Much faster than the deep test matrix.
+  lint_check:
+    name: "Ansible lint check"
+    runs-on: [self-hosted, debian-12-metal]
+    outputs:
+      linters_failed: ${{ steps.lint.outcome == 'failure' }}
+    concurrency:
+      group: ${{ github.workflow }}-${{ github.ref }}-lint
+      cancel-in-progress: true
+
+    defaults:
+      run:
+        shell: bash --noprofile --norc -eo pipefail {0}
+
+    steps:
+      - name: Checkout kerbside-patches
+        uses: actions/checkout@v4
+        with:
+          path: kerbside-patches
+          fetch-depth: 0
+
+      - name: Configure pip to use local PyPI mirror
+        run: |
+          mkdir -p ~/.config/pip
+          cat > ~/.config/pip/pip.conf <<'PIPCONF'
+          [global]
+          index-url = https://devpi.home.stillhq.com/root/pypi/+simple/
+          PIPCONF
+
+      - name: Run kolla-ansible linters
+        id: lint
+        run: |
+          cd ${GITHUB_WORKSPACE}/kerbside-patches
+          tools/check-kolla-ansible-lint.sh
+
+  # Runs if the lint_check job fails and the last commit was not
+  # from the bot. Uses Claude Code to fix lint errors in patch files.
+  automated_lint_fixer:
+    name: "Automated lint fixer"
+    runs-on: [self-hosted, claude-code]
+    needs: [lint_check, check_bot_commit]
+    if: >-
+      ${{ always() &&
+          needs.lint_check.outputs.linters_failed == 'true' &&
+          needs.check_bot_commit.outputs.is_bot != 'true' }}
+    concurrency:
+      group: ${{ github.workflow }}-${{ github.ref }}-lint-fixer
+      cancel-in-progress: true
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.DAILY_REBASE_TOKEN }}
+
+      - name: Configure git
+        run: |
+          git config user.name "Claude Code run by Shakenfist Bot"
+          git config user.email "bot@shakenfist.com"
+
+      - name: Run automated lint fixer
+        run: |
+          tools/fix-lint-with-claude.sh --ci
+
   functional_matrix:
     name: "Rebase ${{ matrix.test.description }}"
     strategy:

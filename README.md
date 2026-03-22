@@ -13,7 +13,7 @@ The remainder of the patches are ancillary changes -- support for new Nova API
 microversions in clients, things which helped me debug along the way, and that
 sort of thing.
 
-These patches last successfully applied via CI on 19 March 2026. When this occurs,
+These patches last successfully applied via CI on 22 March 2026. When this occurs,
 the SHAs the patches were applied to for each project are recorded in the
 relevant config.yaml file, and will be used for patch applications until
 updated.
@@ -272,6 +272,13 @@ directories. This section documents each script and its purpose.
 | Script | Description |
 |--------|-------------|
 | `summarize_layers.py` | Analyzes Docker image layer data collected from CI builds. Layer data is stored as `.tar.gz` tarballs containing per-image JSONL files organized by pipeline stage. Use `-d data/` for chronological build progression analysis, `--stage` to select a pipeline stage (default: `post-exclude`), and `--compare-stages` to compare the effect of each optimization filter. |
+
+### Automated Lint Fixing
+
+| Script | Description |
+|--------|-------------|
+| `check-kolla-ansible-lint.sh [projects...]` | Lightweight lint checker that applies kolla-ansible patches (without tests) and runs `tox -elinters`. Used by the `lint_check` CI job. Exits 0 if clean, 1 if errors found. |
+| `fix-lint-with-claude.sh [options] [projects...]` | Auto-fixes ansible-lint errors in patch files using Claude Code. Applies patches, runs linters, builds a prompt that explains the patch-file indirection, runs Claude, verifies the fix, and commits/pushes. Options: `--ci`, `--interactive`, `--no-push`, `--no-commit`, `--max-turns N`. |
 
 ### Pre-Push Linting for Gerrit
 

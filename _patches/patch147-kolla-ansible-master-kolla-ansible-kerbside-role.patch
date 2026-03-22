@@ -1,0 +1,1559 @@
+commit b6d6a82b14f38d5059c1e9bf3bf944413af6f385
+Author: Michael Still <mikal@stillhq.com>
+Date:   Wed Mar 18 05:34:59 2026 +1100
+
+    Deploy Kerbside with Kolla-Ansible.
+    
+    This change implements the Kerbside Kolla-Ansible deployment role. It is a
+    fairly large change, but I couldn't find a meaningful way to break it up
+    into smaller chunks.
+    
+    The basic idea is that there is a proxy sitting in front of the Nova
+    hypervisors that can talk the SPICE protocol to clients, lookup where the
+    console is on the relevant hypervisor, and then build a SPICE connection
+    to that hypervisor. It then shovels SPICE packets back and forth between
+    the two.
+    
+    That proxy is called Kerbside and it consists of two components which
+    each have their own Kolla container. kerbside-api handles business logic
+    and is a uwsgi app. kerbside-proxy is the SPICE native component. Because
+    kerbside-proxy is not talking HTTP to clients, and expects TLS encrypted
+    traffic on the secure port, it uses the frontend certificates to do TLS
+    itself, and haproxy simply acts as a layer four load balancer.
+    
+    Change-Id: I73a7a0b521085fd4023b08ab6f8a137d53a8712a
+    Depends-On: https://review.opendev.org/c/openstack/kolla/+/975495
+    Closes-Bug: #2131793
+    Signed-off-by: Michael Still <mikal@stillhq.com>
+
+diff --git a/ansible/certificates.yml b/ansible/certificates.yml
+index decf2682b..0956ff88a 100644
+--- a/ansible/certificates.yml
++++ b/ansible/certificates.yml
+@@ -4,7 +4,8 @@
+   when: >-
+     kolla_enable_tls_backend | default(false) | bool or
+     rabbitmq_enable_tls | default(false) | bool or
+-    certificates_generate_libvirt | default(libvirt_tls) | default(false) | bool
++    certificates_generate_libvirt | default(libvirt_tls) | default(false) | bool or
++    certificates_generate_kerbside | default(enable_kerbside) | default(false) | bool
+ 
+ - name: Apply role certificates
+   hosts: localhost
+diff --git a/ansible/group_vars/all/kerbside.yml b/ansible/group_vars/all/kerbside.yml
+new file mode 100644
+index 000000000..da4d90b1e
+--- /dev/null
++++ b/ansible/group_vars/all/kerbside.yml
+@@ -0,0 +1,16 @@
++---
++enable_kerbside: false
++
++kerbside_keystone_user: "kerbside"
++kerbside_port: 13002
++kerbside_api_port: "{{ kerbside_port }}"
++kerbside_api_listen_port: "{{ kerbside_api_port }}"
++kerbside_api_public_port: "{{ haproxy_single_external_frontend_public_port if haproxy_single_external_frontend | bool else kerbside_api_port }}"
++kerbside_prometheus_port: 13003
++kerbside_vdi_insecure_port: 5899
++kerbside_vdi_insecure_listen_port: "{{ kerbside_vdi_insecure_port }}"
++kerbside_vdi_secure_port: 5898
++kerbside_vdi_secure_listen_port: "{{ kerbside_vdi_secure_port }}"
++kerbside_api_url: "http://{{ kolla_external_fqdn }}:{{ kerbside_port }}"
++kerbside_safety_upgrade: false
++kerbside_enable_tls_backend: true
+diff --git a/ansible/inventory/all-in-one b/ansible/inventory/all-in-one
+index ce3b26f16..0394e0d94 100644
+--- a/ansible/inventory/all-in-one
++++ b/ansible/inventory/all-in-one
+@@ -18,6 +18,9 @@ localhost       ansible_connection=local
+ [deployment]
+ localhost       ansible_connection=local
+ 
++[vdiproxpy]
++localhost       ansible_connection=local
++
+ # You can explicitly specify which hosts run each project by updating the
+ # groups in the sections below. Common services are grouped together.
+ 
+@@ -27,6 +30,7 @@ network
+ compute
+ storage
+ monitoring
++vdiproxy
+ 
+ [collectd:children]
+ compute
+@@ -585,3 +589,10 @@ letsencrypt
+ 
+ [letsencrypt-lego:children]
+ letsencrypt
++
++# Kerbside
++[kerbside-api:children]
++control
++
++[kerbside-proxy:children]
++vdiproxy
+diff --git a/ansible/inventory/multinode b/ansible/inventory/multinode
+index 40db78c1e..5c42bc287 100644
+--- a/ansible/inventory/multinode
++++ b/ansible/inventory/multinode
+@@ -29,6 +29,10 @@ monitoring01
+ [storage]
+ storage01
+ 
++[vdiproxy]
++kerbside01
++kerbside02
++
+ [deployment]
+ localhost       ansible_connection=local
+ 
+@@ -38,6 +42,7 @@ network
+ compute
+ storage
+ monitoring
++vdiproxy
+ 
+ [tls-backend:children]
+ control
+@@ -52,6 +57,7 @@ network
+ compute
+ storage
+ monitoring
++vdiproxy
+ 
+ [collectd:children]
+ compute
+@@ -603,3 +609,10 @@ letsencrypt
+ 
+ [letsencrypt-lego:children]
+ letsencrypt
++
++# Kerbside
++[kerbside-api:children]
++control
++
++[kerbside-proxy:children]
++vdiproxy
+diff --git a/ansible/nova.yml b/ansible/nova.yml
+index 95eb6a141..196e456bd 100644
+--- a/ansible/nova.yml
++++ b/ansible/nova.yml
+@@ -20,6 +20,9 @@
+ # * nova-serialproxy
+ # * nova-spicehtml5proxy
+ # * nova-ssh
++#
++# Additionally there is now a kerbside role which deploys the SPICE native
++# proxy for spice-direct Nova consoles if enable_kerbside is true.
+ 
+ # We need to perform database bootstrapping before deploying or upgrading any
+ # containers, to ensure all database schema migrations have been performed,
+@@ -172,6 +175,23 @@
+         - enable_nova | bool
+         - kolla_action in ['deploy', 'reconfigure']
+ 
++# Standard {{ kolla_action }}.yml for kerbside role.
++- name: Apply role kerbside
++  gather_facts: false
++  hosts:
++    - kerbside-api kerbside-proxy
++    - '&enable_kerbside_True'
++  tags:
++    - kerbside
++  serial: '{{ kolla_serial|default("0") }}'
++  max_fail_percentage: >-
++    {{ nova_max_fail_percentage |
++       default(kolla_max_fail_percentage) |
++       default(100) }}
++  roles:
++    - role: kerbside
++      when: enable_kerbside | bool
++
+ # Following an upgrade, Nova services must be restarted once all compute
+ # services have registered themselves, to remove the RPC version pin.
+ # Also, when nova_safety_upgrade is true, this starts services which were
+@@ -256,6 +276,27 @@
+         - enable_nova | bool
+         - kolla_action == 'upgrade'
+ 
++- name: Reload kerbside services
++  gather_facts: false
++  hosts:
++    - kerbside-api kerbside-proxy
++    - '&enable_kerbside_True'
++  tags:
++    - kerbside
++  serial: '{{ kolla_serial|default("0") }}'
++  max_fail_percentage: >-
++    {{ nova_max_fail_percentage |
++       default(kolla_max_fail_percentage) |
++       default(100) }}
++  tasks:
++    - name: Reload kerbside services
++      ansible.builtin.import_role:
++        name: kerbside
++        tasks_from: reload
++      when:
++        - enable_kerbside | bool
++        - kolla_action == 'upgrade'
++
+ # Following an upgrade, data migrations should be performed for the API
+ # database.  This should be done once all cells have been upgraded.
+ 
+diff --git a/ansible/roles/certificates/defaults/main.yml b/ansible/roles/certificates/defaults/main.yml
+index 156a5c7fd..f432cbd96 100644
+--- a/ansible/roles/certificates/defaults/main.yml
++++ b/ansible/roles/certificates/defaults/main.yml
+@@ -4,6 +4,7 @@ certificates_external_dir: "{{ kolla_certificates_dir }}/private/external"
+ certificates_internal_dir: "{{ kolla_certificates_dir }}/private/internal"
+ certificates_backend_dir: "{{ kolla_certificates_dir }}/private/backend"
+ certificates_libvirt_dir: "{{ kolla_certificates_dir }}/private/libvirt"
++certificates_kerbside_dir: "{{ kolla_certificates_dir }}/private/kerbside"
+ 
+ # Whether to generate certificates for libvirt TLS.
+ certificates_generate_libvirt: "{{ libvirt_tls | default(false) | bool }}"
+diff --git a/ansible/roles/certificates/tasks/generate-kerbside.yml b/ansible/roles/certificates/tasks/generate-kerbside.yml
+new file mode 100644
+index 000000000..ce3473afa
+--- /dev/null
++++ b/ansible/roles/certificates/tasks/generate-kerbside.yml
+@@ -0,0 +1,74 @@
++---
++- name: Ensuring private backend directory exist
++  ansible.builtin.file:
++    path: "{{ certificates_backend_dir }}"
++    state: "directory"
++    mode: "0770"
++
++- name: Creating kerbside SSL configuration file
++  ansible.builtin.template:
++    src: "openssl-kolla-kerbside.cnf.j2"
++    dest: "{{ kolla_certificates_dir }}/openssl-kolla-kerbside.cnf"
++    mode: "0660"
++
++- name: Creating kerbside Server Certificate key
++  ansible.builtin.command: >
++    openssl genrsa
++    -out "{{ certificates_backend_dir }}/kerbside.key" 2048
++  args:
++    creates: "{{ certificates_backend_dir }}/kerbside.key"
++
++- name: Creating kerbside Server Certificate signing request
++  ansible.builtin.command: >
++    openssl req
++    -new
++    -key "{{ certificates_backend_dir }}/kerbside.key"
++    -out "{{ certificates_backend_dir }}/kerbside.csr"
++    -config "{{ kolla_certificates_dir }}/openssl-kolla-kerbside.cnf"
++    -sha256
++  args:
++    creates: "{{ certificates_backend_dir }}/kerbside.csr"
++
++- name: Creating kerbside Server Certificate
++  ansible.builtin.command: >
++    openssl x509
++    -req
++    -in "{{ certificates_backend_dir }}/kerbside.csr"
++    -CA "{{ certificates_root_dir }}/root.crt"
++    -CAkey "{{ certificates_root_dir }}/root.key"
++    -CAcreateserial
++    -extensions v3_req
++    -extfile "{{ kolla_certificates_dir }}/openssl-kolla-kerbside.cnf"
++    -out "{{ certificates_backend_dir }}/kerbside.crt"
++    -days 500
++    -sha256
++  args:
++    creates: "{{ certificates_backend_dir }}/kerbside.crt"
++
++- name: Setting permissions on kerbside key
++  ansible.builtin.file:
++    path: "{{ certificates_backend_dir }}/kerbside.key"
++    mode: "0660"
++    state: file
++
++# We maintain a separate copy of the CA certificate used for
++# kerbside because it is copied into the .vv files which
++# kerbside_api serves to users. This makes it easier to use
++# a different CA for kerbside proxies if desired.
++- name: Copy kerbside CA to kerbside-ca.pem
++  ansible.builtin.copy:
++    src: "{{ certificates_root_dir }}/root.crt"
++    dest: "{{ kolla_certificates_dir }}/kerbside-ca.pem"
++    mode: "0660"
++
++- name: Copy kerbside cert to kerbside-cert.pem
++  ansible.builtin.copy:
++    src: "{{ certificates_backend_dir }}/kerbside.crt"
++    dest: "{{ kolla_certificates_dir }}/kerbside-cert.pem"
++    mode: "0660"
++
++- name: Copy kerbside key to kerbside-key.pem
++  ansible.builtin.copy:
++    src: "{{ certificates_backend_dir }}/kerbside.key"
++    dest: "{{ kolla_certificates_dir }}/kerbside-key.pem"
++    mode: "0660"
+diff --git a/ansible/roles/certificates/tasks/main.yml b/ansible/roles/certificates/tasks/main.yml
+index e3ac17aa4..8784c55a5 100644
+--- a/ansible/roles/certificates/tasks/main.yml
++++ b/ansible/roles/certificates/tasks/main.yml
+@@ -6,7 +6,11 @@
+ - name: Generate backend certificates
+   ansible.builtin.include_tasks: generate-backend.yml
+   when:
+-    - kolla_enable_tls_backend | bool or rabbitmq_enable_tls | bool or database_enable_tls_backend | bool
++    - kolla_enable_tls_backend | bool or rabbitmq_enable_tls | bool or database_enable_tls_backend | bool or enable_kerbside | bool
++- name: Generate kerbside certificates
++  ansible.builtin.include_tasks: generate-kerbside.yml
++  when:
++    - enable_kerbside | bool
+ - name: Generate libvirt certificates
+   ansible.builtin.include_tasks: generate-libvirt.yml
+   when: certificates_generate_libvirt | bool
+diff --git a/ansible/roles/certificates/templates/openssl-kolla-kerbside.cnf.j2 b/ansible/roles/certificates/templates/openssl-kolla-kerbside.cnf.j2
+new file mode 100644
+index 000000000..4e5dbea5a
+--- /dev/null
++++ b/ansible/roles/certificates/templates/openssl-kolla-kerbside.cnf.j2
+@@ -0,0 +1,19 @@
++[req]
++prompt = no
++distinguished_name = req_distinguished_name
++req_extensions = v3_req
++
++[req_distinguished_name]
++countryName = US
++stateOrProvinceName = NC
++localityName = RTP
++organizationalUnitName = kolla
++
++[v3_req]
++subjectAltName = @alt_names
++
++[alt_names]
++DNS.1 = {{ kolla_internal_fqdn }}
++DNS.2 = {{ kolla_external_fqdn }}
++IP.1 = {{ kolla_internal_vip_address }}
++IP.2 = {{ kolla_external_vip_address }}
+diff --git a/ansible/roles/common/templates/admin-openrc.sh.j2 b/ansible/roles/common/templates/admin-openrc.sh.j2
+index 367210639..104c9b858 100644
+--- a/ansible/roles/common/templates/admin-openrc.sh.j2
++++ b/ansible/roles/common/templates/admin-openrc.sh.j2
+@@ -23,3 +23,6 @@ export OS_AUTH_PLUGIN='password'
+ {% if kolla_admin_openrc_cacert is not none and kolla_admin_openrc_cacert | length > 0 %}
+ export OS_CACERT='{{ kolla_admin_openrc_cacert }}'
+ {% endif %}
++{% if enable_kerbside | bool %}
++export KERBSIDE_API_URL='{{ kerbside_api_url }}'
++{% endif %}
+diff --git a/ansible/roles/cron/tasks/config.yml b/ansible/roles/cron/tasks/config.yml
+index f45908c04..8324a3b78 100644
+--- a/ansible/roles/cron/tasks/config.yml
++++ b/ansible/roles/cron/tasks/config.yml
+@@ -53,6 +53,7 @@
+       - { name: "heat", enabled: "{{ enable_heat | bool }}" }
+       - { name: "horizon", enabled: "{{ enable_horizon | bool }}" }
+       - { name: "ironic", enabled: "{{ enable_ironic | bool }}" }
++      - { name: "kerbside", enabled: "{{ enable_kerbside | bool }}" }
+       - { name: "keystone", enabled: "{{ enable_keystone | bool }}" }
+       - { name: "kuryr", enabled: "{{ enable_kuryr | bool }}" }
+       - { name: "magnum", enabled: "{{ enable_magnum | bool }}" }
+diff --git a/ansible/roles/fluentd/defaults/main.yml b/ansible/roles/fluentd/defaults/main.yml
+index cdb6a8f47..17192fa42 100644
+--- a/ansible/roles/fluentd/defaults/main.yml
++++ b/ansible/roles/fluentd/defaults/main.yml
+@@ -99,6 +99,8 @@ fluentd_input_openstack_services:
+     enabled: "{{ enable_horizon | bool }}"
+   - name: ironic
+     enabled: "{{ enable_ironic | bool }}"
++  - name: kerbside
++    enabled: "{{ enable_kerbside | bool }}"
+   - name: keystone
+     enabled: "{{ enable_keystone | bool }}"
+   - name: kuryr
+diff --git a/ansible/roles/fluentd/templates/conf/filter/01-rewrite.conf.j2 b/ansible/roles/fluentd/templates/conf/filter/01-rewrite.conf.j2
+index 66a1897a2..9d1897309 100644
+--- a/ansible/roles/fluentd/templates/conf/filter/01-rewrite.conf.j2
++++ b/ansible/roles/fluentd/templates/conf/filter/01-rewrite.conf.j2
+@@ -141,6 +141,11 @@
+     pattern ^(skyline)$
+     tag openstack_python
+   </rule>
++  <rule>
++    key     programname
++    pattern ^(kerbside-api|kerbside-proxy)$
++    tag kerbside
++  </rule>
+   <rule>
+     key     programname
+     pattern .+
+diff --git a/ansible/roles/kerbside/defaults/main.yml b/ansible/roles/kerbside/defaults/main.yml
+new file mode 100644
+index 000000000..8d9029b52
+--- /dev/null
++++ b/ansible/roles/kerbside/defaults/main.yml
+@@ -0,0 +1,161 @@
++---
++kerbside_services:
++  kerbside_api:
++    container_name: "kerbside_api"
++    group: "kerbside-api"
++    image: "{{ kerbside_api_image_full }}"
++    enabled: "{{ enable_kerbside }}"
++    volumes: "{{ kerbside_api_volumes + kerbside_default_volumes + kerbside_extra_volumes }}"
++    dimensions: "{{ kerbside_dimensions }}"
++    healthcheck: "{{ kerbside_healthcheck_api }}"
++    wsgi: "kerbside.api:app"
++    haproxy:
++      kerbside_api:
++        enabled: "{{ enable_kerbside | bool }}"
++        mode: "http"
++        external: false
++        port: "{{ kerbside_api_port }}"
++        listen_port: "{{ kerbside_api_listen_port }}"
++        tls_backend: "{{ kerbside_enable_tls_backend }}"
++        backend_http_extra:
++          - "option httpchk GET /"
++      kerbside_api_external:
++        enabled: "{{ enable_kerbside | bool }}"
++        mode: "http"
++        external: true
++        external_fqdn: "{{ kolla_external_fqdn }}"
++        port: "{{ kerbside_api_public_port }}"
++        listen_port: "{{ kerbside_api_listen_port }}"
++        tls_backend: "{{ kerbside_enable_tls_backend }}"
++        backend_http_extra:
++          - "option httpchk GET /"
++  kerbside_proxy:
++    container_name: "kerbside_proxy"
++    group: "kerbside-proxy"
++    image: "{{ kerbside_proxy_image_full }}"
++    enabled: "{{ enable_kerbside }}"
++    volumes: "{{ kerbside_proxy_volumes + kerbside_default_volumes + kerbside_extra_volumes }}"
++    dimensions: "{{ kerbside_dimensions }}"
++    healthcheck: "{{ kerbside_healthcheck_proxy }}"
++    haproxy:
++      kerbside_proxy_insecure:
++        enabled: "{{ enable_kerbside | bool }}"
++        mode: "tcp"
++        external: false
++        port: "{{ kerbside_vdi_insecure_port }}"
++        listen_port: "{{ kerbside_vdi_insecure_listen_port }}"
++        tls_backend: false
++      kerbside_proxy_insecure_external:
++        enabled: "{{ enable_kerbside | bool }}"
++        mode: "tcp"
++        external: true
++        external_fqdn: "{{ kolla_external_fqdn }}"
++        port: "{{ kerbside_vdi_insecure_port }}"
++        listen_port: "{{ kerbside_vdi_insecure_listen_port }}"
++        tls_backend: false
++      kerbside_proxy_secure:
++        enabled: "{{ enable_kerbside | bool }}"
++        mode: "tcp"
++        external: false
++        port: "{{ kerbside_vdi_secure_port }}"
++        listen_port: "{{ kerbside_vdi_secure_listen_port }}"
++        tls_backend: false
++      kerbside_proxy_secure_external:
++        enabled: "{{ enable_kerbside | bool }}"
++        mode: "tcp"
++        external: true
++        external_fqdn: "{{ kolla_external_fqdn }}"
++        port: "{{ kerbside_vdi_secure_port }}"
++        listen_port: "{{ kerbside_vdi_secure_listen_port }}"
++        tls_backend: false
++
++
++####################
++# Docker
++####################
++
++kerbside_tag: "{{ openstack_tag }}"
++kerbside_base_image: "{{ docker_image_url }}kerbside-base"
++kerbside_base_image_full: "{{ kerbside_api_image }}:{{ kerbside_tag }}"
++kerbside_api_image: "{{ docker_image_url }}kerbside-api"
++kerbside_api_image_full: "{{ kerbside_api_image }}:{{ kerbside_tag }}"
++kerbside_proxy_image: "{{ docker_image_url }}kerbside-proxy"
++kerbside_proxy_image_full: "{{ kerbside_proxy_image }}:{{ kerbside_tag }}"
++kerbside_dimensions: "{{ default_container_dimensions }}"
++
++kerbside_enable_healthchecks: "{{ enable_container_healthchecks }}"
++kerbside_healthcheck_interval: "{{ default_container_healthcheck_interval }}"
++kerbside_healthcheck_retries: "{{ default_container_healthcheck_retries }}"
++kerbside_healthcheck_start_period: "{{ default_container_healthcheck_start_period }}"
++kerbside_healthcheck_timeout: "{{ default_container_healthcheck_timeout }}"
++
++kerbside_api_healthcheck_test:
++  - "CMD-SHELL"
++  - >-
++    healthcheck_curl {{ 'https' if kerbside_enable_tls_backend | bool else 'http' }}://{{
++    api_interface_address | put_address_in_context('url') }}:{{ kerbside_api_listen_port }}
++kerbside_proxy_healthcheck_test: ["CMD-SHELL", "healthcheck_listen kerbside {{ kerbside_vdi_secure_listen_port }}"]
++
++kerbside_healthcheck_api:
++  interval: "{{ kerbside_healthcheck_interval }}"
++  retries: "{{ kerbside_healthcheck_retries }}"
++  start_period: "{{ kerbside_healthcheck_start_period }}"
++  test: "{% if kerbside_enable_healthchecks | bool %}{{ kerbside_api_healthcheck_test }}{% else %}NONE{% endif %}"
++  timeout: "{{ kerbside_healthcheck_timeout }}"
++
++kerbside_healthcheck_proxy:
++  interval: "{{ kerbside_healthcheck_interval }}"
++  retries: "{{ kerbside_healthcheck_retries }}"
++  start_period: "{{ kerbside_healthcheck_start_period }}"
++  test: "{% if kerbside_enable_healthchecks | bool %}{{ kerbside_proxy_healthcheck_test }}{% else %}NONE{% endif %}"
++  timeout: "{{ kerbside_healthcheck_timeout }}"
++
++kerbside_extra_volumes: "{{ default_extra_volumes }}"
++kerbside_bootstrap_volumes:
++  - "{{ node_config_directory }}/kerbside_bootstrap/:{{ container_config_directory }}/:ro"
++kerbside_api_volumes:
++  - "{{ node_config_directory }}/kerbside_api/:{{ container_config_directory }}/:ro"
++kerbside_proxy_volumes:
++  - "{{ node_config_directory }}/kerbside_proxy/:{{ container_config_directory }}/:ro"
++kerbside_default_volumes:
++  - "/etc/localtime:/etc/localtime:ro"
++  - "{{ '/etc/timezone:/etc/timezone:ro' if ansible_facts.os_family == 'Debian' else '' }}"
++  - "kolla_logs:/var/log/kolla/"
++  - "{{ kolla_dev_repos_directory ~ '/kerbside:/dev-mode/kerbside' if kerbside_dev_mode | bool else '' }}"
++kerbside_json_logging: false
++
++####################
++# Kerbside Database
++####################
++kerbside_database_name: "kerbside"
++kerbside_database_user: "{% if use_preconfigured_databases | bool and use_common_mariadb_user | bool %}{{ database_user }}{% else %}kerbside{% endif %}"
++kerbside_database_address: "{{ database_address | put_address_in_context('url') }}:{{ database_port }}"
++
++####################
++# Database sharding
++####################
++kerbside_database_shard_root_user: "{% if enable_proxysql | bool %}root_shard_{{ kerbside_database_shard_id }}{% else %}{{ database_user }}{% endif %}"
++kerbside_database_shard_id: "{{ mariadb_default_database_shard_id | int }}"
++kerbside_database_shard:
++  users:
++    - user: "{{ kerbside_database_user }}"
++      password: "{{ kerbside_database_password }}"
++      shard_id: "{{ kerbside_database_shard_id }}"
++  rules:
++    - schema: "{{ kerbside_database_name }}"
++      shard_id: "{{ kerbside_database_shard_id }}"
++    - user: "{{ kerbside_database_user }}"
++      shard_id: "{{ kerbside_database_shard_id }}"
++
++####################
++# Kolla
++####################
++kerbside_git_repository: "{{ kolla_dev_repos_git }}/{{ project_name }}"
++kerbside_dev_repos_pull: "{{ kolla_dev_repos_pull }}"
++kerbside_dev_mode: "{{ kolla_dev_mode }}"
++kerbside_source_version: "{{ kolla_source_version }}"
++
++############
++# WSGI
++############
++kerbside_wsgi_provider: "uwsgi"
+diff --git a/ansible/roles/kerbside/files/kerbside_alembic_wrapper b/ansible/roles/kerbside/files/kerbside_alembic_wrapper
+new file mode 100644
+index 000000000..370058959
+--- /dev/null
++++ b/ansible/roles/kerbside/files/kerbside_alembic_wrapper
+@@ -0,0 +1,4 @@
++#!/bin/bash
++
++cd /kerbside
++alembic upgrade head
+\ No newline at end of file
+diff --git a/ansible/roles/kerbside/handlers/main.yml b/ansible/roles/kerbside/handlers/main.yml
+new file mode 100644
+index 000000000..4fba79d9f
+--- /dev/null
++++ b/ansible/roles/kerbside/handlers/main.yml
+@@ -0,0 +1,36 @@
++---
++- name: Restart kerbside_proxy container
++  vars:
++    service_name: "kerbside_proxy"
++    service: "{{ kerbside_services[service_name] }}"
++  become: true
++  kolla_container:
++    action: "recreate_or_restart_container"
++    common_options: "{{ docker_common_options }}"
++    name: "{{ service.container_name }}"
++    image: "{{ service.image }}"
++    privileged: "{{ service.privileged | default(False) }}"
++    volumes: "{{ service.volumes | reject('equalto', '') | list }}"
++    dimensions: "{{ service.dimensions }}"
++    healthcheck: "{{ service.healthcheck | default(omit) }}"
++  when:
++    - kolla_action != "config"
++    - kolla_action != "upgrade" or not kerbside_safety_upgrade | bool
++
++- name: Restart kerbside_api container
++  vars:
++    service_name: "kerbside_api"
++    service: "{{ kerbside_services[service_name] }}"
++  become: true
++  kolla_container:
++    action: "recreate_or_restart_container"
++    common_options: "{{ docker_common_options }}"
++    name: "{{ service.container_name }}"
++    image: "{{ service.image }}"
++    privileged: "{{ service.privileged | default(False) }}"
++    volumes: "{{ service.volumes | reject('equalto', '') | list }}"
++    dimensions: "{{ service.dimensions }}"
++    healthcheck: "{{ service.healthcheck | default(omit) }}"
++  when:
++    - kolla_action != "config"
++    - kolla_action != "upgrade" or not kerbside_safety_upgrade | bool
+diff --git a/ansible/roles/kerbside/tasks/bootstrap.yml b/ansible/roles/kerbside/tasks/bootstrap.yml
+new file mode 100644
+index 000000000..6c72a1da7
+--- /dev/null
++++ b/ansible/roles/kerbside/tasks/bootstrap.yml
+@@ -0,0 +1,56 @@
++---
++- name: Creating Kerbside databases
++  become: true
++  kolla_toolbox:
++    container_engine: "{{ kolla_container_engine }}"
++    module_name: mysql_db
++    module_args:
++      login_host: "{{ database_address }}"
++      login_port: "{{ database_port }}"
++      login_user: "{{ kerbside_database_shard_root_user }}"
++      login_password: "{{ database_password }}"
++      name: "{{ kerbside_database_name }}"
++  run_once: true
++  delegate_to: "{{ groups['kerbside-proxy'][0] }}"
++  when:
++    - not use_preconfigured_databases | bool
++
++- name: Creating Kerbside databases user and setting permissions
++  become: true
++  kolla_toolbox:
++    container_engine: "{{ kolla_container_engine }}"
++    module_name: mysql_user
++    module_args:
++      login_host: "{{ database_address }}"
++      login_port: "{{ database_port }}"
++      login_user: "{{ kerbside_database_shard_root_user }}"
++      login_password: "{{ database_password }}"
++      name: "{{ kerbside_database_user }}"
++      password: "{{ kerbside_database_password }}"
++      host: "%"
++      priv: "{{ kerbside_database_name }}.*:ALL"
++      append_privs: true
++  run_once: true
++  delegate_to: "{{ groups['kerbside-proxy'][0] }}"
++  when:
++    - not use_preconfigured_databases | bool
++
++- name: Create kerbside administrative access group
++  become: true
++  kolla_toolbox:
++    container_engine: "{{ kolla_container_engine }}"
++    module_name: "openstack.cloud.identity_group"
++    module_args:
++      state: present
++      name: kerbside
++      description: "Kerbside administrative access group"
++      auth: "{{ openstack_auth }}"
++      endpoint_type: "{{ openstack_interface }}"
++  run_once: true
++  when:
++    - enable_kerbside | bool
++
++- name: Configure kerbside
++  ansible.builtin.import_tasks: config.yml
++- name: Bootstrap kerbside service
++  ansible.builtin.import_tasks: bootstrap_service.yml
+diff --git a/ansible/roles/kerbside/tasks/bootstrap_service.yml b/ansible/roles/kerbside/tasks/bootstrap_service.yml
+new file mode 100644
+index 000000000..c8fefaa39
+--- /dev/null
++++ b/ansible/roles/kerbside/tasks/bootstrap_service.yml
+@@ -0,0 +1,20 @@
++---
++- name: Running Kerbside bootstrap container
++  vars:
++    kerbside_api: "{{ kerbside_services['kerbside_api'] }}"
++    kerbside_proxy: "{{ kerbside_services['kerbside_proxy'] }}"
++  become: true
++  kolla_container:
++    action: "start_container"
++    common_options: "{{ docker_common_options }}"
++    detach: false
++    environment:
++      KOLLA_CONFIG_STRATEGY: "{{ config_strategy }}"
++    image: "{{ kerbside_base_image_full }}"
++    labels:
++      BOOTSTRAP:
++    name: "bootstrap_kerbside"
++    restart_policy: oneshot
++    volumes: "{{ kerbside_bootstrap_volumes + kerbside_default_volumes + kerbside_extra_volumes }}"
++  run_once: true
++  delegate_to: "{{ groups['kerbside-api'][0] }}"
+diff --git a/ansible/roles/kerbside/tasks/check-containers.yml b/ansible/roles/kerbside/tasks/check-containers.yml
+new file mode 100644
+index 000000000..f4a4962f4
+--- /dev/null
++++ b/ansible/roles/kerbside/tasks/check-containers.yml
+@@ -0,0 +1,4 @@
++---
++- name: Check kerbside containers
++  ansible.builtin.import_role:
++    name: service-check-containers
+diff --git a/ansible/roles/kerbside/tasks/config.yml b/ansible/roles/kerbside/tasks/config.yml
+new file mode 100644
+index 000000000..02532780a
+--- /dev/null
++++ b/ansible/roles/kerbside/tasks/config.yml
+@@ -0,0 +1,167 @@
++---
++- name: Ensuring config directories exist
++  become: true
++  ansible.builtin.file:
++    path: "{{ node_config_directory }}/{{ item.key }}"
++    state: "directory"
++    owner: "{{ config_owner_user }}"
++    group: "{{ config_owner_group }}"
++    mode: "0770"
++  with_dict: "{{ kerbside_services | select_services_enabled_and_mapped_to_host }}"
++
++- name: Ensure bootstrap config directory exists
++  become: true
++  ansible.builtin.file:
++    path: "{{ node_config_directory }}/kerbside_bootstrap"
++    state: "directory"
++    owner: "{{ config_owner_user }}"
++    group: "{{ config_owner_group }}"
++    mode: "0770"
++  delegate_to: "{{ groups['kerbside-api'][0] }}"
++  run_once: true
++
++- name: Ensuring shared config directory exists
++  become: true
++  ansible.builtin.file:
++    path: "/etc/kolla/kerbside"
++    state: "directory"
++    owner: "{{ config_owner_user }}"
++    group: "{{ config_owner_group }}"
++    mode: "0770"
++
++- name: Store the SPICE TLS CA cert in a fact for use in the template
++  ansible.builtin.set_fact:
++    spice_cacert: "{{ lookup('ansible.builtin.file', node_custom_config + '/nova/nova-libvirt/cacert.pem') }}"
++  when:
++    - inventory_hostname in groups["kerbside-proxy"] or inventory_hostname in groups["kerbside-api"]
++    - kerbside_services["kerbside_proxy"].enabled | bool or kerbside_services["kerbside_api"].enabled | bool
++    - nova_spice_require_secure | bool
++
++- name: Copying over kerbside bootstrap configuration
++  vars:
++    service_name: "kerbside_bootstrap"
++  become: true
++  ansible.builtin.template:
++    src: "{{ role_path }}/templates/kerbside.ini.j2"
++    dest: "{{ node_config_directory }}/kerbside_bootstrap/kerbside.ini"
++    mode: "0660"
++  delegate_to: "{{ groups['kerbside-api'][0] }}"
++  run_once: true
++
++- name: Copying over kerbside API configuration
++  vars:
++    service_name: "kerbside_api"
++  become: true
++  ansible.builtin.template:
++    src: "{{ role_path }}/templates/kerbside.ini.j2"
++    dest: "{{ node_config_directory }}/kerbside_api/kerbside.ini"
++    mode: "0660"
++  when:
++    - inventory_hostname in groups["kerbside-api"]
++    - kerbside_services["kerbside_api"].enabled | bool
++  notify:
++    - "Restart kerbside_api container"
++
++- name: Copying over kerbside proxy configuration
++  vars:
++    service_name: "kerbside_proxy"
++  become: true
++  ansible.builtin.template:
++    src: "{{ role_path }}/templates/kerbside.ini.j2"
++    dest: "{{ node_config_directory }}/kerbside_proxy/kerbside.ini"
++    mode: "0660"
++  when:
++    - inventory_hostname in groups["kerbside-proxy"]
++    - kerbside_services["kerbside_proxy"].enabled | bool
++  notify:
++    - "Restart kerbside_proxy container"
++
++- name: Copying over kerbside bootstrap alembic wrapper
++  vars:
++    service_name: "kerbside_bootstrap"
++  become: true
++  ansible.builtin.copy:
++    src: "{{ role_path }}/files/kerbside_alembic_wrapper"
++    dest: "{{ node_config_directory }}/kerbside_bootstrap/kerbside_alembic_wrapper"
++    mode: "0700"
++  delegate_to: "{{ groups['kerbside-api'][0] }}"
++  run_once: true
++
++- name: Copying over kerbside sources.yaml for API container
++  become: true
++  ansible.builtin.template:
++    src: "{{ role_path }}/templates/kerbside_sources.yaml.j2"
++    dest: "{{ node_config_directory }}/kerbside_api/sources.yaml"
++    mode: "0660"
++  when:
++    - inventory_hostname in groups["kerbside-api"]
++    - kerbside_services["kerbside_api"].enabled | bool
++  notify:
++    - "Restart kerbside_api container"
++
++- name: Copying over kerbside sources.yaml for proxy container
++  become: true
++  ansible.builtin.template:
++    src: "{{ role_path }}/templates/kerbside_sources.yaml.j2"
++    dest: "{{ node_config_directory }}/kerbside_proxy/sources.yaml"
++    mode: "0660"
++  when:
++    - inventory_hostname in groups["kerbside-proxy"]
++    - kerbside_services["kerbside_proxy"].enabled | bool
++  notify:
++    - "Restart kerbside_proxy container"
++
++- name: Copy certificates
++  ansible.builtin.include_tasks: copy-certs.yml
++
++- name: Copying over config.json files for bootstrap
++  become: true
++  ansible.builtin.template:
++    src: "kerbside_bootstrap.json.j2"
++    dest: "{{ node_config_directory }}/kerbside_bootstrap/config.json"
++    mode: "0660"
++  delegate_to: "{{ groups['kerbside-api'][0] }}"
++  run_once: true
++
++- name: Copying over config.json files for services
++  become: true
++  ansible.builtin.template:
++    src: "{{ item.key }}.json.j2"
++    dest: "{{ node_config_directory }}/{{ item.key }}/config.json"
++    mode: "0660"
++  with_dict: "{{ kerbside_services | select_services_enabled_and_mapped_to_host }}"
++
++- name: Copying over kerbside-wsgi.conf
++  vars:
++    service: "{{ kerbside_services['kerbside_api'] }}"
++  become: true
++  ansible.builtin.template:
++    src: "{{ item }}"
++    dest: "{{ node_config_directory }}/kerbside/kerbside-wsgi.conf"
++    mode: "0660"
++  with_first_found:
++    - "{{ node_custom_config }}/kerbside/{{ inventory_hostname }}/kerbside-wsgi.conf"
++    - "{{ node_custom_config }}/kerbside/kerbside-wsgi.conf"
++    - "kerbside-wsgi.conf.j2"
++  when:
++    - service | service_enabled_and_mapped_to_host
++    - kerbside_wsgi_provider == "apache"
++
++- name: "Configure uWSGI for kerbside"
++  ansible.builtin.include_role:
++    name: service-uwsgi-config
++  vars:
++    project_services: "{{ kerbside_services }}"
++    service: "{{ kerbside_services['kerbside_api'] }}"
++    service_name: "kerbside-api"
++    service_uwsgi_config_file: "{{ node_config_directory }}/kerbside_api/kerbside-uwsgi.ini"
++    service_uwsgi_config_http_port: "{{ kerbside_api_listen_port }}"
++    service_uwsgi_config_log_file_chmod: "644"
++    service_uwsgi_config_module: "{{ service.wsgi }}"
++    service_uwsgi_config_tls_backend: "{{ kerbside_enable_tls_backend | bool }}"
++    service_uwsgi_config_tls_cert: "/etc/pki/kerbside/kerbside-cert.pem"
++    service_uwsgi_config_tls_key: "/etc/pki/kerbside/kerbside-key.pem"
++    service_uwsgi_config_uid: "kerbside"
++  when:
++    - service | service_enabled_and_mapped_to_host
++    - kerbside_wsgi_provider == "uwsgi"
+diff --git a/ansible/roles/kerbside/tasks/copy-certs.yml b/ansible/roles/kerbside/tasks/copy-certs.yml
+new file mode 100644
+index 000000000..45532ec9f
+--- /dev/null
++++ b/ansible/roles/kerbside/tasks/copy-certs.yml
+@@ -0,0 +1,24 @@
++---
++- name: "Copy certificates and keys for {{ project_name }}"
++  ansible.builtin.import_role:
++    role: service-cert-copy
++  vars:
++    project_services: "{{ kerbside_services }}"
++
++- name: "Copy CA certificate"
++  vars:
++    certs:
++      - "{{ kolla_certificates_dir }}/{{ inventory_hostname }}/{{ project_name }}-ca.pem"
++      - "{{ kolla_certificates_dir }}/{{ inventory_hostname }}-ca.pem"
++      - "{{ kolla_certificates_dir }}/{{ project_name }}-ca.pem"
++      - "{{ kolla_certificates_dir }}/ca/root.crt"
++    kerbside_ca_cert: "{{ lookup('first_found', certs) }}"
++  ansible.builtin.copy:
++    src: "{{ kerbside_ca_cert }}"
++    dest: "{{ node_config_directory }}/{{ item.key }}/{{ project_name }}-ca.pem"
++    mode: "0644"
++  become: true
++  when: >
++    (inventory_hostname is in groups["kerbside-api"] or
++     inventory_hostname is in groups["kerbside-proxy"])
++  with_dict: "{{ kerbside_services | select_services_enabled_and_mapped_to_host }}"
+diff --git a/ansible/roles/kerbside/tasks/deploy.yml b/ansible/roles/kerbside/tasks/deploy.yml
+new file mode 100644
+index 000000000..5fbfdbde7
+--- /dev/null
++++ b/ansible/roles/kerbside/tasks/deploy.yml
+@@ -0,0 +1,10 @@
++---
++- name: Configure kerbside
++  ansible.builtin.import_tasks: config.yml
++- name: Check kerbside containers
++  ansible.builtin.import_tasks: check-containers.yml
++- name: Bootstrap kerbside
++  ansible.builtin.import_tasks: bootstrap.yml
++
++- name: Flush handlers
++  ansible.builtin.meta: flush_handlers
+diff --git a/ansible/roles/kerbside/tasks/loadbalancer.yml b/ansible/roles/kerbside/tasks/loadbalancer.yml
+new file mode 100644
+index 000000000..0699d8962
+--- /dev/null
++++ b/ansible/roles/kerbside/tasks/loadbalancer.yml
+@@ -0,0 +1,7 @@
++---
++- name: "Configure loadbalancer for {{ project_name }}"
++  ansible.builtin.import_role:
++    name: loadbalancer-config
++  vars:
++    project_services: "{{ kerbside_services }}"
++  tags: always
+diff --git a/ansible/roles/kerbside/tasks/main.yml b/ansible/roles/kerbside/tasks/main.yml
+new file mode 100644
+index 000000000..5dd606573
+--- /dev/null
++++ b/ansible/roles/kerbside/tasks/main.yml
+@@ -0,0 +1,3 @@
++---
++- name: Include kerbside action tasks
++  ansible.builtin.include_tasks: "{{ kolla_action }}.yml"
+diff --git a/ansible/roles/kerbside/tasks/precheck.yml b/ansible/roles/kerbside/tasks/precheck.yml
+new file mode 100644
+index 000000000..dcae499e0
+--- /dev/null
++++ b/ansible/roles/kerbside/tasks/precheck.yml
+@@ -0,0 +1,132 @@
++---
++- name: Run service precheck
++  ansible.builtin.import_role:
++    name: service-precheck
++  vars:
++    service_precheck_services: "{{ kerbside_services }}"
++    service_name: "{{ project_name }}"
++
++- name: Ensure there are hosts in the kerbside-api group
++  ansible.builtin.fail:
++    msg: There are no nodes in the kerbside-api group
++  when:
++    - enable_kerbside | bool
++    - groups['kerbside-api'] | length == 0
++
++- name: Ensure there are hosts in the kerbside-proxy group
++  ansible.builtin.fail:
++    msg: There are no nodes in the kerbside-proxy group
++  when:
++    - enable_kerbside | bool
++    - groups['kerbside-proxy'] | length == 0
++
++- name: Get API container facts
++  become: true
++  kolla_container_facts:
++    action: get_containers
++    container_engine: "{{ kolla_container_engine }}"
++    name:
++      - kerbside-api
++  check_mode: false
++  register: api_container_facts
++
++- name: Checking free port for Kerbside API
++  vars:
++    service: "{{ kerbside_services['kerbside_api'] }}"
++  ansible.builtin.wait_for:
++    host: "{{ api_interface_address }}"
++    port: "{{ kerbside_port }}"
++    connect_timeout: 1
++    timeout: 1
++    state: stopped
++  when:
++    - api_container_facts.containers['kerbside_api'] is not defined
++    - service | service_enabled_and_mapped_to_host
++
++- name: Checking free port for Kerbside API Prometheus
++  vars:
++    service: "{{ kerbside_services['kerbside_api'] }}"
++  ansible.builtin.wait_for:
++    host: "{{ api_interface_address }}"
++    port: "{{ kerbside_prometheus_port }}"
++    connect_timeout: 1
++    timeout: 1
++    state: stopped
++  when:
++    - api_container_facts.containers['kerbside_api'] is not defined
++    - service | service_enabled_and_mapped_to_host
++
++- name: Checking free port for Kerbside API insecure SPICE port
++  vars:
++    service: "{{ kerbside_services['kerbside_api'] }}"
++  ansible.builtin.wait_for:
++    host: "{{ api_interface_address }}"
++    port: "{{ kerbside_vdi_insecure_port }}"
++    connect_timeout: 1
++    timeout: 1
++    state: stopped
++  when:
++    - api_container_facts.containers['kerbside_api'] is not defined
++    - service | service_enabled_and_mapped_to_host
++
++- name: Checking free port for Kerbside API secure SPICE port
++  vars:
++    service: "{{ kerbside_services['kerbside_api'] }}"
++  ansible.builtin.wait_for:
++    host: "{{ api_interface_address }}"
++    port: "{{ kerbside_vdi_secure_port }}"
++    connect_timeout: 1
++    timeout: 1
++    state: stopped
++  when:
++    - api_container_facts.containers['kerbside_api'] is not defined
++    - service | service_enabled_and_mapped_to_host
++
++- name: Get proxy container facts
++  become: true
++  kolla_container_facts:
++    action: get_containers
++    container_engine: "{{ kolla_container_engine }}"
++    name:
++      - kerbside-proxy
++  check_mode: false
++  register: proxy_container_facts
++
++- name: Checking free port for Kerbside Proxy Prometheus
++  vars:
++    service: "{{ kerbside_services['kerbside_proxy'] }}"
++  ansible.builtin.wait_for:
++    host: "{{ api_interface_address }}"
++    port: "{{ kerbside_prometheus_port }}"
++    connect_timeout: 1
++    timeout: 1
++    state: stopped
++  when:
++    - proxy_container_facts.containers['kerbside_proxy'] is not defined
++    - service | service_enabled_and_mapped_to_host
++
++- name: Checking free port for Kerbside proxy insecure SPICE port
++  vars:
++    service: "{{ kerbside_services['kerbside_proxy'] }}"
++  ansible.builtin.wait_for:
++    host: "{{ api_interface_address }}"
++    port: "{{ kerbside_vdi_insecure_port }}"
++    connect_timeout: 1
++    timeout: 1
++    state: stopped
++  when:
++    - proxy_container_facts.containers['kerbside_proxy'] is not defined
++    - service | service_enabled_and_mapped_to_host
++
++- name: Checking free port for Kerbside proxy secure SPICE port
++  vars:
++    service: "{{ kerbside_services['kerbside_proxy'] }}"
++  ansible.builtin.wait_for:
++    host: "{{ api_interface_address }}"
++    port: "{{ kerbside_vdi_secure_port }}"
++    connect_timeout: 1
++    timeout: 1
++    state: stopped
++  when:
++    - proxy_container_facts.containers['kerbside_proxy'] is not defined
++    - service | service_enabled_and_mapped_to_host
+diff --git a/ansible/roles/kerbside/tasks/pull.yml b/ansible/roles/kerbside/tasks/pull.yml
+new file mode 100644
+index 000000000..978cdc452
+--- /dev/null
++++ b/ansible/roles/kerbside/tasks/pull.yml
+@@ -0,0 +1,4 @@
++---
++- name: Pull kerbside container images
++  ansible.builtin.import_role:
++    role: service-images-pull
+diff --git a/ansible/roles/kerbside/tasks/reload.yml b/ansible/roles/kerbside/tasks/reload.yml
+new file mode 100644
+index 000000000..e5b3ae4e0
+--- /dev/null
++++ b/ansible/roles/kerbside/tasks/reload.yml
+@@ -0,0 +1,23 @@
++---
++# NOTE(mgoddard): We use recreate_or_restart_container to cover the case where
++# nova_safety_upgrade is true, and we need to recreate all containers.
++
++- name: Reload Kerbside services
++  vars:
++    service: "{{ kerbside_services[item] }}"
++  become: true
++  kolla_container:
++    action: "recreate_or_restart_container"
++    common_options: "{{ docker_common_options }}"
++    name: "{{ service.container_name }}"
++    image: "{{ service.image }}"
++    privileged: "{{ service.privileged | default(False) }}"
++    volumes: "{{ service.volumes | reject('equalto', '') | list }}"
++    dimensions: "{{ service.dimensions }}"
++    healthcheck: "{{ service.healthcheck | default(omit) }}"
++  when:
++    - kolla_action == 'upgrade'
++    - service | service_enabled_and_mapped_to_host
++  with_items:
++    - kerbside-api
++    - kerbside-proxy
+diff --git a/ansible/roles/kerbside/tasks/upgrade.yml b/ansible/roles/kerbside/tasks/upgrade.yml
+new file mode 100644
+index 000000000..051fe819d
+--- /dev/null
++++ b/ansible/roles/kerbside/tasks/upgrade.yml
+@@ -0,0 +1,3 @@
++---
++- name: Bootstrap kerbside service for upgrade
++  ansible.builtin.import_tasks: bootstrap_service.yml
+diff --git a/ansible/roles/kerbside/templates/kerbside-wsgi.conf.j2 b/ansible/roles/kerbside/templates/kerbside-wsgi.conf.j2
+new file mode 100644
+index 000000000..304ef982f
+--- /dev/null
++++ b/ansible/roles/kerbside/templates/kerbside-wsgi.conf.j2
+@@ -0,0 +1,37 @@
++{% if kerbside_enable_tls_backend | bool %}
++{%     if kolla_base_distro in ['centos', 'rocky']  %}
++LoadModule ssl_module /usr/lib64/httpd/modules/mod_ssl.so
++{%     else %}
++LoadModule ssl_module /usr/lib/apache2/modules/mod_ssl.so
++{%     endif %}
++{% endif %}
++Listen {{ api_interface_address | put_address_in_context('url') }}:{{ kerbside_api_listen_port }}
++
++ServerSignature Off
++ServerTokens Prod
++TraceEnable off
++TimeOut {{ kolla_httpd_timeout }}
++KeepAliveTimeout {{ kolla_httpd_keep_alive }}
++
++{% if kerbside_logging_debug | bool %}
++LogLevel info
++{% endif %}
++
++<VirtualHost *:{{ kerbside_api_listen_port }}>
++    WSGIDaemonProcess kerbside-api processes={{ kerbside_api_workers }} threads=1 user=kerbside group=kerbside display-name=kerbside-api
++    WSGIProcessGroup kerbside-api
++    WSGIScriptAlias / /var/www/cgi-bin/kerbside/kerbside-wsgi
++    WSGIApplicationGroup %{GLOBAL}
++    WSGIPassAuthorization On
++    <IfVersion >= 2.4>
++      ErrorLogFormat "%{cu}t %M"
++    </IfVersion>
++    ErrorLog /var/log/kolla/kerbside/kerbside-api-error.log
++    LogFormat "%{X-Forwarded-For}i %l %u %t \"%r\" %>s %b %D \"%{Referer}i\" \"%{User-Agent}i\"" logformat
++    CustomLog /var/log/kolla/kerbside/kerbside-api-access.log logformat
++{% if kerbside_enable_tls_backend | bool %}
++    SSLEngine On
++    SSLCertificateFile /etc/kerbside/certs/kerbside-cert.pem
++    SSLCertificateKeyFile /etc/kerbside/certs/kerbside-key.pem
++{% endif %}
++</VirtualHost>
+diff --git a/ansible/roles/kerbside/templates/kerbside.ini.j2 b/ansible/roles/kerbside/templates/kerbside.ini.j2
+new file mode 100644
+index 000000000..aa88c2da5
+--- /dev/null
++++ b/ansible/roles/kerbside/templates/kerbside.ini.j2
+@@ -0,0 +1,34 @@
++[kerbside]
++log_output_path = /var/log/kolla/kerbside/{{ service_name }}.log
++{% if kerbside_json_logging | bool %}
++log_output_json = true
++{% endif %}
++
++public_fqdn = {{ keystone_external_fqdn | put_address_in_context('url') }}
++public_secure_port = {{ kerbside_vdi_secure_port }}
++public_insecure_port = {{ kerbside_vdi_insecure_port }}
++cacert_path = /etc/pki/kerbside/kerbside-ca.pem
++proxy_host_cert_path = /etc/pki/kerbside/kerbside-cert.pem
++proxy_host_cert_key_path = /etc/pki/kerbside/kerbside-key.pem
++proxy_host_subject = 
++sql_url = mysql+pymysql://{{ kerbside_database_user }}:{{ kerbside_database_password }}@{{ kerbside_database_address }}/{{ kerbside_database_name }}
++
++api_port = {{ kerbside_api_listen_port }}
++node_name = {{ inventory_hostname }}
++vdi_address = {{ api_interface_address }}
++vdi_secure_port = {{ kerbside_vdi_secure_listen_port }}
++vdi_insecure_port = {{ kerbside_vdi_insecure_listen_port }}
++sources_path = /etc/kerbside/sources.yaml
++
++auth_secret_seed = {{ kerbside_auth_secret_seed }}
++keystone_auth_url = {{ keystone_internal_url }}
++keystone_auth_verify = false
++keystone_service_auth_user = {{ keystone_admin_user }}
++keystone_service_auth_password = {{ keystone_admin_password }}
++keystone_service_auth_project = {{ keystone_admin_project }}
++keystone_service_auth_user_domain_id = {{ default_user_domain_id }}
++keystone_service_auth_project_domain_id = {{ default_project_domain_id }}
++keystone_access_group = kerbside
++
++# this is needed so that keystone can trust the internal certificate
++os_cacert = {{ openstack_cacert }}
+diff --git a/ansible/roles/kerbside/templates/kerbside_api.json.j2 b/ansible/roles/kerbside/templates/kerbside_api.json.j2
+new file mode 100644
+index 000000000..f57153de4
+--- /dev/null
++++ b/ansible/roles/kerbside/templates/kerbside_api.json.j2
+@@ -0,0 +1,60 @@
++{
++    "command": "uwsgi /etc/kerbside/kerbside-uwsgi.ini",
++    "config_files": [
++        {
++            "source": "{{ container_config_directory }}/kerbside.ini",
++            "dest": "/etc/kerbside/kerbside.ini",
++            "owner": "kerbside",
++            "perm": "0600"
++        },
++        {
++            "source": "{{ container_config_directory }}/sources.yaml",
++            "dest": "/etc/kerbside/sources.yaml",
++            "owner": "kerbside",
++            "perm": "0600"
++        }{% if kerbside_wsgi_provider == "apache" %},
++        {
++            "source": "{{ container_config_directory }}/kerbside-wsgi.conf",
++            "dest": "/etc/kerbside/kerbside-wsgi.conf",
++            "owner": "kerbside",
++            "perm": "0600"
++        }{% endif %}{% if kerbside_wsgi_provider == "uwsgi" %},
++        {
++            "source": "{{ container_config_directory }}/kerbside-uwsgi.ini",
++            "dest": "/etc/kerbside/kerbside-uwsgi.ini",
++            "owner": "kerbside",
++            "perm": "0600"
++        }{% endif %},
++        {
++            "source": "{{ container_config_directory }}/kerbside-ca.pem",
++            "dest": "/etc/pki/kerbside/kerbside-ca.pem",
++            "owner": "kerbside",
++            "perm": "0600"
++        },
++        {
++            "source": "{{ container_config_directory }}/kerbside-cert.pem",
++            "dest": "/etc/pki/kerbside/kerbside-cert.pem",
++            "owner": "kerbside",
++            "perm": "0600"
++        },
++        {
++            "source": "{{ container_config_directory }}/kerbside-key.pem",
++            "dest": "/etc/pki/kerbside/kerbside-key.pem",
++            "owner": "kerbside",
++            "perm": "0600"
++        },
++        {
++            "source": "{{ container_config_directory }}/ca-certificates",
++            "dest": "/var/lib/kolla/share/ca-certificates",
++            "owner": "kerbside",
++            "perm": "0600"
++        }
++    ],
++    "permissions": [
++        {
++            "path": "/var/log/kolla/kerbside",
++            "owner": "kerbside:kerbside",
++            "recurse": true
++        }
++    ]
++}
+diff --git a/ansible/roles/kerbside/templates/kerbside_bootstrap.json.j2 b/ansible/roles/kerbside/templates/kerbside_bootstrap.json.j2
+new file mode 100644
+index 000000000..389245c32
+--- /dev/null
++++ b/ansible/roles/kerbside/templates/kerbside_bootstrap.json.j2
+@@ -0,0 +1,24 @@
++{
++    "command": "/etc/kerbside/kerbside_alembic_wrapper",
++    "config_files": [
++        {
++            "source": "{{ container_config_directory }}/kerbside.ini",
++            "dest": "/etc/kerbside/kerbside.ini",
++            "owner": "kerbside",
++            "perm": "0600"
++        },
++        {
++            "source": "{{ container_config_directory }}/kerbside_alembic_wrapper",
++            "dest": "/etc/kerbside/kerbside_alembic_wrapper",
++            "owner": "kerbside",
++            "perm": "0700"
++        }
++    ],
++    "permissions": [
++        {
++            "path": "/var/log/kolla/kerbside",
++            "owner": "kerbside:kerbside",
++            "recurse": true
++        }
++    ]
++}
+diff --git a/ansible/roles/kerbside/templates/kerbside_proxy.json.j2 b/ansible/roles/kerbside/templates/kerbside_proxy.json.j2
+new file mode 100644
+index 000000000..8fc68d54e
+--- /dev/null
++++ b/ansible/roles/kerbside/templates/kerbside_proxy.json.j2
+@@ -0,0 +1,48 @@
++{
++    "command": "kerbside daemon run",
++    "config_files": [
++        {
++            "source": "{{ container_config_directory }}/kerbside.ini",
++            "dest": "/etc/kerbside/kerbside.ini",
++            "owner": "kerbside",
++            "perm": "0600"
++        },
++        {
++            "source": "{{ container_config_directory }}/sources.yaml",
++            "dest": "/etc/kerbside/sources.yaml",
++            "owner": "kerbside",
++            "perm": "0600"
++        },
++        {
++            "source": "{{ container_config_directory }}/kerbside-ca.pem",
++            "dest": "/etc/pki/kerbside/kerbside-ca.pem",
++            "owner": "kerbside",
++            "perm": "0600"
++        },
++        {
++            "source": "{{ container_config_directory }}/kerbside-cert.pem",
++            "dest": "/etc/pki/kerbside/kerbside-cert.pem",
++            "owner": "kerbside",
++            "perm": "0600"
++        },
++        {
++            "source": "{{ container_config_directory }}/kerbside-key.pem",
++            "dest": "/etc/pki/kerbside/kerbside-key.pem",
++            "owner": "kerbside",
++            "perm": "0600"
++        },
++        {
++            "source": "{{ container_config_directory }}/ca-certificates",
++            "dest": "/var/lib/kolla/share/ca-certificates",
++            "owner": "kerbside",
++            "perm": "0600"
++        }
++    ],
++    "permissions": [
++        {
++            "path": "/var/log/kolla/kerbside",
++            "owner": "kerbside:kerbside",
++            "recurse": true
++        }
++    ]
++}
+diff --git a/ansible/roles/kerbside/templates/kerbside_sources.yaml.j2 b/ansible/roles/kerbside/templates/kerbside_sources.yaml.j2
+new file mode 100644
+index 000000000..a046f4124
+--- /dev/null
++++ b/ansible/roles/kerbside/templates/kerbside_sources.yaml.j2
+@@ -0,0 +1,22 @@
++---
++# NOTE(mikal): we really should use kerbside_keystone_user and
++# kerbside_keystone_password here.
++- source: {{ openstack_region_name }}
++  type: openstack
++  url: {{ keystone_internal_url }}
++  verify: false
++  username: {{ keystone_admin_user }}
++  password: {{ keystone_admin_password }}
++  project_name: {{ keystone_admin_project }}
++  user_domain_id: {{ default_user_domain_id }}
++  project_domain_id: {{ default_project_domain_id }}
++{% if nova_spice_require_secure | bool %}
++
++  # NOTE(mikal): This is the CA for the Kerbside <-> Hypervisor SPICE
++  # connection, _not_ the CA used to serve the Client <-> Kerbside
++  # connection.
++  ca_cert: |
++{%     for line in spice_cacert.split('\n') %}
++    {{ line }}
++{%     endfor %}
++{% endif %}
+diff --git a/ansible/roles/kerbside/vars/main.yml b/ansible/roles/kerbside/vars/main.yml
+new file mode 100644
+index 000000000..fce52d4de
+--- /dev/null
++++ b/ansible/roles/kerbside/vars/main.yml
+@@ -0,0 +1,2 @@
++---
++project_name: "kerbside"
+diff --git a/ansible/roles/loadbalancer/tasks/precheck.yml b/ansible/roles/loadbalancer/tasks/precheck.yml
+index d62a1eaf4..3665bf29d 100644
+--- a/ansible/roles/loadbalancer/tasks/precheck.yml
++++ b/ansible/roles/loadbalancer/tasks/precheck.yml
+@@ -438,6 +438,45 @@
+     - haproxy_stat.find('ironic_api') == -1
+     - haproxy_vip_prechecks
+ 
++- name: Checking free port for Kerbside API HAProxy
++  ansible.builtin.wait_for:
++    host: "{{ kolla_internal_vip_address }}"
++    port: "{{ kerbside_api_port }}"
++    connect_timeout: 1
++    timeout: 1
++    state: stopped
++  when:
++    - enable_kerbside | bool
++    - inventory_hostname in groups['loadbalancer']
++    - haproxy_stat.find('kerbside_api') == -1
++    - haproxy_vip_prechecks
++
++- name: Checking free port for Kerbside Proxy insecure HAProxy
++  ansible.builtin.wait_for:
++    host: "{{ kolla_internal_vip_address }}"
++    port: "{{ kerbside_vdi_insecure_port }}"
++    connect_timeout: 1
++    timeout: 1
++    state: stopped
++  when:
++    - enable_kerbside | bool
++    - inventory_hostname in groups['loadbalancer']
++    - haproxy_stat.find('kerbside_proxy') == -1
++    - haproxy_vip_prechecks
++
++- name: Checking free port for Kerbside Proxy secure HAProxy
++  ansible.builtin.wait_for:
++    host: "{{ kolla_internal_vip_address }}"
++    port: "{{ kerbside_vdi_secure_port }}"
++    connect_timeout: 1
++    timeout: 1
++    state: stopped
++  when:
++    - enable_kerbside | bool
++    - inventory_hostname in groups['loadbalancer']
++    - haproxy_stat.find('kerbside_proxy') == -1
++    - haproxy_vip_prechecks
++
+ - name: Checking free port for Keystone Internal HAProxy
+   wait_for:
+     host: "{{ kolla_internal_vip_address }}"
+diff --git a/ansible/roles/nova-cell/templates/nova.conf.j2 b/ansible/roles/nova-cell/templates/nova.conf.j2
+index 6fb4641ad..a4e181273 100644
+--- a/ansible/roles/nova-cell/templates/nova.conf.j2
++++ b/ansible/roles/nova-cell/templates/nova.conf.j2
+@@ -68,6 +68,9 @@ jpeg_compression = {{ nova_spice_jpeg_compression }}
+ zlib_compression = {{ nova_spice_zlib_compression }}
+ playback_compression = {{ nova_spice_playback_compression }}
+ streaming_mode = {{ nova_spice_streaming_mode }}
++{%     if enable_kerbside | bool %}
++spice_direct_proxy_base_url = "https://{{ kolla_external_fqdn }}:13002/nova-console.vv"
++{%     endif %}
+ {%     if nova_spice_html5 | bool %}
+ server_proxyclient_address = {{ api_interface_address }}
+ {%         if inventory_hostname in groups[nova_cell_compute_group] %}
+diff --git a/ansible/roles/nova/defaults/main.yml b/ansible/roles/nova/defaults/main.yml
+index 2fe3b3e52..c62b51565 100644
+--- a/ansible/roles/nova/defaults/main.yml
++++ b/ansible/roles/nova/defaults/main.yml
+@@ -227,7 +227,6 @@ nova_super_conductor_extra_volumes: "{{ nova_extra_volumes }}"
+ # Used by bootstrapping containers.
+ nova_api_bootstrap_extra_volumes: "{{ nova_extra_volumes }}"
+ 
+-
+ ####################
+ # OpenStack
+ ####################
+diff --git a/ansible/site.yml b/ansible/site.yml
+index 4167c041b..3b408af2f 100644
+--- a/ansible/site.yml
++++ b/ansible/site.yml
+@@ -43,6 +43,7 @@
+         - enable_horizon_{{ enable_horizon | bool }}
+         - enable_ironic_{{ enable_ironic | bool }}
+         - enable_iscsid_{{ enable_iscsid | bool }}
++        - enable_kerbside_{{ enable_kerbside | bool }}
+         - enable_keystone_{{ enable_keystone | bool }}
+         - enable_kuryr_{{ enable_kuryr | bool }}
+         - enable_letsencrypt_{{ enable_letsencrypt | bool }}
+@@ -245,6 +246,12 @@
+             tasks_from: loadbalancer
+           tags: keystone
+           when: enable_keystone | bool
++        - name: Configure loadbalancer for kerbside
++          ansible.builtin.include_role:
++            name: kerbside
++            tasks_from: loadbalancer
++          tags: kerbside
++          when: enable_kerbside | bool
+         - name: Configure loadbalancer for letsencrypt
+           ansible.builtin.include_role:
+             name: letsencrypt
+diff --git a/etc/kolla/passwords.yml b/etc/kolla/passwords.yml
+index 1120754a8..c42395908 100644
+--- a/etc/kolla/passwords.yml
++++ b/etc/kolla/passwords.yml
+@@ -60,6 +60,10 @@ glance_keystone_password:
+ gnocchi_database_password:
+ gnocchi_keystone_password:
+ 
++kerbside_database_password:
++kerbside_keystone_password:
++kerbside_auth_secret_seed:
++
+ kuryr_keystone_password:
+ 
+ nova_database_password:
+diff --git a/releasenotes/notes/deploy-kerbside-d7048c80e03cff33.yaml b/releasenotes/notes/deploy-kerbside-d7048c80e03cff33.yaml
+new file mode 100644
+index 000000000..b9e99e15a
+--- /dev/null
++++ b/releasenotes/notes/deploy-kerbside-d7048c80e03cff33.yaml
+@@ -0,0 +1,18 @@
++---
++features:
++  - |
++    Over the last few releases Nova has added a new console type called
++    "spice-direct". This is a SPICE protocol native console which provides
++    a higher performance experience than the HTML5 transcoded SPICE console
++    in Horizon. You can read more about the Nova implementation at
++    https://specs.openstack.org/openstack/nova-specs/specs/2025.1/implemented/libvirt-spice-direct-consoles.html
++
++    Apart from some configuration changes to Nova, this functionality
++    requires deployment of a SPICE protocol-native proxy called Kerbside.
++    Kerbside is not an OpenStack project, but has been developed with
++    OpenStack as a primary provider of consoles (it supports several other
++    cloud options as well).
++
++    Kolla and Kolla-Ansible now support deploying Kerbside to provide access
++    to spice-direct consoles. This functionality is enabled by setting
++    ``enable_kerbside`` to ``true`` in globals.yml.
+diff --git a/tests/templates/inventory.j2 b/tests/templates/inventory.j2
+index 0751557a3..d194f3c99 100644
+--- a/tests/templates/inventory.j2
++++ b/tests/templates/inventory.j2
+@@ -296,6 +296,9 @@ nova
+ [nova-serialproxy:children]
+ nova
+ 
++[kerbside:children]
++nova
++
+ # Neutron
+ [ironic-neutron-agent:children]
+ neutron
