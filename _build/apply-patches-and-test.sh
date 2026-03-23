@@ -139,7 +139,7 @@ if [ -e ${project}/PREPATCH ]; then
 
         echo -e "${H3}Applying ${source_branch} ${project}/${patch}${Color_Off}"
         ls -l ${topdir}/${project}
-        git -C ${topsrcdir}/${directory} apply -v ${topdir}/${project}/${patch}
+        git -C ${topsrcdir}/${directory} apply -v -C1 ${topdir}/${project}/${patch}
         if [ $? -gt 0 ]; then
             echo -e "${H3}Applying ${source_branch} ${project}/${patch} failed!${Color_Off}"
             exit 1
@@ -187,7 +187,7 @@ do
     shortpatch=$(echo ${patch} | sed -e 's|.*/||' -e 's/.patch$//')
 
     echo -e "${H3}Applying ${source_branch} ${project}/${patch}${Color_Off}"
-    git -C ${topsrcdir}/${directory} apply -v ${topdir}/${project}/${patch}
+    git -C ${topsrcdir}/${directory} apply -v -C1 ${topdir}/${project}/${patch}
     if [ $? -gt 0 ]; then
         echo -e "${H3}Applying ${source_branch} ${project}/${patch} failed!${Color_Off}"
         exit 1
@@ -243,7 +243,7 @@ if [ ${use_ci_patches} == "true" ]; then
             shortpatch=$(echo ${patch} | sed -e 's|.*/||' -e 's/.patch$//')
 
             echo -e "${H3}Applying ${source_branch} ${project}/${patch}${Color_Off}"
-            git -C ${topsrcdir}/${directory} apply -v ${topdir}/${project}/${patch}
+            git -C ${topsrcdir}/${directory} apply -v -C1 ${topdir}/${project}/${patch}
             if [ $? -gt 0 ]; then
                 echo -e "${H3}Applying ${source_branch} ${project}/${patch} failed!${Color_Off}"
                 exit 1
