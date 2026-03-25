@@ -1,6 +1,6 @@
-commit 9c29c9e1388e031f7e7f236093fcc2a177885d47
+commit afdd67c5c6b9a9e608217fecad0d951ec396ffbe
 Author: Michael Still <mikal@stillhq.com>
-Date:   Tue Mar 24 09:45:58 2026 +1100
+Date:   Wed Mar 25 11:51:29 2026 +1100
 
     Add additional SPICE configuration options.
     
@@ -88,7 +88,7 @@ index ce66c7015..6979408e9 100644
      dimensions: "{{ nova_spicehtml5proxy_dimensions }}"
      healthcheck: "{{ nova_spicehtml5proxy_healthcheck }}"
 diff --git a/ansible/roles/nova-cell/tasks/loadbalancer.yml b/ansible/roles/nova-cell/tasks/loadbalancer.yml
-index 0ff2bcd70..f75ae3963 100644
+index 33919f749..5c18a37c4 100644
 --- a/ansible/roles/nova-cell/tasks/loadbalancer.yml
 +++ b/ansible/roles/nova-cell/tasks/loadbalancer.yml
 @@ -73,10 +73,10 @@
