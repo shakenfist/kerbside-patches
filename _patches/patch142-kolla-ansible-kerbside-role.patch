@@ -1,6 +1,6 @@
-commit b6d6a82b14f38d5059c1e9bf3bf944413af6f385
+commit 06b9555a8770dac4403ddd52b02dcd2ed7466691
 Author: Michael Still <mikal@stillhq.com>
-Date:   Wed Mar 18 05:34:59 2026 +1100
+Date:   Tue Mar 24 09:45:59 2026 +1100
 
     Deploy Kerbside with Kolla-Ansible.
     
@@ -138,7 +138,7 @@ index 40db78c1e..5c42bc287 100644
 +[kerbside-proxy:children]
 +vdiproxy
 diff --git a/ansible/nova.yml b/ansible/nova.yml
-index 95eb6a141..196e456bd 100644
+index 4f24f6e1c..c658ce386 100644
 --- a/ansible/nova.yml
 +++ b/ansible/nova.yml
 @@ -20,6 +20,9 @@
@@ -296,12 +296,12 @@ index 000000000..ce3473afa
 +    dest: "{{ kolla_certificates_dir }}/kerbside-key.pem"
 +    mode: "0660"
 diff --git a/ansible/roles/certificates/tasks/main.yml b/ansible/roles/certificates/tasks/main.yml
-index e3ac17aa4..8784c55a5 100644
+index 564ef4802..41631a6cc 100644
 --- a/ansible/roles/certificates/tasks/main.yml
 +++ b/ansible/roles/certificates/tasks/main.yml
 @@ -6,7 +6,11 @@
  - name: Generate backend certificates
-   include_tasks: generate-backend.yml
+   ansible.builtin.include_tasks: generate-backend.yml
    when:
 -    - kolla_enable_tls_backend | bool or rabbitmq_enable_tls | bool or database_enable_tls_backend | bool
 +    - kolla_enable_tls_backend | bool or rabbitmq_enable_tls | bool or database_enable_tls_backend | bool or enable_kerbside | bool
@@ -310,7 +310,7 @@ index e3ac17aa4..8784c55a5 100644
 +  when:
 +    - enable_kerbside | bool
  - name: Generate libvirt certificates
-   include_tasks: generate-libvirt.yml
+   ansible.builtin.include_tasks: generate-libvirt.yml
    when: certificates_generate_libvirt | bool
 diff --git a/ansible/roles/certificates/templates/openssl-kolla-kerbside.cnf.j2 b/ansible/roles/certificates/templates/openssl-kolla-kerbside.cnf.j2
 new file mode 100644
@@ -349,7 +349,7 @@ index 367210639..104c9b858 100644
 +export KERBSIDE_API_URL='{{ kerbside_api_url }}'
 +{% endif %}
 diff --git a/ansible/roles/cron/tasks/config.yml b/ansible/roles/cron/tasks/config.yml
-index f45908c04..8324a3b78 100644
+index 2bc2018f4..34b1c7549 100644
 --- a/ansible/roles/cron/tasks/config.yml
 +++ b/ansible/roles/cron/tasks/config.yml
 @@ -53,6 +53,7 @@
@@ -1404,10 +1404,10 @@ index 000000000..fce52d4de
 +---
 +project_name: "kerbside"
 diff --git a/ansible/roles/loadbalancer/tasks/precheck.yml b/ansible/roles/loadbalancer/tasks/precheck.yml
-index d62a1eaf4..3665bf29d 100644
+index 73e3a1566..519ead8f5 100644
 --- a/ansible/roles/loadbalancer/tasks/precheck.yml
 +++ b/ansible/roles/loadbalancer/tasks/precheck.yml
-@@ -438,6 +438,45 @@
+@@ -439,6 +439,45 @@
      - haproxy_stat.find('ironic_api') == -1
      - haproxy_vip_prechecks
  
@@ -1451,7 +1451,7 @@ index d62a1eaf4..3665bf29d 100644
 +    - haproxy_vip_prechecks
 +
  - name: Checking free port for Keystone Internal HAProxy
-   wait_for:
+   ansible.builtin.wait_for:
      host: "{{ kolla_internal_vip_address }}"
 diff --git a/ansible/roles/nova-cell/templates/nova.conf.j2 b/ansible/roles/nova-cell/templates/nova.conf.j2
 index 6fb4641ad..a4e181273 100644
@@ -1480,7 +1480,7 @@ index 2fe3b3e52..c62b51565 100644
  # OpenStack
  ####################
 diff --git a/ansible/site.yml b/ansible/site.yml
-index 4167c041b..3b408af2f 100644
+index f37939f37..59cdbc39d 100644
 --- a/ansible/site.yml
 +++ b/ansible/site.yml
 @@ -43,6 +43,7 @@
@@ -1502,7 +1502,7 @@ index 4167c041b..3b408af2f 100644
 +          tags: kerbside
 +          when: enable_kerbside | bool
          - name: Configure loadbalancer for letsencrypt
-           include_role:
+           ansible.builtin.include_role:
              name: letsencrypt
 diff --git a/etc/kolla/passwords.yml b/etc/kolla/passwords.yml
 index 1120754a8..c42395908 100644
