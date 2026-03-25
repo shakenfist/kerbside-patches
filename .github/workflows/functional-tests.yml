@@ -51,12 +51,9 @@ jobs:
       fail-fast: false
       matrix:
         test: [
-          {
-            'release': '2025.1'
-          },
-          {
-            'release': '2025.2'
-          },
+          # {
+          #   'release': '2026.1'
+          # },
           {
             'release': 'master'
           },
@@ -118,22 +115,14 @@ jobs:
       fail-fast: false
       matrix:
         test: [
-          {
-            'name': 'build-debian-2025.1',
-            'release': '2025.1',
-            'base': 'debian:12',
-            'baseuser': 'debian',
-            'container_distro': 'debian',
-            'container_distro_version': 'bookworm'
-          },
-          {
-            'name': 'build-debian-2025.2',
-            'release': '2025.2',
-            'base': 'debian:12',
-            'baseuser': 'debian',
-            'container_distro': 'debian',
-            'container_distro_version': 'bookworm'
-          },
+          # {
+          #   'name': 'build-debian-2026.1',
+          #   'release': '2026.1',
+          #   'base': 'debian:12',
+          #   'baseuser': 'debian',
+          #   'container_distro': 'debian',
+          #   'container_distro_version': 'trixie'
+          # },
           {
             'name': 'build-debian-trixie-master',
             'release': 'master',
@@ -416,30 +405,18 @@ jobs:
       fail-fast: false
       matrix:
         test: [
-          {
-            'name': '2025.1-h-debian12-c-debian12-aio',
-            'description': '2025.1 debian 12 images on debian 12 all-in-one',
-            'release': '2025.1',
-            'base': 'debian:12',
-            'baseuser': 'debian',
-            'topology': 'all-in-one',
-            'runs_on': 'debian-12',
-            'container_distro': 'debian',
-            'container_distro_version': 'bookworm',
-            'enable_kerbside': 'true'
-          },
-          {
-            'name': '2025.2-h-debian12-c-debian12-aio',
-            'description': '2025.2 debian 12 images on debian 12 all-in-one',
-            'release': '2025.2',
-            'base': 'debian:12',
-            'baseuser': 'debian',
-            'topology': 'all-in-one',
-            'runs_on': 'debian-12',
-            'container_distro': 'debian',
-            'container_distro_version': 'bookworm',
-            'enable_kerbside': 'true'
-          },
+          # {
+          #   'name': '2026.1-h-debian12-c-debian13-aio',
+          #   'description': '2026.1 debian 13 images on debian 12 all-in-one',
+          #   'release': '2026.1',
+          #   'base': 'debian:12',
+          #   'baseuser': 'debian',
+          #   'topology': 'all-in-one',
+          #   'runs_on': 'debian-12',
+          #   'container_distro': 'debian',
+          #   'container_distro_version': 'trixie',
+          #   'enable_kerbside': 'true'
+          # },
           {
             'name': 'master-h-debian12-c-ubuntu2404-aio',
             'description': 'master ubuntu 24.04 images on debian 12 all-in-one',
