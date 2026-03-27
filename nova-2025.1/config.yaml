@@ -5,5 +5,5 @@ shallow_clone: true
 directory: nova
 release: 2025.1
 depends_on: ''
-source_sha: a4f1f2d3d6c112db2b5cce402435d273b2139479
-previous_source_sha: d524501deb11a6179726d3ee91e755b7dc249a2a
+source_sha: 0a3bfb6577cdac6e41539a884f5230519197701d
+previous_source_sha: a4f1f2d3d6c112db2b5cce402435d273b2139479
