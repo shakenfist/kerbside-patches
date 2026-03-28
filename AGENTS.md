@@ -31,6 +31,8 @@ Build scripts live in `_build/`. Key files:
 - `imagebuild.sh` -- runs kolla-build (supports `--push`
   and `--registry` for proxy mode)
 - `imagearchive.sh` -- archives images with SBOMs
+- `debsecan-report.sh` -- scans built images for known
+  CVEs using debsecan (non-destructive, images unchanged)
 
 In CI, `--use-proxy` starts an occystrap filtering proxy
 on localhost:5050 before building. kolla-build pushes
