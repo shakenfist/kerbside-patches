@@ -25,16 +25,6 @@ jobs:
       matrix:
         test: [
           {
-              'release': '2025.1',
-              'container_distro': 'debian',
-              'container_distro_version': 'bookworm'
-          },
-          {
-              'release': '2025.2',
-              'container_distro': 'debian',
-              'container_distro_version': 'bookworm'
-          },
-          {
               'release': 'master',
               'container_distro': 'debian',
               'container_distro_version': 'trixie'
