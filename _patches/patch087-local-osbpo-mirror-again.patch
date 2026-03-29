@@ -13,7 +13,7 @@ index 40fb6f9..1294c90 100644
  RUN apt update \
   && apt install -y --no-install-recommends extrepo \
 - && extrepo enable openstack_{{ openstack_release_codename | lower }} \
-+ && extrepo enable openstack_{{ openstack_release_codename | lower }} --mirror http://mirror-osbpo.home.stillhq.com/debian \
++ && extrepo enable openstack_{{ openstack_release_codename | lower }} --mirror http://mirror-osbpo.home.stillhq.com \
   && apt purge -y extrepo \
   && apt --purge autoremove -y \
   && apt clean

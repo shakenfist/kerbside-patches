@@ -7,3 +7,4 @@ release: 2025.1
 depends_on: ''
 source_sha: 7b62011174e030d696d7ca42eb11ad82f2b19a3d
 previous_source_sha: 65790a52f92c0bdba49f0e137f2e1038ace27cb8
+skip_rebase: true

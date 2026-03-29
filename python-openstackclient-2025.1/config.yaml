@@ -7,3 +7,4 @@ release: 2025.1
 depends_on: openstacksdk-2025.1
 source_sha: cc866e71076cefbe86bddad479d4f3229ef9171a
 previous_source_sha: ad2689d1d346e12787d8ce7714427237b65afc2f
+skip_rebase: true
