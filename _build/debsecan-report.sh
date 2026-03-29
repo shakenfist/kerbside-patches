@@ -16,7 +16,7 @@ echo -e "${H2}Building debsecan scanner image${Color_Off}"
 echo -e "${H3}Base: ${distro}:${distro_version}${Color_Off}"
 
 scanner_image="debsecan-scanner-${distro}-${distro_version}"
-if ! docker build -q -t ${scanner_image} -f - /dev/null <<DOCKERFILE
+if ! docker build -q -t ${scanner_image} - <<DOCKERFILE
 FROM ${distro}:${distro_version}
 RUN apt-get update -qq && \
     DEBIAN_FRONTEND=noninteractive apt-get install -y -qq \
