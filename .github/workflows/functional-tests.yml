@@ -339,6 +339,9 @@ jobs:
           if [ -e kerbside-patches/archive/occystrap-layer-cache.json ]; then
               cp kerbside-patches/archive/occystrap-layer-cache.json ${archive_path}/
           fi
+          if [ -d kerbside-patches/archive/debsecan ]; then
+              cp -r kerbside-patches/archive/debsecan ${archive_path}/
+          fi
 
           # System details for debugging
           docker info > ${archive_path}/docker-info.txt

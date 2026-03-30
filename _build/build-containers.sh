@@ -296,6 +296,34 @@ if [ "${proxy_running}" == "true" ]; then
     fi
 fi
 
+# Run debsecan vulnerability scan on the built images. This extracts the
+# dpkg database from each image and scans it externally, so the pushed
+# images are never modified.
+if [ "${skip_debsecan}" != "true" ]; then
+    debsecan_args=""
+    if [ "${debsecan_fail_on_fixable}" == "true" ]; then
+        debsecan_args="--debsecan-fail-on-fixable"
+    fi
+
+    # When --debsecan-fail-on-fixable is set, let the exit code propagate
+    # so the build fails. Otherwise, treat scan errors as non-fatal.
+    if [ "${debsecan_fail_on_fixable}" == "true" ]; then
+        ./_build/debsecan-report.sh \
+            --build-targets "${build_targets}" \
+            --distro "${distro}" \
+            --distro-version "${distro_version}" \
+            --image-tag "${image_tag}" \
+            ${debsecan_args}
+    else
+        ./_build/debsecan-report.sh \
+            --build-targets "${build_targets}" \
+            --distro "${distro}" \
+            --distro-version "${distro_version}" \
+            --image-tag "${image_tag}" \
+            ${debsecan_args} || true
+    fi
+fi
+
 echo
 trap - EXIT
 

@@ -201,6 +201,39 @@ pipeline stages within a single tarball.
 The workflow is configured to skip functional tests when only files in `data/`
 are changed, preventing infinite loops when layer data PRs are merged.
 
+# Security Vulnerability Scanning
+
+After container images are built, `debsecan` is run against each image to
+report known Debian/Ubuntu security vulnerabilities. The scan extracts the
+dpkg package database from each image and runs `debsecan` externally, so the
+scanned images are never modified and `debsecan` is not installed in the
+pushed container images.
+
+The scan supports both Debian and Ubuntu base images. Non-Debian-derived
+images are detected and skipped automatically.
+
+Reports are saved to `archive/debsecan/` and include:
+
+- Per-image detail reports (full CVE listing)
+- Per-image fixable CVE reports (packages with available fixes)
+- A combined summary (`summary.txt` and `summary.json`)
+
+The summary report is included as a CI build artifact.
+
+## Controlling the scan
+
+```bash
+# Skip the vulnerability scan entirely
+./buildall.sh --build-targets "master" --skip-debsecan
+
+# Fail the build if any fixable CVEs are found
+./buildall.sh --build-targets "master" --debsecan-fail-on-fixable
+
+# Run the scan standalone against already-built images
+./_build/debsecan-report.sh --build-targets "master" \
+    --distro debian --distro-version bookworm --image-tag local
+```
+
 # Script Reference
 
 This repository contains numerous helper scripts in the `_build/` and `tools/`
@@ -216,6 +249,7 @@ directories. This section documents each script and its purpose.
 | `build-containers.sh` | Builds Kolla container images using the patched source. Handles registry authentication and multi-release builds. Called by `buildall.sh`. |
 | `imagebuild.sh` | Core container image build logic. Prepares artifacts, runs `kolla-build`, and manages image tagging. |
 | `imagearchive.sh` | Archives built container images to `archive/imgs/` with SBOM generation. Exports patched source to `archive/src/`. |
+| `debsecan-report.sh` | Scans built container images for known security vulnerabilities using `debsecan`. Extracts the dpkg database from each image and scans externally -- the pushed images are never modified. Supports Debian and Ubuntu; skips non-Debian-derived images. Reports saved to `archive/debsecan/`. |
 | `common.sh` | Shared functions, command-line argument parsing, color output helpers, and default build configuration used by all other scripts. |
 
 ### Patch Testing Scripts

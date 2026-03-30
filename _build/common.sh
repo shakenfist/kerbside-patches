@@ -74,6 +74,12 @@ dont_fetch_images="false"
 # Should we use the occystrap filtering proxy for image pushes?
 use_proxy="false"
 
+# Should we skip the debsecan vulnerability scan?
+skip_debsecan="false"
+
+# Should we fail the build if fixable CVEs are found?
+debsecan_fail_on_fixable="false"
+
 # If we are building a cloud, what inventory should we use?
 topology="all-in-one"
 
@@ -210,6 +216,18 @@ while [[ ${found_arg} -gt 0 ]]; do
         --update-patches)
             export update_patches="true"
             echo "Will update patches to match what was applied."
+            shift
+            found_arg=1
+            ;;
+        --skip-debsecan)
+            export skip_debsecan="true"
+            echo "Will skip debsecan vulnerability scan."
+            shift
+            found_arg=1
+            ;;
+        --debsecan-fail-on-fixable)
+            export debsecan_fail_on_fixable="true"
+            echo "Will fail build if fixable CVEs are found."
             shift
             found_arg=1
             ;;

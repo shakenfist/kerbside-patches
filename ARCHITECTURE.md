@@ -21,6 +21,7 @@ kerbside-patches/
         build-containers.sh  # Build + push images via occystrap
         imagebuild.sh        # Run kolla-build
         imagearchive.sh      # Archive images with SBOMs
+        debsecan-report.sh   # Vulnerability scan with debsecan
         test-apply.sh        # Test patch application
         test-patches-for-ci.sh  # CI-friendly patch testing
         rebase-with-claude.sh   # Automated rebase with Claude
@@ -152,6 +153,30 @@ Data flow:
 3. CI uploads as build artifact
 4. `collect_layer_data` job aggregates across matrix builds
 5. Tarballs are committed to `data/` via automated PR
+
+### Security Vulnerability Scanning
+
+After images are built, `debsecan-report.sh` scans each
+image for known Debian/Ubuntu CVEs without modifying the
+images:
+
+```
+docker create image → docker cp dpkg/status → debsecan
+    |                                            |
+    v                                            v
+container removed              archive/debsecan/ reports
+(image unchanged)              (detail, simple, fixable, summary)
+```
+
+A temporary scanner image is built from the same base distro
+(`${distro}:${distro_version}`) so debsecan has the correct
+vulnerability data source. Non-Debian-derived images are
+detected via `/etc/os-release` and skipped.
+
+The scan produces both human-readable (`summary.txt`) and
+machine-parseable (`summary.json`) output. With
+`--debsecan-fail-on-fixable`, the build fails if any
+packages have available security fixes.
 
 ### Analysis
 
