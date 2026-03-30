@@ -56,7 +56,7 @@ for target in ${build_targets}; do
     fi
 
     for image in ${images}; do
-        safe_name=$(echo ${image} | tr '/' '-')
+        safe_name=$(echo ${image} | tr '/:' '-')
         echo
         echo -e "${H2}Scanning ${image}:${complete_image_tag}${Color_Off}"
 
@@ -182,7 +182,7 @@ done
 
     for i in $(seq 0 $((total_images - 1))); do
         image="${scanned_images[i]}"
-        safe_name=$(echo ${image%%:*} | tr '/' '-')
+        safe_name=$(echo ${image%%:*} | tr '/:' '-')
 
         echo "--- ${image} ---"
         echo "Total: ${scanned_cve_counts[i]}, Fixable: ${scanned_fixable_counts[i]}"
