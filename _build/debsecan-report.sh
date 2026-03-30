@@ -76,13 +76,20 @@ for target in ${build_targets}; do
             continue
         fi
 
-        if ! docker cp "${cid}:/etc/os-release" "${workdir}/os-release" \
+        # /etc/os-release is a symlink to /usr/lib/os-release on Debian
+        # and docker cp on a non-running container may not follow symlinks.
+        # Try the canonical path first, then fall back to the symlink.
+        if ! docker cp "${cid}:/usr/lib/os-release" "${workdir}/os-release" \
             2>/dev/null
         then
-            echo -e "${H3}No os-release found, skipping${Color_Off}"
-            docker rm "${cid}" > /dev/null
-            rm -rf "${workdir}"
-            continue
+            if ! docker cp "${cid}:/etc/os-release" "${workdir}/os-release" \
+                2>/dev/null
+            then
+                echo -e "${H3}No os-release found, skipping${Color_Off}"
+                docker rm "${cid}" > /dev/null
+                rm -rf "${workdir}"
+                continue
+            fi
         fi
 
         docker rm "${cid}" > /dev/null
