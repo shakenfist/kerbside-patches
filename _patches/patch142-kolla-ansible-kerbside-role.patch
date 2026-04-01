@@ -1,6 +1,6 @@
-commit 70aee837361e3075ec9df020444142b4ca7b45f6
+commit 0e35ea78b020dad5ae238f3381e6d8b408cfd462
 Author: Michael Still <mikal@stillhq.com>
-Date:   Wed Mar 25 11:51:29 2026 +1100
+Date:   Wed Apr 1 20:53:34 2026 +1100
 
     Deploy Kerbside with Kolla-Ansible.
     
@@ -63,7 +63,7 @@ index 000000000..da4d90b1e
 +kerbside_safety_upgrade: false
 +kerbside_enable_tls_backend: true
 diff --git a/ansible/inventory/all-in-one b/ansible/inventory/all-in-one
-index ce3b26f16..0394e0d94 100644
+index 5fa8ba959..97699f3bd 100644
 --- a/ansible/inventory/all-in-one
 +++ b/ansible/inventory/all-in-one
 @@ -18,6 +18,9 @@ localhost       ansible_connection=local
@@ -84,7 +84,7 @@ index ce3b26f16..0394e0d94 100644
  
  [collectd:children]
  compute
-@@ -585,3 +589,10 @@ letsencrypt
+@@ -588,3 +592,10 @@ letsencrypt
  
  [letsencrypt-lego:children]
  letsencrypt
@@ -96,7 +96,7 @@ index ce3b26f16..0394e0d94 100644
 +[kerbside-proxy:children]
 +vdiproxy
 diff --git a/ansible/inventory/multinode b/ansible/inventory/multinode
-index 40db78c1e..5c42bc287 100644
+index 4aaec0785..e05532d01 100644
 --- a/ansible/inventory/multinode
 +++ b/ansible/inventory/multinode
 @@ -29,6 +29,10 @@ monitoring01
@@ -126,7 +126,7 @@ index 40db78c1e..5c42bc287 100644
  
  [collectd:children]
  compute
-@@ -603,3 +609,10 @@ letsencrypt
+@@ -606,3 +612,10 @@ letsencrypt
  
  [letsencrypt-lego:children]
  letsencrypt
@@ -1480,7 +1480,7 @@ index 2fe3b3e52..c62b51565 100644
  # OpenStack
  ####################
 diff --git a/ansible/site.yml b/ansible/site.yml
-index f37939f37..59cdbc39d 100644
+index abc31d580..2d6b2d9bd 100644
 --- a/ansible/site.yml
 +++ b/ansible/site.yml
 @@ -43,6 +43,7 @@
@@ -1544,7 +1544,7 @@ index 000000000..b9e99e15a
 +    to spice-direct consoles. This functionality is enabled by setting
 +    ``enable_kerbside`` to ``true`` in globals.yml.
 diff --git a/tests/templates/inventory.j2 b/tests/templates/inventory.j2
-index 0751557a3..d194f3c99 100644
+index e9172ecfa..9de6958a4 100644
 --- a/tests/templates/inventory.j2
 +++ b/tests/templates/inventory.j2
 @@ -296,6 +296,9 @@ nova
