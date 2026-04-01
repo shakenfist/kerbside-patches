@@ -1,6 +1,6 @@
-commit a45eb5f0c5f67ae2a8e642d8026b0c5db1ebdf53
+commit f6888f48c3ea22a37412eb909b58e290ebc5a4f7
 Author: Michael Still <mikal@stillhq.com>
-Date:   Wed Mar 25 11:51:13 2026 +1100
+Date:   Wed Apr 1 20:57:29 2026 +1100
 
     Implement container image build for kerbside.
     
@@ -146,10 +146,10 @@ index 000000000..92ef80a22
 +# Make the log directory
 +mkdir -p /var/log/kolla/kerbside
 diff --git a/kolla/common/config.py b/kolla/common/config.py
-index b1f325188..ab7188bb7 100644
+index d66221af1..3f120307b 100644
 --- a/kolla/common/config.py
 +++ b/kolla/common/config.py
-@@ -89,6 +89,7 @@ _PROFILE_OPTS = [
+@@ -88,6 +88,7 @@ _PROFILE_OPTS = [
                      'designate',
                      'gnocchi',
                      'ironic',
@@ -158,13 +158,13 @@ index b1f325188..ab7188bb7 100644
                      'magnum',
                      'manila',
 diff --git a/kolla/common/sources.py b/kolla/common/sources.py
-index fa9b12126..1d5b87944 100644
+index 24a0d7851..40ee69add 100644
 --- a/kolla/common/sources.py
 +++ b/kolla/common/sources.py
-@@ -156,6 +156,10 @@ SOURCES = {
+@@ -160,6 +160,10 @@ SOURCES = {
          'type': 'url',
-         'location': ('$tarballs_base/openstack/keystone/'
-                      'keystone-${openstack_branch}.tar.gz')},
+         'location': ('$tarballs_base/openstack/requirements/'
+                      'requirements-${openstack_branch}.tar.gz')},
 +    'kerbside-base': {
 +        'type': 'git',
 +        'reference': 'develop',
@@ -173,7 +173,7 @@ index fa9b12126..1d5b87944 100644
          'type': 'url',
          'location': ('$tarballs_base/openstack/kuryr/'
 diff --git a/kolla/common/users.py b/kolla/common/users.py
-index cbbc147b0..d1752d385 100644
+index 623456071..d24b9a926 100644
 --- a/kolla/common/users.py
 +++ b/kolla/common/users.py
 @@ -350,4 +350,8 @@ USERS = {
