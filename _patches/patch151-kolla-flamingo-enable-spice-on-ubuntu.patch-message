@@ -1,0 +1,19 @@
+Re-enable SPICE support on Ubuntu Noble.
+
+The move to Ubuntu Noble for Kolla 2025.1 onwards accidentally broke SPICE
+consoles for Nova (both Horizon and spice-direct). This is because Debian
+and Ubuntu now package the SPICE support in a separate package. Without
+this package, an attempt to start an instance in Nova requiring SPICE will
+result in messages like this in the nova-libvirt logs:
+
+    libvirt.libvirtError: unsupported configuration: spice graphics are
+    not supported with this QEMU
+
+And the instance will enter an error state.
+
+The fix is to install the `qemu-system-modules-spice` package as well in
+the nova-libvirt image.
+
+Closes-Bug: #2138186
+Change-Id: Ib4ced4a04353b9c11c6f0abb7cfa91001b239e53
+Signed-off-by: Michael Still <mikal@stillhq.com>

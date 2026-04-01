@@ -1,0 +1,55 @@
+commit 83d649bad4f7ab1b9e200dc9b3b154f6856b0995
+Author: Michael Still <mikal@stillhq.com>
+Date:   Thu Apr 2 06:55:39 2026 +1100
+
+    Re-enable SPICE support on Ubuntu Noble.
+    
+    The move to Ubuntu Noble for Kolla 2025.1 onwards accidentally broke SPICE
+    consoles for Nova (both Horizon and spice-direct). This is because Debian
+    and Ubuntu now package the SPICE support in a separate package. Without
+    this package, an attempt to start an instance in Nova requiring SPICE will
+    result in messages like this in the nova-libvirt logs:
+    
+        libvirt.libvirtError: unsupported configuration: spice graphics are
+        not supported with this QEMU
+    
+    And the instance will enter an error state.
+    
+    The fix is to install the `qemu-system-modules-spice` package as well in
+    the nova-libvirt image.
+    
+    Closes-Bug: #2138186
+    Change-Id: Ib4ced4a04353b9c11c6f0abb7cfa91001b239e53
+    Signed-off-by: Michael Still <mikal@stillhq.com>
+
+diff --git a/docker/nova/nova-libvirt/Dockerfile.j2 b/docker/nova/nova-libvirt/Dockerfile.j2
+index d65d31584..0f22b60f3 100644
+--- a/docker/nova/nova-libvirt/Dockerfile.j2
++++ b/docker/nova/nova-libvirt/Dockerfile.j2
+@@ -77,6 +77,12 @@ LABEL maintainer="{{ maintainer }}" name="{{ image_name }}" build-date="{{ build
+             'usermode'
+         ] %}
+     {% endif %}
++
++    {% if base_distro in ['ubuntu'] %}
++        {% set nova_libvirt_packages = nova_libvirt_packages + [
++            'qemu-system-modules-spice'
++        ] %}
++    {% endif %}
+ {% endif %}
+ 
+ {{ macros.install_packages(nova_libvirt_packages | customizable("packages")) }}
+diff --git a/releasenotes/notes/ubuntu-noble-spice-814929ed1efbcad1.yaml b/releasenotes/notes/ubuntu-noble-spice-814929ed1efbcad1.yaml
+new file mode 100644
+index 000000000..beb3f5430
+--- /dev/null
++++ b/releasenotes/notes/ubuntu-noble-spice-814929ed1efbcad1.yaml
+@@ -0,0 +1,8 @@
++---
++fixes:
++  - |
++    Ubuntu Noble container images require the additional
++    qemu-system-modules-spice operating system package for SPICE consoles
++    to function correctly. This package has therefore been added
++    to the nova-libvirt container build. Further details are available in
++    the bug report at `LP#2138186 <https://launchpad.net/bugs/2138186>`__.
