@@ -1,8 +1,8 @@
-commit 06404bfa66e0260b087097b69bfce1cb4184c689
+commit ebcffe9ac10caa323686a5e3203e63ba947aeb68
 Author: Michael Still <mikal@stillhq.com>
-Date:   Wed Apr 1 20:53:33 2026 +1100
+Date:   Thu Apr 2 08:25:59 2026 +1100
 
-    Simplify cron jobs for log rotate.
+    Simplify cron jobs for log rotate
     
     There was a lot of repetitive jinja for the cron templates for
     logrotate, but they were also fairly infrequently overriden from

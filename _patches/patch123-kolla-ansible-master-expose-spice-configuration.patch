@@ -1,8 +1,8 @@
-commit e150253df1238dd90d5f8413ea20ab807041f023
+commit 022a7d749421b652d5fb91d6d767796256e4ad35
 Author: Michael Still <mikal@stillhq.com>
-Date:   Wed Apr 1 20:53:33 2026 +1100
+Date:   Thu Apr 2 08:25:58 2026 +1100
 
-    Add additional SPICE configuration options.
+    Add additional SPICE configuration options
     
     Recent changes to OpenStack Compute have added a number of new
     configuration options for SPICE VDI consoles. Additionally, it is

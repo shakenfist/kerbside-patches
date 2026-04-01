@@ -1,8 +1,8 @@
-commit 0e35ea78b020dad5ae238f3381e6d8b408cfd462
+commit 41e977e6bbdfd6e74de43c3eb4a55cd36af7ddcd
 Author: Michael Still <mikal@stillhq.com>
-Date:   Wed Apr 1 20:53:34 2026 +1100
+Date:   Thu Apr 2 08:25:59 2026 +1100
 
-    Deploy Kerbside with Kolla-Ansible.
+    Deploy Kerbside with Kolla-Ansible
     
     This change implements the Kerbside Kolla-Ansible deployment role. It is a
     fairly large change, but I couldn't find a meaningful way to break it up

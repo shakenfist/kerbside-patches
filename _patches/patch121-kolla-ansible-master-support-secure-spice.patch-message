@@ -1,4 +1,4 @@
-Allow requiring secure channels with SPICE.
+Allow requiring secure channels with SPICE
 
 The nova_spice_require_secure configuration option requires clients
 to connect to SPICE consoles using channels secured by TLS. The

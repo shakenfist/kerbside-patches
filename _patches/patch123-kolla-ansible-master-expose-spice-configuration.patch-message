@@ -1,4 +1,4 @@
-Add additional SPICE configuration options.
+Add additional SPICE configuration options
 
 Recent changes to OpenStack Compute have added a number of new
 configuration options for SPICE VDI consoles. Additionally, it is
