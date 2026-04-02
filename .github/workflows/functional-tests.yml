@@ -744,6 +744,10 @@ jobs:
           echo "Running console tests..."
           ./tools/test-console /tmp/kolla-ca.pem
 
+          echo
+          echo "Running virtlogd tests..."
+          ./tools/test-virtlogd
+
       - name: Verify containers are healthy
         if: always()
         run: |
