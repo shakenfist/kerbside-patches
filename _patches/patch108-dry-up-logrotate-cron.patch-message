@@ -1,4 +1,4 @@
-Simplify cron jobs for log rotate.
+Simplify cron jobs for log rotate
 
 There was a lot of repetitive jinja for the cron templates for
 logrotate, but they were also fairly infrequently overriden from

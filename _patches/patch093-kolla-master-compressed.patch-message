@@ -1,4 +1,4 @@
-Implement container image build for kerbside.
+Implement container image build for kerbside
 
 This change adds images for Kerbside. Kerbside is a SPICE protocol
 native proxy used to expose the new spice-direct console type provided

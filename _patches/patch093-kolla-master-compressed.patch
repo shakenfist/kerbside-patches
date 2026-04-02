@@ -1,8 +1,8 @@
-commit f6888f48c3ea22a37412eb909b58e290ebc5a4f7
+commit dcceda725526d2d8ab2abbda2c0a31fc943e095e
 Author: Michael Still <mikal@stillhq.com>
-Date:   Wed Apr 1 20:57:29 2026 +1100
+Date:   Thu Apr 2 08:24:12 2026 +1100
 
-    Implement container image build for kerbside.
+    Implement container image build for kerbside
     
     This change adds images for Kerbside. Kerbside is a SPICE protocol
     native proxy used to expose the new spice-direct console type provided

@@ -1,0 +1,9 @@
+repo: https://opendev.org/openstack/kolla
+source_branch: stable/2025.1
+destination_branch: bug/2138186
+shallow_clone: false
+directory: kolla
+release: 2025.1
+depends_on: ''
+skip_rebase: true
+skip_claude: true
