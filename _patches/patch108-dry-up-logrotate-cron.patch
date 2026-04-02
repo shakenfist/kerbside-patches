@@ -1,6 +1,6 @@
-commit 7b49242248721f473f70f210d692651e7f6ebfb2
+commit 77d5bf93a73e90402ef851ec4fbfe1853ca2150b
 Author: Michael Still <mikal@stillhq.com>
-Date:   Thu Apr 2 13:45:05 2026 +1100
+Date:   Fri Apr 3 06:55:52 2026 +1100
 
     Simplify cron jobs for log rotate
     
@@ -8,6 +8,8 @@ Date:   Thu Apr 2 13:45:05 2026 +1100
     logrotate, but they were also fairly infrequently overriden from
     the default. Let's DRY up this code by having a default template
     and only overriding it when required.
+    
+    Co-Authored-By: Doug Szumski <doug@stackhpc.com>
     
     Change-Id: I23c3dd66e71a6729a42ea7988931a46ce20d4fc6
     Signed-off-by: Michael Still <mikal@stillhq.com>
@@ -139,16 +141,16 @@ index 5b20985bd..000000000
 -{
 -}
 diff --git a/ansible/roles/cron/templates/cron-logrotate-global.conf.j2 b/ansible/roles/cron/templates/cron-logrotate-global.conf.j2
-index b8628a88d..a6821b5ea 100644
+index b8628a88d..1d487601e 100644
 --- a/ansible/roles/cron/templates/cron-logrotate-global.conf.j2
 +++ b/ansible/roles/cron/templates/cron-logrotate-global.conf.j2
-@@ -19,6 +19,5 @@ maxsize {{ cron_logrotate_log_maxsize }}
+@@ -19,6 +19,6 @@ maxsize {{ cron_logrotate_log_maxsize }}
  su root kolla
  
  {% for service in cron_logrotate_enabled_services %}
 -{%     include "cron-logrotate-" ~ service ~ ".conf.j2" %}
--
 +{%     include ["cron-logrotate-" ~ service ~ ".conf.j2", "cron-logrotate-default.conf.j2"] %}
+ 
  {% endfor %}
 diff --git a/ansible/roles/cron/templates/cron-logrotate-gnocchi.conf.j2 b/ansible/roles/cron/templates/cron-logrotate-gnocchi.conf.j2
 deleted file mode 100644
@@ -442,3 +444,20 @@ index 000000000..d7e3b58f9
 +    has been simplified to reduce repetition. If you have local
 +    changes which add to or modify these templates you may need
 +    to update your modifications.
+diff --git a/zuul.d/scenarios/aio.yaml b/zuul.d/scenarios/aio.yaml
+index e26b9be8f..4a89a11a7 100644
+--- a/zuul.d/scenarios/aio.yaml
++++ b/zuul.d/scenarios/aio.yaml
+@@ -3,10 +3,10 @@
+     parent: kolla-ansible-base
+     name: kolla-ansible-aio-base
+     files: !inherit
+-      - ^ansible/group_vars/all/(common|fluentd|glance|haproxy|heat|horizon|keepalived|keystone|loadbalancer|neutron|nova|nova-cell|openvswitch|placement|proxysql|rabbitmq).yml
++      - ^ansible/group_vars/all/(common|cron|fluentd|glance|haproxy|heat|horizon|keepalived|keystone|loadbalancer|neutron|nova|nova-cell|openvswitch|placement|proxysql|rabbitmq).yml
+       - ^ansible/group_vars/baremetal/ansible-python-interpreter.yml
+       - ^ansible/(action_plugins|filter_plugins|library|module_utils)/
+-      - ^ansible/roles/(common|fluentd|glance|haproxy-config|heat|horizon|keystone|loadbalancer|loadbalancer-config|neutron|nova|nova-cell|openvswitch|placement|proxysql|rabbitmq|service.*)/
++      - ^ansible/roles/(common|cron|fluentd|glance|haproxy-config|heat|horizon|keystone|loadbalancer|loadbalancer-config|neutron|nova|nova-cell|openvswitch|placement|proxysql|rabbitmq|service.*)/
+       - ^kolla_ansible/
+       - ^roles/kolla-ansible-(deploy|tempest|test-dashboard|reconfigure)/
+       - ^tests/testinfra/test_horizon.py
