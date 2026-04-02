@@ -5,5 +5,5 @@ shallow_clone: true
 directory: requirements
 release: master
 depends_on: ''
-source_sha: 2897d874a900d28bbeb8ed59a78193477c76296c
-previous_source_sha: 754ae37e67ba08c1695698ea7a8ebe52efa711d9
+source_sha: 6daef3f313a96909d1b19de1c4088689be6c5564
+previous_source_sha: 2897d874a900d28bbeb8ed59a78193477c76296c

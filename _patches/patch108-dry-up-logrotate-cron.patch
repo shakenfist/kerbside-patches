@@ -1,6 +1,6 @@
-commit ebcffe9ac10caa323686a5e3203e63ba947aeb68
+commit 7b49242248721f473f70f210d692651e7f6ebfb2
 Author: Michael Still <mikal@stillhq.com>
-Date:   Thu Apr 2 08:25:59 2026 +1100
+Date:   Thu Apr 2 13:45:05 2026 +1100
 
     Simplify cron jobs for log rotate
     
