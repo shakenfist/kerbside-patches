@@ -1,0 +1,11 @@
+repo: https://opendev.org/openstack/kolla
+source_branch: master
+destination_branch: virtlogd
+shallow_clone: false
+directory: kolla
+release: master-virtlogd
+depends_on: ''
+skip_rebase: true
+skip_claude: true
+source_sha: 7477b2244ee525ffd6effeb4229608991c639fc8
+previous_source_sha: bf4ee2deaa53c2dc585f3d270e036579350b1b52

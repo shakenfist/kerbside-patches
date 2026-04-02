@@ -1,0 +1,59 @@
+commit 25bcfa2070b1db90560da99197a7ce842b7ba3bd
+Author: Michael Still <mikal@stillhq.com>
+Date:   Thu Jun 11 09:35:14 2026 +1000
+
+    Install and start virtlogd in nova-libvirt.
+    
+    Partial-Bug: 2155214
+    
+    Change-Id: Ib62191e3022e5bcff781c12f662c9800fb210eb9
+    Signed-off-by: Michael Still <mikal@stillhq.com>
+
+diff --git a/docker/nova/nova-libvirt/Dockerfile.j2 b/docker/nova/nova-libvirt/Dockerfile.j2
+index 88e4a52d6..877f75a61 100644
+--- a/docker/nova/nova-libvirt/Dockerfile.j2
++++ b/docker/nova/nova-libvirt/Dockerfile.j2
+@@ -20,6 +20,7 @@ LABEL maintainer="{{ maintainer }}" name="{{ image_name }}" build-date="{{ build
+         'libguestfs',
+         'libvirt-client',
+         'libvirt-daemon',
++        'libvirt-daemon-log',
+         'libvirt-daemon-config-nwfilter',
+         'libvirt-daemon-driver-nwfilter',
+         'libvirt-daemon-driver-nodedev',
+@@ -45,6 +46,7 @@ LABEL maintainer="{{ maintainer }}" name="{{ image_name }}" build-date="{{ build
+         'ebtables',
+         'libsasl2-modules-gssapi-mit',
+         'libvirt-clients',
++        'libvirt-daemon-log',
+         'libvirt-daemon-system',
+         'mdevctl',
+         'openvswitch-switch',
+@@ -89,7 +91,8 @@ RUN rm -f /etc/libvirt/qemu/networks/default.xml /etc/libvirt/qemu/networks/auto
+ {% endif %}
+ 
+ COPY extend_start.sh /usr/local/bin/kolla_extend_start
+-RUN chmod 644 /usr/local/bin/kolla_extend_start
++COPY kolla_nova_libvirt_start.sh /usr/local/bin/kolla_nova_libvirt_start
++RUN chmod 644 /usr/local/bin/kolla_extend_start && chmod 744 /usr/local/bin/kolla_nova_libvirt_start
+ 
+ {{ macros.kolla_patch_sources() }}
+ 
+diff --git a/docker/nova/nova-libvirt/kolla_nova_libvirt_start.sh b/docker/nova/nova-libvirt/kolla_nova_libvirt_start.sh
+new file mode 100644
+index 000000000..3888c82db
+--- /dev/null
++++ b/docker/nova/nova-libvirt/kolla_nova_libvirt_start.sh
+@@ -0,0 +1,12 @@
++#!/bin/bash
++set -euo pipefail
++
++# NOTWE(mikal): Start virtlogd as a sidecar. We need this for
++# nova instance console logs to rotate. Otherwise they will
++# consume unbounded amounts of disk.
++#
++# No exec here: libvirtd will be the "main" process.
++/usr/sbin/virtlogd &
++
++# Now hand over PID 1's direct child role to libvirtd.
++exec /usr/sbin/libvirtd --listen

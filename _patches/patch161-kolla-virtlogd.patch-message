@@ -1,0 +1,6 @@
+Install and start virtlogd in nova-libvirt.
+
+Partial-Bug: 2155214
+
+Change-Id: Ib62191e3022e5bcff781c12f662c9800fb210eb9
+Signed-off-by: Michael Still <mikal@stillhq.com>

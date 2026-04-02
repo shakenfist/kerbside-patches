@@ -1,0 +1,11 @@
+Start virtlogd in nova-libvirt and route console logs to it.
+
+Flip qemu.conf's stdio_handler from "file" to "logd" so libvirt
+routes instance console chardevs through virtlogd, which rotates
+them per /etc/libvirt/virtlogd.conf. Without this, virtlogd runs
+but is never consulted and console.log grows unbounded.
+
+Partial-Bug: 2155214
+
+Change-Id: Ia543939b17cd06714695dff8ef8bd29bc3f8175e
+Signed-off-by: Michael Still <mikal@stillhq.com>

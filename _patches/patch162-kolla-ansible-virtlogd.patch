@@ -1,0 +1,56 @@
+commit 5600da93f41cd224b9008ab75665ba6437bb1053
+Author: Michael Still <mikal@stillhq.com>
+Date:   Thu Jun 11 09:35:19 2026 +1000
+
+    Start virtlogd in nova-libvirt and route console logs to it.
+    
+    Flip qemu.conf's stdio_handler from "file" to "logd" so libvirt
+    routes instance console chardevs through virtlogd, which rotates
+    them per /etc/libvirt/virtlogd.conf. Without this, virtlogd runs
+    but is never consulted and console.log grows unbounded.
+    
+    Partial-Bug: 2155214
+    
+    Change-Id: Ia543939b17cd06714695dff8ef8bd29bc3f8175e
+    Signed-off-by: Michael Still <mikal@stillhq.com>
+
+diff --git a/ansible/roles/nova-cell/templates/nova-libvirt.json.j2 b/ansible/roles/nova-cell/templates/nova-libvirt.json.j2
+index dce42c684..8f0e12c7a 100644
+--- a/ansible/roles/nova-cell/templates/nova-libvirt.json.j2
++++ b/ansible/roles/nova-cell/templates/nova-libvirt.json.j2
+@@ -1,5 +1,5 @@
+ {
+-    "command": "/usr/sbin/libvirtd --listen",
++    "command": "/usr/local/bin/kolla_nova_libvirt_start",
+     "config_files": [
+         {
+             "source": "{{ container_config_directory }}/libvirtd.conf",
+diff --git a/ansible/roles/nova-cell/templates/qemu.conf.j2 b/ansible/roles/nova-cell/templates/qemu.conf.j2
+index fb0010783..072da5cb9 100644
+--- a/ansible/roles/nova-cell/templates/qemu.conf.j2
++++ b/ansible/roles/nova-cell/templates/qemu.conf.j2
+@@ -1,4 +1,4 @@
+-stdio_handler = "file"
++stdio_handler = "logd"
+ 
+ user = "nova"
+ group = "nova"
+diff --git a/releasenotes/notes/nova-libvirt-virtlogd-0b77f24764dcecfc.yaml b/releasenotes/notes/nova-libvirt-virtlogd-0b77f24764dcecfc.yaml
+new file mode 100644
+index 000000000..94b92e5fc
+--- /dev/null
++++ b/releasenotes/notes/nova-libvirt-virtlogd-0b77f24764dcecfc.yaml
+@@ -0,0 +1,13 @@
++---
++features:
++  - |
++    The ``nova_libvirt`` container now runs ``virtlogd`` as a sidecar
++    alongside ``libvirtd``, and ``qemu.conf`` is configured with
++    ``stdio_handler = "logd"`` so that libvirt routes instance console
++    chardevs through ``virtlogd``. This allows guest console logs to be
++    rotated according to ``/etc/libvirt/virtlogd.conf`` (by default 2MB
++    per file with 3 backups), instead of growing without bound as they
++    did when ``stdio_handler`` was set to ``"file"``.
++
++    Note that existing instances must be hard rebooted to pick up the
++    new console handler, as the chardev mode is fixed at qemu launch.
