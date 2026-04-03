@@ -1,9 +1,0 @@
-repo: https://opendev.org/openstack/requirements
-source_branch: master
-destination_branch: master-patches
-shallow_clone: true
-directory: requirements
-release: master
-depends_on: ''
-source_sha: d98ab6073f2cba9c1c3b9dc21c91b32e601aeeae
-previous_source_sha: 6daef3f313a96909d1b19de1c4088689be6c5564
