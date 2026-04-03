@@ -17,15 +17,23 @@ Date:   Thu Apr 9 05:57:50 2026 +1000
     Change-Id: I4306725fb8433860baec8e01c51e9eae2beb3cc9
     Signed-off-by: Michael Still <mikal@stillhq.com>
 
-diff --git a/ansible/group_vars/all/nova.yml b/ansible/group_vars/all/nova.yml
-index 4b116200a..9c98dc933 100644
---- a/ansible/group_vars/all/nova.yml
-+++ b/ansible/group_vars/all/nova.yml
-@@ -74,3 +74,4 @@ nova_spice_jpeg_compression: "auto"
- nova_spice_zlib_compression: "auto"
- nova_spice_playback_compression: true
- nova_spice_streaming_mode: "filter"
+diff --git a/ansible/roles/nova-cell/defaults/main.yml b/ansible/roles/nova-cell/defaults/main.yml
+index 6979408e9..9c5ac3067 100644
+--- a/ansible/roles/nova-cell/defaults/main.yml
++++ b/ansible/roles/nova-cell/defaults/main.yml
+@@ -675,6 +675,12 @@ nova_libvirt_cleanup_remove_volumes: false
+ # Database
+ nova_cell_database_enable_tls_internal: "{{ database_enable_tls_internal | bool }}"
+ 
++##################
++# Spice options
++##################
++
 +nova_spice_require_secure: false
++
+ ###################
+ # Copy certificates
+ ###################
 diff --git a/ansible/roles/nova-cell/templates/nova-libvirt.json.j2 b/ansible/roles/nova-cell/templates/nova-libvirt.json.j2
 index e81413b35..caf1176ea 100644
 --- a/ansible/roles/nova-cell/templates/nova-libvirt.json.j2
