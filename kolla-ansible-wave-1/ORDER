@@ -1,4 +1,4 @@
 ../_patches/patch123-kolla-ansible-master-expose-spice-configuration.patch
 ../_patches/patch121-kolla-ansible-master-support-secure-spice.patch
 ../_patches/patch108-dry-up-logrotate-cron.patch
-../_patches/patch142-kolla-ansible-kerbside-role.patch
+../_patches/patch147-kolla-ansible-master-kolla-ansible-kerbside-role.patch

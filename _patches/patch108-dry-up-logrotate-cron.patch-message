@@ -5,5 +5,7 @@ logrotate, but they were also fairly infrequently overriden from
 the default. Let's DRY up this code by having a default template
 and only overriding it when required.
 
+Co-Authored-By: Doug Szumski <doug@stackhpc.com>
+
 Change-Id: I23c3dd66e71a6729a42ea7988931a46ce20d4fc6
 Signed-off-by: Michael Still <mikal@stillhq.com>
