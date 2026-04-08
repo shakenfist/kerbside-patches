@@ -327,4 +327,6 @@ fi
 echo
 trap - EXIT
 
-banner "Container image build complete."
+image_count=$(docker image ls | wc -l)
+image_count=$(( ${image_count} - 1 ))
+banner "Container image build complete (${image_count} images built)."
