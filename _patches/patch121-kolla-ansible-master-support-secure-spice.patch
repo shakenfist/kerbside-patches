@@ -1,6 +1,6 @@
-commit 4dd90b6d8a87296c22a5f280eeb1834d58bca7c1
+commit da92fd38d537fe48bf819d30c46d698750b3886f
 Author: Michael Still <mikal@stillhq.com>
-Date:   Thu Apr 9 06:20:55 2026 +1000
+Date:   Thu Apr 9 06:23:13 2026 +1000
 
     Allow requiring secure channels with SPICE
     
@@ -18,22 +18,44 @@ Date:   Thu Apr 9 06:20:55 2026 +1000
     Signed-off-by: Michael Still <mikal@stillhq.com>
 
 diff --git a/ansible/roles/nova-cell/defaults/main.yml b/ansible/roles/nova-cell/defaults/main.yml
-index 6979408e9..9c5ac3067 100644
+index 6979408e9..1edeeac56 100644
 --- a/ansible/roles/nova-cell/defaults/main.yml
 +++ b/ansible/roles/nova-cell/defaults/main.yml
-@@ -675,6 +675,12 @@ nova_libvirt_cleanup_remove_volumes: false
+@@ -675,6 +675,11 @@ nova_libvirt_cleanup_remove_volumes: false
  # Database
  nova_cell_database_enable_tls_internal: "{{ database_enable_tls_internal | bool }}"
  
 +##################
 +# Spice options
 +##################
-+
 +nova_spice_require_secure: false
 +
  ###################
  # Copy certificates
  ###################
+diff --git a/ansible/roles/nova-cell/tasks/precheck.yml b/ansible/roles/nova-cell/tasks/precheck.yml
+index a509e790c..470616034 100644
+--- a/ansible/roles/nova-cell/tasks/precheck.yml
++++ b/ansible/roles/nova-cell/tasks/precheck.yml
+@@ -132,3 +132,18 @@
+     - container_facts.containers['nova_libvirt'] is defined
+     - not nova_libvirt.enabled | bool
+     - inventory_hostname in groups[nova_libvirt.group]
++
++- name: Checking certificate files exist for secure SPICE connections
++  ansible.builtin.stat:
++    path: "{{ node_custom_config }}/nova-cell/{{ item }}"
++  delegate_to: localhost
++  run_once: true
++  register: result
++  failed_when: not result.stat.exists
++  when:
++    - inventory_hostname in groups[nova_libvirt.group]
++    - nova_spice_require_secure | bool
++  with_items:
++    - serverkey.pem
++    - servercert.pem
++    - cacert.pem
 diff --git a/ansible/roles/nova-cell/templates/nova-libvirt.json.j2 b/ansible/roles/nova-cell/templates/nova-libvirt.json.j2
 index e81413b35..caf1176ea 100644
 --- a/ansible/roles/nova-cell/templates/nova-libvirt.json.j2
@@ -64,14 +86,14 @@ index e81413b35..caf1176ea 100644
      ]
  }
 diff --git a/ansible/roles/nova-cell/templates/nova.conf.j2 b/ansible/roles/nova-cell/templates/nova.conf.j2
-index 4f5c2f88d..6fb4641ad 100644
+index 4f5c2f88d..49ee24f6a 100644
 --- a/ansible/roles/nova-cell/templates/nova.conf.j2
 +++ b/ansible/roles/nova-cell/templates/nova.conf.j2
 @@ -61,6 +61,7 @@ novncproxy_base_url = {{ nova_novncproxy_fqdn | kolla_url(public_protocol,  nova
  enabled = false
  [spice]
  enabled = true
-+require_secure = {{ nova_spice_require_secure }}
++require_secure = {{ nova_spice_require_secure | bool }}
  server_listen = {{ api_interface_address }}
  image_compression = {{ nova_spice_image_compression }}
  jpeg_compression = {{ nova_spice_jpeg_compression }}
