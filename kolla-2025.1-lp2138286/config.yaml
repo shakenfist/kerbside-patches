@@ -7,5 +7,5 @@ release: 2025.1
 depends_on: ''
 skip_rebase: true
 skip_claude: true
-source_sha: 69b487c67ff7e18293d9a326a2df15b5acaa7301
-previous_source_sha: 00c2aca9c94254593a4f81cd091f677af3f435c4
+source_sha: d810e07df898e3f49409524f7e6498bf0793f7d2
+previous_source_sha: 69b487c67ff7e18293d9a326a2df15b5acaa7301
