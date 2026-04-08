@@ -4,6 +4,6 @@ destination_branch: master-patches
 shallow_clone: false
 directory: kolla-ansible
 release: master
-depends_on: requirements
-source_sha: ac1c40288cdb86ce2a5a8f974edd059551fd4bc1
-previous_source_sha: 7e9c345613dade635fc31362325091f56801b2be
+depends_on: ''
+source_sha: a53a157e595b2edb5757d5ddeacb07a91a1c284d
+previous_source_sha: 5ba732c3b9a6a0e2d1c3a3c4bf86e150aae3f5a8
