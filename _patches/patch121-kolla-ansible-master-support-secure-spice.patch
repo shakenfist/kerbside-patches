@@ -72,19 +72,19 @@ index e81413b35..caf1176ea 100644
 +            "source": "{{ container_config_directory }}/serverkey.pem",
 +            "dest": "/etc/pki/libvirt-spice/server-key.pem",
 +            "owner": "root",
-+            "perm": "0444"
++            "perm": "0400"
 +        },
 +        {
 +            "source": "{{ container_config_directory }}/servercert.pem",
 +            "dest": "/etc/pki/libvirt-spice/server-cert.pem",
 +            "owner": "root",
-+            "perm": "0444"
++            "perm": "0400"
 +        },
 +        {
 +            "source": "{{ container_config_directory }}/cacert.pem",
 +            "dest": "/etc/pki/libvirt-spice/ca-cert.pem",
 +            "owner": "root",
-+            "perm": "0444"
++            "perm": "0400"
          }{% endif %}
      ]
  }
