@@ -1,6 +1,6 @@
-commit ae740e1f82ee5ca74840496c63f66e8b272538c2
+commit 2bfead9012186375476aa4c2a2974a07db10e724
 Author: Michael Still <mikal@stillhq.com>
-Date:   Sun Mar 15 09:44:23 2026 +1100
+Date:   Thu Apr 9 06:20:56 2026 +1000
 
     Allow concurrent sessions with SPICE.
     
@@ -17,22 +17,22 @@ Date:   Sun Mar 15 09:44:23 2026 +1100
     Signed-off-by: Michael Still <mikal@stillhq.com>
 
 diff --git a/ansible/group_vars/all/nova.yml b/ansible/group_vars/all/nova.yml
-index 9c98dc933..7efa84210 100644
+index 4b116200a..28409069b 100644
 --- a/ansible/group_vars/all/nova.yml
 +++ b/ansible/group_vars/all/nova.yml
-@@ -75,3 +75,4 @@ nova_spice_zlib_compression: "auto"
+@@ -74,3 +74,4 @@ nova_spice_jpeg_compression: "auto"
+ nova_spice_zlib_compression: "auto"
  nova_spice_playback_compression: true
  nova_spice_streaming_mode: "filter"
- nova_spice_require_secure: false
 +nova_spice_allow_concurrent: true
 diff --git a/ansible/roles/nova-cell/templates/nova.conf.j2 b/ansible/roles/nova-cell/templates/nova.conf.j2
-index 6fb4641ad..e9f153283 100644
+index 49ee24f6a..4354cfe1b 100644
 --- a/ansible/roles/nova-cell/templates/nova.conf.j2
 +++ b/ansible/roles/nova-cell/templates/nova.conf.j2
 @@ -62,6 +62,7 @@ enabled = false
  [spice]
  enabled = true
- require_secure = {{ nova_spice_require_secure }}
+ require_secure = {{ nova_spice_require_secure | bool }}
 +allow_concurrent = {{ nova_spice_allow_concurrent }}
  server_listen = {{ api_interface_address }}
  image_compression = {{ nova_spice_image_compression }}
