@@ -1,6 +1,6 @@
-commit da92fd38d537fe48bf819d30c46d698750b3886f
+commit a5e911f12134136035fc41699b4174872db29405
 Author: Michael Still <mikal@stillhq.com>
-Date:   Thu Apr 9 06:23:13 2026 +1000
+Date:   Thu Apr 9 19:55:34 2026 +1000
 
     Allow requiring secure channels with SPICE
     
@@ -34,15 +34,17 @@ index 6979408e9..1edeeac56 100644
  # Copy certificates
  ###################
 diff --git a/ansible/roles/nova-cell/tasks/precheck.yml b/ansible/roles/nova-cell/tasks/precheck.yml
-index a509e790c..5e376f71c 100644
+index a509e790c..a08597284 100644
 --- a/ansible/roles/nova-cell/tasks/precheck.yml
 +++ b/ansible/roles/nova-cell/tasks/precheck.yml
-@@ -132,3 +132,19 @@
+@@ -132,3 +132,21 @@
      - container_facts.containers['nova_libvirt'] is defined
      - not nova_libvirt.enabled | bool
      - inventory_hostname in groups[nova_libvirt.group]
 +
 +- name: Checking certificate files exist for secure SPICE connections
++  vars:
++    nova_libvirt: "{{ nova_cell_services['nova-libvirt'] }}"
 +  ansible.builtin.stat:
 +    path: "{{ node_custom_config }}/nova-cell/{{ item }}"
 +  delegate_to: localhost
