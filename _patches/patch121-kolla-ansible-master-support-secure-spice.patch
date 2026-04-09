@@ -34,10 +34,10 @@ index 6979408e9..1edeeac56 100644
  # Copy certificates
  ###################
 diff --git a/ansible/roles/nova-cell/tasks/precheck.yml b/ansible/roles/nova-cell/tasks/precheck.yml
-index a509e790c..470616034 100644
+index a509e790c..5e376f71c 100644
 --- a/ansible/roles/nova-cell/tasks/precheck.yml
 +++ b/ansible/roles/nova-cell/tasks/precheck.yml
-@@ -132,3 +132,18 @@
+@@ -132,3 +132,19 @@
      - container_facts.containers['nova_libvirt'] is defined
      - not nova_libvirt.enabled | bool
      - inventory_hostname in groups[nova_libvirt.group]
@@ -50,6 +50,7 @@ index a509e790c..470616034 100644
 +  register: result
 +  failed_when: not result.stat.exists
 +  when:
++    - container_facts.containers['nova_libvirt'] is defined
 +    - inventory_hostname in groups[nova_libvirt.group]
 +    - nova_spice_require_secure | bool
 +  with_items:
