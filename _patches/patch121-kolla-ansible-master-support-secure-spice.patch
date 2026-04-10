@@ -1,6 +1,6 @@
-commit a5e911f12134136035fc41699b4174872db29405
+commit ae8b0c0f1fe9808982bfbf82f00fc97c480299e8
 Author: Michael Still <mikal@stillhq.com>
-Date:   Thu Apr 9 19:55:34 2026 +1000
+Date:   Fri Apr 10 09:26:41 2026 +1000
 
     Allow requiring secure channels with SPICE
     
@@ -60,10 +60,10 @@ index a509e790c..a08597284 100644
 +    - servercert.pem
 +    - cacert.pem
 diff --git a/ansible/roles/nova-cell/templates/nova-libvirt.json.j2 b/ansible/roles/nova-cell/templates/nova-libvirt.json.j2
-index e81413b35..caf1176ea 100644
+index e81413b35..7ee4cf042 100644
 --- a/ansible/roles/nova-cell/templates/nova-libvirt.json.j2
 +++ b/ansible/roles/nova-cell/templates/nova-libvirt.json.j2
-@@ -73,6 +73,24 @@
+@@ -73,6 +73,27 @@
              "dest": "/var/lib/kolla/share/ca-certificates",
              "owner": "root",
              "perm": "0600"
@@ -72,19 +72,22 @@ index e81413b35..caf1176ea 100644
 +            "source": "{{ container_config_directory }}/serverkey.pem",
 +            "dest": "/etc/pki/libvirt-spice/server-key.pem",
 +            "owner": "root",
-+            "perm": "0400"
++            "group": "qemu",
++            "perm": "0440"
 +        },
 +        {
 +            "source": "{{ container_config_directory }}/servercert.pem",
 +            "dest": "/etc/pki/libvirt-spice/server-cert.pem",
 +            "owner": "root",
-+            "perm": "0400"
++            "group": "qemu",
++            "perm": "0440"
 +        },
 +        {
 +            "source": "{{ container_config_directory }}/cacert.pem",
 +            "dest": "/etc/pki/libvirt-spice/ca-cert.pem",
 +            "owner": "root",
-+            "perm": "0400"
++            "group": "qemu",
++            "perm": "0440"
          }{% endif %}
      ]
  }
