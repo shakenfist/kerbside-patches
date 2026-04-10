@@ -71,23 +71,23 @@ index e81413b35..0de2952de 100644
 +        {
 +            "source": "{{ container_config_directory }}/serverkey.pem",
 +            "dest": "/etc/pki/libvirt-spice/server-key.pem",
-+            "owner": "nova",
-+            "group": "libvirt",
-+            "perm": "0440"
++            "owner": "root",
++            "group": "root",
++            "perm": "0600"
 +        },
 +        {
 +            "source": "{{ container_config_directory }}/servercert.pem",
 +            "dest": "/etc/pki/libvirt-spice/server-cert.pem",
-+            "owner": "nova",
-+            "group": "libvirt",
-+            "perm": "0440"
++            "owner": "root",
++            "group": "root",
++            "perm": "0600"
 +        },
 +        {
 +            "source": "{{ container_config_directory }}/cacert.pem",
 +            "dest": "/etc/pki/libvirt-spice/ca-cert.pem",
-+            "owner": "nova",
-+            "group": "libvirt",
-+            "perm": "0440"
++            "owner": "root",
++            "group": "root",
++            "perm": "0600"
          }{% endif %}
      ]
  }
