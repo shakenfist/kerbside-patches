@@ -126,7 +126,15 @@ index 4aaec0785..e05532d01 100644
  
  [collectd:children]
  compute
-@@ -606,3 +612,10 @@ letsencrypt
+@@ -202,6 +208,7 @@
+ compute
+ storage
+ monitoring
++vdiproxy
+ 
+ [opensearch:children]
+ control
+@@ -606,3 +613,10 @@ letsencrypt
  
  [letsencrypt-lego:children]
  letsencrypt
