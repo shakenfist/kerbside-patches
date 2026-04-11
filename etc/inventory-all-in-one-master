@@ -191,7 +191,7 @@ common
 [fluentd:children]
 common
 
-[kolla-logs:children]
+[kolla_logs:children]
 common
 
 [kolla-toolbox:children]
