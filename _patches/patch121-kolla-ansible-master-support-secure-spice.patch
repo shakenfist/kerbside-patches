@@ -1,6 +1,6 @@
-commit 9c4704679a65196992c043c9b18e1882229f9c94
+commit 8843905bb2dc0145c134a2ea51c6f392408a3b81
 Author: Michael Still <mikal@stillhq.com>
-Date:   Fri Apr 10 09:26:41 2026 +1000
+Date:   Wed Apr 15 05:52:54 2026 +1000
 
     Allow requiring secure channels with SPICE
     
@@ -60,7 +60,7 @@ index a509e790c..a08597284 100644
 +    - servercert.pem
 +    - cacert.pem
 diff --git a/ansible/roles/nova-cell/templates/nova-libvirt.json.j2 b/ansible/roles/nova-cell/templates/nova-libvirt.json.j2
-index e81413b35..0de2952de 100644
+index e81413b35..a40adaef1 100644
 --- a/ansible/roles/nova-cell/templates/nova-libvirt.json.j2
 +++ b/ansible/roles/nova-cell/templates/nova-libvirt.json.j2
 @@ -73,6 +73,24 @@

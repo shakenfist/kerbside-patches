@@ -1,6 +1,6 @@
-commit 2bfead9012186375476aa4c2a2974a07db10e724
+commit 527efeaf8a931f91ee2f7db7c370b1182e77e79a
 Author: Michael Still <mikal@stillhq.com>
-Date:   Thu Apr 9 06:20:56 2026 +1000
+Date:   Wed Apr 15 05:52:55 2026 +1000
 
     Allow concurrent sessions with SPICE.
     
