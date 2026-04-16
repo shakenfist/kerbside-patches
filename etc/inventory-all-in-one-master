@@ -194,7 +194,7 @@ common
 [kolla_logs:children]
 common
 
-[kolla-toolbox:children]
+[kolla_toolbox:children]
 common
 
 [opensearch:children]
