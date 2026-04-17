@@ -611,7 +611,7 @@ new file mode 100644
 index 000000000..9999676a4
 --- /dev/null
 +++ b/ansible/roles/kerbside/tasks/bootstrap.yml
-@@ -0,0 +1,56 @@
+@@ -0,0 +1,61 @@
 +---
 +- name: Creating Kerbside databases
 +  become: true
@@ -619,6 +619,7 @@ index 000000000..9999676a4
 +    container_engine: "{{ kolla_container_engine }}"
 +    module_name: mysql_db
 +    module_args:
++      ca_cert: "{{ openstack_cacert if database_enable_tls_internal | bool else omit }}"
 +      login_host: "{{ database_address }}"
 +      login_port: "{{ database_port }}"
 +      login_user: "{{ kerbside_database_shard_root_user }}"
@@ -635,6 +636,7 @@ index 000000000..9999676a4
 +    container_engine: "{{ kolla_container_engine }}"
 +    module_name: mysql_user
 +    module_args:
++      ca_cert: "{{ openstack_cacert if database_enable_tls_internal | bool else omit }}"
 +      login_host: "{{ database_address }}"
 +      login_port: "{{ database_port }}"
 +      login_user: "{{ kerbside_database_shard_root_user }}"
@@ -659,7 +661,10 @@ index 000000000..9999676a4
 +      name: kerbside
 +      description: "Kerbside administrative access group"
 +      auth: "{{ openstack_auth }}"
-+      endpoint_type: "{{ openstack_interface }}"
++      cloud: "{{ openstack_auth_cloud }}"
++      interface: "{{ openstack_interface }}"
++      cacert: "{{ openstack_cacert }}"
++      region_name: "{{ openstack_region_name }}"
 +  run_once: true
 +  when:
 +    - enable_kerbside | bool
