@@ -132,12 +132,20 @@ jobs:
             'container_distro_version': 'trixie'
           },
           {
-            'name': 'build-ubuntu-master',
+            'name': 'build-ubuntu-noble-master',
             'release': 'master',
             'base': 'debian:12',
             'baseuser': 'debian',
             'container_distro': 'ubuntu',
             'container_distro_version': 'noble'
+          },
+          {
+            'name': 'build-rocky-10-master',
+            'release': 'master',
+            'base': 'debian:12',
+            'baseuser': 'debian',
+            'container_distro': 'rocky',
+            'container_distro_version': '10'
           },
         ]
     needs: assemble_source
