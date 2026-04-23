@@ -212,10 +212,13 @@ for target in ${build_targets}; do
         echo
     fi
 
+    # Unbuildable images are ones kolla itself marks as impossible to
+    # build on the current base distro (see kolla/image/unbuildable.py),
+    # typically because an upstream package is missing. This is expected
+    # and not a build failure -- just report them for visibility.
     echo "... unbuildable?"
     for img in $(cat ${topdir}/archive/build.json | jq -r ".unbuildable | .[] | .name"); do
-        echo "${img} unbuildable"
-        failed=1
+        echo "${img} unbuildable on ${distro} ${distro_version} (skipped)"
     done
 
     if [ ${failed} == 1 ]; then
