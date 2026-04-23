@@ -475,6 +475,17 @@ jobs:
             'container_distro_version': 'trixie'
           },
           {
+            'name': 'master-h-rocky10-c-rocky10-aio',
+            'description': 'master rocky 10 images on rocky 10 all-in-one',
+            'release': 'master',
+            'base': 'rocky:10',
+            'baseuser': 'cloud-user',
+            'topology': 'all-in-one',
+            'runs_on': 'debian-12',
+            'container_distro': 'rocky',
+            'container_distro_version': '10'
+          },
+          {
             'name': 'master-h-debian12-c-debian12-multi',
             'description': 'master debian 13 images on debian 12 multinode',
             'release': 'master',
