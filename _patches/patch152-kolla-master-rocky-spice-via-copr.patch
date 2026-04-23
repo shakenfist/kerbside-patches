@@ -1,6 +1,6 @@
-commit f7e3d90781ce9f4076589cd5b43e5cee43940a38
+commit 9401b421dafbd12ca8c06a205cbe879fcac6a397
 Author: Michael Still <mikal@stillhq.com>
-Date:   Thu Apr 23 18:10:00 2026 +1000
+Date:   Thu Apr 23 18:14:34 2026 +1000
 
     Add opt-in SPICE support for Rocky via COPR.
     
@@ -49,10 +49,11 @@ Date:   Thu Apr 23 18:10:00 2026 +1000
     
     Assisted-By: Claude Code
     Co-Authored-By: Claude Opus 4.7 (1M context, medium effort) <noreply@anthropic.com>
+    Change-Id: I410b87b7f8cdd541c48d9a749b3fea634a5f4e6c
     Signed-off-by: Michael Still <mikal@stillhq.com>
 
 diff --git a/doc/source/support_matrix.rst b/doc/source/support_matrix.rst
-index bec1aa0..3bad575 100644
+index bec1aa0bd..3bad5755d 100644
 --- a/doc/source/support_matrix.rst
 +++ b/doc/source/support_matrix.rst
 @@ -110,8 +110,23 @@ For a list of currently unbuildable images please look into
@@ -85,7 +86,7 @@ index bec1aa0..3bad575 100644
 +The Debian and Ubuntu container images continue to support
 +``spice-direct`` without additional configuration.
 diff --git a/docker/nova/nova-libvirt/Dockerfile.j2 b/docker/nova/nova-libvirt/Dockerfile.j2
-index 88e4a52..d0e74c6 100644
+index 88e4a52d6..d0e74c64d 100644
 --- a/docker/nova/nova-libvirt/Dockerfile.j2
 +++ b/docker/nova/nova-libvirt/Dockerfile.j2
 @@ -13,6 +13,29 @@ LABEL maintainer="{{ maintainer }}" name="{{ image_name }}" build-date="{{ build
@@ -133,7 +134,7 @@ index 88e4a52..d0e74c6 100644
  
      {% set nova_libvirt_packages = [
 diff --git a/kolla/common/config.py b/kolla/common/config.py
-index 3f12030..9086adb 100644
+index 3f120307b..9086adba0 100644
 --- a/kolla/common/config.py
 +++ b/kolla/common/config.py
 @@ -291,6 +291,13 @@ _BASE_OPTS = [
@@ -151,7 +152,7 @@ index 3f12030..9086adb 100644
  
  
 diff --git a/kolla/image/kolla_worker.py b/kolla/image/kolla_worker.py
-index 680595f..a57490b 100644
+index 680595f86..a57490bb9 100644
 --- a/kolla/image/kolla_worker.py
 +++ b/kolla/image/kolla_worker.py
 @@ -391,6 +391,7 @@ class KollaWorker(object):
@@ -164,7 +165,7 @@ index 680595f..a57490b 100644
                  loader=jinja2.FileSystemLoader(self.working_dir))
 diff --git a/releasenotes/notes/rocky-kerbside-spice-copr-9a3f4d7c2b1e8a50.yaml b/releasenotes/notes/rocky-kerbside-spice-copr-9a3f4d7c2b1e8a50.yaml
 new file mode 100644
-index 0000000..28622ec
+index 000000000..28622ecf3
 --- /dev/null
 +++ b/releasenotes/notes/rocky-kerbside-spice-copr-9a3f4d7c2b1e8a50.yaml
 @@ -0,0 +1,20 @@

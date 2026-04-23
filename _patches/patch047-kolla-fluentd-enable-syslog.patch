@@ -1,6 +1,6 @@
-commit 96110e1e691de6cbc15ddaf45663dc97ee15884c
+commit 2a5c8439c9f21b55dc8d99693243aa291b08d1c8
 Author: Michael Still <mikal@stillhq.com>
-Date:   Wed Apr 15 05:37:02 2026 +1000
+Date:   Thu Apr 23 18:14:34 2026 +1000
 
     Add syslog to fluentd.
     
