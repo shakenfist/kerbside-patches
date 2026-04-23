@@ -1,0 +1,191 @@
+commit 0000000000000000000000000000000000000000
+Author: Michael Still <mikal@stillhq.com>
+Date:   Wed Apr 23 00:00:00 2026 +1000
+
+    Add opt-in SPICE support for Rocky via COPR.
+
+    RHEL9 dropped SPICE support from qemu-kvm, and Rocky Linux followed
+    suit. Up until now the documented guidance has been to use the Debian
+    or Ubuntu container images if you want to serve the ``spice-direct``
+    console type, because the stock Rocky nova-libvirt image will simply
+    fail to start any SPICE-enabled instance.
+
+    This change adds a new build-time option, ``install_kerbside``, which
+    when set to true causes the Rocky variant of the nova-libvirt image
+    to pull ``qemu-kvm`` and ``spice-server`` from the community
+    maintained ligenix/enterprise-qemu-spice COPR repository. That
+    repository publishes a rebuild of ``qemu-kvm`` with SPICE support
+    re-enabled for both EPEL 9 and EPEL 10.
+
+    The option defaults to false, so deployments that do not use
+    Kerbside see no change to the nova-libvirt image. When Kerbside is
+    being built and deployed, setting ``install_kerbside = true`` in
+    ``kolla-build.conf`` produces a Rocky nova-libvirt that can actually
+    serve SPICE consoles. The scoping is deliberate: a deployer who is
+    not using Kerbside has no reason to carry a third-party qemu-kvm
+    rebuild, and carrying one unconditionally would be hard to justify
+    for deployments that only use the NoVNC console. Upstream may prefer
+    the more predictable "always on for Rocky" behaviour; if so the
+    conditional can be dropped in review.
+
+    The COPR is a third-party rebuild with no vendor support contract.
+    The release note and support matrix are updated to describe the
+    opt-in path and call this caveat out explicitly. The earlier
+    "you must use Debian or Ubuntu" wording in the support matrix is
+    softened here, rather than by retroactively editing the kerbside
+    container-build patch that introduced it, so that this feature can
+    land (or not land) independently of the earlier change.
+
+    Partial-Bug: #2131793 (spice-direct consoles)
+
+    Prompt: Let's work in shakenfist/kerbside-patches-wt-rocky-containers,
+    a worktree of shakenfist/kerbside-patches. I am unsure how OpenStack
+    Kolla handles overriding dnf sources, but I am interested in seeing
+    how we would go about using
+    https://copr.fedorainfracloud.org/coprs/ligenix/enterprise-qemu-spice/
+    to add SPICE support back to the Kolla build Rocky Linux containers
+    as a new patch in the kolla/ORDER list. Could you please investigate
+    options here?
+
+    Assisted-By: Claude Code
+    Co-Authored-By: Claude Opus 4.7 (1M context, medium effort) <noreply@anthropic.com>
+    Signed-off-by: Michael Still <mikal@stillhq.com>
+
+diff --git a/doc/source/support_matrix.rst b/doc/source/support_matrix.rst
+index 1c7fd3761..c6c4e8a01 100644
+--- a/doc/source/support_matrix.rst
++++ b/doc/source/support_matrix.rst
+@@ -98,8 +98,23 @@ For a list of currently unbuildable images please look into
+ SPICE limitations
+ =================
+
+-The new OpenStack Compute console type ``spice-direct`` requires that
+-SPICE support be compiled into the qemu running the instance. Sadly,
+-Red Hat chose to remove SPICE support from qemu in RHEL9, and Rocky
+-Linux has followed along. You therefore _must_ run the Debian container
+-images if you wish to use the ``spice-direct`` console type.
++The OpenStack Compute console type ``spice-direct`` requires that
++SPICE support be compiled into the qemu running the instance. Red Hat
++removed SPICE support from qemu in RHEL9, and Rocky Linux has followed
++suit, so the stock Rocky Linux container images do not support
++``spice-direct`` out of the box.
++
++If you are deploying Kerbside on Rocky Linux, set
++``install_kerbside = true`` in ``kolla-build.conf`` before building
++``nova-libvirt``. When enabled, the Rocky variant of the
++``nova-libvirt`` image pulls ``qemu-kvm`` and ``spice-server`` from
++the community-maintained
++`ligenix/enterprise-qemu-spice
++<https://copr.fedorainfracloud.org/coprs/ligenix/enterprise-qemu-spice/>`__
++COPR repository, which rebuilds ``qemu-kvm`` with SPICE re-enabled
++for EPEL 9 and EPEL 10. Because this COPR is a third-party rebuild
++without a vendor support contract, it is recommended only for
++proof-of-concept deployments.
++
++The Debian and Ubuntu container images continue to support
++``spice-direct`` without additional configuration.
+diff --git a/docker/nova/nova-libvirt/Dockerfile.j2 b/docker/nova/nova-libvirt/Dockerfile.j2
+index d65d31584..aaaaaaaaa 100644
+--- a/docker/nova/nova-libvirt/Dockerfile.j2
++++ b/docker/nova/nova-libvirt/Dockerfile.j2
+@@ -13,6 +13,23 @@ LABEL maintainer="{{ maintainer }}" name="{{ image_name }}" build-date="{{ build
+
+ {{ macros.enable_extra_repos(['ceph', 'crb', 'epel', 'openvswitch']) }}
+
++    {% if install_kerbside | default(false) and base_distro == 'rocky' %}
++        {#
++            The stock Rocky qemu-kvm has SPICE compiled out. When the
++            deployment is using Kerbside, layer the ligenix COPR in so
++            that qemu-kvm and spice-server are available with SPICE
++            re-enabled. $releasever is left for dnf to expand at
++            install time so the same .repo entry works on Rocky 9 and
++            Rocky 10.
++        #}
++RUN printf '%s\n' \
++        '[copr:copr.fedorainfracloud.org:ligenix:enterprise-qemu-spice]' \
++        'name=Copr repo for enterprise-qemu-spice owned by ligenix' \
++        'baseurl=https://download.copr.fedorainfracloud.org/results/ligenix/enterprise-qemu-spice/epel-$releasever-$basearch/' \
++        'type=rpm-md' \
++        'skip_if_unavailable=True' \
++        'gpgcheck=1' \
++        'gpgkey=https://download.copr.fedorainfracloud.org/results/ligenix/enterprise-qemu-spice/pubkey.gpg' \
++        'repo_gpgcheck=0' \
++        'enabled=1' \
++        'enabled_metadata=1' \
++        > /etc/yum.repos.d/ligenix-enterprise-qemu-spice.repo
++    {% endif %}
++
+     {% set nova_libvirt_packages = [
+         'ceph-common',
+         'cyrus-sasl-md5',
+@@ -38,6 +55,13 @@ LABEL maintainer="{{ maintainer }}" name="{{ image_name }}" build-date="{{ build
+         ] %}
+     {% endif %}
+
++    {% if install_kerbside | default(false) and base_distro == 'rocky' %}
++        {% set nova_libvirt_packages = nova_libvirt_packages + [
++            'qemu-kvm-ui-spice',
++            'spice-server',
++        ] %}
++    {% endif %}
++
+ {% elif base_package_type == 'deb' %}
+
+     {% set nova_libvirt_packages = [
+diff --git a/kolla/common/config.py b/kolla/common/config.py
+index bbbbbbbbb..ccccccccc 100644
+--- a/kolla/common/config.py
++++ b/kolla/common/config.py
+@@ -289,6 +289,12 @@ _BASE_OPTS = [
+     cfg.BoolOpt('clean_package_cache', default=True,
+                 help='Clean all package cache.'),
+     cfg.ListOpt('allowed-to-fail', default=[],
+                 help='Images which are allowed to fail'),
++    cfg.BoolOpt('install_kerbside', default=False,
++                help='Install Kerbside SPICE console support in the '
++                     'Rocky Linux nova-libvirt image. When enabled, '
++                     'pulls qemu-kvm and spice-server from the '
++                     'community-maintained ligenix/enterprise-qemu-spice '
++                     'COPR repository. Ignored on non-Rocky base distros. '
++                     'Recommended only for proof-of-concept deployments.'),
+ ]
+
+
+diff --git a/kolla/image/kolla_worker.py b/kolla/image/kolla_worker.py
+index ddddddddd..eeeeeeeee 100644
+--- a/kolla/image/kolla_worker.py
++++ b/kolla/image/kolla_worker.py
+@@ -391,6 +391,7 @@ class KollaWorker(object):
+                       'rpm_setup': self.rpm_setup,
+                       'build_date': build_date,
+                       'clean_package_cache': self.clean_package_cache,
++                      'install_kerbside': self.conf.install_kerbside,
+                       'patches_path': self.patches_path}
+             env = jinja2.Environment(  # nosec: not used to render HTML
+                 loader=jinja2.FileSystemLoader(self.working_dir))
+diff --git a/releasenotes/notes/rocky-kerbside-spice-copr-9a3f4d7c2b1e8a50.yaml b/releasenotes/notes/rocky-kerbside-spice-copr-9a3f4d7c2b1e8a50.yaml
+new file mode 100644
+index 000000000..fffffffff
+--- /dev/null
++++ b/releasenotes/notes/rocky-kerbside-spice-copr-9a3f4d7c2b1e8a50.yaml
+@@ -0,0 +1,20 @@
++---
++features:
++  - |
++    A new build-time option ``install_kerbside`` (default ``false``) has
++    been added. When set to ``true`` in ``kolla-build.conf``, the Rocky
++    Linux variant of the ``nova-libvirt`` image installs ``qemu-kvm``
++    and ``spice-server`` from the community-maintained
++    `ligenix/enterprise-qemu-spice
++    <https://copr.fedorainfracloud.org/coprs/ligenix/enterprise-qemu-spice/>`__
++    COPR repository, which rebuilds ``qemu-kvm`` with SPICE support
++    re-enabled for EPEL 9 and EPEL 10. This allows Rocky Linux
++    container images to serve ``spice-direct`` consoles when paired
++    with Kerbside. The COPR is a third-party rebuild with no vendor
++    support contract and is recommended only for proof-of-concept
++    deployments. When ``install_kerbside`` is left at its default of
++    ``false`` the ``nova-libvirt`` image is unchanged.
++upgrade:
++  - |
++    No action required. The COPR repository is only added when
++    ``install_kerbside`` is explicitly set to ``true``.
