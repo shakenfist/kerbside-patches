@@ -1,22 +1,22 @@
-commit 0000000000000000000000000000000000000000
+commit f7e3d90781ce9f4076589cd5b43e5cee43940a38
 Author: Michael Still <mikal@stillhq.com>
-Date:   Wed Apr 23 00:00:00 2026 +1000
+Date:   Thu Apr 23 18:10:00 2026 +1000
 
     Add opt-in SPICE support for Rocky via COPR.
-
+    
     RHEL9 dropped SPICE support from qemu-kvm, and Rocky Linux followed
     suit. Up until now the documented guidance has been to use the Debian
     or Ubuntu container images if you want to serve the ``spice-direct``
     console type, because the stock Rocky nova-libvirt image will simply
     fail to start any SPICE-enabled instance.
-
+    
     This change adds a new build-time option, ``install_kerbside``, which
     when set to true causes the Rocky variant of the nova-libvirt image
     to pull ``qemu-kvm`` and ``spice-server`` from the community
     maintained ligenix/enterprise-qemu-spice COPR repository. That
     repository publishes a rebuild of ``qemu-kvm`` with SPICE support
     re-enabled for both EPEL 9 and EPEL 10.
-
+    
     The option defaults to false, so deployments that do not use
     Kerbside see no change to the nova-libvirt image. When Kerbside is
     being built and deployed, setting ``install_kerbside = true`` in
@@ -27,7 +27,7 @@ Date:   Wed Apr 23 00:00:00 2026 +1000
     for deployments that only use the NoVNC console. Upstream may prefer
     the more predictable "always on for Rocky" behaviour; if so the
     conditional can be dropped in review.
-
+    
     The COPR is a third-party rebuild with no vendor support contract.
     The release note and support matrix are updated to describe the
     opt-in path and call this caveat out explicitly. The earlier
@@ -35,9 +35,9 @@ Date:   Wed Apr 23 00:00:00 2026 +1000
     softened here, rather than by retroactively editing the kerbside
     container-build patch that introduced it, so that this feature can
     land (or not land) independently of the earlier change.
-
+    
     Partial-Bug: #2131793 (spice-direct consoles)
-
+    
     Prompt: Let's work in shakenfist/kerbside-patches-wt-rocky-containers,
     a worktree of shakenfist/kerbside-patches. I am unsure how OpenStack
     Kolla handles overriding dnf sources, but I am interested in seeing
@@ -46,24 +46,24 @@ Date:   Wed Apr 23 00:00:00 2026 +1000
     to add SPICE support back to the Kolla build Rocky Linux containers
     as a new patch in the kolla/ORDER list. Could you please investigate
     options here?
-
+    
     Assisted-By: Claude Code
     Co-Authored-By: Claude Opus 4.7 (1M context, medium effort) <noreply@anthropic.com>
     Signed-off-by: Michael Still <mikal@stillhq.com>
 
 diff --git a/doc/source/support_matrix.rst b/doc/source/support_matrix.rst
-index 1c7fd3761..c6c4e8a01 100644
+index bec1aa0..3bad575 100644
 --- a/doc/source/support_matrix.rst
 +++ b/doc/source/support_matrix.rst
-@@ -98,8 +98,23 @@ For a list of currently unbuildable images please look into
+@@ -110,8 +110,23 @@ For a list of currently unbuildable images please look into
  SPICE limitations
  =================
-
+ 
 -The new OpenStack Compute console type ``spice-direct`` requires that
 -SPICE support be compiled into the qemu running the instance. Sadly,
 -Red Hat chose to remove SPICE support from qemu in RHEL9, and Rocky
--Linux has followed along. You therefore _must_ run the Debian container
--images if you wish to use the ``spice-direct`` console type.
+-Linux has followed along. You therefore _must_ run the Debian or Ubuntu
+-container images if you wish to use the ``spice-direct`` console type.
 +The OpenStack Compute console type ``spice-direct`` requires that
 +SPICE support be compiled into the qemu running the instance. Red Hat
 +removed SPICE support from qemu in RHEL9, and Rocky Linux has followed
@@ -85,13 +85,13 @@ index 1c7fd3761..c6c4e8a01 100644
 +The Debian and Ubuntu container images continue to support
 +``spice-direct`` without additional configuration.
 diff --git a/docker/nova/nova-libvirt/Dockerfile.j2 b/docker/nova/nova-libvirt/Dockerfile.j2
-index d65d31584..aaaaaaaaa 100644
+index 88e4a52..d0e74c6 100644
 --- a/docker/nova/nova-libvirt/Dockerfile.j2
 +++ b/docker/nova/nova-libvirt/Dockerfile.j2
-@@ -13,6 +13,23 @@ LABEL maintainer="{{ maintainer }}" name="{{ image_name }}" build-date="{{ build
-
+@@ -13,6 +13,29 @@ LABEL maintainer="{{ maintainer }}" name="{{ image_name }}" build-date="{{ build
+ 
  {{ macros.enable_extra_repos(['ceph', 'crb', 'epel', 'openvswitch']) }}
-
+ 
 +    {% if install_kerbside | default(false) and base_distro == 'rocky' %}
 +        {#
 +            The stock Rocky qemu-kvm has SPICE compiled out. When the
@@ -118,10 +118,10 @@ index d65d31584..aaaaaaaaa 100644
      {% set nova_libvirt_packages = [
          'ceph-common',
          'cyrus-sasl-md5',
-@@ -38,6 +55,13 @@ LABEL maintainer="{{ maintainer }}" name="{{ image_name }}" build-date="{{ build
+@@ -38,6 +61,13 @@ LABEL maintainer="{{ maintainer }}" name="{{ image_name }}" build-date="{{ build
          ] %}
      {% endif %}
-
+ 
 +    {% if install_kerbside | default(false) and base_distro == 'rocky' %}
 +        {% set nova_libvirt_packages = nova_libvirt_packages + [
 +            'qemu-kvm-ui-spice',
@@ -130,14 +130,13 @@ index d65d31584..aaaaaaaaa 100644
 +    {% endif %}
 +
  {% elif base_package_type == 'deb' %}
-
+ 
      {% set nova_libvirt_packages = [
 diff --git a/kolla/common/config.py b/kolla/common/config.py
-index bbbbbbbbb..ccccccccc 100644
+index 3f12030..9086adb 100644
 --- a/kolla/common/config.py
 +++ b/kolla/common/config.py
-@@ -289,6 +289,12 @@ _BASE_OPTS = [
-     cfg.BoolOpt('clean_package_cache', default=True,
+@@ -291,6 +291,13 @@ _BASE_OPTS = [
                  help='Clean all package cache.'),
      cfg.ListOpt('allowed-to-fail', default=[],
                  help='Images which are allowed to fail'),
@@ -149,10 +148,10 @@ index bbbbbbbbb..ccccccccc 100644
 +                     'COPR repository. Ignored on non-Rocky base distros. '
 +                     'Recommended only for proof-of-concept deployments.'),
  ]
-
-
+ 
+ 
 diff --git a/kolla/image/kolla_worker.py b/kolla/image/kolla_worker.py
-index ddddddddd..eeeeeeeee 100644
+index 680595f..a57490b 100644
 --- a/kolla/image/kolla_worker.py
 +++ b/kolla/image/kolla_worker.py
 @@ -391,6 +391,7 @@ class KollaWorker(object):
@@ -165,7 +164,7 @@ index ddddddddd..eeeeeeeee 100644
                  loader=jinja2.FileSystemLoader(self.working_dir))
 diff --git a/releasenotes/notes/rocky-kerbside-spice-copr-9a3f4d7c2b1e8a50.yaml b/releasenotes/notes/rocky-kerbside-spice-copr-9a3f4d7c2b1e8a50.yaml
 new file mode 100644
-index 000000000..fffffffff
+index 0000000..28622ec
 --- /dev/null
 +++ b/releasenotes/notes/rocky-kerbside-spice-copr-9a3f4d7c2b1e8a50.yaml
 @@ -0,0 +1,20 @@
