@@ -101,6 +101,14 @@ cat etc/globals-${target_release}.yml | \
     sed "s/IMAGE_TAG/${image_tag}/" \
     > /etc/kolla/globals.yml
 
+# Align kolla_base_distro with the container distro we are deploying.
+# Several conditional settings in globals.yml (e.g. haproxy_backend_cacert,
+# openstack_cacert) select CA bundle paths based on kolla_base_distro, so if
+# it does not match the container OS haproxy fails to start with a missing
+# ca-file.
+echo -e "${H2}Set kolla_base_distro to '${distro}'${Color_Off}"
+sed -i "s|^kolla_base_distro:.*|kolla_base_distro: \"${distro}\"|" /etc/kolla/globals.yml
+
 if [ "${use_ci_registry}" != "true" ]; then
     echo -e "${H2}Not using CI registry, removing registry settings${Color_Off}"
     # Set docker_registry to empty string rather than removing it. When

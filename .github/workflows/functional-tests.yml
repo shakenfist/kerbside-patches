@@ -617,6 +617,7 @@ jobs:
           registry_token: ${{ secrets.CI_REGISTRY_TOKEN }}
           enable_kerbside: ${{ matrix.test.enable_kerbside }}
           use_ci_registry: 'true'
+          container_distro: ${{ matrix.test.container_distro }}
 
       - name: Dump internal VIP CA cert details
         if: always()
