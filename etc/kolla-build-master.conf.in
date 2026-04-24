@@ -4,3 +4,4 @@ base_tag = DISTRO_VERSION
 base_image = BASE_IMAGE
 debug = true
 push = false
+install_kerbside = true
