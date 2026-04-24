@@ -49,6 +49,11 @@ echo -e "${H1}==================================================${Color_Off}"
 
 openstack image set --property hw_video_ram=64 ${imageid}
 openstack image set --property hw_firmware_type=uefi ${imageid}
+# Rocky 10's edk2-ovmf ships firmware descriptors that only match q35
+# machines, so libvirt cannot resolve firmware="efi" when the guest
+# defaults to the pc (i440fx) machine type. q35 is the modern default
+# for UEFI guests across distros, so force it on all platforms.
+openstack image set --property hw_machine_type=q35 ${imageid}
 openstack image set --property hw_sound_model=usb ${imageid}
 openstack image set --property hw_usb_model=qemu-xhci ${imageid}
 
