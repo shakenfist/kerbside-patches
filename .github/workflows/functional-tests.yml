@@ -816,7 +816,8 @@ jobs:
 
           echo
           echo "Running console tests..."
-          ./tools/test-console /tmp/kolla-ca.pem
+          CONTAINER_DISTRO="${{ matrix.test.container_distro }}" \
+              ./tools/test-console /tmp/kolla-ca.pem
 
       - name: Verify containers are healthy
         if: always()

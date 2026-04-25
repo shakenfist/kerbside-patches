@@ -168,7 +168,7 @@ new file mode 100644
 index 000000000..28622ecf3
 --- /dev/null
 +++ b/releasenotes/notes/rocky-kerbside-spice-copr-9a3f4d7c2b1e8a50.yaml
-@@ -0,0 +1,20 @@
+@@ -0,0 +1,28 @@
 +---
 +features:
 +  - |
@@ -185,6 +185,16 @@ index 000000000..28622ecf3
 +    support contract and is recommended only for proof-of-concept
 +    deployments. When ``install_kerbside`` is left at its default of
 +    ``false`` the ``nova-libvirt`` image is unchanged.
++issues:
++  - |
++    The ligenix/enterprise-qemu-spice COPR builds ship qemu-kvm without
++    the ``usb-audio`` device. Guests configured with
++    ``hw_sound_model=usb`` (the recommended default in the kerbside
++    ``hw:sound_model`` documentation) will fail to start on Rocky with
++    ``unsupported configuration: usb-audio controller is not supported
++    by this QEMU binary``. Use a different model such as ``ich9`` or
++    ``ac97`` on Rocky deployments until the COPR rebuild ships
++    usb-audio.
 +upgrade:
 +  - |
 +    No action required. The COPR repository is only added when
