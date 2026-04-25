@@ -6,7 +6,7 @@ or Ubuntu container images if you want to serve the ``spice-direct``
 console type, because the stock Rocky nova-libvirt image will simply
 fail to start any SPICE-enabled instance.
 
-This change adds a new build-time option, ``install_kerbside``, which
+This change adds a new build-time option, ``use_ligenix_qemu``, which
 when set to true causes the Rocky variant of the nova-libvirt image
 to pull ``qemu-kvm`` and ``spice-server`` from the community
 maintained ligenix/enterprise-qemu-spice COPR repository. That
@@ -15,7 +15,7 @@ re-enabled for both EPEL 9 and EPEL 10.
 
 The option defaults to false, so deployments that do not use
 Kerbside see no change to the nova-libvirt image. When Kerbside is
-being built and deployed, setting ``install_kerbside = true`` in
+being built and deployed, setting ``use_ligenix_qemu = true`` in
 ``kolla-build.conf`` produces a Rocky nova-libvirt that can actually
 serve SPICE consoles. The scoping is deliberate: a deployer who is
 not using Kerbside has no reason to carry a third-party qemu-kvm
@@ -34,10 +34,9 @@ land (or not land) independently of the earlier change.
 
 Partial-Bug: #2131793 (spice-direct consoles)
 
-Prompt: Let's work in shakenfist/kerbside-patches-wt-rocky-containers,
-a worktree of shakenfist/kerbside-patches. I am unsure how OpenStack
-Kolla handles overriding dnf sources, but I am interested in seeing
-how we would go about using
+Prompt: Let's work in shakenfist/kerbside-patches. I am unsure how
+OpenStack Kolla handles overriding dnf sources, but I am interested in
+seeing how we would go about using
 https://copr.fedorainfracloud.org/coprs/ligenix/enterprise-qemu-spice/
 to add SPICE support back to the Kolla build Rocky Linux containers
 as a new patch in the kolla/ORDER list. Could you please investigate
@@ -45,4 +44,5 @@ options here?
 
 Assisted-By: Claude Code
 Co-Authored-By: Claude Opus 4.7 (1M context, medium effort) <noreply@anthropic.com>
+Change-Id: I410b87b7f8cdd541c48d9a749b3fea634a5f4e6c
 Signed-off-by: Michael Still <mikal@stillhq.com>

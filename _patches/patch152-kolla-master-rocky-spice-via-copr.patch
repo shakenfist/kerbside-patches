@@ -1,6 +1,6 @@
-commit 9401b421dafbd12ca8c06a205cbe879fcac6a397
+commit 6196c1c2dcfe4ec02ff9ded65d7099638f977219
 Author: Michael Still <mikal@stillhq.com>
-Date:   Thu Apr 23 18:14:34 2026 +1000
+Date:   Sat Apr 25 17:32:08 2026 +1000
 
     Add opt-in SPICE support for Rocky via COPR.
     
@@ -10,7 +10,7 @@ Date:   Thu Apr 23 18:14:34 2026 +1000
     console type, because the stock Rocky nova-libvirt image will simply
     fail to start any SPICE-enabled instance.
     
-    This change adds a new build-time option, ``install_kerbside``, which
+    This change adds a new build-time option, ``use_ligenix_qemu``, which
     when set to true causes the Rocky variant of the nova-libvirt image
     to pull ``qemu-kvm`` and ``spice-server`` from the community
     maintained ligenix/enterprise-qemu-spice COPR repository. That
@@ -19,7 +19,7 @@ Date:   Thu Apr 23 18:14:34 2026 +1000
     
     The option defaults to false, so deployments that do not use
     Kerbside see no change to the nova-libvirt image. When Kerbside is
-    being built and deployed, setting ``install_kerbside = true`` in
+    being built and deployed, setting ``use_ligenix_qemu = true`` in
     ``kolla-build.conf`` produces a Rocky nova-libvirt that can actually
     serve SPICE consoles. The scoping is deliberate: a deployer who is
     not using Kerbside has no reason to carry a third-party qemu-kvm
@@ -38,10 +38,9 @@ Date:   Thu Apr 23 18:14:34 2026 +1000
     
     Partial-Bug: #2131793 (spice-direct consoles)
     
-    Prompt: Let's work in shakenfist/kerbside-patches-wt-rocky-containers,
-    a worktree of shakenfist/kerbside-patches. I am unsure how OpenStack
-    Kolla handles overriding dnf sources, but I am interested in seeing
-    how we would go about using
+    Prompt: Let's work in shakenfist/kerbside-patches. I am unsure how
+    OpenStack Kolla handles overriding dnf sources, but I am interested in
+    seeing how we would go about using
     https://copr.fedorainfracloud.org/coprs/ligenix/enterprise-qemu-spice/
     to add SPICE support back to the Kolla build Rocky Linux containers
     as a new patch in the kolla/ORDER list. Could you please investigate
@@ -53,7 +52,7 @@ Date:   Thu Apr 23 18:14:34 2026 +1000
     Signed-off-by: Michael Still <mikal@stillhq.com>
 
 diff --git a/doc/source/support_matrix.rst b/doc/source/support_matrix.rst
-index bec1aa0bd..3bad5755d 100644
+index bec1aa0bd..064e1c705 100644
 --- a/doc/source/support_matrix.rst
 +++ b/doc/source/support_matrix.rst
 @@ -110,8 +110,23 @@ For a list of currently unbuildable images please look into
@@ -72,7 +71,7 @@ index bec1aa0bd..3bad5755d 100644
 +``spice-direct`` out of the box.
 +
 +If you are deploying Kerbside on Rocky Linux, set
-+``install_kerbside = true`` in ``kolla-build.conf`` before building
++``use_ligenix_qemu = true`` in ``kolla-build.conf`` before building
 +``nova-libvirt``. When enabled, the Rocky variant of the
 +``nova-libvirt`` image pulls ``qemu-kvm`` and ``spice-server`` from
 +the community-maintained
@@ -86,14 +85,14 @@ index bec1aa0bd..3bad5755d 100644
 +The Debian and Ubuntu container images continue to support
 +``spice-direct`` without additional configuration.
 diff --git a/docker/nova/nova-libvirt/Dockerfile.j2 b/docker/nova/nova-libvirt/Dockerfile.j2
-index 88e4a52d6..d0e74c64d 100644
+index 88e4a52d6..c0f7a5461 100644
 --- a/docker/nova/nova-libvirt/Dockerfile.j2
 +++ b/docker/nova/nova-libvirt/Dockerfile.j2
 @@ -13,6 +13,29 @@ LABEL maintainer="{{ maintainer }}" name="{{ image_name }}" build-date="{{ build
  
  {{ macros.enable_extra_repos(['ceph', 'crb', 'epel', 'openvswitch']) }}
  
-+    {% if install_kerbside | default(false) and base_distro == 'rocky' %}
++    {% if use_ligenix_qemu | default(false) and base_distro == 'rocky' %}
 +        {#
 +            The stock Rocky qemu-kvm has SPICE compiled out. When the
 +            deployment is using Kerbside, layer the ligenix COPR in so
@@ -123,7 +122,7 @@ index 88e4a52d6..d0e74c64d 100644
          ] %}
      {% endif %}
  
-+    {% if install_kerbside | default(false) and base_distro == 'rocky' %}
++    {% if use_ligenix_qemu | default(false) and base_distro == 'rocky' %}
 +        {% set nova_libvirt_packages = nova_libvirt_packages + [
 +            'qemu-kvm-ui-spice',
 +            'spice-server',
@@ -134,16 +133,16 @@ index 88e4a52d6..d0e74c64d 100644
  
      {% set nova_libvirt_packages = [
 diff --git a/kolla/common/config.py b/kolla/common/config.py
-index 3f120307b..9086adba0 100644
+index 3f120307b..ad735f9f8 100644
 --- a/kolla/common/config.py
 +++ b/kolla/common/config.py
 @@ -291,6 +291,13 @@ _BASE_OPTS = [
                  help='Clean all package cache.'),
      cfg.ListOpt('allowed-to-fail', default=[],
                  help='Images which are allowed to fail'),
-+    cfg.BoolOpt('install_kerbside', default=False,
-+                help='Install Kerbside SPICE console support in the '
-+                     'Rocky Linux nova-libvirt image. When enabled, '
++    cfg.BoolOpt('use_ligenix_qemu', default=False,
++                help='Use lingenx\'s recompiled qemu with SPICE support in '
++                     'the Rocky Linux nova-libvirt image. When enabled, '
 +                     'pulls qemu-kvm and spice-server from the '
 +                     'community-maintained ligenix/enterprise-qemu-spice '
 +                     'COPR repository. Ignored on non-Rocky base distros. '
@@ -152,27 +151,27 @@ index 3f120307b..9086adba0 100644
  
  
 diff --git a/kolla/image/kolla_worker.py b/kolla/image/kolla_worker.py
-index 680595f86..a57490bb9 100644
+index 680595f86..870bd5b51 100644
 --- a/kolla/image/kolla_worker.py
 +++ b/kolla/image/kolla_worker.py
 @@ -391,6 +391,7 @@ class KollaWorker(object):
                        'rpm_setup': self.rpm_setup,
                        'build_date': build_date,
                        'clean_package_cache': self.clean_package_cache,
-+                      'install_kerbside': self.conf.install_kerbside,
++                      'use_ligenix_qemu': self.conf.use_ligenix_qemu,
                        'patches_path': self.patches_path}
              env = jinja2.Environment(  # nosec: not used to render HTML
                  loader=jinja2.FileSystemLoader(self.working_dir))
 diff --git a/releasenotes/notes/rocky-kerbside-spice-copr-9a3f4d7c2b1e8a50.yaml b/releasenotes/notes/rocky-kerbside-spice-copr-9a3f4d7c2b1e8a50.yaml
 new file mode 100644
-index 000000000..28622ecf3
+index 000000000..cb7d74517
 --- /dev/null
 +++ b/releasenotes/notes/rocky-kerbside-spice-copr-9a3f4d7c2b1e8a50.yaml
 @@ -0,0 +1,28 @@
 +---
 +features:
 +  - |
-+    A new build-time option ``install_kerbside`` (default ``false``) has
++    A new build-time option ``use_ligenix_qemu`` (default ``false``) has
 +    been added. When set to ``true`` in ``kolla-build.conf``, the Rocky
 +    Linux variant of the ``nova-libvirt`` image installs ``qemu-kvm``
 +    and ``spice-server`` from the community-maintained
@@ -183,13 +182,13 @@ index 000000000..28622ecf3
 +    container images to serve ``spice-direct`` consoles when paired
 +    with Kerbside. The COPR is a third-party rebuild with no vendor
 +    support contract and is recommended only for proof-of-concept
-+    deployments. When ``install_kerbside`` is left at its default of
++    deployments. When ``use_ligenix_qemu`` is left at its default of
 +    ``false`` the ``nova-libvirt`` image is unchanged.
 +issues:
 +  - |
 +    The ligenix/enterprise-qemu-spice COPR builds ship qemu-kvm without
 +    the ``usb-audio`` device. Guests configured with
-+    ``hw_sound_model=usb`` (the recommended default in the kerbside
++    ``hw_sound_model=usb`` (the recommended default in the Kerbside
 +    ``hw:sound_model`` documentation) will fail to start on Rocky with
 +    ``unsupported configuration: usb-audio controller is not supported
 +    by this QEMU binary``. Use a different model such as ``ich9`` or
@@ -197,5 +196,3 @@ index 000000000..28622ecf3
 +    usb-audio.
 +upgrade:
 +  - |
-+    No action required. The COPR repository is only added when
-+    ``install_kerbside`` is explicitly set to ``true``.
