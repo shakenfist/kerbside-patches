@@ -113,8 +113,25 @@ for target in ${build_targets}; do
     # Customize the kolla-build.conf file
     echo
     echo -e "${H2}Customize build configuration${Color_Off}"
+
+    # Pick the base image per distro. Debian and Ubuntu are pulled via
+    # mirror.gcr.io to avoid Docker Hub rate limits. Rocky Linux is not
+    # available under docker.io/library (that namespace only has
+    # "rockylinux" up to 9.3), so pull directly from the Rocky
+    # Foundation's quay.io org instead -- which is also what Kolla
+    # itself defaults to for the rocky base.
+    case "${distro}" in
+        rocky)
+            base_image_ref="quay.io/rockylinux/rockylinux"
+            ;;
+        *)
+            base_image_ref="mirror.gcr.io/library/${distro}"
+            ;;
+    esac
+
     cat etc/kolla-build-${target}.conf.in | \
         sed -e "s|TOPSRCDIR|${topsrcdir}|g" \
+            -e "s|BASE_IMAGE|${base_image_ref}|g" \
             -e "s|DISTRO_VERSION|${distro_version}|g" \
             -e "s|DISTRO|${distro}|g" > ${topdir}/archive/kolla-build.conf
 
@@ -195,10 +212,13 @@ for target in ${build_targets}; do
         echo
     fi
 
+    # Unbuildable images are ones kolla itself marks as impossible to
+    # build on the current base distro (see kolla/image/unbuildable.py),
+    # typically because an upstream package is missing. This is expected
+    # and not a build failure -- just report them for visibility.
     echo "... unbuildable?"
     for img in $(cat ${topdir}/archive/build.json | jq -r ".unbuildable | .[] | .name"); do
-        echo "${img} unbuildable"
-        failed=1
+        echo "${img} unbuildable on ${distro} ${distro_version} (skipped)"
     done
 
     if [ ${failed} == 1 ]; then

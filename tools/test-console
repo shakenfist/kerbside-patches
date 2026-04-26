@@ -49,7 +49,23 @@ echo -e "${H1}==================================================${Color_Off}"
 
 openstack image set --property hw_video_ram=64 ${imageid}
 openstack image set --property hw_firmware_type=uefi ${imageid}
-openstack image set --property hw_sound_model=usb ${imageid}
+# Rocky 10's edk2-ovmf ships firmware descriptors that only match q35
+# machines, so libvirt cannot resolve firmware="efi" when the guest
+# defaults to the pc (i440fx) machine type. q35 is the modern default
+# for UEFI guests across distros, so force it on all platforms.
+openstack image set --property hw_machine_type=q35 ${imageid}
+# The ligenix/enterprise-qemu-spice COPR used by the Rocky nova-libvirt
+# image rebuilds qemu-kvm with SPICE re-enabled but ships it without the
+# usb-audio device, so a usb sound model fails the libvirt config check.
+# Fall back to ich9 there: it is the q35 default audio device and is
+# built into the COPR qemu. Debian and Ubuntu containers continue to
+# exercise the usb path, which is what most spice-direct deployments
+# use in practice.
+sound_model="usb"
+if [ "${CONTAINER_DISTRO:-}" = "rocky" ]; then
+    sound_model="ich9"
+fi
+openstack image set --property hw_sound_model=${sound_model} ${imageid}
 openstack image set --property hw_usb_model=qemu-xhci ${imageid}
 
 openstack image show ${imageid}

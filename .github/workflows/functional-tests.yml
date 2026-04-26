@@ -132,12 +132,20 @@ jobs:
             'container_distro_version': 'trixie'
           },
           {
-            'name': 'build-ubuntu-master',
+            'name': 'build-ubuntu-noble-master',
             'release': 'master',
             'base': 'debian:12',
             'baseuser': 'debian',
             'container_distro': 'ubuntu',
             'container_distro_version': 'noble'
+          },
+          {
+            'name': 'build-rocky-10-master',
+            'release': 'master',
+            'base': 'debian:12',
+            'baseuser': 'debian',
+            'container_distro': 'rocky',
+            'container_distro_version': '10'
           },
         ]
     needs: assemble_source
@@ -467,6 +475,17 @@ jobs:
             'container_distro_version': 'trixie'
           },
           {
+            'name': 'master-h-rocky10-c-rocky10-aio',
+            'description': 'master rocky 10 images on rocky 10 all-in-one',
+            'release': 'master',
+            'base': 'rocky:10',
+            'baseuser': 'cloud-user',
+            'topology': 'all-in-one',
+            'runs_on': 'debian-12',
+            'container_distro': 'rocky',
+            'container_distro_version': '10'
+          },
+          {
             'name': 'master-h-debian12-c-debian12-multi',
             'description': 'master debian 13 images on debian 12 multinode',
             'release': 'master',
@@ -598,6 +617,7 @@ jobs:
           registry_token: ${{ secrets.CI_REGISTRY_TOKEN }}
           enable_kerbside: ${{ matrix.test.enable_kerbside }}
           use_ci_registry: 'true'
+          container_distro: ${{ matrix.test.container_distro }}
 
       - name: Dump internal VIP CA cert details
         if: always()
@@ -669,6 +689,60 @@ jobs:
           unset HTTP_PROXY
           unset HTTPS_PROXY
           curl -v https://10.0.2.3
+
+      - name: Log nova_libvirt qemu and SPICE package inventory
+        if: always()
+        run: |
+          . $GITHUB_ENV
+          . ci-environment.sh
+
+          # The nova_libvirt container is what ends up running qemu for
+          # guests. When SPICE doesn't work, the usual cause is that the
+          # image doesn't actually include a SPICE-enabled qemu-kvm --
+          # stock RHEL/Rocky qemu-kvm has SPICE compiled out. Dump the
+          # package inventory so post-mortem analysis has a definitive
+          # answer without having to rebuild the image.
+          for node in ${nodes}; do
+              node_address=${!node}
+
+              has_libvirt=$(ssh -i /srv/github/id_ci -o StrictHostKeyChecking=no \
+                  -o UserKnownHostsFile=/dev/null \
+                  ${{ matrix.test.baseuser }}@${node_address} \
+                  "sudo docker ps --format '{{.Names}}' | grep -c '^nova_libvirt$' || true")
+
+              if [ "${has_libvirt}" = "0" ]; then
+                  echo "::group::${node} at ${node_address} has no nova_libvirt container, skipping"
+                  echo "::endgroup::"
+                  continue
+              fi
+
+              echo "::group::${node} at ${node_address} nova_libvirt package inventory"
+
+              # Detect the package manager (rpm for Rocky, dpkg for
+              # Debian/Ubuntu) and dump the qemu/spice/libvirt inventory
+              # accordingly. Also log whether qemu reports SPICE support
+              # via its help output -- that is the authoritative signal.
+              ssh -i /srv/github/id_ci -o StrictHostKeyChecking=no \
+                  -o UserKnownHostsFile=/dev/null \
+                  ${{ matrix.test.baseuser }}@${node_address} \
+                  'sudo docker exec nova_libvirt sh -c "
+                      if command -v rpm >/dev/null 2>&1; then
+                          echo === rpm -qa ===
+                          rpm -qa | grep -E \"^(qemu|spice|libvirt)\" | sort
+                          echo
+                          echo === repo files ===
+                          ls -la /etc/yum.repos.d/ 2>/dev/null || true
+                      elif command -v dpkg >/dev/null 2>&1; then
+                          echo === dpkg -l ===
+                          dpkg -l | awk \"/^ii/ && (\\\$2 ~ /^(qemu|spice|libvirt)/) {print \\\$2, \\\$3}\" | sort
+                      fi
+                      echo
+                      echo === qemu -spice help ===
+                      qemu-system-x86_64 -spice help 2>&1 | head -20 || echo NO_SPICE_SUPPORT
+                  "'
+
+              echo "::endgroup::"
+          done
 
       - name: Attempt to start an instance with a console and connect to it
         run: |
@@ -742,7 +816,8 @@ jobs:
 
           echo
           echo "Running console tests..."
-          ./tools/test-console /tmp/kolla-ca.pem
+          CONTAINER_DISTRO="${{ matrix.test.container_distro }}" \
+              ./tools/test-console /tmp/kolla-ca.pem
 
       - name: Verify containers are healthy
         if: always()
