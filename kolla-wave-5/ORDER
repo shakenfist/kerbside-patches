@@ -1,2 +1,3 @@
+../_patches/patch153-kolla-linter-deps.patch
 ../_patches/patch150-kolla-master-kolla-master-compressed.patch
 ../_patches/patch152-kolla-master-rocky-spice-via-copr.patch

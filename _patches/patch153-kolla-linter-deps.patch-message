@@ -1,0 +1,11 @@
+Remove upper-contraints from Kolla linters.
+
+Linting on master for Kolla is failing right now. The root cause is
+that master's upper-constraints.txt pins pathspec===1.1.0, but
+ansible-lint 26.4.0 requires pathspec<1.1.0,>=1.0.3.
+
+Sadly not using upper-contraints in Kolla linters is a little more
+complex than in Kolla-Ansible because of the inheritance of tox
+dependencies.
+
+Change-Id: I751ab5eb7a798502e79228568bda53fdec4971d6

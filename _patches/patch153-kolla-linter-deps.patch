@@ -1,0 +1,30 @@
+commit 86ba3b7cf70e1a62931099d145c5ed0c7bba509f
+Author: Michael Still <mikal@stillhq.com>
+Date:   Tue Apr 28 08:16:29 2026 +1000
+
+    Remove upper-contraints from Kolla linters.
+    
+    Linting on master for Kolla is failing right now. The root cause is
+    that master's upper-constraints.txt pins pathspec===1.1.0, but
+    ansible-lint 26.4.0 requires pathspec<1.1.0,>=1.0.3.
+    
+    Sadly not using upper-contraints in Kolla linters is a little more
+    complex than in Kolla-Ansible because of the inheritance of tox
+    dependencies.
+    
+    Change-Id: I751ab5eb7a798502e79228568bda53fdec4971d6
+
+diff --git a/tox.ini b/tox.ini
+index 30e5fe85b..9a9d72720 100644
+--- a/tox.ini
++++ b/tox.ini
+@@ -42,7 +42,8 @@ commands =
+ 
+ [testenv:pep8]
+ deps =
+-    {[testenv]deps}
++    -r{toxinidir}/requirements.txt
++    -r{toxinidir}/test-requirements.txt
+     codespell
+ allowlist_externals = bash
+ commands =
