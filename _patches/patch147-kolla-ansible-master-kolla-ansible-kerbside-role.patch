@@ -1,6 +1,6 @@
-commit 60152d49ea88a9201cfbc59ab4878f07bdec65a7
+commit f3f2567d62dcdc023cabfa59e15ba7fcecd5bef5
 Author: Michael Still <mikal@stillhq.com>
-Date:   Wed Apr 15 05:52:55 2026 +1000
+Date:   Tue Apr 28 05:47:35 2026 +1000
 
     Deploy Kerbside with Kolla-Ansible.
     
@@ -63,7 +63,7 @@ index 000000000..da4d90b1e
 +kerbside_safety_upgrade: false
 +kerbside_enable_tls_backend: true
 diff --git a/ansible/inventory/all-in-one b/ansible/inventory/all-in-one
-index 1eccb5310..5a403ea41 100644
+index 2f5f1cf38..69fa28bdd 100644
 --- a/ansible/inventory/all-in-one
 +++ b/ansible/inventory/all-in-one
 @@ -18,6 +18,9 @@ localhost       ansible_connection=local
@@ -84,7 +84,7 @@ index 1eccb5310..5a403ea41 100644
  
  [collectd:children]
  compute
-@@ -588,3 +592,10 @@ letsencrypt
+@@ -594,3 +598,10 @@ letsencrypt
  
  [letsencrypt-lego:children]
  letsencrypt
@@ -96,7 +96,7 @@ index 1eccb5310..5a403ea41 100644
 +[kerbside-proxy:children]
 +vdiproxy
 diff --git a/ansible/inventory/multinode b/ansible/inventory/multinode
-index 9c87a2015..ca70ae09f 100644
+index 7bfa71ed0..975174ba1 100644
 --- a/ansible/inventory/multinode
 +++ b/ansible/inventory/multinode
 @@ -29,6 +29,10 @@ monitoring01
@@ -126,15 +126,15 @@ index 9c87a2015..ca70ae09f 100644
  
  [collectd:children]
  compute
-@@ -202,6 +208,7 @@ network
- compute
- storage
+@@ -64,6 +70,7 @@ control
+ 
+ [prometheus:children]
  monitoring
 +vdiproxy
  
- [opensearch:children]
+ [hacluster:children]
  control
-@@ -610,3 +617,10 @@ letsencrypt
+@@ -611,3 +618,10 @@ letsencrypt
  
  [letsencrypt-lego:children]
  letsencrypt
@@ -346,7 +346,7 @@ index 000000000..4e5dbea5a
 +IP.1 = {{ kolla_internal_vip_address }}
 +IP.2 = {{ kolla_external_vip_address }}
 diff --git a/ansible/roles/cron/tasks/config.yml b/ansible/roles/cron/tasks/config.yml
-index 2bc2018f4..34b1c7549 100644
+index 04cb91ba5..e8cd8bdfa 100644
 --- a/ansible/roles/cron/tasks/config.yml
 +++ b/ansible/roles/cron/tasks/config.yml
 @@ -53,6 +53,7 @@
@@ -355,10 +355,10 @@ index 2bc2018f4..34b1c7549 100644
        - { name: "ironic", enabled: "{{ enable_ironic | bool }}" }
 +      - { name: "kerbside", enabled: "{{ enable_kerbside | bool }}" }
        - { name: "keystone", enabled: "{{ enable_keystone | bool }}" }
-       - { name: "kuryr", enabled: "{{ enable_kuryr | bool }}" }
        - { name: "magnum", enabled: "{{ enable_magnum | bool }}" }
+       - { name: "manila", enabled: "{{ enable_manila | bool }}" }
 diff --git a/ansible/roles/fluentd/defaults/main.yml b/ansible/roles/fluentd/defaults/main.yml
-index cdb6a8f47..17192fa42 100644
+index e21b24458..c64ba1781 100644
 --- a/ansible/roles/fluentd/defaults/main.yml
 +++ b/ansible/roles/fluentd/defaults/main.yml
 @@ -99,6 +99,8 @@ fluentd_input_openstack_services:
@@ -369,12 +369,12 @@ index cdb6a8f47..17192fa42 100644
 +    enabled: "{{ enable_kerbside | bool }}"
    - name: keystone
      enabled: "{{ enable_keystone | bool }}"
-   - name: kuryr
+   - name: magnum
 diff --git a/ansible/roles/fluentd/templates/conf/filter/01-rewrite.conf.j2 b/ansible/roles/fluentd/templates/conf/filter/01-rewrite.conf.j2
-index 66a1897a2..9d1897309 100644
+index 02f960700..4264e5fcd 100644
 --- a/ansible/roles/fluentd/templates/conf/filter/01-rewrite.conf.j2
 +++ b/ansible/roles/fluentd/templates/conf/filter/01-rewrite.conf.j2
-@@ -141,6 +141,11 @@
+@@ -121,6 +121,11 @@
      pattern ^(skyline)$
      tag openstack_python
    </rule>
@@ -608,7 +608,7 @@ index 000000000..4fba79d9f
 +    - kolla_action != "upgrade" or not kerbside_safety_upgrade | bool
 diff --git a/ansible/roles/kerbside/tasks/bootstrap.yml b/ansible/roles/kerbside/tasks/bootstrap.yml
 new file mode 100644
-index 000000000..9999676a4
+index 000000000..05bf5f12d
 --- /dev/null
 +++ b/ansible/roles/kerbside/tasks/bootstrap.yml
 @@ -0,0 +1,61 @@
@@ -1406,7 +1406,7 @@ index 000000000..fce52d4de
 +---
 +project_name: "kerbside"
 diff --git a/ansible/roles/loadbalancer/tasks/precheck.yml b/ansible/roles/loadbalancer/tasks/precheck.yml
-index 73e3a1566..cb2b81a8f 100644
+index 54ab85903..b37fae01d 100644
 --- a/ansible/roles/loadbalancer/tasks/precheck.yml
 +++ b/ansible/roles/loadbalancer/tasks/precheck.yml
 @@ -439,6 +439,45 @@
@@ -1456,10 +1456,10 @@ index 73e3a1566..cb2b81a8f 100644
    ansible.builtin.wait_for:
      host: "{{ kolla_internal_vip_address }}"
 diff --git a/ansible/roles/nova-cell/templates/nova.conf.j2 b/ansible/roles/nova-cell/templates/nova.conf.j2
-index 4354cfe1b..8d7c5e0b3 100644
+index 7dbbffc8f..47ed20068 100644
 --- a/ansible/roles/nova-cell/templates/nova.conf.j2
 +++ b/ansible/roles/nova-cell/templates/nova.conf.j2
-@@ -69,6 +69,9 @@ jpeg_compression = {{ nova_spice_jpeg_compression }}
+@@ -86,6 +86,9 @@ jpeg_compression = {{ nova_spice_jpeg_compression }}
  zlib_compression = {{ nova_spice_zlib_compression }}
  playback_compression = {{ nova_spice_playback_compression }}
  streaming_mode = {{ nova_spice_streaming_mode }}
@@ -1470,7 +1470,7 @@ index 4354cfe1b..8d7c5e0b3 100644
  server_proxyclient_address = {{ api_interface_address }}
  {%         if inventory_hostname in groups[nova_cell_compute_group] %}
 diff --git a/ansible/roles/nova/defaults/main.yml b/ansible/roles/nova/defaults/main.yml
-index faf44558a..61d3f3997 100644
+index 215826cdd..e61b939e1 100644
 --- a/ansible/roles/nova/defaults/main.yml
 +++ b/ansible/roles/nova/defaults/main.yml
 @@ -231,7 +231,6 @@ nova_super_conductor_extra_volumes: "{{ nova_extra_volumes }}"
@@ -1482,7 +1482,7 @@ index faf44558a..61d3f3997 100644
  # OpenStack
  ####################
 diff --git a/ansible/site.yml b/ansible/site.yml
-index 08a072ccf..23bd421eb 100644
+index baf4754fa..c1a72bd13 100644
 --- a/ansible/site.yml
 +++ b/ansible/site.yml
 @@ -43,6 +43,7 @@
@@ -1491,9 +1491,9 @@ index 08a072ccf..23bd421eb 100644
          - enable_iscsid_{{ enable_iscsid | bool }}
 +        - enable_kerbside_{{ enable_kerbside | bool }}
          - enable_keystone_{{ enable_keystone | bool }}
-         - enable_kuryr_{{ enable_kuryr | bool }}
          - enable_letsencrypt_{{ enable_letsencrypt | bool }}
-@@ -258,6 +259,12 @@
+         - enable_loadbalancer_{{ enable_loadbalancer | bool }}
+@@ -257,6 +258,12 @@
              tasks_from: loadbalancer
            tags: keystone
            when: enable_keystone | bool
@@ -1518,7 +1518,7 @@ index 367210639..104c9b858 100644
 +export KERBSIDE_API_URL='{{ kerbside_api_url }}'
 +{% endif %}
 diff --git a/etc/kolla/passwords.yml b/etc/kolla/passwords.yml
-index 1120754a8..c42395908 100644
+index ac45a61ae..eda105184 100644
 --- a/etc/kolla/passwords.yml
 +++ b/etc/kolla/passwords.yml
 @@ -60,6 +60,10 @@ glance_keystone_password:
@@ -1529,9 +1529,9 @@ index 1120754a8..c42395908 100644
 +kerbside_keystone_password:
 +kerbside_auth_secret_seed:
 +
- kuryr_keystone_password:
- 
  nova_database_password:
+ nova_api_database_password:
+ nova_keystone_password:
 diff --git a/releasenotes/notes/deploy-kerbside-d7048c80e03cff33.yaml b/releasenotes/notes/deploy-kerbside-d7048c80e03cff33.yaml
 new file mode 100644
 index 000000000..b9e99e15a
@@ -1557,10 +1557,10 @@ index 000000000..b9e99e15a
 +    to spice-direct consoles. This functionality is enabled by setting
 +    ``enable_kerbside`` to ``true`` in globals.yml.
 diff --git a/tests/templates/inventory.j2 b/tests/templates/inventory.j2
-index 1e2833298..cb4c3ba14 100644
+index e2c5ff338..33e38c092 100644
 --- a/tests/templates/inventory.j2
 +++ b/tests/templates/inventory.j2
-@@ -306,6 +306,9 @@ nova
+@@ -319,6 +319,9 @@ nova
  [nova-serialproxy:children]
  nova
  

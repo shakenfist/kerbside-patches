@@ -1,6 +1,6 @@
-commit 6196c1c2dcfe4ec02ff9ded65d7099638f977219
+commit fc1a62f9302a4d29433878fd461c38261d6f7b85
 Author: Michael Still <mikal@stillhq.com>
-Date:   Sat Apr 25 17:32:08 2026 +1000
+Date:   Tue Apr 28 05:47:29 2026 +1000
 
     Add opt-in SPICE support for Rocky via COPR.
     
@@ -133,10 +133,10 @@ index 88e4a52d6..c0f7a5461 100644
  
      {% set nova_libvirt_packages = [
 diff --git a/kolla/common/config.py b/kolla/common/config.py
-index 3f120307b..ad735f9f8 100644
+index 81b6f4343..704b31adf 100644
 --- a/kolla/common/config.py
 +++ b/kolla/common/config.py
-@@ -291,6 +291,13 @@ _BASE_OPTS = [
+@@ -289,6 +289,13 @@ _BASE_OPTS = [
                  help='Clean all package cache.'),
      cfg.ListOpt('allowed-to-fail', default=[],
                  help='Images which are allowed to fail'),

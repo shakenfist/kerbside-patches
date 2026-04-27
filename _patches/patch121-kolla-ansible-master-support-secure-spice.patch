@@ -1,6 +1,6 @@
-commit 8843905bb2dc0145c134a2ea51c6f392408a3b81
+commit 7824bf048b10dc89a678ee50e4df2f6b6e258d91
 Author: Michael Still <mikal@stillhq.com>
-Date:   Wed Apr 15 05:52:54 2026 +1000
+Date:   Tue Apr 28 05:47:34 2026 +1000
 
     Allow requiring secure channels with SPICE
     
@@ -18,12 +18,12 @@ Date:   Wed Apr 15 05:52:54 2026 +1000
     Signed-off-by: Michael Still <mikal@stillhq.com>
 
 diff --git a/ansible/roles/nova-cell/defaults/main.yml b/ansible/roles/nova-cell/defaults/main.yml
-index 6979408e9..1edeeac56 100644
+index 790190fb0..b82dde11c 100644
 --- a/ansible/roles/nova-cell/defaults/main.yml
 +++ b/ansible/roles/nova-cell/defaults/main.yml
-@@ -675,6 +675,11 @@ nova_libvirt_cleanup_remove_volumes: false
- # Database
- nova_cell_database_enable_tls_internal: "{{ database_enable_tls_internal | bool }}"
+@@ -688,6 +688,11 @@ nova_cell_database_enable_tls_internal: "{{ database_enable_tls_internal | bool
+ 
+ nova_multi_compute_ironic_config: []
  
 +##################
 +# Spice options
@@ -34,10 +34,10 @@ index 6979408e9..1edeeac56 100644
  # Copy certificates
  ###################
 diff --git a/ansible/roles/nova-cell/tasks/precheck.yml b/ansible/roles/nova-cell/tasks/precheck.yml
-index a509e790c..a08597284 100644
+index 9364c619e..a2253f6e5 100644
 --- a/ansible/roles/nova-cell/tasks/precheck.yml
 +++ b/ansible/roles/nova-cell/tasks/precheck.yml
-@@ -132,3 +132,21 @@
+@@ -146,3 +146,21 @@
      - container_facts.containers['nova_libvirt'] is defined
      - not nova_libvirt.enabled | bool
      - inventory_hostname in groups[nova_libvirt.group]
@@ -89,10 +89,10 @@ index e81413b35..a40adaef1 100644
      ]
  }
 diff --git a/ansible/roles/nova-cell/templates/nova.conf.j2 b/ansible/roles/nova-cell/templates/nova.conf.j2
-index 4f5c2f88d..49ee24f6a 100644
+index 7d30dcfd0..7dbbffc8f 100644
 --- a/ansible/roles/nova-cell/templates/nova.conf.j2
 +++ b/ansible/roles/nova-cell/templates/nova.conf.j2
-@@ -61,6 +61,7 @@ novncproxy_base_url = {{ nova_novncproxy_fqdn | kolla_url(public_protocol,  nova
+@@ -79,6 +79,7 @@ novncproxy_base_url = {{ nova_novncproxy_fqdn | kolla_url(public_protocol,  nova
  enabled = false
  [spice]
  enabled = true
@@ -117,7 +117,7 @@ index 03b56479a..fb0010783 100644
  swtpm_user = "{{ swtpm_user }}"
  swtpm_group = "{{ swtpm_group }}"
 diff --git a/doc/source/reference/compute/nova-guide.rst b/doc/source/reference/compute/nova-guide.rst
-index 87757f930..8a57bf28b 100644
+index 1069030bb..9ac7d6f08 100644
 --- a/doc/source/reference/compute/nova-guide.rst
 +++ b/doc/source/reference/compute/nova-guide.rst
 @@ -49,6 +49,14 @@ serial console support can be enabled by setting
