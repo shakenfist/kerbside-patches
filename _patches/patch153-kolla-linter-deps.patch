@@ -1,0 +1,50 @@
+commit 8c45dd4d93841b99684a29f5577134087350dc6f
+Author: Michael Still <mikal@stillhq.com>
+Date:   Tue Apr 28 11:52:06 2026 +1000
+
+    Remove upper-constraints from Kolla linters.
+    
+    Linting on master for Kolla is failing right now. The root cause is
+    that master's upper-constraints.txt pins pathspec===1.1.0, but
+    ansible-lint 26.4.0 requires pathspec<1.1.0,>=1.0.3.
+    
+    Sadly not using upper-constraints in Kolla linters is a little more
+    complex than in Kolla-Ansible because of the inheritance of tox
+    dependencies. This patch therefore moves ansible-lint from
+    test-requirements.txt to a new lint-requirements.txt file.
+    
+    Change-Id: I751ab5eb7a798502e79228568bda53fdec4971d6
+    Signed-off-by: Michael Still <mikal@stillhq.com>
+
+diff --git a/lint-requirements.txt b/lint-requirements.txt
+new file mode 100644
+index 000000000..3a87b7a7b
+--- /dev/null
++++ b/lint-requirements.txt
+@@ -0,0 +1 @@
++ansible-lint===26.4.0 # MIT
+diff --git a/test-requirements.txt b/test-requirements.txt
+index 19e65b2d6..2acfc73a4 100644
+--- a/test-requirements.txt
++++ b/test-requirements.txt
+@@ -1,5 +1,4 @@
+ ansible-core>=2.18,<2.20; python_version >= '3.11' # GPLv3
+-ansible-lint===26.4.0 # MIT
+ bandit!=1.6.0,>=1.1.0 # Apache-2.0
+ bashate>=0.5.1 # Apache-2.0
+ coverage!=4.4,>=4.0 # Apache-2.0
+diff --git a/tox.ini b/tox.ini
+index 30e5fe85b..cd0c05952 100644
+--- a/tox.ini
++++ b/tox.ini
+@@ -42,7 +42,9 @@ commands =
+ 
+ [testenv:pep8]
+ deps =
+-    {[testenv]deps}
++    -r{toxinidir}/requirements.txt
++    -r{toxinidir}/test-requirements.txt
++    -r{toxinidir}/lint-requirements.txt
+     codespell
+ allowlist_externals = bash
+ commands =
