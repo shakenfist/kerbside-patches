@@ -12,7 +12,7 @@ PIPCONF
 echo
 echo -e "${H2}Early bootstrapping${Color_Off}"
 if [ "${NAME}" == "Rocky Linux" ]; then
-    sudo dnf update -y
+    sudo dnf update -y --nobest
     sudo dnf install -y epel-release
     sudo dnf config-manager --set-enabled crb
     echo
