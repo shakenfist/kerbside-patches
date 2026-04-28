@@ -1,6 +1,6 @@
-commit 975dd3084edb1161de2dde16298709c4b2e8ec00
+commit 73bf8a40d03b273dfc82a5eedbc8224d575d0476
 Author: Michael Still <mikal@stillhq.com>
-Date:   Tue Apr 28 11:52:06 2026 +1000
+Date:   Tue Apr 28 11:56:15 2026 +1000
 
     Add opt-in SPICE support for Rocky via COPR.
     
@@ -167,7 +167,7 @@ new file mode 100644
 index 000000000..cb7d74517
 --- /dev/null
 +++ b/releasenotes/notes/rocky-kerbside-spice-copr-9a3f4d7c2b1e8a50.yaml
-@@ -0,0 +1,28 @@
+@@ -0,0 +1,26 @@
 +---
 +features:
 +  - |
@@ -194,5 +194,3 @@ index 000000000..cb7d74517
 +    by this QEMU binary``. Use a different model such as ``ich9`` or
 +    ``ac97`` on Rocky deployments until the COPR rebuild ships
 +    usb-audio.
-+upgrade:
-+  - |
