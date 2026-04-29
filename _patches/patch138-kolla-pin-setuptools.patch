@@ -1,6 +1,6 @@
-commit 4ab38f553165e85fcfcfd84e4e3b3ab8328040c2
+commit c3d8aa9d4f952c935c2e73dae097b8eacd2e9b2b
 Author: Michael Still <mikal@stillhq.com>
-Date:   Tue Apr 28 05:47:25 2026 +1000
+Date:   Wed Apr 29 10:44:24 2026 +1000
 
     Setuptools released v82.0.0 which does not have pkg_resources.
     
@@ -11,10 +11,10 @@ Date:   Tue Apr 28 05:47:25 2026 +1000
     Signed-off-by: Michael Still <mikal@stillhq.com>
 
 diff --git a/test-requirements.txt b/test-requirements.txt
-index 19e65b2d6..e61c1042a 100644
+index 2acfc73a4..f9d0c530e 100644
 --- a/test-requirements.txt
 +++ b/test-requirements.txt
-@@ -9,3 +9,4 @@ hacking>=7.0.0,<=7.1.0 # Apache-2.0
+@@ -8,3 +8,4 @@ hacking>=7.0.0,<=7.1.0 # Apache-2.0
  oslotest>=3.2.0 # Apache-2.0
  stestr>=2.2.0 # Apache-2.0
  testtools>=2.2.0 # MIT
