@@ -1,0 +1,29 @@
+Switch Ubuntu Erlang source from Launchpad PPA to rabbitmq.com mirror.
+
+Kolla pulls Erlang 27 for Ubuntu image builds from the
+``rabbitmq-erlang`` PPA on Launchpad (ppa.launchpadcontent.net).
+Launchpad outages have repeatedly broken Debian/Ubuntu image
+builds at the apt-get update step.
+
+The RabbitMQ team publishes the same Erlang packages at
+``https://deb1.rabbitmq.com/rabbitmq-erlang/ubuntu/noble``, signed
+by the same ``RabbitMQ Release Signing Key`` (key ID
+``6B73A36E6026DFCA``) that the existing ``rabbitmq-server`` apt
+repo already uses. Switching the ``ubuntu.erlang`` entry in
+``kolla/template/repos.yaml`` to the rabbitmq.com mirror lets us
+reuse the existing ``rabbitmq.gpg`` keyring with no new key
+material in the base image.
+
+The ``erlang-ppa`` entry in ``base_apt_keys`` is dropped because
+nothing uses it any more -- the prior Debian-side cleanup removed
+the only other reference. After this change Kolla has no
+build-time dependency on Launchpad.
+
+Prompt: Given the launchpadd PPA is down, is there an alternative
+source for these Erlang packages that Ubuntu needs that might be more
+reliable?
+
+Assisted-By: Claude Code
+Co-Authored-By: Claude Opus 4.7 (1M context, medium effort) <noreply@anthropic.com>
+
+Signed-off-by: Michael Still <mikal@stillhq.com>
