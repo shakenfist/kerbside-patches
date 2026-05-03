@@ -1,0 +1,86 @@
+commit adf03a734a4918b5bc3be07417b5a68c897cb6c4
+Author: Michael Still <mikal@stillhq.com>
+Date:   Sun May 3 11:30:08 2026 +1000
+
+    Switch Ubuntu Erlang source from Launchpad PPA to rabbitmq.com mirror.
+    
+    Kolla pulls Erlang 27 for Ubuntu image builds from the
+    ``rabbitmq-erlang`` PPA on Launchpad (ppa.launchpadcontent.net).
+    Launchpad outages have repeatedly broken Debian/Ubuntu image
+    builds at the apt-get update step.
+    
+    The RabbitMQ team publishes the same Erlang packages at
+    ``https://deb1.rabbitmq.com/rabbitmq-erlang/ubuntu/noble``, signed
+    by the same ``RabbitMQ Release Signing Key`` (key ID
+    ``6B73A36E6026DFCA``) that the existing ``rabbitmq-server`` apt
+    repo already uses. Switching the ``ubuntu.erlang`` entry in
+    ``kolla/template/repos.yaml`` to the rabbitmq.com mirror lets us
+    reuse the existing ``rabbitmq.gpg`` keyring with no new key
+    material in the base image.
+    
+    The ``erlang-ppa`` entry in ``base_apt_keys`` is dropped because
+    nothing uses it any more -- the prior Debian-side cleanup removed
+    the only other reference. After this change Kolla has no
+    build-time dependency on Launchpad.
+    
+    Prompt: Given the launchpadd PPA is down, is there an alternative
+    source for these Erlang packages that Ubuntu needs that might be more
+    reliable?
+    
+    Assisted-By: Claude Code
+    Co-Authored-By: Claude Opus 4.7 (1M context, medium effort) <noreply@anthropic.com>
+    
+    Change-Id: I4b5b8ca01ae4b71fcf53027c9549f128128c66be
+    Signed-off-by: Michael Still <mikal@stillhq.com>
+
+diff --git a/docker/base/Dockerfile.j2 b/docker/base/Dockerfile.j2
+index 0503098df..c5dbbaa2e 100644
+--- a/docker/base/Dockerfile.j2
++++ b/docker/base/Dockerfile.j2
+@@ -237,7 +237,6 @@ COPY apt_preferences /etc/apt/preferences.d/kolla-custom
+ ] %}
+ 
+ {% set base_apt_keys = [
+-   {'name': 'erlang-ppa', 'keyid': 'F77F1EDA57EBB1CC'},
+    {'name': 'rabbitmq',   'keyid': '6B73A36E6026DFCA'},
+    {'name': 'haproxy',    'keyid': 'CFFB779AADC995E4F350A060505D97A41C61B9CD'},
+ ] %}
+diff --git a/kolla/template/repos.yaml b/kolla/template/repos.yaml
+index 702bb4769..d3a5bfe23 100644
+--- a/kolla/template/repos.yaml
++++ b/kolla/template/repos.yaml
+@@ -64,10 +64,10 @@ debian-aarch64:
+ 
+ ubuntu:
+   erlang:
+-    url: "https://ppa.launchpadcontent.net/rabbitmq/rabbitmq-erlang/ubuntu"
++    url: "https://deb1.rabbitmq.com/rabbitmq-erlang/ubuntu/noble"
+     suite: "noble"
+     component: "main"
+-    gpg_key: "erlang-ppa.gpg"
++    gpg_key: "rabbitmq.gpg"
+   docker-ce:
+     url: "https://download.docker.com/linux/ubuntu"
+     suite: "noble"
+diff --git a/releasenotes/notes/ubuntu-erlang-from-rabbitmq-mirror-57f9bbe9c37009d1.yaml b/releasenotes/notes/ubuntu-erlang-from-rabbitmq-mirror-57f9bbe9c37009d1.yaml
+new file mode 100644
+index 000000000..5f4326510
+--- /dev/null
++++ b/releasenotes/notes/ubuntu-erlang-from-rabbitmq-mirror-57f9bbe9c37009d1.yaml
+@@ -0,0 +1,16 @@
++---
++upgrade:
++  - |
++    The ``kolla-toolbox`` and ``rabbitmq`` images on Ubuntu now pull
++    Erlang from the RabbitMQ team's own Debian/Ubuntu mirror at
++    ``https://deb1.rabbitmq.com/rabbitmq-erlang/ubuntu/noble`` instead
++    of the ``rabbitmq-erlang`` PPA hosted on Launchpad
++    (``ppa.launchpadcontent.net``). The mirror ships the same Erlang
++    27.x packages and is signed by the existing
++    ``RabbitMQ Release Signing Key`` (key ID ``6B73A36E6026DFCA``)
++    that the ``rabbitmq-server`` repo already uses, so no new GPG key
++    is added to the base image.
++
++    The now-unused ``erlang-ppa`` keyring entry has been removed from
++    ``base_apt_keys`` in the base Dockerfile, eliminating Kolla's
++    last build-time dependency on Launchpad.

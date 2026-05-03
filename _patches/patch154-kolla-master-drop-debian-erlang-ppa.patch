@@ -1,0 +1,108 @@
+commit 11384045b6ae0e316cf8557c3afbe00c6f73c824
+Author: Michael Still <mikal@stillhq.com>
+Date:   Sun May 3 11:30:08 2026 +1000
+
+    Drop redundant rabbitmq-erlang PPA on Debian.
+    
+    The kolla-toolbox and rabbitmq images on Debian enable the
+    rabbitmq-erlang PPA hosted on Launchpad
+    (ppa.launchpadcontent.net) to obtain Erlang 27. Debian Trixie now
+    ships erlang-base 1:27.3.4.1+dfsg-1+deb13u1 in the base archive,
+    which already satisfies the ``erlang* version 1:27.*`` pin in
+    apt_preferences_rabbitmq.debian. The PPA is therefore no longer
+    needed for Debian builds and adds an avoidable dependency on
+    Canonical infrastructure -- recent Launchpad outages have
+    repeatedly broken Debian image builds at the apt-get update step.
+    
+    The Ubuntu builds still need the PPA because Ubuntu Noble only
+    ships Erlang 25, and the RPM-based Rocky and CentOS builds still
+    need the rpm-side erlang repo, so this change special-cases only
+    Debian: when base_distro == 'debian' we enable just the rabbitmq
+    repo, otherwise the original ['erlang', 'rabbitmq'] call is kept
+    intact. The now-unused debian.erlang entry is removed from
+    kolla/template/repos.yaml. The rabbitmq-server package continues
+    to come from deb1.rabbitmq.com on both Debian and Ubuntu.
+    
+    Prompt: Is the use of the failing launchpad Erlang PPA still needed,
+    or have the operating system packages caught up and are now
+    sufficiently modern?
+    
+    Assisted-By: Claude Code
+    Co-Authored-By: Claude Opus 4.7 (1M context, medium effort) <noreply@anthropic.com>
+    
+    Change-Id: I52679ced9d918990fab84d870d93b3651fad9ef7
+    Signed-off-by: Michael Still <mikal@stillhq.com>
+
+diff --git a/docker/kolla-toolbox/Dockerfile.j2 b/docker/kolla-toolbox/Dockerfile.j2
+index c730c5566..7cd09b131 100644
+--- a/docker/kolla-toolbox/Dockerfile.j2
++++ b/docker/kolla-toolbox/Dockerfile.j2
+@@ -13,7 +13,11 @@ LABEL maintainer="{{ maintainer }}" name="{{ image_name }}" build-date="{{ build
+ {{ macros.configure_user(name='ansible') }}
+ {{ macros.configure_user(name='rabbitmq') }}
+ 
++{% if base_distro == 'debian' %}
++{{ macros.enable_extra_repos(['rabbitmq']) }}
++{% else %}
+ {{ macros.enable_extra_repos(['erlang', 'rabbitmq']) }}
++{% endif %}
+ 
+ {% block rabbitmq_apt_preferences %}
+ {% if base_package_type == 'deb' %}
+diff --git a/docker/rabbitmq/Dockerfile.j2 b/docker/rabbitmq/Dockerfile.j2
+index 36feb9c25..c79780bb0 100644
+--- a/docker/rabbitmq/Dockerfile.j2
++++ b/docker/rabbitmq/Dockerfile.j2
+@@ -9,7 +9,11 @@ LABEL maintainer="{{ maintainer }}" name="{{ image_name }}" build-date="{{ build
+ 
+ {{ macros.configure_user(name='rabbitmq') }}
+ 
++{% if base_distro == 'debian' %}
++{{ macros.enable_extra_repos(['rabbitmq']) }}
++{% else %}
+ {{ macros.enable_extra_repos(['erlang', 'rabbitmq']) }}
++{% endif %}
+ 
+ {% block rabbitmq_apt_preferences %}
+ {% if base_package_type == 'deb' %}
+diff --git a/kolla/template/repos.yaml b/kolla/template/repos.yaml
+index d559f6f09..702bb4769 100644
+--- a/kolla/template/repos.yaml
++++ b/kolla/template/repos.yaml
+@@ -25,11 +25,6 @@ deb:
+     gpg_key: "opensearch.asc"
+ 
+ debian:
+-  erlang:
+-    url: "https://ppa.launchpadcontent.net/rabbitmq/rabbitmq-erlang/ubuntu"
+-    suite: "noble"
+-    component: "main"
+-    gpg_key: "erlang-ppa.gpg"
+   docker-ce:
+     url: "https://download.docker.com/linux/debian"
+     suite: "trixie"
+diff --git a/releasenotes/notes/drop-debian-erlang-ppa-f0e5625a060f55a9.yaml b/releasenotes/notes/drop-debian-erlang-ppa-f0e5625a060f55a9.yaml
+new file mode 100644
+index 000000000..338a60849
+--- /dev/null
++++ b/releasenotes/notes/drop-debian-erlang-ppa-f0e5625a060f55a9.yaml
+@@ -0,0 +1,19 @@
++---
++upgrade:
++  - |
++    The ``kolla-toolbox`` and ``rabbitmq`` images on Debian no longer
++    enable the ``rabbitmq-erlang`` PPA hosted on Launchpad
++    (``ppa.launchpadcontent.net``). Debian Trixie now ships
++    ``erlang-base`` 1:27.x in its base archive, which already satisfies
++    the ``erlang* version 1:27.*`` pin in
++    ``apt_preferences_rabbitmq.debian``. The ``rabbitmq-server`` package
++    continues to come from ``deb1.rabbitmq.com``.
++
++    The Ubuntu and RPM (Rocky/CentOS) image builds are unchanged:
++    Ubuntu still enables the rabbitmq-erlang PPA because Noble only
++    ships Erlang 25, and Rocky/CentOS still enable the rpm-side
++    rabbitmq-erlang repo as before.
++
++    Removing this dependency makes the Debian image build resilient to
++    Launchpad outages, which have previously broken CI at the
++    ``apt-get update`` step.

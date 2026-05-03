@@ -1,0 +1,30 @@
+Drop redundant rabbitmq-erlang PPA on Debian.
+
+The kolla-toolbox and rabbitmq images on Debian enable the
+rabbitmq-erlang PPA hosted on Launchpad
+(ppa.launchpadcontent.net) to obtain Erlang 27. Debian Trixie now
+ships erlang-base 1:27.3.4.1+dfsg-1+deb13u1 in the base archive,
+which already satisfies the ``erlang* version 1:27.*`` pin in
+apt_preferences_rabbitmq.debian. The PPA is therefore no longer
+needed for Debian builds and adds an avoidable dependency on
+Canonical infrastructure -- recent Launchpad outages have
+repeatedly broken Debian image builds at the apt-get update step.
+
+The Ubuntu builds still need the PPA because Ubuntu Noble only
+ships Erlang 25, and the RPM-based Rocky and CentOS builds still
+need the rpm-side erlang repo, so this change special-cases only
+Debian: when base_distro == 'debian' we enable just the rabbitmq
+repo, otherwise the original ['erlang', 'rabbitmq'] call is kept
+intact. The now-unused debian.erlang entry is removed from
+kolla/template/repos.yaml. The rabbitmq-server package continues
+to come from deb1.rabbitmq.com on both Debian and Ubuntu.
+
+Prompt: Is the use of the failing launchpad Erlang PPA still needed,
+or have the operating system packages caught up and are now
+sufficiently modern?
+
+Assisted-By: Claude Code
+Co-Authored-By: Claude Opus 4.7 (1M context, medium effort) <noreply@anthropic.com>
+
+Change-Id: I52679ced9d918990fab84d870d93b3651fad9ef7
+Signed-off-by: Michael Still <mikal@stillhq.com>

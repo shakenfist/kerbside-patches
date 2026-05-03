@@ -38,8 +38,6 @@ options here?
 
 Assisted-By: Claude Code
 Co-Authored-By: Claude Opus 4.7 (1M context, medium effort) <noreply@anthropic.com>
-Change-Id: I410b87b7f8cdd541c48d9a749b3fea634a5f4e6c
-Signed-off-by: Michael Still <mikal@stillhq.com>
 
 Change-Id: I410b87b7f8cdd541c48d9a749b3fea634a5f4e6c
 Signed-off-by: Michael Still <mikal@stillhq.com>
