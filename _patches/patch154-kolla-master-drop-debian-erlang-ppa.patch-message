@@ -11,10 +11,13 @@ Canonical infrastructure -- recent Launchpad outages have
 repeatedly broken Debian image builds at the apt-get update step.
 
 The Ubuntu builds still need the PPA because Ubuntu Noble only
-ships Erlang 25, so this change limits the enable_extra_repos call
-to ubuntu base images and removes the now-unused debian.erlang
-entry from kolla/template/repos.yaml. The rabbitmq-server package
-continues to come from deb1.rabbitmq.com on both distros.
+ships Erlang 25, and the RPM-based Rocky and CentOS builds still
+need the rpm-side erlang repo, so this change special-cases only
+Debian: when base_distro == 'debian' we enable just the rabbitmq
+repo, otherwise the original ['erlang', 'rabbitmq'] call is kept
+intact. The now-unused debian.erlang entry is removed from
+kolla/template/repos.yaml. The rabbitmq-server package continues
+to come from deb1.rabbitmq.com on both Debian and Ubuntu.
 
 Prompt: Is the use of the failing launchpad Erlang PPA still needed,
 or have the operating system packages caught up and are now
