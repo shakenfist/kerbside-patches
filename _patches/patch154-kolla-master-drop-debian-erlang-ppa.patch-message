@@ -23,4 +23,5 @@ sufficiently modern?
 Assisted-By: Claude Code
 Co-Authored-By: Claude Opus 4.7 (1M context, medium effort) <noreply@anthropic.com>
 
+Change-Id: I52679ced9d918990fab84d870d93b3651fad9ef7
 Signed-off-by: Michael Still <mikal@stillhq.com>

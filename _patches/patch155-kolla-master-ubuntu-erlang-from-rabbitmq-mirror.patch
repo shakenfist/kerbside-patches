@@ -1,6 +1,6 @@
-commit 3ac1648c74bc22c376c9fe55a0145046f68f8a04
+commit adf03a734a4918b5bc3be07417b5a68c897cb6c4
 Author: Michael Still <mikal@stillhq.com>
-Date:   Sun May 3 08:44:53 2026 +1000
+Date:   Sun May 3 11:30:08 2026 +1000
 
     Switch Ubuntu Erlang source from Launchpad PPA to rabbitmq.com mirror.
     

@@ -26,4 +26,5 @@ reliable?
 Assisted-By: Claude Code
 Co-Authored-By: Claude Opus 4.7 (1M context, medium effort) <noreply@anthropic.com>
 
+Change-Id: I4b5b8ca01ae4b71fcf53027c9549f128128c66be
 Signed-off-by: Michael Still <mikal@stillhq.com>

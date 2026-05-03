@@ -1,6 +1,6 @@
-commit 3e94cedf887be9d7930d5b363113d8881e7927a7
+commit 11384045b6ae0e316cf8557c3afbe00c6f73c824
 Author: Michael Still <mikal@stillhq.com>
-Date:   Sun May 3 08:44:52 2026 +1000
+Date:   Sun May 3 11:30:08 2026 +1000
 
     Drop redundant rabbitmq-erlang PPA on Debian.
     
