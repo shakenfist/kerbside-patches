@@ -1,5 +1,2 @@
-../_patches/patch154-kolla-master-drop-debian-erlang-ppa.patch
-../_patches/patch155-kolla-master-ubuntu-erlang-from-rabbitmq-mirror.patch
-../_patches/patch156-master-erlang-use-releasever.patch
 ../_patches/patch150-kolla-master-kolla-master-compressed.patch
 ../_patches/patch152-kolla-master-rocky-spice-via-copr.patch
