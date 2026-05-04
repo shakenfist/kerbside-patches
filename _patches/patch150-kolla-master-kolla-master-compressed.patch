@@ -1,6 +1,6 @@
-commit bd9322e6abf2a5a210878018425794f361cfe360
+commit 6402fcba81d83e00a6cc6ef54022a55ede932cc1
 Author: Michael Still <mikal@stillhq.com>
-Date:   Sun May 3 11:30:09 2026 +1000
+Date:   Mon May 4 17:37:12 2026 +1000
 
     Implement container image build for kerbside.
     
