@@ -69,13 +69,11 @@ new file mode 100644
 index 000000000..9b917b374
 --- /dev/null
 +++ b/docker/kerbside/kerbside-api/extend_start.sh
-@@ -0,0 +1,6 @@
+@@ -0,0 +1,4 @@
 +#!/bin/bash
 +
 +# Make the log directory
 +mkdir -p /var/log/kolla/kerbside
-+
-+. /usr/local/bin/kolla_httpd_setup
 diff --git a/docker/kerbside/kerbside-base/Dockerfile.j2 b/docker/kerbside/kerbside-base/Dockerfile.j2
 new file mode 100644
 index 000000000..d2e31ca0e
