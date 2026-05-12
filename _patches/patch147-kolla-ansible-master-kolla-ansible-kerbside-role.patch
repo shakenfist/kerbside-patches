@@ -1,6 +1,6 @@
-commit 0b70301fd70ad3610c11f14b87c00a7bb1383754
+commit 901edc88e57314b49653c4759ffb4c15d0bbd987
 Author: Michael Still <mikal@stillhq.com>
-Date:   Thu Apr 30 17:24:56 2026 +1000
+Date:   Tue May 12 11:04:49 2026 +1000
 
     Deploy Kerbside with Kolla-Ansible.
     
@@ -1573,12 +1573,18 @@ diff --git a/tests/templates/inventory.j2 b/tests/templates/inventory.j2
 index e2c5ff338..33e38c092 100644
 --- a/tests/templates/inventory.j2
 +++ b/tests/templates/inventory.j2
-@@ -319,6 +319,9 @@ nova
+@@ -319,6 +319,15 @@ nova
  [nova-serialproxy:children]
  nova
  
 +[kerbside:children]
 +nova
++
++[kerbside-api:children]
++kerbside
++
++[kerbside-proxy:children]
++kerbside
 +
  # Neutron
  [ironic-neutron-agent:children]
