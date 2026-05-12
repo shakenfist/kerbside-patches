@@ -1,6 +1,6 @@
-commit 36f0a67bb8efe71a9f688175d65e61efee2e71dc
+commit b61d06b68e040598dc25eb2a40b7489ad9263445
 Author: Michael Still <mikal@stillhq.com>
-Date:   Tue May 12 14:39:47 2026 +1000
+Date:   Tue May 12 15:37:31 2026 +1000
 
     Deploy Kerbside with Kolla-Ansible.
     
@@ -63,7 +63,7 @@ index 000000000..da4d90b1e
 +kerbside_safety_upgrade: false
 +kerbside_enable_tls_backend: true
 diff --git a/ansible/inventory/all-in-one b/ansible/inventory/all-in-one
-index 2f5f1cf38..69fa28bdd 100644
+index 2f5f1cf38..a818a661b 100644
 --- a/ansible/inventory/all-in-one
 +++ b/ansible/inventory/all-in-one
 @@ -18,6 +18,9 @@ localhost       ansible_connection=local
@@ -90,13 +90,13 @@ index 2f5f1cf38..69fa28bdd 100644
  letsencrypt
 +
 +# Kerbside
-+[kerbside-api:children]
++[kerbside_api:children]
 +control
 +
-+[kerbside-proxy:children]
++[kerbside_proxy:children]
 +vdiproxy
 diff --git a/ansible/inventory/multinode b/ansible/inventory/multinode
-index 7bfa71ed0..975174ba1 100644
+index 7bfa71ed0..c3365a9ba 100644
 --- a/ansible/inventory/multinode
 +++ b/ansible/inventory/multinode
 @@ -29,6 +29,10 @@ monitoring01
@@ -140,10 +140,10 @@ index 7bfa71ed0..975174ba1 100644
  letsencrypt
 +
 +# Kerbside
-+[kerbside-api:children]
++[kerbside_api:children]
 +control
 +
-+[kerbside-proxy:children]
++[kerbside_proxy:children]
 +vdiproxy
 diff --git a/ansible/nova.yml b/ansible/nova.yml
 index 4f24f6e1c..3dee83dde 100644
@@ -167,7 +167,7 @@ index 4f24f6e1c..3dee83dde 100644
 +- name: Apply role kerbside
 +  gather_facts: false
 +  hosts:
-+    - kerbside-api kerbside-proxy
++    - kerbside_api kerbside_proxy
 +    - '&enable_kerbside_True'
 +  tags:
 +    - kerbside
@@ -190,7 +190,7 @@ index 4f24f6e1c..3dee83dde 100644
 +- name: Reload kerbside services
 +  gather_facts: false
 +  hosts:
-+    - kerbside-api kerbside-proxy
++    - kerbside_api kerbside_proxy
 +    - '&enable_kerbside_True'
 +  tags:
 +    - kerbside
@@ -396,7 +396,7 @@ index 000000000..8d9029b52
 +kerbside_services:
 +  kerbside_api:
 +    container_name: "kerbside_api"
-+    group: "kerbside-api"
++    group: "kerbside_api"
 +    image: "{{ kerbside_api_image_full }}"
 +    enabled: "{{ enable_kerbside }}"
 +    volumes: "{{ kerbside_api_volumes + kerbside_default_volumes + kerbside_extra_volumes }}"
@@ -425,7 +425,7 @@ index 000000000..8d9029b52
 +          - "option httpchk GET /"
 +  kerbside_proxy:
 +    container_name: "kerbside_proxy"
-+    group: "kerbside-proxy"
++    group: "kerbside_proxy"
 +    image: "{{ kerbside_proxy_image_full }}"
 +    enabled: "{{ enable_kerbside }}"
 +    volumes: "{{ kerbside_proxy_volumes + kerbside_default_volumes + kerbside_extra_volumes }}"
@@ -626,7 +626,7 @@ index 000000000..05bf5f12d
 +      login_password: "{{ database_password }}"
 +      name: "{{ kerbside_database_name }}"
 +  run_once: true
-+  delegate_to: "{{ groups['kerbside-proxy'][0] }}"
++  delegate_to: "{{ groups['kerbside_proxy'][0] }}"
 +  when:
 +    - not use_preconfigured_databases | bool
 +
@@ -647,7 +647,7 @@ index 000000000..05bf5f12d
 +      priv: "{{ kerbside_database_name }}.*:ALL"
 +      append_privs: true
 +  run_once: true
-+  delegate_to: "{{ groups['kerbside-proxy'][0] }}"
++  delegate_to: "{{ groups['kerbside_proxy'][0] }}"
 +  when:
 +    - not use_preconfigured_databases | bool
 +
@@ -698,7 +698,7 @@ index 000000000..c8fefaa39
 +    restart_policy: oneshot
 +    volumes: "{{ kerbside_bootstrap_volumes + kerbside_default_volumes + kerbside_extra_volumes }}"
 +  run_once: true
-+  delegate_to: "{{ groups['kerbside-api'][0] }}"
++  delegate_to: "{{ groups['kerbside_api'][0] }}"
 diff --git a/ansible/roles/kerbside/tasks/check-containers.yml b/ansible/roles/kerbside/tasks/check-containers.yml
 new file mode 100644
 index 000000000..4f65ec2e8
@@ -734,7 +734,7 @@ index 000000000..9de8a79af
 +    owner: "{{ config_owner_user }}"
 +    group: "{{ config_owner_group }}"
 +    mode: "0770"
-+  delegate_to: "{{ groups['kerbside-api'][0] }}"
++  delegate_to: "{{ groups['kerbside_api'][0] }}"
 +  run_once: true
 +
 +- name: Ensuring shared config directory exists
@@ -750,7 +750,7 @@ index 000000000..9de8a79af
 +  ansible.builtin.set_fact:
 +    spice_cacert: "{{ lookup('ansible.builtin.file', node_custom_config + '/nova/nova-libvirt/cacert.pem') }}"
 +  when:
-+    - inventory_hostname in groups["kerbside-proxy"] or inventory_hostname in groups["kerbside-api"]
++    - inventory_hostname in groups['kerbside_proxy'] or inventory_hostname in groups['kerbside_api']
 +    - kerbside_services["kerbside_proxy"].enabled | bool or kerbside_services["kerbside_api"].enabled | bool
 +    - nova_spice_require_secure | bool
 +
@@ -762,7 +762,7 @@ index 000000000..9de8a79af
 +    src: "{{ role_path }}/templates/kerbside.ini.j2"
 +    dest: "{{ node_config_directory }}/kerbside_bootstrap/kerbside.ini"
 +    mode: "0660"
-+  delegate_to: "{{ groups['kerbside-api'][0] }}"
++  delegate_to: "{{ groups['kerbside_api'][0] }}"
 +  run_once: true
 +
 +- name: Copying over kerbside API configuration
@@ -774,7 +774,7 @@ index 000000000..9de8a79af
 +    dest: "{{ node_config_directory }}/kerbside_api/kerbside.ini"
 +    mode: "0660"
 +  when:
-+    - inventory_hostname in groups["kerbside-api"]
++    - inventory_hostname in groups['kerbside_api']
 +    - kerbside_services["kerbside_api"].enabled | bool
 +  notify:
 +    - "Restart kerbside_api container"
@@ -788,7 +788,7 @@ index 000000000..9de8a79af
 +    dest: "{{ node_config_directory }}/kerbside_proxy/kerbside.ini"
 +    mode: "0660"
 +  when:
-+    - inventory_hostname in groups["kerbside-proxy"]
++    - inventory_hostname in groups['kerbside_proxy']
 +    - kerbside_services["kerbside_proxy"].enabled | bool
 +  notify:
 +    - "Restart kerbside_proxy container"
@@ -801,7 +801,7 @@ index 000000000..9de8a79af
 +    src: "{{ role_path }}/files/kerbside_alembic_wrapper"
 +    dest: "{{ node_config_directory }}/kerbside_bootstrap/kerbside_alembic_wrapper"
 +    mode: "0700"
-+  delegate_to: "{{ groups['kerbside-api'][0] }}"
++  delegate_to: "{{ groups['kerbside_api'][0] }}"
 +  run_once: true
 +
 +- name: Copying over kerbside sources.yaml for API container
@@ -811,7 +811,7 @@ index 000000000..9de8a79af
 +    dest: "{{ node_config_directory }}/kerbside_api/sources.yaml"
 +    mode: "0660"
 +  when:
-+    - inventory_hostname in groups["kerbside-api"]
++    - inventory_hostname in groups['kerbside_api']
 +    - kerbside_services["kerbside_api"].enabled | bool
 +  notify:
 +    - "Restart kerbside_api container"
@@ -823,7 +823,7 @@ index 000000000..9de8a79af
 +    dest: "{{ node_config_directory }}/kerbside_proxy/sources.yaml"
 +    mode: "0660"
 +  when:
-+    - inventory_hostname in groups["kerbside-proxy"]
++    - inventory_hostname in groups['kerbside_proxy']
 +    - kerbside_services["kerbside_proxy"].enabled | bool
 +  notify:
 +    - "Restart kerbside_proxy container"
@@ -837,7 +837,7 @@ index 000000000..9de8a79af
 +    src: "kerbside_bootstrap.json.j2"
 +    dest: "{{ node_config_directory }}/kerbside_bootstrap/config.json"
 +    mode: "0660"
-+  delegate_to: "{{ groups['kerbside-api'][0] }}"
++  delegate_to: "{{ groups['kerbside_api'][0] }}"
 +  run_once: true
 +
 +- name: Copying over config.json files for services
@@ -870,7 +870,7 @@ index 000000000..9de8a79af
 +  vars:
 +    project_services: "{{ kerbside_services }}"
 +    service: "{{ kerbside_services['kerbside_api'] }}"
-+    service_name: "kerbside-api"
++    service_name: "kerbside_api"
 +    service_uwsgi_config_file: "{{ node_config_directory }}/kerbside_api/kerbside-uwsgi.ini"
 +    service_uwsgi_config_http_port: "{{ kerbside_api_listen_port }}"
 +    service_uwsgi_config_log_file_chmod: "644"
@@ -909,8 +909,8 @@ index 000000000..5da54a9c7
 +    mode: "0644"
 +  become: true
 +  when: >
-+    (inventory_hostname is in groups["kerbside-api"] or
-+     inventory_hostname is in groups["kerbside-proxy"])
++    (inventory_hostname is in groups['kerbside_api'] or
++     inventory_hostname is in groups['kerbside_proxy'])
 +  with_dict: "{{ kerbside_services | select_services_enabled_and_mapped_to_host }}"
 diff --git a/ansible/roles/kerbside/tasks/deploy.yml b/ansible/roles/kerbside/tasks/deploy.yml
 new file mode 100644
@@ -964,19 +964,19 @@ index 000000000..3fd4a3a3d
 +    service_precheck_services: "{{ kerbside_services }}"
 +    service_name: "{{ project_name }}"
 +
-+- name: Ensure there are hosts in the kerbside-api group
++- name: Ensure there are hosts in the kerbside_api group
 +  ansible.builtin.fail:
-+    msg: There are no nodes in the kerbside-api group
++    msg: There are no nodes in the kerbside_api group
 +  when:
 +    - enable_kerbside | bool
-+    - groups['kerbside-api'] | length == 0
++    - groups['kerbside_api'] | length == 0
 +
-+- name: Ensure there are hosts in the kerbside-proxy group
++- name: Ensure there are hosts in the kerbside_proxy group
 +  ansible.builtin.fail:
-+    msg: There are no nodes in the kerbside-proxy group
++    msg: There are no nodes in the kerbside_proxy group
 +  when:
 +    - enable_kerbside | bool
-+    - groups['kerbside-proxy'] | length == 0
++    - groups['kerbside_proxy'] | length == 0
 +
 +- name: Get API container facts
 +  become: true
@@ -984,7 +984,7 @@ index 000000000..3fd4a3a3d
 +    action: get_containers
 +    container_engine: "{{ kolla_container_engine }}"
 +    name:
-+      - kerbside-api
++      - kerbside_api
 +  check_mode: false
 +  register: api_container_facts
 +
@@ -1046,7 +1046,7 @@ index 000000000..3fd4a3a3d
 +    action: get_containers
 +    container_engine: "{{ kolla_container_engine }}"
 +    name:
-+      - kerbside-proxy
++      - kerbside_proxy
 +  check_mode: false
 +  register: proxy_container_facts
 +
@@ -1125,8 +1125,8 @@ index 000000000..e5b3ae4e0
 +    - kolla_action == 'upgrade'
 +    - service | service_enabled_and_mapped_to_host
 +  with_items:
-+    - kerbside-api
-+    - kerbside-proxy
++    - kerbside_api
++    - kerbside_proxy
 diff --git a/ansible/roles/kerbside/tasks/upgrade.yml b/ansible/roles/kerbside/tasks/upgrade.yml
 new file mode 100644
 index 000000000..a84390a5b
@@ -1570,17 +1570,17 @@ index 000000000..b9e99e15a
 +    to spice-direct consoles. This functionality is enabled by setting
 +    ``enable_kerbside`` to ``true`` in globals.yml.
 diff --git a/tests/templates/inventory.j2 b/tests/templates/inventory.j2
-index e2c5ff338..c4ae2d6cc 100644
+index e2c5ff338..6b3aa394b 100644
 --- a/tests/templates/inventory.j2
 +++ b/tests/templates/inventory.j2
 @@ -319,6 +319,12 @@ nova
  [nova-serialproxy:children]
  nova
  
-+[kerbside-api:children]
++[kerbside_api:children]
 +kerbside
 +
-+[kerbside-proxy:children]
++[kerbside_proxy:children]
 +kerbside
 +
  # Neutron
