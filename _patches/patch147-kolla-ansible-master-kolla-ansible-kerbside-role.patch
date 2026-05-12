@@ -1,6 +1,6 @@
-commit 901edc88e57314b49653c4759ffb4c15d0bbd987
+commit 36f0a67bb8efe71a9f688175d65e61efee2e71dc
 Author: Michael Still <mikal@stillhq.com>
-Date:   Tue May 12 11:04:49 2026 +1000
+Date:   Tue May 12 14:39:47 2026 +1000
 
     Deploy Kerbside with Kolla-Ansible.
     
@@ -1570,16 +1570,13 @@ index 000000000..b9e99e15a
 +    to spice-direct consoles. This functionality is enabled by setting
 +    ``enable_kerbside`` to ``true`` in globals.yml.
 diff --git a/tests/templates/inventory.j2 b/tests/templates/inventory.j2
-index e2c5ff338..33e38c092 100644
+index e2c5ff338..c4ae2d6cc 100644
 --- a/tests/templates/inventory.j2
 +++ b/tests/templates/inventory.j2
-@@ -319,6 +319,15 @@ nova
+@@ -319,6 +319,12 @@ nova
  [nova-serialproxy:children]
  nova
  
-+[kerbside:children]
-+nova
-+
 +[kerbside-api:children]
 +kerbside
 +
