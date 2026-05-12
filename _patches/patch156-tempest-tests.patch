@@ -1,6 +1,6 @@
-commit 5dee05aa9e363cac2ba11a5084411bcbb9682aa5
+commit d7b544428f0d6e2c1f58e754929d52ffcdb157e9
 Author: Michael Still <mikal@stillhq.com>
-Date:   Tue May 12 09:03:49 2026 +1000
+Date:   Tue May 12 11:04:50 2026 +1000
 
     Add kerbside CI scenario jobs.
     
@@ -47,6 +47,7 @@ Date:   Tue May 12 09:03:49 2026 +1000
     Assisted-By: Claude Opus 4.7 (1M context, medium effort) <noreply@anthropic.com>
     Co-Authored-By: Claude Opus 4.7 (1M context, medium effort) <noreply@anthropic.com>
     
+    Depends-On: https://review.opendev.org/c/openstack/kolla/+/986283
     Change-Id: I1784562d42c44f8d89e983846cb81d4d35daf6a2
     Signed-off-by: Michael Still <mikal@stillhq.com>
 
