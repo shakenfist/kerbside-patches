@@ -1,0 +1,48 @@
+Add kerbside CI scenario jobs.
+
+Adds three non-voting Zuul jobs that deploy kolla-ansible AIO with
+enable_kerbside set to true on Debian Trixie, Ubuntu Noble, and Rocky
+10. The jobs follow the masakari scenario layout: a base job that
+sets scenario: kerbside, three distro-specific jobs using the
+existing single-node 16GB AIO nodesets, and a project-template
+collecting them under check (not gate) while the jobs are still
+being shaken down.
+
+The jobs trigger via files: !inherit on changes to kerbside and
+nova roles and group_vars, plus the kerbside-specific cert
+files. globals-default.j2 gets a {% if scenario == "kerbside" %}
+block that enables kerbside and sets nova_console to spice.
+tests/run.yml is extended so openstack_core_tested includes the
+kerbside scenario, which causes init-core-openstack.sh and the
+kolla-ansible-tempest role to run with the default .*smoke.* regex
+inherited from the base job.
+
+The base job sets kolla_build_images: true with a 10800 second
+timeout to match the existing non-voting image-building jobs (the
+SPICE-enabled kolla images are not yet in the published image set,
+so kerbside CI builds them locally). Combined with a Depends-On
+line in the Gerrit submission pointing at the matching kolla
+change, this gives Zuul speculative execution end-to-end: the
+depended-on kolla patch is applied to the kolla source tree on
+the test node, images are built from it and pushed to the local
+primary:4000 registry, and the need_build_image branch of
+globals-default.j2 flips docker_namespace and docker_registry to
+use that registry.
+
+Future work: add kerbside-specific Tempest tests via a plugin and
+extend kolla_ansible_tempest_regex once the smoke baseline is
+trusted.
+
+Prompt: Michael asked me to draft the new tempest test in
+src/kolla-ansible/ and then commit it here so he can produce a
+patch from the resulting diff. A follow-up asked to enable
+image-building plus the timeout bump used by the existing
+non-voting image-building kolla-ansible jobs, so the kerbside
+scenario can exercise an in-flight kolla change via Depends-On.
+
+Assisted-By: Claude Opus 4.7 (1M context, medium effort) <noreply@anthropic.com>
+Co-Authored-By: Claude Opus 4.7 (1M context, medium effort) <noreply@anthropic.com>
+
+Depends-On: https://review.opendev.org/c/openstack/kolla/+/986283
+Change-Id: I1784562d42c44f8d89e983846cb81d4d35daf6a2
+Signed-off-by: Michael Still <mikal@stillhq.com>

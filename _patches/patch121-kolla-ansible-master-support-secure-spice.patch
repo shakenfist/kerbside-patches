@@ -1,6 +1,6 @@
-commit dbbd159cb616523379086d12cf3b42944ffed118
+commit f9ae96bf80dfb8e2059b4a293fbbbd6fe94299b8
 Author: Michael Still <mikal@stillhq.com>
-Date:   Thu Apr 30 17:24:55 2026 +1000
+Date:   Wed May 13 12:00:32 2026 +1000
 
     Allow requiring secure channels with SPICE
     
@@ -53,12 +53,12 @@ index 9364c619e..b61d2292c 100644
 +    - inventory_hostname in groups[nova_cell_compute_group]
 +    - nova_spice_require_secure | bool
 diff --git a/ansible/roles/nova-cell/templates/nova-libvirt.json.j2 b/ansible/roles/nova-cell/templates/nova-libvirt.json.j2
-index e81413b35..f1118adf4 100644
+index f64098707..dce42c684 100644
 --- a/ansible/roles/nova-cell/templates/nova-libvirt.json.j2
 +++ b/ansible/roles/nova-cell/templates/nova-libvirt.json.j2
 @@ -74,5 +74,29 @@
              "owner": "root",
-             "perm": "0600"
+             "perm": "0644"
          }{% endif %}
 +{#- The SPICE TLS bind-mounts below are owned root:nova with mode 0440
 +    because qemu reads these files directly when starting the SPICE

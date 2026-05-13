@@ -1,6 +1,6 @@
-commit 6402fcba81d83e00a6cc6ef54022a55ede932cc1
+commit cd153c6b1687680174ce75d6b6072bce4ff23252
 Author: Michael Still <mikal@stillhq.com>
-Date:   Mon May 4 17:37:12 2026 +1000
+Date:   Tue May 12 09:03:27 2026 +1000
 
     Implement container image build for kerbside.
     
@@ -66,7 +66,7 @@ index 000000000..4e5e1f7a1
 +USER kerbside
 diff --git a/docker/kerbside/kerbside-api/extend_start.sh b/docker/kerbside/kerbside-api/extend_start.sh
 new file mode 100644
-index 000000000..9b917b374
+index 000000000..92ef80a22
 --- /dev/null
 +++ b/docker/kerbside/kerbside-api/extend_start.sh
 @@ -0,0 +1,4 @@
@@ -156,7 +156,7 @@ index 7657ed485..81b6f4343 100644
                      'manila',
                      'masakari',
 diff --git a/kolla/common/sources.py b/kolla/common/sources.py
-index 9da7ccf8b..685683852 100644
+index 97edec1b1..08c4a4639 100644
 --- a/kolla/common/sources.py
 +++ b/kolla/common/sources.py
 @@ -152,6 +152,10 @@ SOURCES = {
