@@ -1,6 +1,6 @@
-commit 843e5d07cef013836eb0a43f0b257477d8afc0c4
+commit db14782202d8ab67b66bcb0e3d88a28252634342
 Author: Michael Still <mikal@stillhq.com>
-Date:   Tue May 12 15:37:31 2026 +1000
+Date:   Wed May 13 11:37:02 2026 +1000
 
     Add kerbside CI scenario jobs.
     
@@ -80,6 +80,62 @@ index 0f6da316a..0956aeb18 100644
  {% if scenario == "cells" %}
  enable_cells: "yes"
  enable_proxysql: "yes"
+diff --git a/tests/templates/inventory.j2 b/tests/templates/inventory.j2
+index e2c5ff338..5786529fc 100644
+--- a/tests/templates/inventory.j2
++++ b/tests/templates/inventory.j2
+@@ -51,6 +51,11 @@ control
+ {{ host }} ansible_host={{ hostvars[host]['ansible_host'] }}
+ {% endfor %}
+ 
++[vdiproxy]
++{% for host in hostvars | reject('equalto', 'localhost') %}
++{{ host }} ansible_host={{ hostvars[host]['ansible_host'] }}
++{% endfor %}
++
+ {% if scenario == 'cells' %}
+ {%     for host in hostvars | reject('equalto', 'localhost') %}
+ {%         set cell_name = 'cell' ~ loop.index %}
+@@ -74,6 +79,7 @@ network
+ compute
+ storage
+ monitoring
++vdiproxy
+ 
+ [tls-backend:children]
+ control
+@@ -87,6 +93,7 @@ network
+ compute
+ storage
+ monitoring
++vdiproxy
+ 
+ [collectd:children]
+ compute
+@@ -319,6 +326,12 @@ nova
+ [nova-serialproxy:children]
+ nova
+ 
++[kerbside_api:children]
++kerbside
++
++[kerbside_proxy:children]
++kerbside
++
+ # Neutron
+ [ironic-neutron-agent:children]
+ neutron
+@@ -708,3 +721,10 @@ skyline
+ 
+ [skyline-console:children]
+ skyline
++
++# Kerbside
++[kerbside_api:children]
++control
++
++[kerbside_proxy:children]
++vdiproxy
 diff --git a/zuul.d/project.yaml b/zuul.d/project.yaml
 index 7cb2ec76f..7e1e17d2c 100644
 --- a/zuul.d/project.yaml

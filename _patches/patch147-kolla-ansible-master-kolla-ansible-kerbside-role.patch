@@ -1,6 +1,6 @@
-commit b61d06b68e040598dc25eb2a40b7489ad9263445
+commit c7d3bd3fd00b61f4089569432325d18022b45392
 Author: Michael Still <mikal@stillhq.com>
-Date:   Tue May 12 15:37:31 2026 +1000
+Date:   Wed May 13 11:37:02 2026 +1000
 
     Deploy Kerbside with Kolla-Ansible.
     
@@ -63,14 +63,14 @@ index 000000000..da4d90b1e
 +kerbside_safety_upgrade: false
 +kerbside_enable_tls_backend: true
 diff --git a/ansible/inventory/all-in-one b/ansible/inventory/all-in-one
-index 2f5f1cf38..a818a661b 100644
+index 2f5f1cf38..cd69fc635 100644
 --- a/ansible/inventory/all-in-one
 +++ b/ansible/inventory/all-in-one
 @@ -18,6 +18,9 @@ localhost       ansible_connection=local
  [deployment]
  localhost       ansible_connection=local
  
-+[vdiproxpy]
++[vdiproxy]
 +localhost       ansible_connection=local
 +
  # You can explicitly specify which hosts run each project by updating the
@@ -96,7 +96,7 @@ index 2f5f1cf38..a818a661b 100644
 +[kerbside_proxy:children]
 +vdiproxy
 diff --git a/ansible/inventory/multinode b/ansible/inventory/multinode
-index 7bfa71ed0..c3365a9ba 100644
+index 7bfa71ed0..b23059f25 100644
 --- a/ansible/inventory/multinode
 +++ b/ansible/inventory/multinode
 @@ -29,6 +29,10 @@ monitoring01
@@ -126,15 +126,7 @@ index 7bfa71ed0..c3365a9ba 100644
  
  [collectd:children]
  compute
-@@ -64,6 +70,7 @@ control
- 
- [prometheus:children]
- monitoring
-+vdiproxy
- 
- [hacluster:children]
- control
-@@ -611,3 +618,10 @@ letsencrypt
+@@ -611,3 +617,10 @@ letsencrypt
  
  [letsencrypt-lego:children]
  letsencrypt
@@ -146,7 +138,7 @@ index 7bfa71ed0..c3365a9ba 100644
 +[kerbside_proxy:children]
 +vdiproxy
 diff --git a/ansible/nova.yml b/ansible/nova.yml
-index 4f24f6e1c..3dee83dde 100644
+index 4f24f6e1c..2ec04b969 100644
 --- a/ansible/nova.yml
 +++ b/ansible/nova.yml
 @@ -20,6 +20,9 @@
@@ -388,7 +380,7 @@ index 02f960700..4264e5fcd 100644
      pattern .+
 diff --git a/ansible/roles/kerbside/defaults/main.yml b/ansible/roles/kerbside/defaults/main.yml
 new file mode 100644
-index 000000000..8d9029b52
+index 000000000..fe3a7324a
 --- /dev/null
 +++ b/ansible/roles/kerbside/defaults/main.yml
 @@ -0,0 +1,161 @@
@@ -459,7 +451,7 @@ index 000000000..8d9029b52
 +        mode: "tcp"
 +        external: true
 +        external_fqdn: "{{ kolla_external_fqdn }}"
-+        port: "{{ kerbside_vdi_secure_port }}"
++        port: "{{ kerbside_vdi_secure_port }}"kerbside_proxy:children
 +        listen_port: "{{ kerbside_vdi_secure_listen_port }}"
 +        tls_backend: false
 +
@@ -608,7 +600,7 @@ index 000000000..4fba79d9f
 +    - kolla_action != "upgrade" or not kerbside_safety_upgrade | bool
 diff --git a/ansible/roles/kerbside/tasks/bootstrap.yml b/ansible/roles/kerbside/tasks/bootstrap.yml
 new file mode 100644
-index 000000000..05bf5f12d
+index 000000000..2ae89bfab
 --- /dev/null
 +++ b/ansible/roles/kerbside/tasks/bootstrap.yml
 @@ -0,0 +1,61 @@
@@ -675,7 +667,7 @@ index 000000000..05bf5f12d
 +  ansible.builtin.import_tasks: bootstrap_service.yml
 diff --git a/ansible/roles/kerbside/tasks/bootstrap_service.yml b/ansible/roles/kerbside/tasks/bootstrap_service.yml
 new file mode 100644
-index 000000000..c8fefaa39
+index 000000000..0ec6b9161
 --- /dev/null
 +++ b/ansible/roles/kerbside/tasks/bootstrap_service.yml
 @@ -0,0 +1,20 @@
@@ -711,7 +703,7 @@ index 000000000..4f65ec2e8
 +    name: service-check-containers
 diff --git a/ansible/roles/kerbside/tasks/config.yml b/ansible/roles/kerbside/tasks/config.yml
 new file mode 100644
-index 000000000..9de8a79af
+index 000000000..df1363afa
 --- /dev/null
 +++ b/ansible/roles/kerbside/tasks/config.yml
 @@ -0,0 +1,167 @@
@@ -884,7 +876,7 @@ index 000000000..9de8a79af
 +    - kerbside_wsgi_provider == "uwsgi"
 diff --git a/ansible/roles/kerbside/tasks/copy-certs.yml b/ansible/roles/kerbside/tasks/copy-certs.yml
 new file mode 100644
-index 000000000..5da54a9c7
+index 000000000..3813d420b
 --- /dev/null
 +++ b/ansible/roles/kerbside/tasks/copy-certs.yml
 @@ -0,0 +1,24 @@
@@ -952,7 +944,7 @@ index 000000000..7fa7afefb
 +  ansible.builtin.include_tasks: "{{ kolla_action }}.yml"
 diff --git a/ansible/roles/kerbside/tasks/precheck.yml b/ansible/roles/kerbside/tasks/precheck.yml
 new file mode 100644
-index 000000000..3fd4a3a3d
+index 000000000..83a671327
 --- /dev/null
 +++ b/ansible/roles/kerbside/tasks/precheck.yml
 @@ -0,0 +1,132 @@
@@ -1100,7 +1092,7 @@ index 000000000..cf5adbf32
 +    role: service-images-pull
 diff --git a/ansible/roles/kerbside/tasks/reload.yml b/ansible/roles/kerbside/tasks/reload.yml
 new file mode 100644
-index 000000000..e5b3ae4e0
+index 000000000..ae846b944
 --- /dev/null
 +++ b/ansible/roles/kerbside/tasks/reload.yml
 @@ -0,0 +1,23 @@
@@ -1569,20 +1561,3 @@ index 000000000..b9e99e15a
 +    Kolla and Kolla-Ansible now support deploying Kerbside to provide access
 +    to spice-direct consoles. This functionality is enabled by setting
 +    ``enable_kerbside`` to ``true`` in globals.yml.
-diff --git a/tests/templates/inventory.j2 b/tests/templates/inventory.j2
-index e2c5ff338..6b3aa394b 100644
---- a/tests/templates/inventory.j2
-+++ b/tests/templates/inventory.j2
-@@ -319,6 +319,12 @@ nova
- [nova-serialproxy:children]
- nova
- 
-+[kerbside_api:children]
-+kerbside
-+
-+[kerbside_proxy:children]
-+kerbside
-+
- # Neutron
- [ironic-neutron-agent:children]
- neutron
