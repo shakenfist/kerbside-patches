@@ -1,6 +1,6 @@
-commit c7d3bd3fd00b61f4089569432325d18022b45392
+commit b710794b2dc117f71e38f09774a1129d9c4bb2c9
 Author: Michael Still <mikal@stillhq.com>
-Date:   Wed May 13 11:37:02 2026 +1000
+Date:   Wed May 13 12:00:32 2026 +1000
 
     Deploy Kerbside with Kolla-Ansible.
     
@@ -380,7 +380,7 @@ index 02f960700..4264e5fcd 100644
      pattern .+
 diff --git a/ansible/roles/kerbside/defaults/main.yml b/ansible/roles/kerbside/defaults/main.yml
 new file mode 100644
-index 000000000..fe3a7324a
+index 000000000..18130e572
 --- /dev/null
 +++ b/ansible/roles/kerbside/defaults/main.yml
 @@ -0,0 +1,161 @@
@@ -451,7 +451,7 @@ index 000000000..fe3a7324a
 +        mode: "tcp"
 +        external: true
 +        external_fqdn: "{{ kolla_external_fqdn }}"
-+        port: "{{ kerbside_vdi_secure_port }}"kerbside_proxy:children
++        port: "{{ kerbside_vdi_secure_port }}"
 +        listen_port: "{{ kerbside_vdi_secure_listen_port }}"
 +        tls_backend: false
 +
