@@ -237,10 +237,10 @@ nova
 nova
 
 # Kerbside
-[kerbside-api:children]
+[kerbside_api:children]
 control
 
-[kerbside-proxy:children]
+[kerbside_proxy:children]
 vdiproxy
 
 # Neutron
