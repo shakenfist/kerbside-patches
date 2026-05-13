@@ -112,20 +112,7 @@ index e2c5ff338..5786529fc 100644
  
  [collectd:children]
  compute
-@@ -319,6 +326,12 @@ nova
- [nova-serialproxy:children]
- nova
- 
-+[kerbside_api:children]
-+kerbside
-+
-+[kerbside_proxy:children]
-+kerbside
-+
- # Neutron
- [ironic-neutron-agent:children]
- neutron
-@@ -708,3 +721,10 @@ skyline
+@@ -708,3 +715,10 @@ skyline
  
  [skyline-console:children]
  skyline
