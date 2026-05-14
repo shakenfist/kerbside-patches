@@ -587,11 +587,7 @@ enable_haproxy: "no"
 # Valid options are [ none, novnc, spice ]
 nova_console: "spice"
 nova_spice_html5: "no"
-nova_spice_require_secure: "no"
-nova_spice_debug_logging: "no"
-nova_spice_allow_concurrent: "yes"
 enable_kerbside: "yes"
-kerbside_json_logging: "no"
 
 ##############################
 # Neutron - networking options
