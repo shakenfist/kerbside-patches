@@ -17,22 +17,15 @@ Date:   Wed May 13 12:00:32 2026 +1000
     Change-Id: I4306725fb8433860baec8e01c51e9eae2beb3cc9
     Signed-off-by: Michael Still <mikal@stillhq.com>
 
-diff --git a/ansible/roles/nova-cell/defaults/main.yml b/ansible/roles/nova-cell/defaults/main.yml
-index 790190fb0..b82dde11c 100644
---- a/ansible/roles/nova-cell/defaults/main.yml
-+++ b/ansible/roles/nova-cell/defaults/main.yml
-@@ -688,6 +688,11 @@ nova_cell_database_enable_tls_internal: "{{ database_enable_tls_internal | bool
- 
- nova_multi_compute_ironic_config: []
- 
-+##################
-+# Spice options
-+##################
+diff --git a/ansible/group_vars/all/nova.yml b/ansible/group_vars/all/nova.yml
+index 4b116200a..b9a8d6a7c 100644
+--- a/ansible/group_vars/all/nova.yml
++++ b/ansible/group_vars/all/nova.yml
+@@ -74,3 +74,4 @@ nova_spice_jpeg_compression: "auto"
+ nova_spice_zlib_compression: "auto"
+ nova_spice_playback_compression: true
+ nova_spice_streaming_mode: "filter"
 +nova_spice_require_secure: false
-+
- ###################
- # Copy certificates
- ###################
 diff --git a/ansible/roles/nova-cell/tasks/precheck.yml b/ansible/roles/nova-cell/tasks/precheck.yml
 index 9364c619e..b61d2292c 100644
 --- a/ansible/roles/nova-cell/tasks/precheck.yml
