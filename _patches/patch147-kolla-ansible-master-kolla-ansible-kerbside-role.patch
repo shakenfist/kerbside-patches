@@ -926,8 +926,10 @@ new file mode 100644
 index 000000000..e69de29bb
 --- /dev/null
 +++ b/ansible/roles/kerbside/tasks/deploy-containers.yml
-@@ -0,0 +1 @@
+@@ -0,0 +1,3 @@
 +---
++- name: Check kerbside containers
++  ansible.builtin.import_tasks: check-containers.yml
 diff --git a/ansible/roles/kerbside/tasks/deploy.yml b/ansible/roles/kerbside/tasks/deploy.yml
 new file mode 100644
 index 000000000..f47601806
