@@ -946,13 +946,6 @@ index 000000000..f47601806
 +
 +- name: Flush handlers
 +  ansible.builtin.meta: flush_handlers
-diff --git a/ansible/roles/kerbside/tasks/destroy.yml b/ansible/roles/kerbside/tasks/destroy.yml
-new file mode 100644
-index 000000000..e69de29bb
---- /dev/null
-+++ b/ansible/roles/kerbside/tasks/destroy.yml
-@@ -0,0 +1 @@
-+---
 diff --git a/ansible/roles/kerbside/tasks/loadbalancer.yml b/ansible/roles/kerbside/tasks/loadbalancer.yml
 new file mode 100644
 index 000000000..c060efa26
