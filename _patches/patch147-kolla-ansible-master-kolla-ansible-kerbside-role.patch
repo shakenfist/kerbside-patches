@@ -792,7 +792,7 @@ index 000000000..df1363afa
 +  ansible.builtin.copy:
 +    src: "{{ role_path }}/files/kerbside_alembic_wrapper"
 +    dest: "{{ node_config_directory }}/kerbside_bootstrap/kerbside_alembic_wrapper"
-+    mode: "0700"
++    mode: "0770"
 +  delegate_to: "{{ groups['kerbside_api'][0] }}"
 +  run_once: true
 +

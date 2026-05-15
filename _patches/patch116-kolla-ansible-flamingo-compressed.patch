@@ -796,7 +796,7 @@ index 000000000..84d871122
 +  copy:
 +    src: "{{ role_path }}/files/kerbside_alembic_wrapper"
 +    dest: "{{ node_config_directory }}/kerbside_bootstrap/kerbside_alembic_wrapper"
-+    mode: "0700"
++    mode: "0770"
 +  when:
 +    - inventory_hostname in groups["kerbside-api"]
 +    - kerbside_services["kerbside_api"].enabled | bool

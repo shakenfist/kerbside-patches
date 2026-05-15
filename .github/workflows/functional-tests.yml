@@ -619,6 +619,32 @@ jobs:
           use_ci_registry: 'true'
           container_distro: ${{ matrix.test.container_distro }}
 
+      # The same post-deploy sanity scripts that Zuul runs against the
+      # kolla-ansible source tree. These are cheap (seconds) and catch
+      # the same /etc/kolla permission, container-health and ERROR-log
+      # regressions that surface late in Zuul. Tempest is deliberately
+      # *not* run here -- it would add 30-90 minutes per matrix entry.
+      - name: Run kolla-ansible post-deploy sanity checks
+        run: |
+          . $GITHUB_ENV
+          ssh -i /srv/github/id_ci -o StrictHostKeyChecking=no \
+              -o UserKnownHostsFile=/dev/null \
+              ${{ matrix.test.baseuser }}@10.0.2.2 \
+              'set -e
+               cd /srv/shakenfist/kerbside-patches/src/kolla-ansible
+
+               echo "::group::tests/check-failure.sh"
+               CONTAINER_ENGINE=docker tests/check-failure.sh
+               echo "::endgroup::"
+
+               echo "::group::tests/check-config.sh"
+               tests/check-config.sh
+               echo "::endgroup::"
+
+               echo "::group::tests/check-logs.sh"
+               tests/check-logs.sh
+               echo "::endgroup::"'
+
       - name: Dump internal VIP CA cert details
         if: always()
         run: |
