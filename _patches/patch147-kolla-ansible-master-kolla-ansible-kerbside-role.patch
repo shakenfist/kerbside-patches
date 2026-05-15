@@ -1126,8 +1126,10 @@ new file mode 100644
 index 000000000..e69de29bb
 --- /dev/null
 +++ b/ansible/roles/kerbside/tasks/reconfigure.yml
-@@ -0,0 +1 @@
+@@ -0,0 +1,3 @@
 +---
++- name: Deploy kerbside
++  ansible.builtin.import_tasks: deploy.yml
 diff --git a/ansible/roles/kerbside/tasks/reload.yml b/ansible/roles/kerbside/tasks/reload.yml
 new file mode 100644
 index 000000000..ae846b944
