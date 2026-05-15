@@ -879,8 +879,11 @@ new file mode 100644
 index 000000000..e69de29bb
 --- /dev/null
 +++ b/ansible/roles/kerbside/tasks/check.yml
-@@ -0,0 +1 @@
+@@ -0,0 +1,4 @@
 +---
++- name: Checking kerbside containers
++  ansible.builtin.import_role:
++    role: service-check
 diff --git a/ansible/roles/kerbside/tasks/config_validate.yml b/ansible/roles/kerbside/tasks/config_validate.yml
 new file mode 100644
 index 000000000..e69de29bb
@@ -923,8 +926,10 @@ new file mode 100644
 index 000000000..e69de29bb
 --- /dev/null
 +++ b/ansible/roles/kerbside/tasks/deploy-containers.yml
-@@ -0,0 +1 @@
+@@ -0,0 +1,3 @@
 +---
++- name: Check kerbside containers
++  ansible.builtin.import_tasks: check-containers.yml
 diff --git a/ansible/roles/kerbside/tasks/deploy.yml b/ansible/roles/kerbside/tasks/deploy.yml
 new file mode 100644
 index 000000000..f47601806
@@ -941,13 +946,6 @@ index 000000000..f47601806
 +
 +- name: Flush handlers
 +  ansible.builtin.meta: flush_handlers
-diff --git a/ansible/roles/kerbside/tasks/destroy.yml b/ansible/roles/kerbside/tasks/destroy.yml
-new file mode 100644
-index 000000000..e69de29bb
---- /dev/null
-+++ b/ansible/roles/kerbside/tasks/destroy.yml
-@@ -0,0 +1 @@
-+---
 diff --git a/ansible/roles/kerbside/tasks/loadbalancer.yml b/ansible/roles/kerbside/tasks/loadbalancer.yml
 new file mode 100644
 index 000000000..c060efa26
@@ -1123,8 +1121,10 @@ new file mode 100644
 index 000000000..e69de29bb
 --- /dev/null
 +++ b/ansible/roles/kerbside/tasks/reconfigure.yml
-@@ -0,0 +1 @@
+@@ -0,0 +1,3 @@
 +---
++- name: Deploy kerbside
++  ansible.builtin.import_tasks: deploy.yml
 diff --git a/ansible/roles/kerbside/tasks/reload.yml b/ansible/roles/kerbside/tasks/reload.yml
 new file mode 100644
 index 000000000..ae846b944
@@ -1159,8 +1159,14 @@ new file mode 100644
 index 000000000..e69de29bb
 --- /dev/null
 +++ b/ansible/roles/kerbside/tasks/stop.yml
-@@ -0,0 +1 @@
+@@ -0,0 +1,7 @@
 +---
++- name: Stop kerbside containers
++  ansible.builtin.import_role:
++    name: service-stop
++  vars:
++    project_services: "{{ kerbside_services }}"
++    service_name: "{{ project_name }}"
 diff --git a/ansible/roles/kerbside/tasks/upgrade.yml b/ansible/roles/kerbside/tasks/upgrade.yml
 new file mode 100644
 index 000000000..a84390a5b
