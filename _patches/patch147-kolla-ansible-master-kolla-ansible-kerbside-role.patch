@@ -879,8 +879,11 @@ new file mode 100644
 index 000000000..e69de29bb
 --- /dev/null
 +++ b/ansible/roles/kerbside/tasks/check.yml
-@@ -0,0 +1 @@
+@@ -0,0 +1,4 @@
 +---
++- name: Checking kerbside containers
++  ansible.builtin.import_role:
++    role: service-check
 diff --git a/ansible/roles/kerbside/tasks/config_validate.yml b/ansible/roles/kerbside/tasks/config_validate.yml
 new file mode 100644
 index 000000000..e69de29bb
