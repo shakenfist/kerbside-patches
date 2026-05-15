@@ -874,6 +874,20 @@ index 000000000..df1363afa
 +  when:
 +    - service | service_enabled_and_mapped_to_host
 +    - kerbside_wsgi_provider == "uwsgi"
+diff --git a/ansible/roles/kerbside/tasks/check.yml b/ansible/roles/kerbside/tasks/check.yml
+new file mode 100644
+index 000000000..e69de29bb
+--- /dev/null
++++ b/ansible/roles/kerbside/tasks/check.yml
+@@ -0,0 +1 @@
++---
+diff --git a/ansible/roles/kerbside/tasks/config_validate.yml b/ansible/roles/kerbside/tasks/config_validate.yml
+new file mode 100644
+index 000000000..e69de29bb
+--- /dev/null
++++ b/ansible/roles/kerbside/tasks/config_validate.yml
+@@ -0,0 +1 @@
++---
 diff --git a/ansible/roles/kerbside/tasks/copy-certs.yml b/ansible/roles/kerbside/tasks/copy-certs.yml
 new file mode 100644
 index 000000000..3813d420b
@@ -904,6 +918,13 @@ index 000000000..3813d420b
 +    (inventory_hostname is in groups['kerbside_api'] or
 +     inventory_hostname is in groups['kerbside_proxy'])
 +  with_dict: "{{ kerbside_services | select_services_enabled_and_mapped_to_host }}"
+diff --git a/ansible/roles/kerbside/tasks/deploy-containers.yml b/ansible/roles/kerbside/tasks/deploy-containers.yml
+new file mode 100644
+index 000000000..e69de29bb
+--- /dev/null
++++ b/ansible/roles/kerbside/tasks/deploy-containers.yml
+@@ -0,0 +1 @@
++---
 diff --git a/ansible/roles/kerbside/tasks/deploy.yml b/ansible/roles/kerbside/tasks/deploy.yml
 new file mode 100644
 index 000000000..f47601806
@@ -920,6 +941,13 @@ index 000000000..f47601806
 +
 +- name: Flush handlers
 +  ansible.builtin.meta: flush_handlers
+diff --git a/ansible/roles/kerbside/tasks/destroy.yml b/ansible/roles/kerbside/tasks/destroy.yml
+new file mode 100644
+index 000000000..e69de29bb
+--- /dev/null
++++ b/ansible/roles/kerbside/tasks/destroy.yml
+@@ -0,0 +1 @@
++---
 diff --git a/ansible/roles/kerbside/tasks/loadbalancer.yml b/ansible/roles/kerbside/tasks/loadbalancer.yml
 new file mode 100644
 index 000000000..c060efa26
@@ -1090,6 +1118,13 @@ index 000000000..cf5adbf32
 +- name: Pull kerbside container images
 +  ansible.builtin.import_role:
 +    role: service-images-pull
+diff --git a/ansible/roles/kerbside/tasks/reconfigure.yml b/ansible/roles/kerbside/tasks/reconfigure.yml
+new file mode 100644
+index 000000000..e69de29bb
+--- /dev/null
++++ b/ansible/roles/kerbside/tasks/reconfigure.yml
+@@ -0,0 +1 @@
++---
 diff --git a/ansible/roles/kerbside/tasks/reload.yml b/ansible/roles/kerbside/tasks/reload.yml
 new file mode 100644
 index 000000000..ae846b944
@@ -1119,6 +1154,13 @@ index 000000000..ae846b944
 +  with_items:
 +    - kerbside_api
 +    - kerbside_proxy
+diff --git a/ansible/roles/kerbside/tasks/stop.yml b/ansible/roles/kerbside/tasks/stop.yml
+new file mode 100644
+index 000000000..e69de29bb
+--- /dev/null
++++ b/ansible/roles/kerbside/tasks/stop.yml
+@@ -0,0 +1 @@
++---
 diff --git a/ansible/roles/kerbside/tasks/upgrade.yml b/ansible/roles/kerbside/tasks/upgrade.yml
 new file mode 100644
 index 000000000..a84390a5b
