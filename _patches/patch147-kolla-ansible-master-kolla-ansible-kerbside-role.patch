@@ -1159,8 +1159,14 @@ new file mode 100644
 index 000000000..e69de29bb
 --- /dev/null
 +++ b/ansible/roles/kerbside/tasks/stop.yml
-@@ -0,0 +1 @@
+@@ -0,0 +1,7 @@
 +---
++- name: Stop kerbside containers
++  ansible.builtin.import_role:
++    name: service-stop
++  vars:
++    project_services: "{{ kerbside_services }}"
++    service_name: "{{ project_name }}"
 diff --git a/ansible/roles/kerbside/tasks/upgrade.yml b/ansible/roles/kerbside/tasks/upgrade.yml
 new file mode 100644
 index 000000000..a84390a5b
