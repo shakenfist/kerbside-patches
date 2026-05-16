@@ -619,6 +619,35 @@ jobs:
           use_ci_registry: 'true'
           container_distro: ${{ matrix.test.container_distro }}
 
+      # Post-deploy sanity scripts that Zuul runs against the
+      # kolla-ansible source tree. These are cheap (seconds) and catch
+      # the same /etc/kolla permission and container-health regressions
+      # that surface late in Zuul. Tempest is deliberately *not* run
+      # here -- it would add 30-90 minutes per matrix entry.
+      #
+      # tests/check-logs.sh is intentionally NOT run: it requires
+      # fluentd to be enabled (it scans /var/log/kolla/fluentd/fluentd.log
+      # for "following tail of <file>" lines for every service log) and
+      # our etc/globals-master.yml sets enable_fluentd: false, so every
+      # service log gets flagged as "untailed" and the run is marked
+      # critical. Re-enable the script if/when this CI deploys fluentd.
+      - name: Run kolla-ansible post-deploy sanity checks
+        run: |
+          . $GITHUB_ENV
+          ssh -i /srv/github/id_ci -o StrictHostKeyChecking=no \
+              -o UserKnownHostsFile=/dev/null \
+              ${{ matrix.test.baseuser }}@10.0.2.2 \
+              'set -e
+               cd /srv/shakenfist/kerbside-patches/src/kolla-ansible
+
+               echo "::group::tests/check-failure.sh"
+               CONTAINER_ENGINE=docker tests/check-failure.sh
+               echo "::endgroup::"
+
+               echo "::group::tests/check-config.sh"
+               tests/check-config.sh
+               echo "::endgroup::"'
+
       - name: Dump internal VIP CA cert details
         if: always()
         run: |
