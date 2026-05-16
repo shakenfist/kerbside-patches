@@ -633,6 +633,12 @@ jobs:
               'set -e
                cd /srv/shakenfist/kerbside-patches/src/kolla-ansible
 
+               # check-logs.sh writes its all-${LEVEL}.log summaries
+               # into /tmp/logs/kolla/. In Zuul, tests/pre.yml creates
+               # /tmp/logs/ before the run; we have to do the same here
+               # or the redirect fails with "No such file or directory".
+               mkdir -p /tmp/logs/kolla
+
                echo "::group::tests/check-failure.sh"
                CONTAINER_ENGINE=docker tests/check-failure.sh
                echo "::endgroup::"
