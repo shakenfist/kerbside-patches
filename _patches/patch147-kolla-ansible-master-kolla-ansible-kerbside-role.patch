@@ -378,6 +378,42 @@ index 02f960700..4264e5fcd 100644
    <rule>
      key     programname
      pattern .+
+diff --git a/ansible/roles/fluentd/templates/conf/input/00-global.conf.j2 b/ansible/roles/fluentd/templates/conf/input/00-global.conf.j2
+index 2b9c8b8c3..7d2a4f5e1 100644
+--- a/ansible/roles/fluentd/templates/conf/input/00-global.conf.j2
++++ b/ansible/roles/fluentd/templates/conf/input/00-global.conf.j2
+@@ -8,7 +8,8 @@
+                 "/var/log/kolla/*/*-error.log",
+                 "/var/log/kolla/*/*_access.log",
+                 "/var/log/kolla/*/*_error.log",
+-                "/var/log/kolla/*/*-uwsgi.log"]
++                "/var/log/kolla/*/*-uwsgi.log",
++                "/var/log/kolla/kerbside/*.log"]
+   pos_file /var/run/fluentd/kolla-openstack.pos
+   tag kolla.*
+   ignore_repeated_permission_error true
+diff --git a/ansible/roles/fluentd/templates/conf/input/15-kerbside.conf.j2 b/ansible/roles/fluentd/templates/conf/input/15-kerbside.conf.j2
+new file mode 100644
+index 000000000..a1b2c3d4e
+--- /dev/null
++++ b/ansible/roles/fluentd/templates/conf/input/15-kerbside.conf.j2
+@@ -0,0 +1,16 @@
++<source>
++  @type tail
++  path /var/log/kolla/kerbside/*.log
++  exclude_path ["/var/log/kolla/kerbside/*-uwsgi.log"]
++  pos_file /var/run/fluentd/kolla-kerbside.pos
++  tag infra.kerbside
++  ignore_repeated_permission_error true
++  enable_watch_timer {{ fluentd_enable_watch_timer }}
++  <parse>
++    @type multiline
++    format_firstline /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2},\d{3} /
++    format1 /^(?<Timestamp>\S+ \S+),\d{3} (?<log_level>\S+) (?<Program>.*?)\[(?<Pid>\d+):(?<Tid>\d+)\] (?<Payload>.*)$/
++    time_key Timestamp
++    time_format %F %T
++  </parse>
++</source>
 diff --git a/ansible/roles/kerbside/defaults/main.yml b/ansible/roles/kerbside/defaults/main.yml
 new file mode 100644
 index 000000000..18130e572
