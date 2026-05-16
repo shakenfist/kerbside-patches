@@ -1,6 +1,6 @@
-commit b710794b2dc117f71e38f09774a1129d9c4bb2c9
+commit d57a8b3150949c0f01899e22a289f84f588501e6
 Author: Michael Still <mikal@stillhq.com>
-Date:   Wed May 13 12:00:32 2026 +1000
+Date:   Sun May 17 08:53:03 2026 +1000
 
     Deploy Kerbside with Kolla-Ansible.
     
@@ -379,10 +379,10 @@ index 02f960700..4264e5fcd 100644
      key     programname
      pattern .+
 diff --git a/ansible/roles/fluentd/templates/conf/input/00-global.conf.j2 b/ansible/roles/fluentd/templates/conf/input/00-global.conf.j2
-index 2b9c8b8c3..7d2a4f5e1 100644
+index e94f83b92..f3da628eb 100644
 --- a/ansible/roles/fluentd/templates/conf/input/00-global.conf.j2
 +++ b/ansible/roles/fluentd/templates/conf/input/00-global.conf.j2
-@@ -8,7 +8,8 @@
+@@ -9,7 +9,8 @@
                  "/var/log/kolla/*/*-error.log",
                  "/var/log/kolla/*/*_access.log",
                  "/var/log/kolla/*/*_error.log",
@@ -394,7 +394,7 @@ index 2b9c8b8c3..7d2a4f5e1 100644
    ignore_repeated_permission_error true
 diff --git a/ansible/roles/fluentd/templates/conf/input/15-kerbside.conf.j2 b/ansible/roles/fluentd/templates/conf/input/15-kerbside.conf.j2
 new file mode 100644
-index 000000000..a1b2c3d4e
+index 000000000..257dbeb06
 --- /dev/null
 +++ b/ansible/roles/fluentd/templates/conf/input/15-kerbside.conf.j2
 @@ -0,0 +1,16 @@
@@ -737,9 +737,19 @@ index 000000000..4f65ec2e8
 +- name: Check kerbside containers
 +  ansible.builtin.import_role:
 +    name: service-check-containers
+diff --git a/ansible/roles/kerbside/tasks/check.yml b/ansible/roles/kerbside/tasks/check.yml
+new file mode 100644
+index 000000000..296e39383
+--- /dev/null
++++ b/ansible/roles/kerbside/tasks/check.yml
+@@ -0,0 +1,4 @@
++---
++- name: Checking kerbside containers
++  ansible.builtin.import_role:
++    role: service-check
 diff --git a/ansible/roles/kerbside/tasks/config.yml b/ansible/roles/kerbside/tasks/config.yml
 new file mode 100644
-index 000000000..df1363afa
+index 000000000..7f900a956
 --- /dev/null
 +++ b/ansible/roles/kerbside/tasks/config.yml
 @@ -0,0 +1,167 @@
@@ -910,19 +920,9 @@ index 000000000..df1363afa
 +  when:
 +    - service | service_enabled_and_mapped_to_host
 +    - kerbside_wsgi_provider == "uwsgi"
-diff --git a/ansible/roles/kerbside/tasks/check.yml b/ansible/roles/kerbside/tasks/check.yml
-new file mode 100644
-index 000000000..e69de29bb
---- /dev/null
-+++ b/ansible/roles/kerbside/tasks/check.yml
-@@ -0,0 +1,4 @@
-+---
-+- name: Checking kerbside containers
-+  ansible.builtin.import_role:
-+    role: service-check
 diff --git a/ansible/roles/kerbside/tasks/config_validate.yml b/ansible/roles/kerbside/tasks/config_validate.yml
 new file mode 100644
-index 000000000..e69de29bb
+index 000000000..ed97d539c
 --- /dev/null
 +++ b/ansible/roles/kerbside/tasks/config_validate.yml
 @@ -0,0 +1 @@
@@ -959,7 +959,7 @@ index 000000000..3813d420b
 +  with_dict: "{{ kerbside_services | select_services_enabled_and_mapped_to_host }}"
 diff --git a/ansible/roles/kerbside/tasks/deploy-containers.yml b/ansible/roles/kerbside/tasks/deploy-containers.yml
 new file mode 100644
-index 000000000..e69de29bb
+index 000000000..20b5e8720
 --- /dev/null
 +++ b/ansible/roles/kerbside/tasks/deploy-containers.yml
 @@ -0,0 +1,3 @@
@@ -1154,7 +1154,7 @@ index 000000000..cf5adbf32
 +    role: service-images-pull
 diff --git a/ansible/roles/kerbside/tasks/reconfigure.yml b/ansible/roles/kerbside/tasks/reconfigure.yml
 new file mode 100644
-index 000000000..e69de29bb
+index 000000000..baabdbefc
 --- /dev/null
 +++ b/ansible/roles/kerbside/tasks/reconfigure.yml
 @@ -0,0 +1,3 @@
@@ -1192,7 +1192,7 @@ index 000000000..ae846b944
 +    - kerbside_proxy
 diff --git a/ansible/roles/kerbside/tasks/stop.yml b/ansible/roles/kerbside/tasks/stop.yml
 new file mode 100644
-index 000000000..e69de29bb
+index 000000000..b9991cb80
 --- /dev/null
 +++ b/ansible/roles/kerbside/tasks/stop.yml
 @@ -0,0 +1,7 @@
@@ -1532,7 +1532,7 @@ index 54ab85903..b37fae01d 100644
    ansible.builtin.wait_for:
      host: "{{ kolla_internal_vip_address }}"
 diff --git a/ansible/roles/nova-cell/defaults/main.yml b/ansible/roles/nova-cell/defaults/main.yml
-index b82dde11c..9a052e4e6 100644
+index 790190fb0..b109f816e 100644
 --- a/ansible/roles/nova-cell/defaults/main.yml
 +++ b/ansible/roles/nova-cell/defaults/main.yml
 @@ -298,7 +298,7 @@ nova_cell_notify_rabbitmq_users:
