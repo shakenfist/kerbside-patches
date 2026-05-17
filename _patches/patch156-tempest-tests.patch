@@ -1,6 +1,6 @@
-commit aa53a5c215948dda5392d76610b517a7a3119370
+commit 71f8667c8d93ace6634570d88e712ff699d859b7
 Author: Michael Still <mikal@stillhq.com>
-Date:   Wed May 13 12:00:32 2026 +1000
+Date:   Sun May 17 08:53:03 2026 +1000
 
     Add kerbside CI scenario jobs.
     
@@ -65,7 +65,7 @@ index f6b781971..96b3ca894 100644
          upper_constraints_file: "{{ ansible_env.HOME }}/src/opendev.org/openstack/requirements/upper-constraints.txt"
          docker_image_tag_suffix: "{{ '-aarch64' if ansible_architecture == 'aarch64' else '' }}"
 diff --git a/tests/templates/globals-default.j2 b/tests/templates/globals-default.j2
-index 0f6da316a..0956aeb18 100644
+index 0f6da316a..24e72bf84 100644
 --- a/tests/templates/globals-default.j2
 +++ b/tests/templates/globals-default.j2
 @@ -118,6 +118,12 @@ enable_masakari: "yes"
@@ -82,7 +82,7 @@ index 0f6da316a..0956aeb18 100644
  enable_cells: "yes"
  enable_proxysql: "yes"
 diff --git a/tests/templates/inventory.j2 b/tests/templates/inventory.j2
-index e2c5ff338..5786529fc 100644
+index e2c5ff338..457379868 100644
 --- a/tests/templates/inventory.j2
 +++ b/tests/templates/inventory.j2
 @@ -51,6 +51,11 @@ control
@@ -125,7 +125,7 @@ index e2c5ff338..5786529fc 100644
 +[kerbside_proxy:children]
 +vdiproxy
 diff --git a/zuul.d/project.yaml b/zuul.d/project.yaml
-index 7cb2ec76f..7e1e17d2c 100644
+index 26dbb052a..1d9b24549 100644
 --- a/zuul.d/project.yaml
 +++ b/zuul.d/project.yaml
 @@ -24,6 +24,7 @@
