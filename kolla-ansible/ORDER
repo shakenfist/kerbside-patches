@@ -3,3 +3,4 @@
 ../_patches/patch134-kolla-ansible-master-allow-concurrent-spice-connections.patch
 ../_patches/patch147-kolla-ansible-master-kolla-ansible-kerbside-role.patch
 ../_patches/patch156-tempest-tests.patch
+../_patches/patch157-kerbside-tempest-spice-direct.patch
