@@ -1,0 +1,90 @@
+commit 5f0a3b4c1d2e3f4a5b6c7d8e9f0a1b2c3d4e5f60
+Author: Michael Still <mikal@stillhq.com>
+Date:   Mon May 18 10:00:00 2026 +1000
+
+    Run the spice-direct tempest test in the kerbside scenario.
+
+    The kerbside scenario jobs added in I1784562d already deploy
+    kolla-ansible with enable_kerbside=yes and nova_console=spice, then
+    run the default ".*smoke.*" Tempest regex. This adds the SPICE
+    coverage that motivated the scenario in the first place.
+
+    The test itself lives in upstream Tempest as
+    tempest.api.compute.admin.test_spice.SpiceDirectConsoleTestJSON
+    and exercises the full spice-direct console flow: create an
+    instance, request a console token, exchange it for hypervisor
+    connection details, and complete a SPICE protocol handshake
+    against the returned hypervisor host:port. It skips itself unless
+    CONF.compute_feature_enabled.spice_console is True, and nothing
+    in kolla-ansible currently sets that — python-tempestconf does
+    not auto-detect SPICE from the cloud.
+
+    Two changes are needed:
+
+    1. roles/kolla-ansible-tempest gains a new
+       kolla_ansible_tempest_discover_overrides list, whose entries
+       are appended as positional "section.option value" arguments to
+       discover-tempest-config. This is the same override syntax the
+       role already uses for compute.build_timeout, so no new code
+       path is introduced — just a per-scenario knob.
+
+    2. zuul.d/scenarios/kerbside.yaml sets that override to enable
+       compute-feature-enabled.spice_console and extends
+       kolla_ansible_tempest_regex so the spice test is selected
+       alongside the existing smoke tests. The test has no smoke
+       decorator, so without this it would be discovered but not
+       run.
+
+    Note that this test _does_not_ validate that Kerbside is deployed
+    and working correctly. That's the next step after this one.
+
+    Prompt: Michael asked for a follow-up patch to patch156 that
+    actually runs the spice-direct Tempest test (originally added to
+    Tempest for Nova's CI) inside the kerbside scenario.
+
+    Assisted-By: Claude Opus 4.7 (1M context, medium effort) <noreply@anthropic.com>
+    Co-Authored-By: Claude Opus 4.7 (1M context, medium effort) <noreply@anthropic.com>
+
+    Change-Id: I2c8d1e0a3f4b5d6c7e8f9a0b1c2d3e4f5a6b7c8d
+    Signed-off-by: Michael Still <mikal@stillhq.com>
+
+diff --git a/roles/kolla-ansible-tempest/defaults/main.yml b/roles/kolla-ansible-tempest/defaults/main.yml
+index 1a2b3c4..2b3c4d5 100644
+--- a/roles/kolla-ansible-tempest/defaults/main.yml
++++ b/roles/kolla-ansible-tempest/defaults/main.yml
+@@ -5,6 +5,7 @@ kolla_ansible_tempest_packages:
+
+ kolla_ansible_tempest_build_timeout: 900
+ kolla_ansible_tempest_cirros_ver: "0.6.3"
++kolla_ansible_tempest_discover_overrides: []
+ kolla_ansible_tempest_exclude_regex: []
+ kolla_ansible_tempest_packages_extra: []
+ kolla_ansible_tempest_regex: []
+diff --git a/roles/kolla-ansible-tempest/tasks/main.yml b/roles/kolla-ansible-tempest/tasks/main.yml
+index 3c4d5e6..4d5e6f7 100644
+--- a/roles/kolla-ansible-tempest/tasks/main.yml
++++ b/roles/kolla-ansible-tempest/tasks/main.yml
+@@ -28,6 +28,7 @@
+       --image {{ image }}
+       --os-cloud kolla-admin
+       compute.build_timeout {{ kolla_ansible_tempest_build_timeout }}
++      {{ kolla_ansible_tempest_discover_overrides | join(' ') }}
+       >/tmp/logs/ansible/test-init-tempest-discover 2>&1
+   changed_when: false
+
+diff --git a/zuul.d/scenarios/kerbside.yaml b/zuul.d/scenarios/kerbside.yaml
+index 554c340..6e5f4a3 100644
+--- a/zuul.d/scenarios/kerbside.yaml
++++ b/zuul.d/scenarios/kerbside.yaml
+@@ -12,6 +12,11 @@
+     vars:
+       scenario: kerbside
+       kolla_build_images: true
++      kolla_ansible_tempest_regex:
++        - .*smoke.*
++        - tempest\.api\.compute\.admin\.test_spice
++      kolla_ansible_tempest_discover_overrides:
++        - "compute-feature-enabled.spice_console True"
+       scenario_images_extra:
+         - ^kerbside
+         - ^nova-libvirt-spice

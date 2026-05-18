@@ -1,0 +1,45 @@
+Run the spice-direct tempest test in the kerbside scenario.
+
+The kerbside scenario jobs added in I1784562d already deploy
+kolla-ansible with enable_kerbside=yes and nova_console=spice, then
+run the default ".*smoke.*" Tempest regex. This adds the SPICE
+coverage that motivated the scenario in the first place.
+
+The test itself lives in upstream Tempest as
+tempest.api.compute.admin.test_spice.SpiceDirectConsoleTestJSON
+and exercises the full spice-direct console flow: create an
+instance, request a console token, exchange it for hypervisor
+connection details, and complete a SPICE protocol handshake
+against the returned hypervisor host:port. It skips itself unless
+CONF.compute_feature_enabled.spice_console is True, and nothing
+in kolla-ansible currently sets that — python-tempestconf does
+not auto-detect SPICE from the cloud.
+
+Two changes are needed:
+
+1. roles/kolla-ansible-tempest gains a new
+   kolla_ansible_tempest_discover_overrides list, whose entries
+   are appended as positional "section.option value" arguments to
+   discover-tempest-config. This is the same override syntax the
+   role already uses for compute.build_timeout, so no new code
+   path is introduced — just a per-scenario knob.
+
+2. zuul.d/scenarios/kerbside.yaml sets that override to enable
+   compute-feature-enabled.spice_console and extends
+   kolla_ansible_tempest_regex so the spice test is selected
+   alongside the existing smoke tests. The test has no smoke
+   decorator, so without this it would be discovered but not
+   run.
+
+Note that this test _does_not_ validate that Kerbside is deployed
+and working correctly. That's the next step after this one.
+
+Prompt: Michael asked for a follow-up patch to patch156 that
+actually runs the spice-direct Tempest test (originally added to
+Tempest for Nova's CI) inside the kerbside scenario.
+
+Assisted-By: Claude Opus 4.7 (1M context, medium effort) <noreply@anthropic.com>
+Co-Authored-By: Claude Opus 4.7 (1M context, medium effort) <noreply@anthropic.com>
+
+Change-Id: I2c8d1e0a3f4b5d6c7e8f9a0b1c2d3e4f5a6b7c8d
+Signed-off-by: Michael Still <mikal@stillhq.com>
