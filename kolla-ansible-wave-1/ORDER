@@ -1,4 +1,5 @@
 ../_patches/patch121-kolla-ansible-master-support-secure-spice.patch
 ../_patches/patch147-kolla-ansible-master-kolla-ansible-kerbside-role.patch
+../_patches/patch008-use-routable-ip-for-spice-consoles.patch
 ../_patches/patch156-tempest-tests.patch
 ../_patches/patch157-kerbside-tempest-spice-direct.patch
