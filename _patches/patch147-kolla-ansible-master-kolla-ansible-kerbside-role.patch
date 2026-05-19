@@ -1,6 +1,6 @@
-commit d57a8b3150949c0f01899e22a289f84f588501e6
+commit b322495b2b75e73e6a18861920f61666dc9a48a5
 Author: Michael Still <mikal@stillhq.com>
-Date:   Sun May 17 08:53:03 2026 +1000
+Date:   Wed May 20 05:48:16 2026 +1000
 
     Deploy Kerbside with Kolla-Ansible.
     
@@ -63,7 +63,7 @@ index 000000000..da4d90b1e
 +kerbside_safety_upgrade: false
 +kerbside_enable_tls_backend: true
 diff --git a/ansible/inventory/all-in-one b/ansible/inventory/all-in-one
-index 2f5f1cf38..cd69fc635 100644
+index c2cc3ec96..57d31afa3 100644
 --- a/ansible/inventory/all-in-one
 +++ b/ansible/inventory/all-in-one
 @@ -18,6 +18,9 @@ localhost       ansible_connection=local
@@ -84,7 +84,7 @@ index 2f5f1cf38..cd69fc635 100644
  
  [collectd:children]
  compute
-@@ -594,3 +598,10 @@ letsencrypt
+@@ -590,3 +594,10 @@ letsencrypt
  
  [letsencrypt-lego:children]
  letsencrypt
@@ -96,7 +96,7 @@ index 2f5f1cf38..cd69fc635 100644
 +[kerbside_proxy:children]
 +vdiproxy
 diff --git a/ansible/inventory/multinode b/ansible/inventory/multinode
-index 7bfa71ed0..b23059f25 100644
+index 13f7c9a98..494e9a87f 100644
 --- a/ansible/inventory/multinode
 +++ b/ansible/inventory/multinode
 @@ -29,6 +29,10 @@ monitoring01
@@ -126,7 +126,7 @@ index 7bfa71ed0..b23059f25 100644
  
  [collectd:children]
  compute
-@@ -611,3 +617,10 @@ letsencrypt
+@@ -607,3 +613,10 @@ letsencrypt
  
  [letsencrypt-lego:children]
  letsencrypt
@@ -363,7 +363,7 @@ index e21b24458..c64ba1781 100644
      enabled: "{{ enable_keystone | bool }}"
    - name: magnum
 diff --git a/ansible/roles/fluentd/tasks/config.yml b/ansible/roles/fluentd/tasks/config.yml
-index d6c8cb649..f1b1b1b1b 100644
+index 830ce9148..ce1291af3 100644
 --- a/ansible/roles/fluentd/tasks/config.yml
 +++ b/ansible/roles/fluentd/tasks/config.yml
 @@ -101,6 +101,8 @@
@@ -1558,10 +1558,10 @@ index 790190fb0..b109f816e 100644
  nova_libvirt_image_full: "{{ nova_libvirt_image }}:{{ nova_libvirt_tag }}"
  nova_libvirt_cpu_mode: "{{ 'host-passthrough' if ansible_facts.architecture == 'aarch64' else '' }}"
 diff --git a/ansible/roles/nova-cell/templates/nova.conf.j2 b/ansible/roles/nova-cell/templates/nova.conf.j2
-index 7dbbffc8f..47ed20068 100644
+index c56f465c2..50a359cad 100644
 --- a/ansible/roles/nova-cell/templates/nova.conf.j2
 +++ b/ansible/roles/nova-cell/templates/nova.conf.j2
-@@ -86,6 +86,9 @@ jpeg_compression = {{ nova_spice_jpeg_compression }}
+@@ -87,6 +87,9 @@ jpeg_compression = {{ nova_spice_jpeg_compression }}
  zlib_compression = {{ nova_spice_zlib_compression }}
  playback_compression = {{ nova_spice_playback_compression }}
  streaming_mode = {{ nova_spice_streaming_mode }}
@@ -1620,7 +1620,7 @@ index 367210639..104c9b858 100644
 +export KERBSIDE_API_URL='{{ kerbside_api_url }}'
 +{% endif %}
 diff --git a/etc/kolla/passwords.yml b/etc/kolla/passwords.yml
-index ac45a61ae..eda105184 100644
+index 7bb9845d8..07a230641 100644
 --- a/etc/kolla/passwords.yml
 +++ b/etc/kolla/passwords.yml
 @@ -60,6 +60,10 @@ glance_keystone_password:

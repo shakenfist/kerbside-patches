@@ -1,13 +1,13 @@
-commit 8369a3f3de052060c3f8b946f1b46c1e4e308789
+commit b15ac997dc3b3278a3d64a99d3e921f24d6ede6c
 Author: Michael Still <mikal@stillhq.com>
-Date:   Tue Jan 20 15:25:44 2026 +1100
+Date:   Wed May 20 05:48:16 2026 +1000
 
     Use a routable IP for qemu SPICE consoles.
-
+    
     We currently do this is the SPICE HTML5 transcoding
     proxy, but spice-direct consoles need it as well. We
     should therefore simply always configure it.
-
+    
     Partial-Bug: #2131793 (spice-direct consoles)
     Change-Id: Ic88a58d974b71e38bc91fd7dee9eef38a0bacb87
     Signed-off-by: Michael Still <mikal@stillhq.com>
