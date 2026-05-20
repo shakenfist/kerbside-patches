@@ -1,0 +1,43 @@
+Run a Kerbside-fronted SPICE tempest test in the kerbside scenario.
+
+Patch157 enabled the upstream spice-direct test, which speaks SPICE
+to the hypervisor port Nova returns. That validates Nova's
+spice-direct plumbing but does not exercise Kerbside at all. This
+adds a follow-up test that proves the URL Nova returns is fronted
+by Kerbside's haproxy and that Kerbside is answering as SPICE.
+
+The test lives in the kerbside-tempest-plugin, a separate releasable
+in the shakenfist/kerbside repository whose version is tied to
+Kerbside's via setuptools_scm. The plugin contributes one test,
+kerbside_tempest_plugin.tests.api.test_spice_via_kerbside, which:
+
+1. Calls Nova's get-remote-console with spice-direct/spice.
+2. HTTPS-GETs the returned URL using the Kolla-Ansible CA
+   (/etc/kolla/certificates/ca/root.crt by default), which is the
+   trust chain for the haproxy front-end Kerbside terminates.
+3. Parses the .vv file Kerbside serves at that URL, extracts the
+   SPICE host, tls-port, and embedded CA certificate.
+4. Opens a TLS connection to that host:tls-port trusting only the
+   embedded CA, sends a SpiceLinkMess for the main channel, and
+   reads back the SpiceLinkReply header. A SPICE magic in the reply
+   proves Kerbside is talking SPICE.
+
+The test does not yet authenticate or route through to a hypervisor
+console -- that needs the auth ticket from the .vv file and a fuller
+walk of the SPICE protocol, which will land separately backed by
+shakenfist/ryll and shakenfist/uncalibrated-sextant.
+
+Three changes are needed in kolla-ansible:
+
+1. roles/kolla-ansible-tempest gains a new kolla_ansible_tempest_plugins
+   list. Entries are appended to the pip install of the tempest venv,
+   so callers can install tempest plugins from PyPI, git URLs, or
+   local paths.
+
+2. zuul.d/scenarios/kerbside.yaml uses that list to install
+   kerbside-tempest-plugin from the shakenfist/kerbside repo,
+   pulling from the develop branch.
+
+3. The same scenario file extends kolla_ansible_tempest_regex so the
+   new test is selected alongside the existing smoke set and the
+   spice-direct test added in patch157.
