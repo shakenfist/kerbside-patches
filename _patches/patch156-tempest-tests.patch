@@ -1,6 +1,6 @@
-commit 71f8667c8d93ace6634570d88e712ff699d859b7
+commit 079e1bba1acd1bedbe6f53d650e346c9485dfc99
 Author: Michael Still <mikal@stillhq.com>
-Date:   Sun May 17 08:53:03 2026 +1000
+Date:   Wed May 20 05:48:16 2026 +1000
 
     Add kerbside CI scenario jobs.
     
@@ -82,7 +82,7 @@ index 0f6da316a..24e72bf84 100644
  enable_cells: "yes"
  enable_proxysql: "yes"
 diff --git a/tests/templates/inventory.j2 b/tests/templates/inventory.j2
-index e2c5ff338..457379868 100644
+index 433263430..fd5f07524 100644
 --- a/tests/templates/inventory.j2
 +++ b/tests/templates/inventory.j2
 @@ -51,6 +51,11 @@ control
@@ -113,7 +113,7 @@ index e2c5ff338..457379868 100644
  
  [collectd:children]
  compute
-@@ -708,3 +715,10 @@ skyline
+@@ -704,3 +711,10 @@ skyline
  
  [skyline-console:children]
  skyline
