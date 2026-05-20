@@ -5,6 +5,6 @@ shallow_clone: true
 directory: requirements
 release: 2025.1
 depends_on: ''
-source_sha: c65c03328454f762ef0e173f77b1ed05e1d80937
-previous_source_sha: c10699eb2e1de27287feeb35ea29db2cf58bf4f8
+source_sha: 29314ba6f30cb991027a3dcfabbed8d800827ad7
+previous_source_sha: c65c03328454f762ef0e173f77b1ed05e1d80937
 skip_rebase: true
