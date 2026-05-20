@@ -15,14 +15,6 @@ Date:   Wed May 21 09:00:00 2026 +1000
     instead of "still false, retry". The configured retries: 10 /
     delay: 6 budget is therefore never spent.
 
-    The symptom in our CI is the Rocky 10 host + Rocky containers
-    all-in-one matrix failing every run while the matching Debian
-    container matrix passes -- the Rocky toolbox loses the race
-    while the Debian one wins it. The mariadb container itself
-    starts and reaches "Server status change joined -> synced"
-    cleanly in both cases; the difference is which side of the
-    handler timing the privilege grants land on.
-
     Guard the until expression so it only inspects query_result when
     it is defined. mysql_query failures then leave the conditional
     cleanly false, and the existing retries: 10 / delay: 6 budget
