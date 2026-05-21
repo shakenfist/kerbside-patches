@@ -1,3 +1,4 @@
+../_patches/patch159-mariadb-wsrep-until-defensive.patch
 ../_patches/patch121-kolla-ansible-master-support-secure-spice.patch
 ../_patches/patch064-allow-rocky-10-builds.patch
 ../_patches/patch134-kolla-ansible-master-allow-concurrent-spice-connections.patch
@@ -5,3 +6,4 @@
 ../_patches/patch008-use-routable-ip-for-spice-consoles.patch
 ../_patches/patch156-tempest-tests.patch
 ../_patches/patch157-kerbside-tempest-spice-direct.patch
+../_patches/patch158-kerbside-tempest-via-haproxy.patch
