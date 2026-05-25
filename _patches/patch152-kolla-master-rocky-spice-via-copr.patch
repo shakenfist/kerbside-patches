@@ -17,7 +17,7 @@ Date:   Tue May 12 09:03:27 2026 +1000
     maintained ligenix/enterprise-qemu-spice COPR repository that provides
     a rebuild of ``qemu-kvm`` with SPICE support re-enabled for both
     EPEL 9 and EPEL 10.
-    
+        
     Which nova-libvirt container should be used in a given deployment is
     delegated to logic in kolla-ansible, based on the deployer's settings
     in globals.yml.
@@ -83,7 +83,7 @@ new file mode 100644
 index 000000000..b4fc360f3
 --- /dev/null
 +++ b/docker/nova/nova-libvirt-spice/Dockerfile.j2
-@@ -0,0 +1,127 @@
+@@ -0,0 +1,117 @@
 +FROM {{ namespace }}/{{ image_prefix }}base:{{ tag }}
 +{% block labels %}
 +LABEL maintainer="{{ maintainer }}" name="{{ image_name }}" build-date="{{ build_date }}"
@@ -97,30 +97,20 @@ index 000000000..b4fc360f3
 +
 +{% if base_package_type == 'rpm' %}
 +
-+{{ macros.enable_extra_repos(['ceph', 'crb', 'epel', 'openvswitch']) }}
-+
++    {% set nova_libvirt_extra_repos = ['ceph', 'crb', 'epel', 'openvswitch'] %}
 +    {% if base_distro == 'rocky' %}
 +        {#
 +            The stock Rocky qemu-kvm has SPICE compiled out. To enable
 +            Kerbside and the nova ``spice-direct`` console we therefore
 +            layer the ligenix COPR in so that qemu-kvm and spice-server
-+            are available with SPICE re-enabled. $releasever is left for
-+            dnf to expand at install time so the same .repo entry works
-+            on Rocky 9 and Rocky 10.
++            are available with SPICE re-enabled. The repo definition
++            lives in kolla/template/repos.yaml so deployers can override
++            it like any other extra repo.
 +        #}
-+RUN printf '%s\n' \
-+        '[copr:copr.fedorainfracloud.org:ligenix:enterprise-qemu-spice]' \
-+        'name=Copr repo for enterprise-qemu-spice owned by ligenix' \
-+        'baseurl=https://download.copr.fedorainfracloud.org/results/ligenix/enterprise-qemu-spice/epel-$releasever-$basearch/' \
-+        'type=rpm-md' \
-+        'skip_if_unavailable=True' \
-+        'gpgcheck=1' \
-+        'gpgkey=https://download.copr.fedorainfracloud.org/results/ligenix/enterprise-qemu-spice/pubkey.gpg' \
-+        'repo_gpgcheck=0' \
-+        'enabled=1' \
-+        'enabled_metadata=1' \
-+        > /etc/yum.repos.d/ligenix-enterprise-qemu-spice.repo
++        {% set nova_libvirt_extra_repos = nova_libvirt_extra_repos + ['ligenix-qemu-spice'] %}
 +    {% endif %}
++
++{{ macros.enable_extra_repos(nova_libvirt_extra_repos) }}
 +
 +    {% set nova_libvirt_packages = [
 +        'ceph-common',
@@ -228,6 +218,23 @@ index 000000000..cc41b480b
 +    chmod 755 /var/log/kolla/libvirt
 +    chmod 644 /var/log/kolla/libvirt/libvirtd.log
 +fi
+diff --git a/kolla/template/repos.yaml b/kolla/template/repos.yaml
+index 6739c9bd1..7d9d7ec71 100644
+--- a/kolla/template/repos.yaml
++++ b/kolla/template/repos.yaml
+@@ -143,6 +143,11 @@ rpm:
+   kolla_el10:
+     baseurl: "https://download.copr.fedorainfracloud.org/results/@openstack-kolla/el10-missing/epel-10-$basearch/"
+     gpgkey: "https://download.copr.fedorainfracloud.org/results/@openstack-kolla/el10-missing/pubkey.gpg"
+     name: "kolla_el10"
++  ligenix-qemu-spice:
++    baseurl: "https://download.copr.fedorainfracloud.org/results/ligenix/enterprise-qemu-spice/epel-$releasever-$basearch/"
++    gpgkey: "https://download.copr.fedorainfracloud.org/results/ligenix/enterprise-qemu-spice/pubkey.gpg"
++    gpgcheck: 1
++    name: "ligenix-qemu-spice"
+   mariadb:
+     baseurl: "https://dlm.mariadb.com/repo/mariadb-server/11.4/yum/rhel/$releasever/$basearch"
+     gpgkey: "https://downloads.mariadb.com/MariaDB/RPM-GPG-KEY-MariaDB"
 diff --git a/releasenotes/notes/rocky-kerbside-spice-copr-9a3f4d7c2b1e8a50.yaml b/releasenotes/notes/rocky-kerbside-spice-copr-9a3f4d7c2b1e8a50.yaml
 new file mode 100644
 index 000000000..2bb5307ff
