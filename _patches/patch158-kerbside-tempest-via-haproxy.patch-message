@@ -41,3 +41,16 @@ Three changes are needed in kolla-ansible:
 3. The same scenario file extends kolla_ansible_tempest_regex so the
    new test is selected alongside the existing smoke set and the
    spice-direct test added in patch157.
+
+Prompt: Michael asked for a follow-up to patch157 that runs a
+tempest test through the Kerbside haproxy front-end, after we
+discussed whether to ship it as an in-tree patch against tempest or
+as a separate tempest plugin. We landed on a plugin in the kerbside
+repo, packaged as its own releasable but sharing kerbside's version
+via a setuptools_scm root pointing at the parent directory.
+
+Assisted-By: Claude Opus 4.7 (1M context, medium effort) <noreply@anthropic.com>
+Co-Authored-By: Claude Opus 4.7 (1M context, medium effort) <noreply@anthropic.com>
+
+Change-Id: I3d9e2a8b4c5f1a6b7c8d9e0f1a2b3c4d5e6f7a8b
+Signed-off-by: Michael Still <mikal@stillhq.com>
