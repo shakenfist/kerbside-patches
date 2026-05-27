@@ -51,16 +51,21 @@ for target in ${build_targets}; do
     fi
     echo -e "${H2}Target branch is ${target_branch}${Color_Off}"
 
-    # Checkout the target branch in all our directories. Kerbside is a special
-    # case as it doesn't obey the OpenStack branch naming conventions.
+    # Checkout the target branch in our patched directories. Projects
+    # with patches in this tree have a per-release branch created by
+    # apply-patches-and-test.sh, and we need to land on that branch
+    # before kolla-build reads the source. Kerbside and nova-specs do
+    # not get patches applied here, so we leave them on whatever ref the
+    # caller supplied: assemble-source.sh's clone defaults to develop /
+    # master respectively, and CI that wants to test a specific ref
+    # (e.g. a kerbside PR scp'd over the clone) can do so without
+    # being silently reverted by this script.
     for directory in "${directories[@]}"; do
-        if [ ${directory} == "kerbside" ]; then
-            tb="develop"
-        elif [ ${directory} == "nova-specs" ]; then
-            tb="master"
-        else
-            tb="${target_branch}"
+        if [ ${directory} == "kerbside" ] || [ ${directory} == "nova-specs" ]; then
+            echo -e "${H2}${Arrow}Leaving ${directory} on its current ref${Color_Off}"
+            continue
         fi
+        tb="${target_branch}"
 
         echo -e "${H2}${Arrow}Checkout ${tb} in ${directory}${Color_Off}"
         pushd ${topsrcdir}/${directory}
