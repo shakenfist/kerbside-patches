@@ -5,3 +5,11 @@ base_image = BASE_IMAGE
 debug = true
 push = false
 use_ligenix_qemu = true
+
+[kerbside-base]
+type = local
+location = TOPSRCDIR/kerbside
+
+[nova-base]
+type = local
+location = TOPSRCDIR/nova
