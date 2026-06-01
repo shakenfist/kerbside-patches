@@ -5,5 +5,5 @@ shallow_clone: false
 directory: kolla-ansible
 release: master
 depends_on: ''
-source_sha: ae2509c1938d7c77e9b3ddbcce1eeae3e21625ee
-previous_source_sha: f5df7b28b86ccf735fe1daf83eb9b8be4a31d476
+source_sha: d7f0cbc4ce10fdf5351050002acf4757822655ce
+previous_source_sha: ae2509c1938d7c77e9b3ddbcce1eeae3e21625ee
