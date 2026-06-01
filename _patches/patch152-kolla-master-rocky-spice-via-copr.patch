@@ -1,6 +1,6 @@
-commit 9a042d7ea17b4035950d39bc0f396f9997d7cba6
+commit 7e06e973329273863ff3b71cfcaa6cef1975eefb
 Author: Michael Still <mikal@stillhq.com>
-Date:   Tue May 12 09:03:27 2026 +1000
+Date:   Tue Jun 2 08:53:39 2026 +1000
 
     Add opt-in SPICE support for Rocky via COPR.
     
@@ -17,7 +17,7 @@ Date:   Tue May 12 09:03:27 2026 +1000
     maintained ligenix/enterprise-qemu-spice COPR repository that provides
     a rebuild of ``qemu-kvm`` with SPICE support re-enabled for both
     EPEL 9 and EPEL 10.
-        
+    
     Which nova-libvirt container should be used in a given deployment is
     delegated to logic in kolla-ansible, based on the deployer's settings
     in globals.yml.
@@ -80,7 +80,7 @@ index bec1aa0bd..c14c71954 100644
 +flag.
 diff --git a/docker/nova/nova-libvirt-spice/Dockerfile.j2 b/docker/nova/nova-libvirt-spice/Dockerfile.j2
 new file mode 100644
-index 000000000..b4fc360f3
+index 000000000..dd090a1e6
 --- /dev/null
 +++ b/docker/nova/nova-libvirt-spice/Dockerfile.j2
 @@ -0,0 +1,117 @@
@@ -219,11 +219,10 @@ index 000000000..cc41b480b
 +    chmod 644 /var/log/kolla/libvirt/libvirtd.log
 +fi
 diff --git a/kolla/template/repos.yaml b/kolla/template/repos.yaml
-index 6739c9bd1..7d9d7ec71 100644
+index 92402bcdd..430edaea8 100644
 --- a/kolla/template/repos.yaml
 +++ b/kolla/template/repos.yaml
-@@ -143,6 +143,11 @@ rpm:
-   kolla_el10:
+@@ -144,6 +144,11 @@ rpm:
      baseurl: "https://download.copr.fedorainfracloud.org/results/@openstack-kolla/el10-missing/epel-10-$basearch/"
      gpgkey: "https://download.copr.fedorainfracloud.org/results/@openstack-kolla/el10-missing/pubkey.gpg"
      name: "kolla_el10"

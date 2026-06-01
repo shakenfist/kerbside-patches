@@ -1,6 +1,6 @@
-commit 079e1bba1acd1bedbe6f53d650e346c9485dfc99
+commit 3bed1d6ac7bcae3af361aec4d9264301bab94ca7
 Author: Michael Still <mikal@stillhq.com>
-Date:   Wed May 20 05:48:16 2026 +1000
+Date:   Tue Jun 2 08:53:14 2026 +1000
 
     Add kerbside CI scenario jobs.
     
@@ -52,10 +52,10 @@ Date:   Wed May 20 05:48:16 2026 +1000
     Signed-off-by: Michael Still <mikal@stillhq.com>
 
 diff --git a/tests/run.yml b/tests/run.yml
-index f6b781971..96b3ca894 100644
+index adce6eb7f..27fa11ea2 100644
 --- a/tests/run.yml
 +++ b/tests/run.yml
-@@ -22,7 +22,7 @@
+@@ -30,7 +30,7 @@
          need_build_image: "{{ kolla_build_images | default(false) }}"
          build_image_tag: "change_{{ zuul.change | default('none') }}"
          openstack_core_enabled: "{{ openstack_core_enabled }}"
@@ -65,10 +65,10 @@ index f6b781971..96b3ca894 100644
          upper_constraints_file: "{{ ansible_env.HOME }}/src/opendev.org/openstack/requirements/upper-constraints.txt"
          docker_image_tag_suffix: "{{ '-aarch64' if ansible_architecture == 'aarch64' else '' }}"
 diff --git a/tests/templates/globals-default.j2 b/tests/templates/globals-default.j2
-index 0f6da316a..24e72bf84 100644
+index a10bc267c..c73f2ad3d 100644
 --- a/tests/templates/globals-default.j2
 +++ b/tests/templates/globals-default.j2
-@@ -118,6 +118,12 @@ enable_masakari: "yes"
+@@ -124,6 +124,12 @@ enable_masakari: "yes"
  enable_valkey: "yes"
  {% endif %}
  
