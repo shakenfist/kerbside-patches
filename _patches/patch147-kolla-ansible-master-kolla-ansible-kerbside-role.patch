@@ -1,6 +1,6 @@
-commit b322495b2b75e73e6a18861920f61666dc9a48a5
+commit e2c5f114596e2890741c562c2fc44ffd4fecdec5
 Author: Michael Still <mikal@stillhq.com>
-Date:   Wed May 20 05:48:16 2026 +1000
+Date:   Tue Jun 2 08:53:14 2026 +1000
 
     Deploy Kerbside with Kolla-Ansible.
     
@@ -63,7 +63,7 @@ index 000000000..da4d90b1e
 +kerbside_safety_upgrade: false
 +kerbside_enable_tls_backend: true
 diff --git a/ansible/inventory/all-in-one b/ansible/inventory/all-in-one
-index c2cc3ec96..57d31afa3 100644
+index 543371a4a..8baef8c5f 100644
 --- a/ansible/inventory/all-in-one
 +++ b/ansible/inventory/all-in-one
 @@ -18,6 +18,9 @@ localhost       ansible_connection=local
@@ -84,7 +84,7 @@ index c2cc3ec96..57d31afa3 100644
  
  [collectd:children]
  compute
-@@ -590,3 +594,10 @@ letsencrypt
+@@ -587,3 +591,10 @@ letsencrypt
  
  [letsencrypt-lego:children]
  letsencrypt
@@ -96,7 +96,7 @@ index c2cc3ec96..57d31afa3 100644
 +[kerbside_proxy:children]
 +vdiproxy
 diff --git a/ansible/inventory/multinode b/ansible/inventory/multinode
-index 13f7c9a98..494e9a87f 100644
+index d7db4653d..4c6db6b3b 100644
 --- a/ansible/inventory/multinode
 +++ b/ansible/inventory/multinode
 @@ -29,6 +29,10 @@ monitoring01
@@ -126,7 +126,7 @@ index 13f7c9a98..494e9a87f 100644
  
  [collectd:children]
  compute
-@@ -607,3 +613,10 @@ letsencrypt
+@@ -604,3 +610,10 @@ letsencrypt
  
  [letsencrypt-lego:children]
  letsencrypt
@@ -1545,7 +1545,7 @@ index 54ab85903..b37fae01d 100644
    ansible.builtin.wait_for:
      host: "{{ kolla_internal_vip_address }}"
 diff --git a/ansible/roles/nova-cell/defaults/main.yml b/ansible/roles/nova-cell/defaults/main.yml
-index 790190fb0..b109f816e 100644
+index 27414d5e0..65d555dc2 100644
 --- a/ansible/roles/nova-cell/defaults/main.yml
 +++ b/ansible/roles/nova-cell/defaults/main.yml
 @@ -298,7 +298,7 @@ nova_cell_notify_rabbitmq_users:
@@ -1558,10 +1558,10 @@ index 790190fb0..b109f816e 100644
  nova_libvirt_image_full: "{{ nova_libvirt_image }}:{{ nova_libvirt_tag }}"
  nova_libvirt_cpu_mode: "{{ 'host-passthrough' if ansible_facts.architecture == 'aarch64' else '' }}"
 diff --git a/ansible/roles/nova-cell/templates/nova.conf.j2 b/ansible/roles/nova-cell/templates/nova.conf.j2
-index c56f465c2..50a359cad 100644
+index d45bb4602..75d3a339d 100644
 --- a/ansible/roles/nova-cell/templates/nova.conf.j2
 +++ b/ansible/roles/nova-cell/templates/nova.conf.j2
-@@ -87,6 +87,9 @@ jpeg_compression = {{ nova_spice_jpeg_compression }}
+@@ -86,6 +86,9 @@ jpeg_compression = {{ nova_spice_jpeg_compression }}
  zlib_compression = {{ nova_spice_zlib_compression }}
  playback_compression = {{ nova_spice_playback_compression }}
  streaming_mode = {{ nova_spice_streaming_mode }}
@@ -1572,7 +1572,7 @@ index c56f465c2..50a359cad 100644
  server_proxyclient_address = {{ api_interface_address }}
  {%         if inventory_hostname in groups[nova_cell_compute_group] %}
 diff --git a/ansible/roles/nova/defaults/main.yml b/ansible/roles/nova/defaults/main.yml
-index 215826cdd..e61b939e1 100644
+index 5141d4022..13a41331e 100644
 --- a/ansible/roles/nova/defaults/main.yml
 +++ b/ansible/roles/nova/defaults/main.yml
 @@ -231,7 +231,6 @@ nova_super_conductor_extra_volumes: "{{ nova_extra_volumes }}"
@@ -1584,7 +1584,7 @@ index 215826cdd..e61b939e1 100644
  # OpenStack
  ####################
 diff --git a/ansible/site.yml b/ansible/site.yml
-index baf4754fa..c1a72bd13 100644
+index 6fc705074..c3042a985 100644
 --- a/ansible/site.yml
 +++ b/ansible/site.yml
 @@ -43,6 +43,7 @@

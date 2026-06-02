@@ -1,20 +1,20 @@
-commit 8a3f9d1c4e7b2f5a6d8c0e9b1a4f3c2d5e7b9a8c
+commit f83e387a930a7cd4e9924f6f0a5bbb2a464f9706
 Author: Michael Still <mikal@stillhq.com>
-Date:   Tue May 20 06:00:00 2026 +1000
+Date:   Tue Jun 2 08:53:14 2026 +1000
 
     Run a Kerbside-fronted SPICE tempest test in the kerbside scenario.
-
+    
     Patch157 enabled the upstream spice-direct test, which speaks SPICE
     to the hypervisor port Nova returns. That validates Nova's
     spice-direct plumbing but does not exercise Kerbside at all. This
     adds a follow-up test that proves the URL Nova returns is fronted
     by Kerbside's haproxy and that Kerbside is answering as SPICE.
-
+    
     The test lives in the kerbside-tempest-plugin, a separate releasable
     in the shakenfist/kerbside repository whose version is tied to
     Kerbside's via setuptools_scm. The plugin contributes one test,
     kerbside_tempest_plugin.tests.api.test_spice_via_kerbside, which:
-
+    
     1. Calls Nova's get-remote-console with spice-direct/spice.
     2. HTTPS-GETs the returned URL using the Kolla-Ansible CA
        (/etc/kolla/certificates/ca/root.crt by default), which is the
@@ -25,42 +25,42 @@ Date:   Tue May 20 06:00:00 2026 +1000
        embedded CA, sends a SpiceLinkMess for the main channel, and
        reads back the SpiceLinkReply header. A SPICE magic in the reply
        proves Kerbside is talking SPICE.
-
+    
     The test does not yet authenticate or route through to a hypervisor
     console -- that needs the auth ticket from the .vv file and a fuller
     walk of the SPICE protocol, which will land separately backed by
     shakenfist/ryll and shakenfist/uncalibrated-sextant.
-
+    
     Three changes are needed in kolla-ansible:
-
+    
     1. roles/kolla-ansible-tempest gains a new kolla_ansible_tempest_plugins
        list. Entries are appended to the pip install of the tempest venv,
        so callers can install tempest plugins from PyPI, git URLs, or
        local paths.
-
+    
     2. zuul.d/scenarios/kerbside.yaml uses that list to install
        kerbside-tempest-plugin from the shakenfist/kerbside repo,
        pulling from the develop branch.
-
+    
     3. The same scenario file extends kolla_ansible_tempest_regex so the
        new test is selected alongside the existing smoke set and the
        spice-direct test added in patch157.
-
+    
     Prompt: Michael asked for a follow-up to patch157 that runs a
     tempest test through the Kerbside haproxy front-end, after we
     discussed whether to ship it as an in-tree patch against tempest or
     as a separate tempest plugin. We landed on a plugin in the kerbside
     repo, packaged as its own releasable but sharing kerbside's version
     via a setuptools_scm root pointing at the parent directory.
-
+    
     Assisted-By: Claude Opus 4.7 (1M context, medium effort) <noreply@anthropic.com>
     Co-Authored-By: Claude Opus 4.7 (1M context, medium effort) <noreply@anthropic.com>
-
+    
     Change-Id: I3d9e2a8b4c5f1a6b7c8d9e0f1a2b3c4d5e6f7a8b
     Signed-off-by: Michael Still <mikal@stillhq.com>
 
 diff --git a/roles/kolla-ansible-tempest/defaults/main.yml b/roles/kolla-ansible-tempest/defaults/main.yml
-index 32e2fa887..47b1c9f33 100644
+index 32e2fa887..ffe594765 100644
 --- a/roles/kolla-ansible-tempest/defaults/main.yml
 +++ b/roles/kolla-ansible-tempest/defaults/main.yml
 @@ -8,6 +8,7 @@ kolla_ansible_tempest_cirros_ver: "0.6.3"
@@ -70,9 +70,9 @@ index 32e2fa887..47b1c9f33 100644
 +kolla_ansible_tempest_plugins: []
  kolla_ansible_tempest_regex: []
  kolla_ansible_tempest_upper_constraints: "{{ ansible_env.HOME }}/src/opendev.org/openstack/requirements/upper-constraints.txt"
-
+ 
 diff --git a/roles/kolla-ansible-tempest/tasks/main.yml b/roles/kolla-ansible-tempest/tasks/main.yml
-index ee93cb831..b4d6e0a52 100644
+index ee93cb831..d9c9ef077 100644
 --- a/roles/kolla-ansible-tempest/tasks/main.yml
 +++ b/roles/kolla-ansible-tempest/tasks/main.yml
 @@ -1,7 +1,7 @@
@@ -85,7 +85,7 @@ index ee93cb831..b4d6e0a52 100644
      virtualenv: "{{ kolla_ansible_venv_path }}"
      virtualenv_command: "python3 -m venv"
 diff --git a/zuul.d/scenarios/kerbside.yaml b/zuul.d/scenarios/kerbside.yaml
-index 18b7a6a9f..2f3d7c8e1 100644
+index 18b7a6a9f..8912b5eb2 100644
 --- a/zuul.d/scenarios/kerbside.yaml
 +++ b/zuul.d/scenarios/kerbside.yaml
 @@ -15,8 +15,11 @@

@@ -14,10 +14,6 @@ maintained ligenix/enterprise-qemu-spice COPR repository that provides
 a rebuild of ``qemu-kvm`` with SPICE support re-enabled for both
 EPEL 9 and EPEL 10.
 
-The COPR repository is defined in ``kolla/template/repos.yaml`` and
-pulled in through the existing ``enable_extra_repos`` macro, so
-deployers can override it the same way as any other Kolla extra repo.
-
 Which nova-libvirt container should be used in a given deployment is
 delegated to logic in kolla-ansible, based on the deployer's settings
 in globals.yml.

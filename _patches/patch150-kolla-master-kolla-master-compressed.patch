@@ -1,6 +1,6 @@
-commit cd153c6b1687680174ce75d6b6072bce4ff23252
+commit b43b5272aed8bc8aecfe12c7a8a43fc825e96cbd
 Author: Michael Still <mikal@stillhq.com>
-Date:   Tue May 12 09:03:27 2026 +1000
+Date:   Tue Jun 2 08:53:38 2026 +1000
 
     Implement container image build for kerbside.
     
@@ -144,7 +144,7 @@ index 000000000..92ef80a22
 +# Make the log directory
 +mkdir -p /var/log/kolla/kerbside
 diff --git a/kolla/common/config.py b/kolla/common/config.py
-index 7657ed485..81b6f4343 100644
+index 8a80e1f88..cdeb425a5 100644
 --- a/kolla/common/config.py
 +++ b/kolla/common/config.py
 @@ -88,6 +88,7 @@ _PROFILE_OPTS = [

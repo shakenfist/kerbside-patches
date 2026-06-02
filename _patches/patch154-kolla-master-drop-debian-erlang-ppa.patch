@@ -1,6 +1,6 @@
-commit 45b9b78c0ded57bcae3bc7c6744e5b4be789f87e
+commit 56f7f6260bacd69d2d32c299dc9a6bddbfda9d98
 Author: Michael Still <mikal@stillhq.com>
-Date:   Mon May 4 17:35:30 2026 +1000
+Date:   Tue Jun 2 08:53:41 2026 +1000
 
     Address intermittent launchpad availability.
     
@@ -79,10 +79,10 @@ index 36feb9c25..8b88fa39d 100644
  {% block rabbitmq_apt_preferences %}
  {% if base_package_type == 'deb' %}
 diff --git a/kolla/template/repos.yaml b/kolla/template/repos.yaml
-index d559f6f09..c5eb61a6a 100644
+index 92402bcdd..14792b1e6 100644
 --- a/kolla/template/repos.yaml
 +++ b/kolla/template/repos.yaml
-@@ -25,11 +25,6 @@ deb:
+@@ -20,11 +20,6 @@ deb:
      gpg_key: "opensearch.asc"
  
  debian:
@@ -94,7 +94,7 @@ index d559f6f09..c5eb61a6a 100644
    docker-ce:
      url: "https://download.docker.com/linux/debian"
      suite: "trixie"
-@@ -69,10 +64,10 @@ debian-aarch64:
+@@ -64,10 +59,10 @@ debian-aarch64:
  
  ubuntu:
    erlang:
@@ -107,7 +107,7 @@ index d559f6f09..c5eb61a6a 100644
    docker-ce:
      url: "https://download.docker.com/linux/ubuntu"
      suite: "noble"
-@@ -108,6 +103,14 @@ ubuntu-aarch64:
+@@ -103,6 +98,14 @@ ubuntu-aarch64:
      # syncing binary-aarch64 - we're using amd64 here.
      arch: "amd64"
      gpg_key: "rabbitmq.gpg"
