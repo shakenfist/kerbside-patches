@@ -1,3 +1,4 @@
+../_patches/patch160-kolla-master-openstack-release-master.patch
 ../_patches/patch047-kolla-fluentd-enable-syslog.patch
 ../_patches/patch150-kolla-master-kolla-master-compressed.patch
 ../_patches/patch152-kolla-master-rocky-spice-via-copr.patch
