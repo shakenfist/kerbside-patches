@@ -9,6 +9,7 @@ on:
     workflows:
       - "Build test clouds"
       - "Ensure local container builds work"
+      - "Rebase tests"
     types: [completed]
 
 jobs:
@@ -29,7 +30,12 @@ jobs:
 
           echo "Checking run $RUN_ID for infrastructure failures..."
 
-          # Infrastructure failure patterns to match in job annotations
+          # Infrastructure failure patterns to match in job annotations or
+          # in job logs. opendev.org git server flakes intermittently and
+          # the failure surfaces inside a job step (ansible-lint clones
+          # ansible-collection-kolla during tox -elinters), so we have to
+          # grep the logs for those — annotations only carry the generic
+          # "Process completed with exit code 1".
           INFRA_PATTERNS=(
             "self-hosted runner lost communication"
             "runner has received a shutdown signal"
@@ -37,6 +43,9 @@ jobs:
             "No space left on device"
             "runner is offline"
             "Job cancelled because the runner went offline"
+            "Failed to connect to opendev.org"
+            "unable to access 'https://opendev.org"
+            "Could not resolve host: opendev.org"
           )
 
           # Get PR number if this was a PR-triggered run
@@ -70,13 +79,32 @@ jobs:
             ANNOTATIONS=$(gh api "repos/$REPO/check-runs/$JOB_ID/annotations" \
               --jq '.[].message' 2>/dev/null || echo "")
 
+            matched=""
             for PATTERN in "${INFRA_PATTERNS[@]}"; do
               if echo "$ANNOTATIONS" | grep -qi "$PATTERN"; then
-                echo "  -> Found infrastructure failure matching: $PATTERN"
-                INFRA_FAILED_JOBS="$INFRA_FAILED_JOBS$JOB_NAME\n"
+                matched="$PATTERN"
                 break
               fi
             done
+
+            if [ -z "$matched" ]; then
+              # Annotations didn't match — check the job log for in-job
+              # transient errors (e.g. opendev.org clone failures).
+              # Tail to keep memory bounded.
+              LOG_TEXT=$(gh api "repos/$REPO/actions/jobs/$JOB_ID/logs" \
+                2>/dev/null | tail -n 2000 || echo "")
+              for PATTERN in "${INFRA_PATTERNS[@]}"; do
+                if echo "$LOG_TEXT" | grep -qi "$PATTERN"; then
+                  matched="$PATTERN"
+                  break
+                fi
+              done
+            fi
+
+            if [ -n "$matched" ]; then
+              echo "  -> Found infrastructure failure matching: $matched"
+              INFRA_FAILED_JOBS="$INFRA_FAILED_JOBS$JOB_NAME\n"
+            fi
           done <<< "$FAILED_JOBS"
 
           if [ -z "$INFRA_FAILED_JOBS" ]; then

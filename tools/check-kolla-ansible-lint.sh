@@ -91,9 +91,30 @@ for project in ${projects}; do
     fi
 
     echo "Running tox -elinters..."
+    # ansible-lint clones ansible-collection-kolla from opendev.org during
+    # the run. opendev.org is intermittently unreachable, so retry on
+    # transient network errors before declaring a real lint failure.
     set +e
-    tox -elinters 2>&1 | tee "${topdir}/lint-output-${project}.txt"
-    lint_exit=${PIPESTATUS[0]}
+    attempts=3
+    delay=30
+    for (( try=1; try<=attempts; try++ )); do
+        tox -elinters 2>&1 | tee "${topdir}/lint-output-${project}.txt"
+        lint_exit=${PIPESTATUS[0]}
+        if [ "${lint_exit}" -eq 0 ]; then
+            break
+        fi
+        if ! grep -qE \
+                "Failed to connect to opendev\.org|unable to access 'https?://opendev\.org|Could not resolve host: opendev\.org" \
+                "${topdir}/lint-output-${project}.txt"; then
+            break
+        fi
+        if [ "${try}" -lt "${attempts}" ]; then
+            echo
+            echo "WARNING: transient opendev.org network error during tox -elinters; retrying in ${delay}s (attempt $((try + 1))/${attempts})"
+            sleep "${delay}"
+            delay=$((delay * 2))
+        fi
+    done
     set -e
 
     popd > /dev/null

@@ -411,7 +411,32 @@ function run_tests {
             install_test_environment linters
             echo
             echo -e "${H3}tox -elinters${Color_Off}"
-            tox -elinters | ts "%b %d %H:%M:%S ${2} ${3} linters"
+            # ansible-lint clones ansible-collection-kolla from opendev.org,
+            # which is intermittently unreachable. Retry on transient
+            # network errors before failing the run.
+            linters_tmp=$(mktemp)
+            linters_attempts=3
+            linters_delay=30
+            for (( linters_try=1; linters_try<=linters_attempts; linters_try++ )); do
+                tox -elinters 2>&1 \
+                    | tee "${linters_tmp}" \
+                    | ts "%b %d %H:%M:%S ${2} ${3} linters"
+                linters_rc=${PIPESTATUS[0]}
+                if [ "${linters_rc}" -eq 0 ]; then
+                    break
+                fi
+                if ! grep -qE \
+                        "Failed to connect to opendev\.org|unable to access 'https?://opendev\.org|Could not resolve host: opendev\.org" \
+                        "${linters_tmp}"; then
+                    break
+                fi
+                if [ "${linters_try}" -lt "${linters_attempts}" ]; then
+                    echo -e "${YELLOW}WARNING: transient opendev.org network error during tox -elinters; retrying in ${linters_delay}s (attempt $((linters_try + 1))/${linters_attempts})${Color_Off}"
+                    sleep "${linters_delay}"
+                    linters_delay=$((linters_delay * 2))
+                fi
+            done
+            rm -f "${linters_tmp}"
         fi
 
         # Try building docs too
