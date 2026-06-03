@@ -4,39 +4,20 @@ Date:   Wed Jun 3 11:00:00 2026 +1000
 
     Revert "Switch to Gazpacho/2026.1 sources".
 
-    This reverts the OPENSTACK_RELEASE bump from kolla commit 352b7fce
-    ("Switch to Gazpacho/2026.1 sources", 2026-03-18). The stable/2026.1
-    branch has since been cut across the OpenStack ecosystem and master
-    is now doing post-Gazpacho development, so the late-cycle pin to
+    This reverts the OPENSTACK_RELEASE bump from kolla commit 352b7fce.
+    The stable/2026.1 branch is now active, so the late-cycle pin to
     '2026.1' is stale and needs to be reverted back to 'master' --
     mirroring the same housekeeping pattern as the 2025.1->master
     revert (87678d014, 2025-05) and the 2025.2->master revert
     (c30e4e524, 2025-12).
 
-    Concrete symptom: Nova master commit 770580bb (2026-05-29) bumped
+    I specifically found this because Nova master commit 770580bb bumped
     oslo.privsep in requirements.txt from >=2.6.2 to >=3.11.0. With
     OPENSTACK_RELEASE = '2026.1', openstack_branch resolves to
     stable-2026.1 and openstack-base pulls
     requirements-stable-2026.1.tar.gz, which still pins
-    oslo.privsep===3.10.1. The resulting ResolutionImpossible blows
-    up nova-base image builds. Reverting to 'master' makes
-    openstack_branch == 'master' and pulls requirements-master.tar.gz,
-    which already has the matching oslo.privsep===3.11.0 pin.
-
-    OPENSTACK_RELEASE_CODENAME stays 'Gazpacho' here, matching the
-    precedent set by both prior reverts -- the codename is updated
-    as part of the next "Switch to <codename>/<release> sources"
-    flip, not on the revert.
-
-    Prompt: The patch I asked you to draft earlier (a surgical
-    sources.py override pinning openstack-base to
-    requirements-master.tar.gz) was over-cautious. The actually
-    correct fix is to revert OPENSTACK_RELEASE back to 'master',
-    matching the established upstream housekeeping pattern.
-    Rewrite patch160 accordingly.
-
-    Assisted-By: Claude Code
-    Co-Authored-By: Claude Opus 4.7 (1M context, medium effort) <noreply@anthropic.com>
+    oslo.privsep===3.10.1. The resulting ResolutionImpossible causes
+    image builds to fail.
 
     Change-Id: I7d156af2fa9677cd4921f518ac1c6ecf7acde9ce
     Signed-off-by: Michael Still <mikal@stillhq.com>
