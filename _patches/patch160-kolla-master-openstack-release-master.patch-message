@@ -1,11 +1,10 @@
-Revert "Switch to Gazpacho/2026.1 sources".
+Master is now Hibiscus OpenStack release.
 
-This reverts the OPENSTACK_RELEASE bump from kolla commit 352b7fce.
-The stable/2026.1 branch is now active, so the late-cycle pin to
-'2026.1' is stale and needs to be reverted back to 'master' --
-mirroring the same housekeeping pattern as the 2025.1->master
-revert (87678d014, 2025-05) and the 2025.2->master revert
-(c30e4e524, 2025-12).
+Previously once a stable branch was cut, the version lock would
+be reverted on master. This pattern can be seen in commits
+87678d014, and c30e4e524. However this time the decision has been
+made to lock in the code name for the next release as well, so this
+change is strictly not a revert.
 
 I specifically found this because Nova master commit 770580bb bumped
 oslo.privsep in requirements.txt from >=2.6.2 to >=3.11.0. With
