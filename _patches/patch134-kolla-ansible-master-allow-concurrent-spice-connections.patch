@@ -1,6 +1,6 @@
-commit 884132bdc227453cdd426ed289e45880d56f301b
+commit c87b801e14f600ec6d845fb1625c61520436aaba
 Author: Michael Still <mikal@stillhq.com>
-Date:   Wed May 20 05:48:15 2026 +1000
+Date:   Wed Jun 3 10:09:11 2026 +1000
 
     Allow concurrent sessions with SPICE.
     
@@ -27,7 +27,7 @@ index 9c98dc933..cc5ddc72c 100644
 +nova_spice_allow_concurrent: true
  nova_spice_require_secure: false
 diff --git a/ansible/roles/nova-cell/templates/nova.conf.j2 b/ansible/roles/nova-cell/templates/nova.conf.j2
-index 7dbbffc8f..c56f465c2 100644
+index d45bb4602..01ec6fd1f 100644
 --- a/ansible/roles/nova-cell/templates/nova.conf.j2
 +++ b/ansible/roles/nova-cell/templates/nova.conf.j2
 @@ -80,6 +80,7 @@ enabled = false
