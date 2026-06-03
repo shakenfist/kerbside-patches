@@ -1,6 +1,6 @@
-commit b43b5272aed8bc8aecfe12c7a8a43fc825e96cbd
+commit 146c202cedcc39f5b46934d2e493152bdb60d027
 Author: Michael Still <mikal@stillhq.com>
-Date:   Tue Jun 2 08:53:38 2026 +1000
+Date:   Wed Jun 3 10:09:47 2026 +1000
 
     Implement container image build for kerbside.
     
@@ -28,6 +28,7 @@ Date:   Tue Jun 2 08:53:38 2026 +1000
     balancing because it strongly expects to terminate TLS itself. The
     haproxy is therefore configured as a layer 4 proxy in this case.
     
+    Depends-On: https://review.opendev.org/c/openstack/kolla/+/991249
     Change-Id: If60a70745462e1360cfadaab1a5a8d75b7fdeb21
     Partial-Bug: #2131793 (spice-direct consoles)
     Signed-off-by: Michael Still <mikal@stillhq.com>
@@ -144,7 +145,7 @@ index 000000000..92ef80a22
 +# Make the log directory
 +mkdir -p /var/log/kolla/kerbside
 diff --git a/kolla/common/config.py b/kolla/common/config.py
-index 8a80e1f88..cdeb425a5 100644
+index 33938d5e2..c4ebcbf3b 100644
 --- a/kolla/common/config.py
 +++ b/kolla/common/config.py
 @@ -88,6 +88,7 @@ _PROFILE_OPTS = [

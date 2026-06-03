@@ -1,9 +1,9 @@
 repo: https://opendev.org/openstack/kolla
 source_branch: master
-destination_branch: launchpad-ppas
+destination_branch: master-version-revert
 shallow_clone: false
 directory: kolla
-release: master-wave-6
+release: master-wave-7
 depends_on: ''
 source_sha: cbdbd894b06b049e36ecd4fab4d0ecc3a49e0c00
 previous_source_sha: f38dbfcc5e7e7edd1e754939272a6a561085e1ef

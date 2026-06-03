@@ -1,6 +1,6 @@
-commit c3d8aa9d4f952c935c2e73dae097b8eacd2e9b2b
+commit d99b52b423710d045d48d105d4eaea6e810a6901
 Author: Michael Still <mikal@stillhq.com>
-Date:   Wed Apr 29 10:44:24 2026 +1000
+Date:   Wed Jun 3 10:09:46 2026 +1000
 
     Setuptools released v82.0.0 which does not have pkg_resources.
     

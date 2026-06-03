@@ -1,6 +1,6 @@
-commit e2c5f114596e2890741c562c2fc44ffd4fecdec5
+commit 4526b3d1f021dea5041b74f6ed43b42132c23bd8
 Author: Michael Still <mikal@stillhq.com>
-Date:   Tue Jun 2 08:53:14 2026 +1000
+Date:   Wed Jun 3 10:09:11 2026 +1000
 
     Deploy Kerbside with Kolla-Ansible.
     
@@ -1558,10 +1558,10 @@ index 27414d5e0..65d555dc2 100644
  nova_libvirt_image_full: "{{ nova_libvirt_image }}:{{ nova_libvirt_tag }}"
  nova_libvirt_cpu_mode: "{{ 'host-passthrough' if ansible_facts.architecture == 'aarch64' else '' }}"
 diff --git a/ansible/roles/nova-cell/templates/nova.conf.j2 b/ansible/roles/nova-cell/templates/nova.conf.j2
-index d45bb4602..75d3a339d 100644
+index 01ec6fd1f..bd7359956 100644
 --- a/ansible/roles/nova-cell/templates/nova.conf.j2
 +++ b/ansible/roles/nova-cell/templates/nova.conf.j2
-@@ -86,6 +86,9 @@ jpeg_compression = {{ nova_spice_jpeg_compression }}
+@@ -87,6 +87,9 @@ jpeg_compression = {{ nova_spice_jpeg_compression }}
  zlib_compression = {{ nova_spice_zlib_compression }}
  playback_compression = {{ nova_spice_playback_compression }}
  streaming_mode = {{ nova_spice_streaming_mode }}

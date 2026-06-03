@@ -1,6 +1,6 @@
-commit 56f7f6260bacd69d2d32c299dc9a6bddbfda9d98
+commit b6a13850421f6c81cce1c4cd0a5a8d108b433746
 Author: Michael Still <mikal@stillhq.com>
-Date:   Tue Jun 2 08:53:41 2026 +1000
+Date:   Wed Jun 3 10:09:47 2026 +1000
 
     Address intermittent launchpad availability.
     
@@ -79,7 +79,7 @@ index 36feb9c25..8b88fa39d 100644
  {% block rabbitmq_apt_preferences %}
  {% if base_package_type == 'deb' %}
 diff --git a/kolla/template/repos.yaml b/kolla/template/repos.yaml
-index 92402bcdd..14792b1e6 100644
+index 430edaea8..575e75ab4 100644
 --- a/kolla/template/repos.yaml
 +++ b/kolla/template/repos.yaml
 @@ -20,11 +20,6 @@ deb:
