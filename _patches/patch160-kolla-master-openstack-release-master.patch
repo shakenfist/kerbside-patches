@@ -1,6 +1,6 @@
-commit 6d49fd52d3658296974734060842bd0669e992f3
+commit 6f6bceb17d986b82a3a142f7063fd7a69c2a72db
 Author: Michael Still <mikal@stillhq.com>
-Date:   Wed Jun 3 10:12:47 2026 +1000
+Date:   Fri Jun 5 19:16:56 2026 +1000
 
     Revert "Switch to Gazpacho/2026.1 sources".
     
