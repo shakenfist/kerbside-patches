@@ -1,14 +1,15 @@
-commit 54a04e7fc16c4ca6384b9f40ffea40a8f5c517d2
+commit 6d49fd52d3658296974734060842bd0669e992f3
 Author: Michael Still <mikal@stillhq.com>
-Date:   Thu Jun 4 05:21:27 2026 +1000
+Date:   Wed Jun 3 10:12:47 2026 +1000
 
-    Master is now Hibiscus OpenStack release.
+    Revert "Switch to Gazpacho/2026.1 sources".
     
-    Previously once a stable branch was cut, the version lock would
-    be reverted on master. This pattern can be seen in commits
-    87678d014, and c30e4e524. However this time the decision has been
-    made to lock in the code name for the next release as well, so this
-    change is strictly not a revert.
+    This reverts the OPENSTACK_RELEASE bump from kolla commit 352b7fce.
+    The stable/2026.1 branch is now active, so the late-cycle pin to
+    '2026.1' is stale and needs to be reverted back to 'master' --
+    mirroring the same housekeeping pattern as the 2025.1->master
+    revert (87678d014, 2025-05) and the 2025.2->master revert
+    (c30e4e524, 2025-12).
     
     I specifically found this because Nova master commit 770580bb bumped
     oslo.privsep in requirements.txt from >=2.6.2 to >=3.11.0. With
@@ -22,17 +23,15 @@ Date:   Thu Jun 4 05:21:27 2026 +1000
     Signed-off-by: Michael Still <mikal@stillhq.com>
 
 diff --git a/kolla/common/config.py b/kolla/common/config.py
-index 8a80e1f88..897520807 100644
+index 8a80e1f88..33938d5e2 100644
 --- a/kolla/common/config.py
 +++ b/kolla/common/config.py
-@@ -38,8 +38,8 @@ DISTRO_PRETTY_NAME = {
+@@ -38,7 +38,7 @@ DISTRO_PRETTY_NAME = {
      'ubuntu': 'Ubuntu 24.04.* LTS',
  }
  
 -OPENSTACK_RELEASE = '2026.1'
--OPENSTACK_RELEASE_CODENAME = 'Gazpacho'
 +OPENSTACK_RELEASE = 'master'
-+OPENSTACK_RELEASE_CODENAME = 'Hibiscus'
+ OPENSTACK_RELEASE_CODENAME = 'Gazpacho'
  
  # TODO(mandre) check for file integrity instead of downloading from an HTTPS
- # source
