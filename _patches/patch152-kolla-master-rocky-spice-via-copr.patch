@@ -1,6 +1,6 @@
-commit 3a2b33e4753cc18f61590f1935978f312998ec35
+commit 3dbf0a18c8526f54f37319651faea990db9c7247
 Author: Michael Still <mikal@stillhq.com>
-Date:   Wed Jun 3 10:09:47 2026 +1000
+Date:   Mon Jun 8 15:16:41 2026 +1000
 
     Add opt-in SPICE support for Rocky via COPR.
     
@@ -219,13 +219,13 @@ index 000000000..cc41b480b
 +    chmod 644 /var/log/kolla/libvirt/libvirtd.log
 +fi
 diff --git a/kolla/template/repos.yaml b/kolla/template/repos.yaml
-index 92402bcdd..430edaea8 100644
+index f23c18eed..508d82990 100644
 --- a/kolla/template/repos.yaml
 +++ b/kolla/template/repos.yaml
-@@ -144,6 +144,11 @@ rpm:
-     baseurl: "https://download.copr.fedorainfracloud.org/results/@openstack-kolla/el10-missing/epel-10-$basearch/"
-     gpgkey: "https://download.copr.fedorainfracloud.org/results/@openstack-kolla/el10-missing/pubkey.gpg"
-     name: "kolla_el10"
+@@ -140,6 +140,11 @@ rpm:
+   hacluster:
+     name: "highavailability"
+     distro: true
 +  ligenix-qemu-spice:
 +    baseurl: "https://download.copr.fedorainfracloud.org/results/ligenix/enterprise-qemu-spice/epel-$releasever-$basearch/"
 +    gpgkey: "https://download.copr.fedorainfracloud.org/results/ligenix/enterprise-qemu-spice/pubkey.gpg"
