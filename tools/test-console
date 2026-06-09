@@ -62,9 +62,9 @@ openstack image set --property hw_machine_type=q35 ${imageid}
 # exercise the usb path, which is what most spice-direct deployments
 # use in practice.
 sound_model="usb"
-if [ "${CONTAINER_DISTRO:-}" = "rocky" ]; then
-    sound_model="ich9"
-fi
+#if [ "${CONTAINER_DISTRO:-}" = "rocky" ]; then
+#    sound_model="ich9"
+#fi
 openstack image set --property hw_sound_model=${sound_model} ${imageid}
 openstack image set --property hw_usb_model=qemu-xhci ${imageid}
 
