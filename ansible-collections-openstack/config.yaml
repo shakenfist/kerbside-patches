@@ -1,0 +1,11 @@
+repo: https://opendev.org/openstack/ansible-collections-openstack
+source_branch: master
+destination_branch: importlib-metadata
+shallow_clone: false
+directory: ansible-collections-openstack
+release: master
+depends_on: ''
+source_sha: c81422e3f6be86394284ce2db3e28ed87a530428
+previous_source_sha: c81422e3f6be86394284ce2db3e28ed87a530428
+skip_rebase: true
+skip_claude: true
