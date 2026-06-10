@@ -16,10 +16,12 @@ This collection hit that failure in three places:
 * plugins/module_utils/openstack.py (OpenStackModule class)
 * plugins/inventory/openstack.py
 
-Switch all three call sites to importlib.metadata.version and
-packaging call to get base_version, which is the canonical Python
-way of reading an installed distribution's version and will omit
-pbr generated versioning like "1.1.1.dev11"
+Switch all three call sites to conditionally import
+importlib.metadata.version and packaging, as these are not in the
+Lint sanity requirements file. Then call to get base_version,
+which is the canonical Python way of reading an installed
+distribution's version and will omit pbr generated versioning like
+"1.1.1.dev11".
 
 Change-Id: I8b6a1c5d5f4d6111e3f83e6a668a812d6fd2449b
 Signed-off-by: Michael Still <mikal@stillhq.com>
