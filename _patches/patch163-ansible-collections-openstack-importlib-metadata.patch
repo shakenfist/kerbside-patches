@@ -3,35 +3,34 @@ Author: Michael Still <mikal@stillhq.com>
 Date:   Wed Jun 10 06:11:47 2026 +1000
 
     Use importlib.metadata to read openstacksdk version.
-    
+
     openstacksdk has dropped its internal import of the deprecated
     openstack.version submodule (commit 3ae89d61 "drop deprecated
     openstack.version", 2026-06-02). That import was the side effect
     that made openstack.version reachable as an attribute on the
     openstack package; with it gone, any consumer that reads
     openstack.version.__version__ now fails with:
-    
+
         AttributeError: module 'openstack' has no attribute 'version'
-    
+
     This collection hit that failure in three places:
-    
-      * plugins/module_utils/openstack.py (legacy
+
+    * plugins/module_utils/openstack.py (legacy
         openstack_cloud_from_module function)
-      * plugins/module_utils/openstack.py (OpenStackModule class)
-      * plugins/inventory/openstack.py
-    
-    Switch all three call sites to importlib.metadata.version, which is
-    the canonical Python way of reading an installed distribution's
-    version and is what openstacksdk itself moved to in the same commit
-    referenced above. importlib.metadata is part of the standard library
-    from Python 3.8 onwards, which is below every Python version
-    supported by openstacksdk.
-    
+    * plugins/module_utils/openstack.py (OpenStackModule class)
+    * plugins/inventory/openstack.py
+
+    Switch all three call sites to importlib.metadata.version and
+    packaging call to get base_version, which is the canonical Python
+    way of reading an installed distribution's version and will omit
+    pbr generated versioning like "1.1.1.dev11"
+
+    Change-Id: I8b6a1c5d5f4d6111e3f83e6a668a812d6fd2449b
     Signed-off-by: Michael Still <mikal@stillhq.com>
 
 diff --git a/changelogs/fragments/use_importlib_metadata_for_sdk_version.yaml b/changelogs/fragments/use_importlib_metadata_for_sdk_version.yaml
 new file mode 100644
-index 0000000..fa7abfb
+index 0000000000..fa7abfb3bb
 --- /dev/null
 +++ b/changelogs/fragments/use_importlib_metadata_for_sdk_version.yaml
 @@ -0,0 +1,10 @@
@@ -45,54 +44,80 @@ index 0000000..fa7abfb
 +    openstacksdk has now dropped that internal usage, causing
 +    ``AttributeError: module 'openstack' has no attribute 'version'`` in
 +    any module or in the inventory plugin that talks to a cloud.
+diff --git a/ci/run-ansible-tests-collection.sh b/ci/run-ansible-tests-collection.sh
+index cd31cf13c2..ffee97eddd 100755
+--- a/ci/run-ansible-tests-collection.sh
++++ b/ci/run-ansible-tests-collection.sh
+@@ -105,7 +105,7 @@ for var in $(env | grep -e '^ANSIBLE_VAR_'); do
+ done
+ 
+ # Discover openstacksdk version
+-SDK_VER=$(python -c "import openstack; print(openstack.version.__version__)")
++SDK_VER=$(python -c "import importlib.metadata; print(importlib.metadata.version('openstacksdk'))")
+ 
+ # Choose integration tests
+ tag_opt=""
 diff --git a/plugins/inventory/openstack.py b/plugins/inventory/openstack.py
-index a408955..26695fa 100644
+index a408955515..9049c7aa23 100644
 --- a/plugins/inventory/openstack.py
 +++ b/plugins/inventory/openstack.py
-@@ -151,6 +151,7 @@ strict: true
+@@ -151,6 +151,8 @@ strict: true
  '''
  
  import collections
-+import importlib.metadata
++from importlib.metadata import version
++from packaging.version import Version
  import sys
  
  from ansible.errors import AnsibleParserError
-@@ -180,7 +181,7 @@ class InventoryModule(BaseInventoryPlugin, Constructable, Cacheable):
+@@ -180,7 +182,7 @@ class InventoryModule(BaseInventoryPlugin, Constructable, Cacheable):
                  'Could not import Python library openstacksdk')
  
          try:
 -            ensure_compatibility(openstack.version.__version__)
-+            ensure_compatibility(importlib.metadata.version('openstacksdk'))
++            ensure_compatibility(Version(version('openstacksdk')).base_version)
          except ImportError as e:
              raise AnsibleParserError(
                  'Incompatible openstacksdk library found: {0}'.format(e))
 diff --git a/plugins/module_utils/openstack.py b/plugins/module_utils/openstack.py
-index 827b4fb..1abea22 100644
+index 827b4fb710..fb4b4e60ca 100644
 --- a/plugins/module_utils/openstack.py
 +++ b/plugins/module_utils/openstack.py
-@@ -42,6 +42,7 @@ except ImportError:
+@@ -42,7 +42,9 @@ except ImportError:
                            f' < 2.11, you need to use Python < 3.12 with '
                            f'distutils.version present. {exc}')
  import importlib
-+import importlib.metadata
++from importlib.metadata import version
  import os
++from packaging.version import Version
  
  from ansible.module_utils.basic import AnsibleModule
-@@ -165,7 +166,7 @@ def openstack_cloud_from_module(module, min_version=None, max_version=None):
+ 
+@@ -165,7 +167,7 @@ def openstack_cloud_from_module(module, min_version=None, max_version=None):
          module.fail_json(msg='openstacksdk is required for this module')
  
      try:
 -        ensure_compatibility(sdk.version.__version__,
-+        ensure_compatibility(importlib.metadata.version('openstacksdk'),
++        ensure_compatibility(Version(version('openstacksdk')).base_version,
                               min_version, max_version)
      except ImportError as e:
          module.fail_json(
-@@ -314,7 +315,7 @@ class OpenStackModule:
+@@ -314,7 +316,7 @@ class OpenStackModule:
          try:
              # Due to the name shadowing we should import other way
              sdk = importlib.import_module('openstack')
 -            self.sdk_version = sdk.version.__version__
-+            self.sdk_version = importlib.metadata.version('openstacksdk')
++            self.sdk_version = Version(version('openstacksdk')).base_version
          except ImportError:
              self.fail_json(msg='openstacksdk is required for this module')
- 
+
+diff --git a/requirements.txt b/requirements.txt
+index 3d959de5ba..0c1a298976 100644
+--- a/requirements.txt
++++ b/requirements.txt
+@@ -1 +1,2 @@
+ openstacksdk>=1.0.0
++packaging
+--
+2.47.3
+
