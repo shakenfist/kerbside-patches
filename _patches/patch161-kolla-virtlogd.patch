@@ -21,14 +21,14 @@ index 88e4a52d6..877f75a61 100644
          'libvirt-daemon-config-nwfilter',
          'libvirt-daemon-driver-nwfilter',
          'libvirt-daemon-driver-nodedev',
-@@ -45,6 +46,7 @@ LABEL maintainer="{{ maintainer }}" name="{{ image_name }}" build-date="{{ build
-         'ebtables',
-         'libsasl2-modules-gssapi-mit',
-         'libvirt-clients',
-+        'libvirt-daemon-log',
-         'libvirt-daemon-system',
-         'mdevctl',
-         'openvswitch-switch',
+@@ -75,6 +76,7 @@ LABEL maintainer="{{ maintainer }}" name="{{ image_name }}" build-date="{{ build
+
+     {% if base_distro in ['debian'] %}
+         {% set nova_libvirt_packages = nova_libvirt_packages + [
++            'libvirt-daemon-log',
+             'usermode'
+         ] %}
+     {% endif %}
 @@ -89,7 +91,8 @@ RUN rm -f /etc/libvirt/qemu/networks/default.xml /etc/libvirt/qemu/networks/auto
  {% endif %}
  
@@ -48,7 +48,7 @@ index 000000000..3888c82db
 +#!/bin/bash
 +set -euo pipefail
 +
-+# NOTWE(mikal): Start virtlogd as a sidecar. We need this for
++# NOTE(mikal): Start virtlogd as a sidecar. We need this for
 +# nova instance console logs to rotate. Otherwise they will
 +# consume unbounded amounts of disk.
 +#
