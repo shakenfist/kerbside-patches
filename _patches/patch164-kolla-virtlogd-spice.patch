@@ -1,6 +1,6 @@
-commit 35fcb83178426fbfedba822d6f25bac47da25d9b
+commit 6cacd949ab00a56721f583517c1def03b0174c84
 Author: Michael Still <mikal@stillhq.com>
-Date:   Thu Jun 11 19:19:40 2026 +1000
+Date:   Fri Jun 12 07:11:10 2026 +1000
 
     Install and start virtlogd in nova-libvirt-spice.
     
@@ -13,6 +13,7 @@ Date:   Thu Jun 11 19:19:40 2026 +1000
     are rotated.
     
     Change-Id: Ifdcd3ae34e62fc484d1a25ef6f6c68c467745fda
+    Depends-On: https://review.opendev.org/c/openstack/kolla/+/986283
     Signed-off-by: Michael Still <mikal@stillhq.com>
 
 diff --git a/docker/nova/nova-libvirt-spice/Dockerfile.j2 b/docker/nova/nova-libvirt-spice/Dockerfile.j2

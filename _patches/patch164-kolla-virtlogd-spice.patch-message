@@ -9,4 +9,5 @@ virtlogd as a sidecar of libvirtd so that nova instance console logs
 are rotated.
 
 Change-Id: Ifdcd3ae34e62fc484d1a25ef6f6c68c467745fda
+Depends-On: https://review.opendev.org/c/openstack/kolla/+/986283
 Signed-off-by: Michael Still <mikal@stillhq.com>

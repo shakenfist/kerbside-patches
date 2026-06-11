@@ -1,8 +1,32 @@
-commit 25bcfa2070b1db90560da99197a7ce842b7ba3bd
+commit 97d1352f225509bcb5e3e25013e9bfe1f3c995f0
 Author: Michael Still <mikal@stillhq.com>
-Date:   Thu Jun 11 09:35:14 2026 +1000
+Date:   Fri Jun 12 07:12:09 2026 +1000
 
     Install and start virtlogd in nova-libvirt.
+    
+    Due to implementation choices in qemu and libvirt, standard log
+    rotate does not work on these console files, and instead the usual
+    approach is to have libvirt's virtlogd rotate the contents of the
+    console log file when it gets a bit big. OpenStack Compute knows
+    how to read data from more than one rotated console log file if
+    required to service a REST API request.
+    
+    OpenStack Kolla and Kolla-Ansible deploy OpenStack components in
+    docker or podman containers. An error in the startup configuration
+    for the nova_libvirt container results in the libvirt virtlogd
+    daemon not being run, which results in this console log rotation
+    not occurring.
+    
+    This opens up the risk of a disk usage denial of service attack
+    on a hypervisor. The console log is stored on the same filesystem
+    as ephemeral disks, and OpenStack Nova will take a hypervisor out
+    of service if disk space becomes constrained. There is some
+    protection from the instance console not being able to write data
+    particularly quickly, but it is definitely still possible to fill
+    the hypervisor file system -- especially if multiple instances are used.
+    
+    This misconfiguration appears to exist in all versions of
+    Kolla / Kolla-Ansible as best as I can tell.
     
     Partial-Bug: 2155214
     
@@ -10,7 +34,7 @@ Date:   Thu Jun 11 09:35:14 2026 +1000
     Signed-off-by: Michael Still <mikal@stillhq.com>
 
 diff --git a/docker/nova/nova-libvirt/Dockerfile.j2 b/docker/nova/nova-libvirt/Dockerfile.j2
-index 88e4a52d6..877f75a61 100644
+index 88e4a52d6..b866917ea 100644
 --- a/docker/nova/nova-libvirt/Dockerfile.j2
 +++ b/docker/nova/nova-libvirt/Dockerfile.j2
 @@ -20,6 +20,7 @@ LABEL maintainer="{{ maintainer }}" name="{{ image_name }}" build-date="{{ build
@@ -22,7 +46,7 @@ index 88e4a52d6..877f75a61 100644
          'libvirt-daemon-driver-nwfilter',
          'libvirt-daemon-driver-nodedev',
 @@ -75,6 +76,7 @@ LABEL maintainer="{{ maintainer }}" name="{{ image_name }}" build-date="{{ build
-
+ 
      {% if base_distro in ['debian'] %}
          {% set nova_libvirt_packages = nova_libvirt_packages + [
 +            'libvirt-daemon-log',
@@ -41,7 +65,7 @@ index 88e4a52d6..877f75a61 100644
  
 diff --git a/docker/nova/nova-libvirt/kolla_nova_libvirt_start.sh b/docker/nova/nova-libvirt/kolla_nova_libvirt_start.sh
 new file mode 100644
-index 000000000..3888c82db
+index 000000000..f06a63d9e
 --- /dev/null
 +++ b/docker/nova/nova-libvirt/kolla_nova_libvirt_start.sh
 @@ -0,0 +1,12 @@

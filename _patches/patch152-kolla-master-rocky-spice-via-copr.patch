@@ -1,6 +1,6 @@
-commit 3d84f4d7c61ed664cc7f5c7c865dce9f2c1e1eb8
+commit 7e4edc0685ed8aaea8af495e601267f98fb1d3aa
 Author: Michael Still <mikal@stillhq.com>
-Date:   Thu Jun 11 09:35:14 2026 +1000
+Date:   Fri Jun 12 07:11:10 2026 +1000
 
     Add opt-in SPICE support for Rocky via COPR.
     
