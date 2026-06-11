@@ -56,7 +56,9 @@ fi
 
 # Lock in new daily SHAs for each project we're patching
 cwd=$(pwd)
-projects=$(find . -type f -name "config.yaml" | cut -f 2 -d "/")
+# -maxdepth 2 limits us to top-level ./<project>/config.yaml and avoids the
+# assembled src/ tree, where upstream repos ship their own config.yaml files.
+projects=$(find . -maxdepth 2 -type f -name "config.yaml" | cut -f 2 -d "/")
 for project in ${projects}; do
     mkdir -p src
     repo=$(yq -r .repo ${project}/config.yaml)

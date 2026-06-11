@@ -35,7 +35,11 @@ echo
 
 echo -e "${H2}Finding projects for release ${target_release}${Color_Off}"
 declare -a directories
-projects=$(find . -type f -name "config.yaml" | cut -f 2 -d "/")
+# Only top-level project directories (./<project>/config.yaml). -maxdepth 2
+# keeps us from descending into the assembled src/ tree, where upstream repos
+# (e.g. ansible-collections-openstack/changelogs/config.yaml) ship their own
+# config.yaml and would otherwise be misread as a "src" project.
+projects=$(find . -maxdepth 2 -type f -name "config.yaml" | cut -f 2 -d "/")
 for project in ${projects}; do
     echo -e "${H3}Considering ${project}${Color_Off}"
     release=$(yq -r .release ${project}/config.yaml)
