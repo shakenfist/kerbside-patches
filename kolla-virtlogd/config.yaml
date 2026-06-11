@@ -1,6 +1,6 @@
 repo: https://opendev.org/openstack/kolla
 source_branch: master
-destination_branch: virtlogd
+destination_branch: kolla-virtlogd
 shallow_clone: false
 directory: kolla
 release: master-virtlogd

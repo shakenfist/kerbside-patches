@@ -1,0 +1,12 @@
+Install and start virtlogd in nova-libvirt-spice.
+
+The nova-libvirt-spice image is a kerbside fork of the upstream
+nova-libvirt image, and is what kolla-ansible deploys for the
+nova_libvirt container when kerbside is enabled. Mirror the virtlogd
+changes made to the upstream image: install libvirt-daemon-log where
+it is a separate package, and add the start script which runs
+virtlogd as a sidecar of libvirtd so that nova instance console logs
+are rotated.
+
+Change-Id: Ifdcd3ae34e62fc484d1a25ef6f6c68c467745fda
+Signed-off-by: Michael Still <mikal@stillhq.com>
