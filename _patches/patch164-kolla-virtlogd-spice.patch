@@ -13,7 +13,7 @@ Date:   Fri Jun 12 07:11:10 2026 +1000
     are rotated.
     
     Change-Id: Ifdcd3ae34e62fc484d1a25ef6f6c68c467745fda
-    Depends-On: https://review.opendev.org/c/openstack/kolla/+/986283
+    Depends-On: https://review.opendev.org/c/openstack/kolla/+/993065
     Signed-off-by: Michael Still <mikal@stillhq.com>
 
 diff --git a/docker/nova/nova-libvirt-spice/Dockerfile.j2 b/docker/nova/nova-libvirt-spice/Dockerfile.j2
