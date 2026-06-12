@@ -1,6 +1,6 @@
-commit 7118074eddb5dae72d2aecaa06d241bf1c018765
+commit cda1ee4fc8fa39c8000a2020e00dd22b145f2c5a
 Author: Michael Still <mikal@stillhq.com>
-Date:   Wed Jun 3 10:09:10 2026 +1000
+Date:   Thu Jun 11 09:35:18 2026 +1000
 
     Make the MariaDB WSREP sync wait defensive.
     

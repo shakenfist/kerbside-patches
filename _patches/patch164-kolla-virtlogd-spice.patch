@@ -1,0 +1,66 @@
+commit 6cacd949ab00a56721f583517c1def03b0174c84
+Author: Michael Still <mikal@stillhq.com>
+Date:   Fri Jun 12 07:11:10 2026 +1000
+
+    Install and start virtlogd in nova-libvirt-spice.
+    
+    The nova-libvirt-spice image is a kerbside fork of the upstream
+    nova-libvirt image, and is what kolla-ansible deploys for the
+    nova_libvirt container when kerbside is enabled. Mirror the virtlogd
+    changes made to the upstream image: install libvirt-daemon-log where
+    it is a separate package, and add the start script which runs
+    virtlogd as a sidecar of libvirtd so that nova instance console logs
+    are rotated.
+    
+    Change-Id: Ifdcd3ae34e62fc484d1a25ef6f6c68c467745fda
+    Depends-On: https://review.opendev.org/c/openstack/kolla/+/986283
+    Signed-off-by: Michael Still <mikal@stillhq.com>
+
+diff --git a/docker/nova/nova-libvirt-spice/Dockerfile.j2 b/docker/nova/nova-libvirt-spice/Dockerfile.j2
+index dd090a1e6..4c7ded894 100644
+--- a/docker/nova/nova-libvirt-spice/Dockerfile.j2
++++ b/docker/nova/nova-libvirt-spice/Dockerfile.j2
+@@ -33,6 +33,7 @@ LABEL maintainer="{{ maintainer }}" name="{{ image_name }}" build-date="{{ build
+         'libguestfs',
+         'libvirt-client',
+         'libvirt-daemon',
++        'libvirt-daemon-log',
+         'libvirt-daemon-config-nwfilter',
+         'libvirt-daemon-driver-nwfilter',
+         'libvirt-daemon-driver-nodedev',
+@@ -95,6 +96,7 @@ LABEL maintainer="{{ maintainer }}" name="{{ image_name }}" build-date="{{ build
+ 
+     {% if base_distro in ['debian'] %}
+         {% set nova_libvirt_packages = nova_libvirt_packages + [
++            'libvirt-daemon-log',
+             'usermode'
+         ] %}
+     {% endif %}
+@@ -109,7 +111,8 @@ RUN rm -f /etc/libvirt/qemu/networks/default.xml /etc/libvirt/qemu/networks/auto
+ {% endif %}
+ 
+ COPY extend_start.sh /usr/local/bin/kolla_extend_start
+-RUN chmod 644 /usr/local/bin/kolla_extend_start
++COPY kolla_nova_libvirt_start.sh /usr/local/bin/kolla_nova_libvirt_start
++RUN chmod 644 /usr/local/bin/kolla_extend_start && chmod 744 /usr/local/bin/kolla_nova_libvirt_start
+ 
+ {{ macros.kolla_patch_sources() }}
+ 
+diff --git a/docker/nova/nova-libvirt-spice/kolla_nova_libvirt_start.sh b/docker/nova/nova-libvirt-spice/kolla_nova_libvirt_start.sh
+new file mode 100644
+index 000000000..f06a63d9e
+--- /dev/null
++++ b/docker/nova/nova-libvirt-spice/kolla_nova_libvirt_start.sh
+@@ -0,0 +1,12 @@
++#!/bin/bash
++set -euo pipefail
++
++# NOTE(mikal): Start virtlogd as a sidecar. We need this for
++# nova instance console logs to rotate. Otherwise they will
++# consume unbounded amounts of disk.
++#
++# No exec here: libvirtd will be the "main" process.
++/usr/sbin/virtlogd &
++
++# Now hand over PID 1's direct child role to libvirtd.
++exec /usr/sbin/libvirtd --listen

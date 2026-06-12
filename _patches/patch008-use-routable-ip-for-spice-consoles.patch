@@ -1,6 +1,6 @@
-commit b2fcf0f82e9eac36815b5c0a1d41be33a002ff9b
+commit 0ff2f57fb80f28782b712be945e7d55f89929202
 Author: Michael Still <mikal@stillhq.com>
-Date:   Wed Jun 3 10:09:11 2026 +1000
+Date:   Fri Jun 12 07:12:21 2026 +1000
 
     Use a routable IP for qemu SPICE consoles.
     
@@ -13,10 +13,10 @@ Date:   Wed Jun 3 10:09:11 2026 +1000
     Signed-off-by: Michael Still <mikal@stillhq.com>
 
 diff --git a/ansible/roles/nova-cell/templates/nova.conf.j2 b/ansible/roles/nova-cell/templates/nova.conf.j2
-index bd7359956..2b02fd6ed 100644
+index 75d3a339d..9d30d9d44 100644
 --- a/ansible/roles/nova-cell/templates/nova.conf.j2
 +++ b/ansible/roles/nova-cell/templates/nova.conf.j2
-@@ -87,11 +87,11 @@ jpeg_compression = {{ nova_spice_jpeg_compression }}
+@@ -86,11 +86,11 @@ jpeg_compression = {{ nova_spice_jpeg_compression }}
  zlib_compression = {{ nova_spice_zlib_compression }}
  playback_compression = {{ nova_spice_playback_compression }}
  streaming_mode = {{ nova_spice_streaming_mode }}

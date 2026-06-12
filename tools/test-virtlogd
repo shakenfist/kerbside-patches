@@ -1,0 +1,68 @@
+#!/bin/bash -e
+
+. ./_build/common.sh
+
+echo
+echo -e "${H1}==================================================${Color_Off}"
+echo -e "${H1}Find an instance${Color_Off}"
+echo -e "${H1}==================================================${Color_Off}"
+
+instancename=$(openstack server list -f json | jq -e -r .[].Name)
+
+echo
+echo -e "${H1}==================================================${Color_Off}"
+echo -e "${H1}Determine location of the compute node${Color_Off}"
+echo -e "${H1}==================================================${Color_Off}"
+
+hypervisor=$(openstack server show ${instancename} -f json \
+             | jq -e -r '."OS-EXT-SRV-ATTR:hypervisor_hostname"')
+echo "Instance is on ${hypervisor}, we are "$(hostname)
+
+echo
+echo -e "${H1}==================================================${Color_Off}"
+echo -e "${H1}List libvirt domains${Color_Off}"
+echo -e "${H1}==================================================${Color_Off}"
+
+/srv/shakenfist/actions/tools/run_remote ${hypervisor} sudo docker exec nova_libvirt virsh list
+
+echo
+echo -e "${H1}==================================================${Color_Off}"
+echo -e "${H1}Dump libvirt domain XML for instance${Color_Off}"
+echo -e "${H1}==================================================${Color_Off}"
+
+/srv/shakenfist/actions/tools/run_remote ${hypervisor} sudo docker exec nova_libvirt virsh dumpxml 1
+
+echo
+echo -e "${H1}==================================================${Color_Off}"
+echo -e "${H1}Dump libvirt virtlogd configuration{Color_Off}"
+echo -e "${H1}==================================================${Color_Off}"
+
+/srv/shakenfist/actions/tools/run_remote ${hypervisor} sudo docker exec nova_libvirt cat /etc/libvirt/virtlogd.conf
+
+echo
+echo -e "${H1}==================================================${Color_Off}"
+echo -e "${H1}Make assertions about the domain XML${Color_Off}"
+echo -e "${H1}==================================================${Color_Off}"
+
+/srv/shakenfist/actions/tools/run_remote ${hypervisor} sudo docker exec nova_libvirt virsh dumpxml 1 > /tmp/domain.xml
+if [ $(grep -Ec "log file='/var/lib/nova/instances/.*/console.log" /tmp/domain.xml || true) -lt 1 ]; then
+    echo "...console log is not rotated with virtlogd"
+    exit 1
+fi
+
+echo
+echo -e "${H1}==================================================${Color_Off}"
+echo -e "${H1}Make assertions about virtlogd${Color_Off}"
+echo -e "${H1}==================================================${Color_Off}"
+
+/srv/shakenfist/actions/tools/run_remote ${hypervisor} sudo docker exec nova_libvirt ps -ef > /tmp/ps-ef
+if [ $(grep -c "virtlogd" /tmp/ps-ef || true) -lt 1 ]; then
+    echo "...virtlogd is not running"
+    exit 1
+fi
+
+trap - EXIT
+
+echo -e "${H1}==================================================${Color_Off}"
+echo -e "${H1}OpenStack console test complete.${Color_Off}"
+echo -e "${H1}==================================================${Color_Off}"

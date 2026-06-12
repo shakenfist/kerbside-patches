@@ -1,0 +1,30 @@
+Install and start virtlogd in nova-libvirt.
+
+Due to implementation choices in qemu and libvirt, standard log
+rotate does not work on these console files, and instead the usual
+approach is to have libvirt's virtlogd rotate the contents of the
+console log file when it gets a bit big. OpenStack Compute knows
+how to read data from more than one rotated console log file if
+required to service a REST API request.
+
+OpenStack Kolla and Kolla-Ansible deploy OpenStack components in
+docker or podman containers. An error in the startup configuration
+for the nova_libvirt container results in the libvirt virtlogd
+daemon not being run, which results in this console log rotation
+not occurring.
+
+This opens up the risk of a disk usage denial of service attack
+on a hypervisor. The console log is stored on the same filesystem
+as ephemeral disks, and OpenStack Nova will take a hypervisor out
+of service if disk space becomes constrained. There is some
+protection from the instance console not being able to write data
+particularly quickly, but it is definitely still possible to fill
+the hypervisor file system -- especially if multiple instances are used.
+
+This misconfiguration appears to exist in all versions of
+Kolla / Kolla-Ansible as best as I can tell.
+
+Partial-Bug: 2155214
+
+Change-Id: Ib62191e3022e5bcff781c12f662c9800fb210eb9
+Signed-off-by: Michael Still <mikal@stillhq.com>
