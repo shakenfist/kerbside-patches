@@ -31,5 +31,6 @@ but is never consulted and console.log grows unbounded.
 
 Partial-Bug: 2155214
 
+Depends-On: https://review.opendev.org/c/openstack/kolla/+/993065
 Change-Id: Ia543939b17cd06714695dff8ef8bd29bc3f8175e
 Signed-off-by: Michael Still <mikal@stillhq.com>
