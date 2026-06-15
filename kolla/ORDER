@@ -1,5 +1,4 @@
 ../_patches/patch047-kolla-fluentd-enable-syslog.patch
 ../_patches/patch152-kolla-master-rocky-spice-via-copr.patch
 ../_patches/patch154-kolla-master-drop-debian-erlang-ppa.patch
-../_patches/patch161-kolla-virtlogd.patch
 ../_patches/patch164-kolla-virtlogd-spice.patch
