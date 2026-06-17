@@ -6,3 +6,4 @@
 ../_patches/patch156-tempest-tests.patch
 ../_patches/patch157-kerbside-tempest-spice-direct.patch
 ../_patches/patch158-kerbside-tempest-via-haproxy.patch
+../_patches/patch165-kolla-ansible-master-rabbitmq-healthcheck-timeout.patch
