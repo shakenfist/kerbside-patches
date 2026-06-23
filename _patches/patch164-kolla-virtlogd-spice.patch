@@ -1,6 +1,6 @@
-commit 6cacd949ab00a56721f583517c1def03b0174c84
+commit d245c67ad776598fda61ebe8edf2ced24c97615a
 Author: Michael Still <mikal@stillhq.com>
-Date:   Fri Jun 12 07:11:10 2026 +1000
+Date:   Mon Jun 22 12:05:17 2026 +1000
 
     Install and start virtlogd in nova-libvirt-spice.
     

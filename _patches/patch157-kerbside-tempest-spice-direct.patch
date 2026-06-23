@@ -1,6 +1,6 @@
-commit 707ec45548d1e0338601f6092f6df8768caae355
+commit 933719b975d149bd3e12a12cd51c56051e4dd7fc
 Author: Michael Still <mikal@stillhq.com>
-Date:   Fri Jun 12 07:12:22 2026 +1000
+Date:   Tue Jun 23 17:52:06 2026 +1000
 
     Run the spice-direct tempest test in the kerbside scenario.
     
@@ -38,13 +38,13 @@ Date:   Fri Jun 12 07:12:22 2026 +1000
     Note that this test _does_not_ validate that Kerbside is deployed
     and working correctly. That's the next step after this one.
     
-    Prompt: Michael asked for a follow-up patch to patch156 that
-    actually runs the spice-direct Tempest test (originally added to
-    Tempest for Nova's CI) inside the kerbside scenario.
+    Prompt: Please run the spice-direct Tempest test (originally
+    added to Tempest for Nova's CI) inside the kerbside scenario.
     
     Assisted-By: Claude Opus 4.7 (1M context, medium effort) <noreply@anthropic.com>
     Co-Authored-By: Claude Opus 4.7 (1M context, medium effort) <noreply@anthropic.com>
     
+    Depends-On: https://review.opendev.org/c/openstack/kolla/+/986283
     Change-Id: I2c8d1e0a3f4b5d6c7e8f9a0b1c2d3e4f5a6b7c8d
     Signed-off-by: Michael Still <mikal@stillhq.com>
 

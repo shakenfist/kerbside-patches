@@ -1,6 +1,6 @@
-commit e4b2f638e49cab5b77d81f692a1e2191c6a29ab6
+commit 5992fdef6ddb3967bd70039cf6ea158984338382
 Author: Michael Still <mikal@stillhq.com>
-Date:   Fri Jun 12 07:12:21 2026 +1000
+Date:   Tue Jun 23 17:52:06 2026 +1000
 
     Add kerbside CI scenario jobs.
     
@@ -37,12 +37,10 @@ Date:   Fri Jun 12 07:12:21 2026 +1000
     extend kolla_ansible_tempest_regex once the smoke baseline is
     trusted.
     
-    Prompt: Michael asked me to draft the new tempest test in
-    src/kolla-ansible/ and then commit it here so he can produce a
-    patch from the resulting diff. A follow-up asked to enable
-    image-building plus the timeout bump used by the existing
-    non-voting image-building kolla-ansible jobs, so the kerbside
-    scenario can exercise an in-flight kolla change via Depends-On.
+    Prompt: Please draft a new tempest test for Kerbside in
+    Kolla-Ansible. This tempest test must depend on the images that
+    include Kerbside having been built. Also bump the timeout used
+    for non-voting image-building kolla-ansible jobs.
     
     Assisted-By: Claude Opus 4.7 (1M context, medium effort) <noreply@anthropic.com>
     Co-Authored-By: Claude Opus 4.7 (1M context, medium effort) <noreply@anthropic.com>
@@ -52,7 +50,7 @@ Date:   Fri Jun 12 07:12:21 2026 +1000
     Signed-off-by: Michael Still <mikal@stillhq.com>
 
 diff --git a/tests/run.yml b/tests/run.yml
-index adce6eb7f..27fa11ea2 100644
+index bb06ebd6b..13f6a9942 100644
 --- a/tests/run.yml
 +++ b/tests/run.yml
 @@ -30,7 +30,7 @@
@@ -65,7 +63,7 @@ index adce6eb7f..27fa11ea2 100644
          upper_constraints_file: "{{ ansible_env.HOME }}/src/opendev.org/openstack/requirements/upper-constraints.txt"
          docker_image_tag_suffix: "{{ '-aarch64' if ansible_architecture == 'aarch64' else '' }}"
 diff --git a/tests/templates/globals-default.j2 b/tests/templates/globals-default.j2
-index ea45c562d..da77c672e 100644
+index 58ed0aabf..796f1f95c 100644
 --- a/tests/templates/globals-default.j2
 +++ b/tests/templates/globals-default.j2
 @@ -124,6 +124,12 @@ enable_masakari: "yes"
@@ -82,7 +80,7 @@ index ea45c562d..da77c672e 100644
  enable_cells: "yes"
  enable_proxysql: "yes"
 diff --git a/tests/templates/inventory.j2 b/tests/templates/inventory.j2
-index 433263430..fd5f07524 100644
+index c6abc787b..413684771 100644
 --- a/tests/templates/inventory.j2
 +++ b/tests/templates/inventory.j2
 @@ -51,6 +51,11 @@ control
@@ -113,7 +111,7 @@ index 433263430..fd5f07524 100644
  
  [collectd:children]
  compute
-@@ -704,3 +711,10 @@ skyline
+@@ -707,3 +714,10 @@ skyline
  
  [skyline-console:children]
  skyline
@@ -125,7 +123,7 @@ index 433263430..fd5f07524 100644
 +[kerbside_proxy:children]
 +vdiproxy
 diff --git a/zuul.d/project.yaml b/zuul.d/project.yaml
-index 26dbb052a..1d9b24549 100644
+index 9a2344c17..3b1ab2c6e 100644
 --- a/zuul.d/project.yaml
 +++ b/zuul.d/project.yaml
 @@ -24,6 +24,7 @@
