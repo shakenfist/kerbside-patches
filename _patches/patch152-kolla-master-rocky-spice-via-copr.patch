@@ -1,6 +1,6 @@
-commit 7e4edc0685ed8aaea8af495e601267f98fb1d3aa
+commit e27270ab4e92cab0e2a6a8357df171a3f3441437
 Author: Michael Still <mikal@stillhq.com>
-Date:   Fri Jun 12 07:11:10 2026 +1000
+Date:   Mon Jun 22 12:05:17 2026 +1000
 
     Add opt-in SPICE support for Rocky via COPR.
     
@@ -32,9 +32,7 @@ Date:   Fri Jun 12 07:11:10 2026 +1000
     
     Partial-Bug: #2131793 (spice-direct consoles)
     
-    Prompt: Let's work in shakenfist/kerbside-patches. I am unsure how
-    OpenStack Kolla handles overriding dnf sources, but I am interested in
-    seeing how we would go about using
+    Prompt: I am interested in seeing how we would go about using
     https://copr.fedorainfracloud.org/coprs/ligenix/enterprise-qemu-spice/
     to add SPICE support back to the Kolla build Rocky Linux containers
     as a new patch in the kolla/ORDER list. Could you please investigate

@@ -33,12 +33,10 @@ Future work: add kerbside-specific Tempest tests via a plugin and
 extend kolla_ansible_tempest_regex once the smoke baseline is
 trusted.
 
-Prompt: Michael asked me to draft the new tempest test in
-src/kolla-ansible/ and then commit it here so he can produce a
-patch from the resulting diff. A follow-up asked to enable
-image-building plus the timeout bump used by the existing
-non-voting image-building kolla-ansible jobs, so the kerbside
-scenario can exercise an in-flight kolla change via Depends-On.
+Prompt: Please draft a new tempest test for Kerbside in
+Kolla-Ansible. This tempest test must depend on the images that
+include Kerbside having been built. Also bump the timeout used
+for non-voting image-building kolla-ansible jobs.
 
 Assisted-By: Claude Opus 4.7 (1M context, medium effort) <noreply@anthropic.com>
 Co-Authored-By: Claude Opus 4.7 (1M context, medium effort) <noreply@anthropic.com>
