@@ -7,3 +7,4 @@
 ../_patches/patch157-kerbside-tempest-spice-direct.patch
 ../_patches/patch158-kerbside-tempest-via-haproxy.patch
 ../_patches/patch165-kolla-ansible-master-rabbitmq-healthcheck-timeout.patch
+../_patches/patch169-kolla-ansible-master-virtlogd-preflight.patch

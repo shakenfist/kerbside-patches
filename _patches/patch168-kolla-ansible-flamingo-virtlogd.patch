@@ -1,0 +1,158 @@
+commit 2f706cc39ef6669ac1c830a26574087251028003
+Author: Michael Still <mikal@stillhq.com>
+Date:   Wed Jun 24 18:08:23 2026 +1000
+
+    Start virtlogd in nova-libvirt and route console logs to it.
+    
+    Due to implementation choices in qemu and libvirt, standard log
+    rotate does not work on these console files, and instead the usual
+    approach is to have libvirt's virtlogd rotate the contents of the
+    console log file when it gets a bit big. OpenStack Compute knows
+    how to read data from more than one rotated console log file if
+    required to service a REST API request.
+    
+    OpenStack Kolla and Kolla-Ansible deploy OpenStack components in
+    docker or podman containers. An error in the startup configuration
+    for the nova_libvirt container results in the libvirt virtlogd
+    daemon not being run, which results in this console log rotation
+    not occurring.
+    
+    This opens up the risk of a disk usage denial of service attack
+    on a hypervisor. The console log is stored on the same filesystem
+    as ephemeral disks, and OpenStack Nova will take a hypervisor out
+    of service if disk space becomes constrained. There is some
+    protection from the instance console not being able to write data
+    particularly quickly, but it is definitely still possible to fill
+    the hypervisor file system -- especially if multiple instances are used.
+    
+    This misconfiguration appears to exist in all versions of
+    Kolla / Kolla-Ansible as best as I can tell.
+    
+    Flip qemu.conf's stdio_handler from "file" to "logd" so libvirt
+    routes instance console chardevs through virtlogd, which rotates
+    them per /etc/libvirt/virtlogd.conf. Without this, virtlogd runs
+    but is never consulted and console.log grows unbounded.
+    
+    The nova_libvirt command now points at the
+    /usr/local/bin/kolla_nova_libvirt_start helper shipped in the
+    image. Deploying this Kolla-Ansible change against an older image
+    that predates that helper would leave the container unable to
+    start. Add a deploy-time check that inspects the nova_libvirt
+    image for the helper and fails with an explanatory message when it
+    is absent, so an incomplete upgrade (new code, stale image) is
+    caught before the container is reconfigured.
+    
+    Partial-Bug: 2155214
+    Change-Id: I2fa4f3b367c983a85aac0e1fbbb449abfb0ce238
+    Signed-off-by: Michael Still <mikal@stillhq.com>
+    (cherry picked from commit 4244e6a91767a4706e59145f6841adbeeac048bb)
+    (cherry picked from commit a1c47d236f006bf2fc0fa6bb447a5c99e7251d11)
+
+diff --git a/ansible/roles/nova-cell/tasks/version-check.yml b/ansible/roles/nova-cell/tasks/version-check.yml
+index 213427ace..a7ac12b75 100644
+--- a/ansible/roles/nova-cell/tasks/version-check.yml
++++ b/ansible/roles/nova-cell/tasks/version-check.yml
+@@ -75,3 +75,46 @@
+   vars:
+     service_name: "nova-libvirt"
+     service: "{{ nova_cell_services[service_name] }}"
++
++- block:
++    - name: Look for kolla_nova_libvirt_start in the nova_libvirt image
++      become: true
++      kolla_container:
++        action: "start_container"
++        command: "ls /usr/local/bin/kolla_nova_libvirt_start"
++        common_options: "{{ docker_common_options }}"
++        container_engine: "{{ kolla_container_engine }}"
++        detach: false
++        environment:
++          KOLLA_CONFIG_STRATEGY: "{{ config_strategy }}"
++        image: "{{ service.image }}"
++        name: "nova_libvirt_script_check"
++        restart_policy: oneshot
++        remove_on_exit: true
++      register: nova_libvirt_script_check
++      failed_when: false
++      check_mode: false
++      run_once: true
++      delegate_to: "{{ groups[service.group] | first }}"
++
++    - name: Assert the nova_libvirt image is recent enough
++      run_once: true
++      delegate_to: "{{ groups[service.group] | first }}"
++      assert:
++        that:
++          - "'/usr/local/bin/kolla_nova_libvirt_start' in (nova_libvirt_script_check.stdout | default(''))"
++        fail_msg: >
++          The nova_libvirt image '{{ service.image }}' does not contain
++          /usr/local/bin/kolla_nova_libvirt_start, which this version of
++          Kolla-Ansible needs to launch libvirtd alongside virtlogd. This
++          almost always means the container image has not been updated to
++          match the upgraded Kolla-Ansible code. Pull or build a current
++          nova-libvirt image before deploying. If you intend to keep using
++          an older image, skip the tag 'nova-libvirt-script-check'.
++        success_msg: >
++          nova_libvirt image provides kolla_nova_libvirt_start.
++  tags: nova-libvirt-script-check
++  when: enable_nova_libvirt_container | bool and (groups[service.group] | length) > 0
++  vars:
++    service_name: "nova-libvirt"
++    service: "{{ nova_cell_services[service_name] }}"
+diff --git a/ansible/roles/nova-cell/templates/nova-libvirt.json.j2 b/ansible/roles/nova-cell/templates/nova-libvirt.json.j2
+index f64098707..5a6ece358 100644
+--- a/ansible/roles/nova-cell/templates/nova-libvirt.json.j2
++++ b/ansible/roles/nova-cell/templates/nova-libvirt.json.j2
+@@ -1,5 +1,5 @@
+ {
+-    "command": "/usr/sbin/libvirtd --listen",
++    "command": "/usr/local/bin/kolla_nova_libvirt_start",
+     "config_files": [
+         {
+             "source": "{{ container_config_directory }}/libvirtd.conf",
+diff --git a/ansible/roles/nova-cell/templates/qemu.conf.j2 b/ansible/roles/nova-cell/templates/qemu.conf.j2
+index 82ecd7f23..84873bfc9 100644
+--- a/ansible/roles/nova-cell/templates/qemu.conf.j2
++++ b/ansible/roles/nova-cell/templates/qemu.conf.j2
+@@ -1,4 +1,4 @@
+-stdio_handler = "file"
++stdio_handler = "logd"
+ 
+ user = "nova"
+ group = "nova"
+diff --git a/releasenotes/notes/nova-libvirt-script-precheck-7c9f2a1b3d4e5f60.yaml b/releasenotes/notes/nova-libvirt-script-precheck-7c9f2a1b3d4e5f60.yaml
+new file mode 100644
+index 000000000..2bd6235b4
+--- /dev/null
++++ b/releasenotes/notes/nova-libvirt-script-precheck-7c9f2a1b3d4e5f60.yaml
+@@ -0,0 +1,11 @@
++---
++upgrade:
++  - |
++    A deploy-time check now verifies that the ``nova_libvirt`` image contains
++    the ``/usr/local/bin/kolla_nova_libvirt_start`` helper before deploying.
++    This helper launches ``libvirtd`` alongside ``virtlogd`` and is required
++    by current Kolla-Ansible. If you upgrade Kolla-Ansible but continue to
++    use an older ``nova_libvirt`` image that predates the helper, the deploy
++    now fails fast with an explanatory message instead of leaving the
++    container unable to start. Pull or build a matching ``nova_libvirt``
++    image, or skip the ``nova-libvirt-script-check`` tag to bypass the check.
+diff --git a/releasenotes/notes/nova-libvirt-virtlogd-0b77f24764dcecfc.yaml b/releasenotes/notes/nova-libvirt-virtlogd-0b77f24764dcecfc.yaml
+new file mode 100644
+index 000000000..94b92e5fc
+--- /dev/null
++++ b/releasenotes/notes/nova-libvirt-virtlogd-0b77f24764dcecfc.yaml
+@@ -0,0 +1,13 @@
++---
++features:
++  - |
++    The ``nova_libvirt`` container now runs ``virtlogd`` as a sidecar
++    alongside ``libvirtd``, and ``qemu.conf`` is configured with
++    ``stdio_handler = "logd"`` so that libvirt routes instance console
++    chardevs through ``virtlogd``. This allows guest console logs to be
++    rotated according to ``/etc/libvirt/virtlogd.conf`` (by default 2MB
++    per file with 3 backups), instead of growing without bound as they
++    did when ``stdio_handler`` was set to ``"file"``.
++
++    Note that existing instances must be hard rebooted to pick up the
++    new console handler, as the chardev mode is fixed at qemu launch.

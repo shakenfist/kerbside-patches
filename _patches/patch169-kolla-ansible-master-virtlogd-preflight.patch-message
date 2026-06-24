@@ -1,0 +1,24 @@
+Precheck that the nova_libvirt image ships kolla_nova_libvirt_start.
+
+The virtlogd change switched the nova_libvirt container command to
+/usr/local/bin/kolla_nova_libvirt_start, a helper that launches
+libvirtd alongside virtlogd so guest console logs are rotated. That
+helper only exists in matching nova-libvirt images.
+
+A deployer who upgrades Kolla-Ansible but keeps an older
+nova_libvirt image (an incomplete upgrade) would end up with a
+container that cannot start, because the configured command is not
+present in the image. Add a deploy-time check that inspects the
+nova_libvirt image for the helper and fails with an explanatory
+message when it is absent, so the misconfiguration is caught before
+the container is reconfigured rather than surfacing as a confusing
+container start failure.
+
+The check runs from version-check.yml, which deploy.yml imports
+before the container is (re)configured, and can be bypassed with the
+nova-libvirt-script-check tag for deployers who knowingly run an
+older image.
+
+Partial-Bug: 2155214
+Change-Id: I656f587832db08529c33ea18f3f303e460d833bc
+Signed-off-by: Michael Still <mikal@stillhq.com>

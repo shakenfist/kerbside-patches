@@ -1,0 +1,10 @@
+repo: https://opendev.org/openstack/kolla-ansible
+source_branch: master
+destination_branch: virtlogd-preflight
+shallow_clone: false
+directory: kolla-ansible
+release: master-virtlogd-preflight
+depends_on: ''
+source_sha: 9847a8b75cf7cc4d18cab7adb72b2f9ae87a28c8
+skip_rebase: true
+skip_claude: true

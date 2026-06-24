@@ -1,0 +1,33 @@
+Make the MariaDB WSREP sync wait defensive.
+
+The "Wait for first MariaDB service to sync WSREP" handler runs
+immediately after MariaDB opens its service port, and queries
+wsrep_local_state_comment via the kolla_toolbox mysql_query
+module. The first attempt frequently races MariaDB's privilege
+bootstrap, so mysql_query can return a failure-shaped dict that
+has no query_result key. The existing until expression then dies
+with a Jinja AttributeError on result.query_result[0][0]['Value'],
+and Ansible treats a template error in until as a hard failure
+instead of "still false, retry". The configured retries: 10 /
+delay: 6 budget is therefore never spent.
+
+Guard the until expression so it only inspects query_result when
+it is defined. mysql_query failures then leave the conditional
+cleanly false, and the existing retries: 10 / delay: 6 budget
+actually gets used. The first successful query lands within one
+or two retries on every matrix we have seen.
+
+Prompt: Michael asked for a patch that makes the MariaDB WSREP
+sync wait defensive so that the existing retry budget actually
+applies when the first mysql_query call comes back without a
+query_result key, after we diagnosed a Rocky-containers CI
+failure in shakenfist/kerbside-patches whose visible exit point
+was the dict-has-no-attribute error from this conditional. The
+intent is to validate the fix locally and then propose it
+upstream.
+
+Assisted-By: Claude Opus 4.7 (1M context, medium effort) <noreply@anthropic.com>
+Co-Authored-By: Claude Opus 4.7 (1M context, medium effort) <noreply@anthropic.com>
+
+Change-Id: I4e5d7c2a8f9b1d3e6a4c5b8d2f1e0a3c4b5d6e7f
+Signed-off-by: Michael Still <mikal@stillhq.com>
