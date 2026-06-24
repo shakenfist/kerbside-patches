@@ -1,0 +1,10 @@
+repo: https://opendev.org/openstack/kolla-ansible
+source_branch: stable/2025.2
+destination_branch: stable/2025.2-virtlogd
+shallow_clone: false
+directory: kolla-ansible
+release: 2025.2-virtlogd
+depends_on: ''
+source_sha: 36839f577dc9abed5b0d41cf99bfb6e34ede38f0
+skip_rebase: true
+skip_claude: true

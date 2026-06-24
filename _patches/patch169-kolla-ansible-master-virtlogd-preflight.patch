@@ -1,0 +1,97 @@
+commit 0000000000000000000000000000000000000000
+Author: Michael Still <mikal@stillhq.com>
+Date:   Tue Jun 24 00:00:00 2026 +1000
+
+    Precheck that the nova_libvirt image ships kolla_nova_libvirt_start.
+
+    The virtlogd change switched the nova_libvirt container command to
+    /usr/local/bin/kolla_nova_libvirt_start, a helper that launches
+    libvirtd alongside virtlogd so guest console logs are rotated. That
+    helper only exists in matching nova-libvirt images.
+
+    A deployer who upgrades Kolla-Ansible but keeps an older
+    nova_libvirt image (an incomplete upgrade) would end up with a
+    container that cannot start, because the configured command is not
+    present in the image. Add a deploy-time check that inspects the
+    nova_libvirt image for the helper and fails with an explanatory
+    message when it is absent, so the misconfiguration is caught before
+    the container is reconfigured rather than surfacing as a confusing
+    container start failure.
+
+    The check runs from version-check.yml, which deploy.yml imports
+    before the container is (re)configured, and can be bypassed with the
+    nova-libvirt-script-check tag for deployers who knowingly run an
+    older image.
+
+    Partial-Bug: 2155214
+    Signed-off-by: Michael Still <mikal@stillhq.com>
+
+diff --git a/ansible/roles/nova-cell/tasks/version-check.yml b/ansible/roles/nova-cell/tasks/version-check.yml
+index 549cb33..d217f88 100644
+--- a/ansible/roles/nova-cell/tasks/version-check.yml
++++ b/ansible/roles/nova-cell/tasks/version-check.yml
+@@ -75,3 +75,47 @@
+         success_msg: >
+           Libvirt version check successful: target {{ new_version }} >= current {{ current_version }}.
+       when: libvirt_version_current_results is not skipped
++
++- name: Check nova_libvirt image provides the libvirt start script
++  when: enable_nova_libvirt_container | bool and (groups[service.group] | length) > 0
++  vars:
++    service_name: "nova-libvirt"
++    service: "{{ nova_cell_services[service_name] }}"
++  tags: nova-libvirt-script-check
++  block:
++    - name: Look for kolla_nova_libvirt_start in the nova_libvirt image
++      become: true
++      kolla_container:
++        action: "start_container"
++        command: "ls /usr/local/bin/kolla_nova_libvirt_start"
++        common_options: "{{ docker_common_options }}"
++        container_engine: "{{ kolla_container_engine }}"
++        detach: false
++        environment:
++          KOLLA_CONFIG_STRATEGY: "{{ config_strategy }}"
++        image: "{{ service.image }}"
++        name: "nova_libvirt_script_check"
++        restart_policy: oneshot
++        remove_on_exit: true
++      register: nova_libvirt_script_check
++      failed_when: false
++      check_mode: false
++      run_once: true
++      delegate_to: "{{ groups[service.group] | first }}"
++
++    - name: Assert the nova_libvirt image is recent enough
++      run_once: true
++      delegate_to: "{{ groups[service.group] | first }}"
++      ansible.builtin.assert:
++        that:
++          - "'/usr/local/bin/kolla_nova_libvirt_start' in (nova_libvirt_script_check.stdout | default(''))"
++        fail_msg: >
++          The nova_libvirt image '{{ service.image }}' does not contain
++          /usr/local/bin/kolla_nova_libvirt_start, which this version of
++          Kolla-Ansible needs to launch libvirtd alongside virtlogd. This
++          almost always means the container image has not been updated to
++          match the upgraded Kolla-Ansible code. Pull or build a current
++          nova-libvirt image before deploying. If you intend to keep using
++          an older image, skip the tag 'nova-libvirt-script-check'.
++        success_msg: >
++          nova_libvirt image provides kolla_nova_libvirt_start.
+diff --git a/releasenotes/notes/nova-libvirt-script-precheck-7c9f2a1b3d4e5f60.yaml b/releasenotes/notes/nova-libvirt-script-precheck-7c9f2a1b3d4e5f60.yaml
+new file mode 100644
+index 0000000..2bd6235
+--- /dev/null
++++ b/releasenotes/notes/nova-libvirt-script-precheck-7c9f2a1b3d4e5f60.yaml
+@@ -0,0 +1,11 @@
++---
++upgrade:
++  - |
++    A deploy-time check now verifies that the ``nova_libvirt`` image contains
++    the ``/usr/local/bin/kolla_nova_libvirt_start`` helper before deploying.
++    This helper launches ``libvirtd`` alongside ``virtlogd`` and is required
++    by current Kolla-Ansible. If you upgrade Kolla-Ansible but continue to
++    use an older ``nova_libvirt`` image that predates the helper, the deploy
++    now fails fast with an explanatory message instead of leaving the
++    container unable to start. Pull or build a matching ``nova_libvirt``
++    image, or skip the ``nova-libvirt-script-check`` tag to bypass the check.
