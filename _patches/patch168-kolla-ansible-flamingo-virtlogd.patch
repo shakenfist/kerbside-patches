@@ -1,22 +1,22 @@
-commit 0000000000000000000000000000000000000000
+commit 2f706cc39ef6669ac1c830a26574087251028003
 Author: Michael Still <mikal@stillhq.com>
-Date:   Tue Jun 24 00:00:00 2026 +1000
+Date:   Wed Jun 24 18:08:23 2026 +1000
 
     Start virtlogd in nova-libvirt and route console logs to it.
-
+    
     Due to implementation choices in qemu and libvirt, standard log
     rotate does not work on these console files, and instead the usual
     approach is to have libvirt's virtlogd rotate the contents of the
     console log file when it gets a bit big. OpenStack Compute knows
     how to read data from more than one rotated console log file if
     required to service a REST API request.
-
+    
     OpenStack Kolla and Kolla-Ansible deploy OpenStack components in
     docker or podman containers. An error in the startup configuration
     for the nova_libvirt container results in the libvirt virtlogd
     daemon not being run, which results in this console log rotation
     not occurring.
-
+    
     This opens up the risk of a disk usage denial of service attack
     on a hypervisor. The console log is stored on the same filesystem
     as ephemeral disks, and OpenStack Nova will take a hypervisor out
@@ -24,15 +24,15 @@ Date:   Tue Jun 24 00:00:00 2026 +1000
     protection from the instance console not being able to write data
     particularly quickly, but it is definitely still possible to fill
     the hypervisor file system -- especially if multiple instances are used.
-
+    
     This misconfiguration appears to exist in all versions of
     Kolla / Kolla-Ansible as best as I can tell.
-
+    
     Flip qemu.conf's stdio_handler from "file" to "logd" so libvirt
     routes instance console chardevs through virtlogd, which rotates
     them per /etc/libvirt/virtlogd.conf. Without this, virtlogd runs
     but is never consulted and console.log grows unbounded.
-
+    
     The nova_libvirt command now points at the
     /usr/local/bin/kolla_nova_libvirt_start helper shipped in the
     image. Deploying this Kolla-Ansible change against an older image
@@ -41,12 +41,15 @@ Date:   Tue Jun 24 00:00:00 2026 +1000
     image for the helper and fails with an explanatory message when it
     is absent, so an incomplete upgrade (new code, stale image) is
     caught before the container is reconfigured.
-
+    
     Partial-Bug: 2155214
+    Change-Id: I2fa4f3b367c983a85aac0e1fbbb449abfb0ce238
     Signed-off-by: Michael Still <mikal@stillhq.com>
+    (cherry picked from commit 4244e6a91767a4706e59145f6841adbeeac048bb)
+    (cherry picked from commit a1c47d236f006bf2fc0fa6bb447a5c99e7251d11)
 
 diff --git a/ansible/roles/nova-cell/tasks/version-check.yml b/ansible/roles/nova-cell/tasks/version-check.yml
-index 213427a..a7ac12b 100644
+index 213427ace..a7ac12b75 100644
 --- a/ansible/roles/nova-cell/tasks/version-check.yml
 +++ b/ansible/roles/nova-cell/tasks/version-check.yml
 @@ -75,3 +75,46 @@
@@ -97,7 +100,7 @@ index 213427a..a7ac12b 100644
 +    service_name: "nova-libvirt"
 +    service: "{{ nova_cell_services[service_name] }}"
 diff --git a/ansible/roles/nova-cell/templates/nova-libvirt.json.j2 b/ansible/roles/nova-cell/templates/nova-libvirt.json.j2
-index f640987..5a6ece3 100644
+index f64098707..5a6ece358 100644
 --- a/ansible/roles/nova-cell/templates/nova-libvirt.json.j2
 +++ b/ansible/roles/nova-cell/templates/nova-libvirt.json.j2
 @@ -1,5 +1,5 @@
@@ -108,7 +111,7 @@ index f640987..5a6ece3 100644
          {
              "source": "{{ container_config_directory }}/libvirtd.conf",
 diff --git a/ansible/roles/nova-cell/templates/qemu.conf.j2 b/ansible/roles/nova-cell/templates/qemu.conf.j2
-index 82ecd7f..84873bf 100644
+index 82ecd7f23..84873bfc9 100644
 --- a/ansible/roles/nova-cell/templates/qemu.conf.j2
 +++ b/ansible/roles/nova-cell/templates/qemu.conf.j2
 @@ -1,4 +1,4 @@
@@ -119,7 +122,7 @@ index 82ecd7f..84873bf 100644
  group = "nova"
 diff --git a/releasenotes/notes/nova-libvirt-script-precheck-7c9f2a1b3d4e5f60.yaml b/releasenotes/notes/nova-libvirt-script-precheck-7c9f2a1b3d4e5f60.yaml
 new file mode 100644
-index 0000000..2bd6235
+index 000000000..2bd6235b4
 --- /dev/null
 +++ b/releasenotes/notes/nova-libvirt-script-precheck-7c9f2a1b3d4e5f60.yaml
 @@ -0,0 +1,11 @@
@@ -136,7 +139,7 @@ index 0000000..2bd6235
 +    image, or skip the ``nova-libvirt-script-check`` tag to bypass the check.
 diff --git a/releasenotes/notes/nova-libvirt-virtlogd-0b77f24764dcecfc.yaml b/releasenotes/notes/nova-libvirt-virtlogd-0b77f24764dcecfc.yaml
 new file mode 100644
-index 0000000..94b92e5
+index 000000000..94b92e5fc
 --- /dev/null
 +++ b/releasenotes/notes/nova-libvirt-virtlogd-0b77f24764dcecfc.yaml
 @@ -0,0 +1,13 @@

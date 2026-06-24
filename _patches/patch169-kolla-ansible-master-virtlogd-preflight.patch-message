@@ -20,4 +20,5 @@ nova-libvirt-script-check tag for deployers who knowingly run an
 older image.
 
 Partial-Bug: 2155214
+Change-Id: I656f587832db08529c33ea18f3f303e460d833bc
 Signed-off-by: Michael Still <mikal@stillhq.com>

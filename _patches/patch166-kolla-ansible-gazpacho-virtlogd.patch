@@ -1,6 +1,6 @@
-commit 90d43b76b448ec4f5a8382034fff5a3131aad821
+commit aa39ba794e1e78d87bbba9cd7a9bcab701daf397
 Author: Michael Still <mikal@stillhq.com>
-Date:   Fri Jun 12 07:13:02 2026 +1000
+Date:   Wed Jun 24 18:03:23 2026 +1000
 
     Start virtlogd in nova-libvirt and route console logs to it.
     
@@ -32,7 +32,7 @@ Date:   Fri Jun 12 07:13:02 2026 +1000
     routes instance console chardevs through virtlogd, which rotates
     them per /etc/libvirt/virtlogd.conf. Without this, virtlogd runs
     but is never consulted and console.log grows unbounded.
-
+    
     The nova_libvirt command now points at the
     /usr/local/bin/kolla_nova_libvirt_start helper shipped in the
     image. Deploying this Kolla-Ansible change against an older image
@@ -41,12 +41,14 @@ Date:   Fri Jun 12 07:13:02 2026 +1000
     image for the helper and fails with an explanatory message when it
     is absent, so an incomplete upgrade (new code, stale image) is
     caught before the container is reconfigured.
-
+    
     Partial-Bug: 2155214
     
     Depends-On: https://review.opendev.org/c/openstack/kolla/+/993065
     Change-Id: Ia543939b17cd06714695dff8ef8bd29bc3f8175e
     Signed-off-by: Michael Still <mikal@stillhq.com>
+    (cherry picked from commit 4244e6a91767a4706e59145f6841adbeeac048bb)
+    (cherry picked from commit a1c47d236f006bf2fc0fa6bb447a5c99e7251d11)
 
 diff --git a/ansible/roles/nova-cell/tasks/version-check.yml b/ansible/roles/nova-cell/tasks/version-check.yml
 index 549cb3334..d217f88ba 100644
@@ -101,7 +103,7 @@ index 549cb3334..d217f88ba 100644
 +        success_msg: >
 +          nova_libvirt image provides kolla_nova_libvirt_start.
 diff --git a/ansible/roles/nova-cell/templates/nova-libvirt.json.j2 b/ansible/roles/nova-cell/templates/nova-libvirt.json.j2
-index dce42c684..8f0e12c7a 100644
+index f64098707..5a6ece358 100644
 --- a/ansible/roles/nova-cell/templates/nova-libvirt.json.j2
 +++ b/ansible/roles/nova-cell/templates/nova-libvirt.json.j2
 @@ -1,5 +1,5 @@
@@ -112,7 +114,7 @@ index dce42c684..8f0e12c7a 100644
          {
              "source": "{{ container_config_directory }}/libvirtd.conf",
 diff --git a/ansible/roles/nova-cell/templates/qemu.conf.j2 b/ansible/roles/nova-cell/templates/qemu.conf.j2
-index fb0010783..072da5cb9 100644
+index 03b56479a..1a828ecb5 100644
 --- a/ansible/roles/nova-cell/templates/qemu.conf.j2
 +++ b/ansible/roles/nova-cell/templates/qemu.conf.j2
 @@ -1,4 +1,4 @@
@@ -123,7 +125,7 @@ index fb0010783..072da5cb9 100644
  group = "nova"
 diff --git a/releasenotes/notes/nova-libvirt-script-precheck-7c9f2a1b3d4e5f60.yaml b/releasenotes/notes/nova-libvirt-script-precheck-7c9f2a1b3d4e5f60.yaml
 new file mode 100644
-index 000000000..2bd6235fc
+index 000000000..2bd6235b4
 --- /dev/null
 +++ b/releasenotes/notes/nova-libvirt-script-precheck-7c9f2a1b3d4e5f60.yaml
 @@ -0,0 +1,11 @@
