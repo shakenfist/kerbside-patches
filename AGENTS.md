@@ -72,9 +72,6 @@ Other workflows:
 - `rebase-tests.yml` -- applies the patch stack and runs the
   test suites (`_build/test-apply.sh`) for kolla and
   kolla-ansible on both debian-12 and rocky-9 VM runners
-- `runner-smoke-test.yml` -- on-demand (`workflow_dispatch`)
-  check that a given VM runner OS/size provisions and runs;
-  also the way to "force" the conductor to build a runner
 - `trigger-downstream.yml` -- triggers kerbside CI on push
   to develop (e.g. after daily rebase PR merges)
 - `local-container-builds.yml` -- tests local builds work
