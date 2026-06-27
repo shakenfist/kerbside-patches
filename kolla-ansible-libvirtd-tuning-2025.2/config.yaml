@@ -1,0 +1,11 @@
+repo: https://opendev.org/openstack/kolla-ansible
+source_branch: stable/2025.2
+destination_branch: libvirtd-tuning
+shallow_clone: false
+directory: kolla-ansible
+release: 2025.2-libvirtd-tuning
+depends_on: ''
+source_sha: 2a370db5c8785f5d4ab7759adf4298a886e455e4
+previous_source_sha: 36839f577dc9abed5b0d41cf99bfb6e34ede38f0
+skip_rebase: true
+skip_claude: true
