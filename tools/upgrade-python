@@ -4,10 +4,10 @@
 # (those post 2024.2).
 
 . /etc/os-release
-echo "Claimed OS name: ${NAME}"
-if [ "${NAME}" == "Rocky Linux" -a "${VERSION_ID}" == "9.0" ]; then
-    dnf update
-    dnf upgrade
+echo "Claimed OS name: ${NAME} ${VERSION_ID}"
+# Match any rocky 9.x (the CI image tracks point releases, e.g. 9.8), not
+# just the original 9.0.
+if [ "${NAME}" == "Rocky Linux" ] && [ "${VERSION_ID%%.*}" == "9" ]; then
     dnf install -y python3.12 python3.12-pip python3.12-wheel python3.12-devel \
         dbus-daemon libselinux-devel
     rm -f /usr/bin/python /usr/bin/python3 /usr/bin/pip3

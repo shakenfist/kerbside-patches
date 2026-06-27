@@ -69,6 +69,9 @@ action. Changes to the deploy flow should be made in that
 action, not inlined in the workflow.
 
 Other workflows:
+- `rebase-tests.yml` -- applies the patch stack and runs the
+  test suites (`_build/test-apply.sh`) for kolla and
+  kolla-ansible on both debian-12 and rocky-9 VM runners
 - `trigger-downstream.yml` -- triggers kerbside CI on push
   to develop (e.g. after daily rebase PR merges)
 - `local-container-builds.yml` -- tests local builds work
@@ -77,16 +80,21 @@ Other workflows:
 
 **Runner types and constraints:**
 
-- `vm` runners -- ephemeral VMs with full sudo access
-- `metal` runners -- persistent bare-metal machines without
-  passwordless sudo for the CI user
+- `vm` runners -- ephemeral VMs with full sudo access,
+  provisioned on demand by the conductor (shakenfist/private-ci)
+  per `runs-on` labels `[self-hosted, vm, <os>, <size>]`. OS
+  labels are `debian-12` and `rocky-9`; sizes are `s`, `m`, `xl`.
 - `static` runners -- persistent machines without passwordless
   sudo for the CI user
+- `claude-code` -- persistent runner with the Claude Code CLI,
+  used by the automated fixers
 
-When adding steps that need elevated privileges, guard them
-with `if: "!contains(matrix.test.infrastructure, 'metal')"`
-or use user-level alternatives (e.g. `~/.config/pip/pip.conf`
-instead of `/etc/pip.conf`).
+All test jobs run directly on a `vm` runner of the OS under test
+(there are no longer any bare-metal runners or nested Shakenfist
+VMs). The runners have passwordless sudo, so privileged steps are
+fine; `tools/ci-install-test-deps.sh` installs the apt-vs-dnf
+dependencies and, on rocky-9, upgrades Python to 3.12 via
+`tools/upgrade-python`.
 
 ### Documentation
 

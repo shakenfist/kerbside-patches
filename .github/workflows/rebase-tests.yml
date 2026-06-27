@@ -3,6 +3,11 @@ name: Rebase tests
 # NOTE(mikal): git repos are checked out to /srv/github/_work/{repo}/{repo}
 # which is available as GITHUB_WORKSPACE. You can find other environment
 # variables at https://docs.github.com/en/actions/learn-github-actions/environment-variables
+#
+# These jobs run directly on conductor-provisioned VM runners (debian-12
+# and rocky-9). The runner is already the OS under test, so the patch test
+# suites run locally via _build/test-apply.sh -- there is no longer any
+# bare-metal runner or nested Shakenfist VM involved.
 
 on:
   pull_request:
@@ -18,7 +23,7 @@ jobs:
   # commit was from the bot.
   check_bot_commit:
     name: "Check bot commit"
-    runs-on: [self-hosted, debian-12-metal]
+    runs-on: [self-hosted, vm, debian-12, s]
     outputs:
       is_bot: ${{ steps.check.outputs.is_bot }}
     steps:
@@ -43,7 +48,7 @@ jobs:
   # via tox -elinters. Much faster than the deep test matrix.
   lint_check:
     name: "Ansible lint check"
-    runs-on: [self-hosted, debian-12-metal]
+    runs-on: [self-hosted, vm, debian-12, m]
     outputs:
       linters_failed: ${{ steps.lint.outcome == 'failure' }}
     concurrency:
@@ -68,6 +73,11 @@ jobs:
           [global]
           index-url = https://devpi.home.stillhq.com/root/pypi/+simple/
           PIPCONF
+
+      - name: Install test dependencies
+        run: |
+          cd ${GITHUB_WORKSPACE}/kerbside-patches
+          tools/ci-install-test-deps.sh
 
       - name: Run kolla-ansible linters
         id: lint
@@ -112,39 +122,31 @@ jobs:
       matrix:
         test: [
           {
-              'description': "kolla on rocky 9",
-              'name': 'rocky-9-kolla',
-              'baseimage': 'sf://label/ci-images/rocky-9',
-              'baseuser': 'cloud-user',
-              'targets': 'kolla:master',
-              'infrastructure': 'rocky-9-metal'
-          },
-          {
               'description': "kolla on debian 12",
               'name': 'debian-12-kolla',
-              'baseimage': 'sf://label/ci-images/debian-12',
-              'baseuser': 'debian',
-              'targets': 'kolla:master',
-              'infrastructure': 'debian-12-metal'
+              'project': 'kolla',
+              'runs_on': 'debian-12'
           },
           {
-              'description': "kolla-ansible on rocky 9",
-              'name': 'rocky-9-kolla-ansible',
-              'baseimage': 'sf://label/ci-images/rocky-9',
-              'baseuser': 'cloud-user',
-              'targets': 'kolla-ansible:master',
-              'infrastructure': 'rocky-9-metal'
+              'description': "kolla on rocky 9",
+              'name': 'rocky-9-kolla',
+              'project': 'kolla',
+              'runs_on': 'rocky-9'
           },
           {
               'description': "kolla-ansible on debian 12",
               'name': 'debian-12-kolla-ansible',
-              'baseimage': 'sf://label/ci-images/debian-12',
-              'baseuser': 'debian',
-              'targets': 'kolla-ansible:master',
-              'infrastructure': 'debian-12-metal'
+              'project': 'kolla-ansible',
+              'runs_on': 'debian-12'
+          },
+          {
+              'description': "kolla-ansible on rocky 9",
+              'name': 'rocky-9-kolla-ansible',
+              'project': 'kolla-ansible',
+              'runs_on': 'rocky-9'
           },
         ]
-    runs-on: [self-hosted, "${{ matrix.test.infrastructure }}"]
+    runs-on: [self-hosted, vm, '${{ matrix.test.runs_on }}', 'xl']
     concurrency:
       group: ${{ github.workflow }}-${{ github.ref }}-${{ matrix.test.name }}
       cancel-in-progress: true
@@ -154,11 +156,6 @@ jobs:
         shell: bash --noprofile --norc -eo pipefail {0}
 
     steps:
-      - name: Set environment variables
-        run: |
-          echo "SF_HEAD_SHA=${{ github.event.pull_request.head.sha }}" >> $GITHUB_ENV
-          echo "SHAKENFIST_NAMESPACE=$(hostname)" >> $GITHUB_ENV
-
       - name: Checkout kerbside-patches
         uses: actions/checkout@v4
         with:
@@ -173,282 +170,12 @@ jobs:
           index-url = https://devpi.home.stillhq.com/root/pypi/+simple/
           PIPCONF
 
-      - name: Log targets
-        run: |
-          echo "Testing targets are: ${{ matrix.test.targets }}"
-
-      - name: Install required packages
-        if: "!contains(matrix.test.infrastructure, 'metal')"
-        run: |
-          sudo apt-get install -y moreutils
-          sudo pip3 install yq
-
-      - name: Attempt to apply patches (2024.1)
-        if: "!contains(matrix.test.infrastructure, 'metal')"
+      - name: Install test dependencies
         run: |
           cd ${GITHUB_WORKSPACE}/kerbside-patches
-
-          Green='\033[0;32m'        # Green
-          Color_Off='\033[0m'       # Text Reset
-
-          for target in ${{ matrix.test.targets }}; do
-            project=$( echo ${target} | cut -f 1 -d ":" )
-            branch=$( echo ${target} | cut -f 2 -d ":" )
-            echo "Considering target ${target}, ${project} branch ${branch}"
-
-            if [[ ${branch} == "2024.1" ]]; then
-              echo
-              echo -e "${Green}==================================================${Color_Off}"
-              echo -e "${Green}Attempting to apply patches for ${target}${Color_Off}"
-              echo -e "${Green}==================================================${Color_Off}"
-
-              ./_build/test-apply.sh --skip-tests ${project}-${branch}
-
-              echo
-              echo
-            fi
-          done
-
-      - name: Attempt to apply patches (2024.2)
-        if: "!contains(matrix.test.infrastructure, 'metal')"
-        run: |
-          cd ${GITHUB_WORKSPACE}/kerbside-patches
-
-          Green='\033[0;32m'        # Green
-          Color_Off='\033[0m'       # Text Reset
-
-          for target in ${{ matrix.test.targets }}; do
-            project=$( echo ${target} | cut -f 1 -d ":" )
-            branch=$( echo ${target} | cut -f 2 -d ":" )
-            echo "Considering target ${target}, ${project} branch ${branch}"
-
-            if [[ ${branch} == "2024.2" ]]; then
-              echo
-              echo -e "${Green}==================================================${Color_Off}"
-              echo -e "${Green}Attempting to apply patches for ${target}${Color_Off}"
-              echo -e "${Green}==================================================${Color_Off}"
-
-              ./_build/test-apply.sh --skip-tests ${project}-${branch}
-
-              echo
-              echo
-            fi
-          done
-
-      - name: Attempt to apply patches (master)
-        if: "!contains(matrix.test.infrastructure, 'metal')"
-        run: |
-          cd ${GITHUB_WORKSPACE}/kerbside-patches
-
-          Green='\033[0;32m'        # Green
-          Color_Off='\033[0m'       # Text Reset
-          
-          for target in ${{ matrix.test.targets }}; do
-            project=$( echo ${target} | cut -f 1 -d ":" )
-            branch=$( echo ${target} | cut -f 2 -d ":" )
-            echo "Considering target ${target}, ${project} branch ${branch}"
-
-            if [[ ${branch} == "master" ]]; then
-              echo
-              echo -e "${Green}==================================================${Color_Off}"
-              echo -e "${Green}Attempting to apply patches for ${target}${Color_Off}"
-              echo -e "${Green}==================================================${Color_Off}"
-
-              ./_build/test-apply.sh --skip-tests ${project}
-
-              echo
-              echo
-            fi
-          done
-
-      - name: Build the instance which actually runs tests
-        if: "!contains(matrix.test.infrastructure, 'metal')"
-        run: |
-          cd ${GITHUB_WORKSPACE}/kerbside-patches/.github
-          ansible-playbook -i /home/debian/ansible-hosts \
-              --extra-vars "identifier=${SHAKENFIST_NAMESPACE} source_path=${GITHUB_WORKSPACE} \
-              base_image=${{ matrix.test.baseimage }} base_image_user=${{ matrix.test.baseuser }}" \
-              ci-topology.yml
-
-          echo "ci-environment:"
-          cat ${GITHUB_WORKSPACE}/ci-environment.sh
-
-      - name: Copy source code to primary
-        if: "!contains(matrix.test.infrastructure, 'metal')"
-        run: |
-          . ${GITHUB_WORKSPACE}/ci-environment.sh
-          cd ${GITHUB_WORKSPACE}
-          rm -rf kerbside-patches/src
-
-          scp -i /srv/github/id_ci -o StrictHostKeyChecking=no \
-              -o UserKnownHostsFile=/dev/null -rp kerbside-patches \
-              ${{ matrix.test.baseuser }}@${primary}:.
-
-      - name: Install missing dependencies
-        if: "!contains(matrix.test.infrastructure, 'metal')"
-        run: |
-          . ${GITHUB_WORKSPACE}/ci-environment.sh
-
-          if [ ${{ matrix.test.baseuser }} == "debian" ]; then
-            script="set -x;"
-            script="${script} printf '[global]\nindex-url = https://devpi.home.stillhq.com/root/pypi/+simple/\n' | sudo tee /etc/pip.conf > /dev/null;"
-            script="${script} sudo apt-get update;"
-            script="${script} sudo apt-get dist-upgrade -y;"
-            script="${script} sudo pip3 install --break-system-packages yq tox;"
-            script="${script} sudo apt-get install -y moreutils libpq-dev;"
-            script="${script} sudo apt-get install -y python3-dev build-essential libpcre3-dev"
-
-            ssh -i /srv/github/id_ci -o StrictHostKeyChecking=no \
-              -o UserKnownHostsFile=/dev/null \
-              ${{ matrix.test.baseuser }}@${primary} \
-              "${script}"
-          else
-            script="set -x;"
-            script="${script} printf '[global]\nindex-url = https://devpi.home.stillhq.com/root/pypi/+simple/\n' | sudo tee /etc/pip.conf > /dev/null;"
-            script="${script} sudo dnf update -y;"
-            script="${script} sudo dnf install -y epel-release;"
-            script="${script} sudo dnf config-manager --set-enabled crb;"
-            script="${script} sudo pip3 install yq tox flake8;"
-            script="${script} sudo dnf install -y moreutils gcc"
-
-            ssh -i /srv/github/id_ci -o StrictHostKeyChecking=no \
-              -o UserKnownHostsFile=/dev/null \
-              ${{ matrix.test.baseuser }}@${primary} \
-              "${script}"
-          fi
-
-      - name: Deep test patches (2024.1)
-        run: |
-          Green='\033[0;32m'        # Green
-          Color_Off='\033[0m'       # Text Reset
-
-          for target in ${{ matrix.test.targets }}; do
-            project=$( echo ${target} | cut -f 1 -d ":" )
-            branch=$( echo ${target} | cut -f 2 -d ":" )
-            echo "Considering target ${target}, ${project} branch ${branch}"
-
-            if [[ ${branch} == "2024.1" ]]; then
-              echo
-              echo -e "${Green}==================================================${Color_Off}"
-              echo -e "${Green}Attempting to apply patches for ${target}${Color_Off}"
-              echo -e "${Green}==================================================${Color_Off}"
-
-              if [ $(echo ${{ matrix.test.infrastructure }} | grep metal) ]; then
-                echo
-                echo -e "${Green}Running test locally${Color_Off}"
-                echo
-                cd ${GITHUB_WORKSPACE}/kerbside-patches
-                ./_build/test-apply.sh ${project}-${branch}
-              else
-                echo
-                echo -e "${Green}Running test on a VM${Color_Off}"
-                echo
-                . ${GITHUB_WORKSPACE}/ci-environment.sh
-                ssh -i /srv/github/id_ci -o StrictHostKeyChecking=no \
-                    -o UserKnownHostsFile=/dev/null ${{ matrix.test.baseuser }}@${primary} \
-                    "cd kerbside-patches; ./_build/test-apply.sh ${project}-${branch}"
-              fi
-            fi
-          done
-
-      - name: 2024.2 onwards requires a newer python than the system default in Rocky 9
-        if: "!contains(matrix.test.infrastructure, 'metal')"
-        run: |
-          . ${GITHUB_WORKSPACE}/ci-environment.sh
-          cd ${GITHUB_WORKSPACE}
-
-          if [ ${{ matrix.test.baseuser }} == "cloud-user" ]; then
-            script="set -x;"
-            script="${script} cd kerbside-patches/tools;"
-            script="${script} sudo ./upgrade-python;"
-            script="${script} sudo pip3 install yq tox flake8"
-
-            ssh -i /srv/github/id_ci -o StrictHostKeyChecking=no \
-              -o UserKnownHostsFile=/dev/null \
-              ${{ matrix.test.baseuser }}@${primary} \
-              "${script}"
-          fi
-
-      - name: 2024.2 onwards requires a newer python than the system default in Rocky 9
-        if: "contains(matrix.test.infrastructure, 'rocky-9-metal')"
-        run: |
-          cd ${GITHUB_WORKSPACE}
-          rm -rf .venv
-          python3.12 -mvenv .venv
-          .venv/bin/pip3 install yq tox flake8
-
-      - name: Deep test patches (2024.2)
-        run: |
-          Green='\033[0;32m'        # Green
-          Color_Off='\033[0m'       # Text Reset
-
-          for target in ${{ matrix.test.targets }}; do
-            project=$( echo ${target} | cut -f 1 -d ":" )
-            branch=$( echo ${target} | cut -f 2 -d ":" )
-            echo "Considering target ${target}, ${project} branch ${branch}"
-
-            if [[ ${branch} == "2024.2" ]]; then
-              echo
-              echo -e "${Green}==================================================${Color_Off}"
-              echo -e "${Green}Attempting to apply patches for ${target}${Color_Off}"
-              echo -e "${Green}==================================================${Color_Off}"
-
-              if [ $(echo ${{ matrix.test.infrastructure }} | grep metal) ]; then
-                echo
-                echo -e "${Green}Running test locally${Color_Off}"
-                echo
-                cd ${GITHUB_WORKSPACE}
-                if [ -e .venv ]; then
-                  . .venv/bin/activate
-                fi
-                cd kerbside-patches
-                ./_build/test-apply.sh ${project}-${branch}
-              else
-                echo
-                echo -e "${Green}Running test on a VM${Color_Off}"
-                echo
-                . ${GITHUB_WORKSPACE}/ci-environment.sh
-                ssh -i /srv/github/id_ci -o StrictHostKeyChecking=no \
-                    -o UserKnownHostsFile=/dev/null ${{ matrix.test.baseuser }}@${primary} \
-                    "cd kerbside-patches; ./_build/test-apply.sh ${project}-${branch}"
-              fi
-            fi
-          done
+          tools/ci-install-test-deps.sh
 
       - name: Deep test patches (master)
         run: |
-          Green='\033[0;32m'        # Green
-          Color_Off='\033[0m'       # Text Reset
-
-          for target in ${{ matrix.test.targets }}; do
-            project=$( echo ${target} | cut -f 1 -d ":" )
-            branch=$( echo ${target} | cut -f 2 -d ":" )
-            echo "Considering target ${target}, ${project} branch ${branch}"
-
-            if [[ ${branch} == "master" ]]; then
-              echo
-              echo -e "${Green}==================================================${Color_Off}"
-              echo -e "${Green}Attempting to apply patches for ${target}${Color_Off}"
-              echo -e "${Green}==================================================${Color_Off}"
-
-              if [ $(echo ${{ matrix.test.infrastructure }} | grep metal) ]; then
-                echo
-                echo -e "${Green}Running test locally${Color_Off}"
-                echo
-                cd ${GITHUB_WORKSPACE}
-                if [ -e .venv ]; then
-                  . .venv/bin/activate
-                fi
-                cd kerbside-patches
-                ./_build/test-apply.sh ${project}
-              else
-                echo
-                echo -e "${Green}Running test on a VM${Color_Off}"
-                echo
-                . ${GITHUB_WORKSPACE}/ci-environment.sh
-                ssh -i /srv/github/id_ci -o StrictHostKeyChecking=no \
-                    -o UserKnownHostsFile=/dev/null ${{ matrix.test.baseuser }}@${primary} \
-                    "cd kerbside-patches; ./_build/test-apply.sh ${project}"
-              fi
-            fi
-          done
+          cd ${GITHUB_WORKSPACE}/kerbside-patches
+          ./_build/test-apply.sh ${{ matrix.test.project }}
