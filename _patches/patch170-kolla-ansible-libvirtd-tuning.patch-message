@@ -1,0 +1,58 @@
+Tune libvirtd connection limits for OpenStack.
+
+The libvirt daemon ships with max_workers=20 and max_client_requests=5.
+Those defaults suit a multi-tenant host serving many mutually
+distrustful clients, where the per-client request cap protects the
+daemon from any single client monopolising it. Under Kolla-Ansible,
+nova-compute is effectively the sole privileged client of libvirtd, so
+the cap of 5 concurrent requests per client becomes the binding
+constraint rather than a safety net.
+
+When several instances build at once -- as they do during the tempest
+run of the upgrade jobs -- nova-compute's concurrent libvirt RPCs
+(instance defineXML calls plus the resource-tracker periodic) exceed
+five. Further requests queue, the connection's keepalive responses are
+starved, and after keepalive_interval (5s) x keepalive_count (5) = 25s
+libvirtd closes the connection. nova then sees "Cannot recv data:
+Input/output error" mid-defineXML, the build is rescheduled, and once
+all hosts are exhausted the instance is left in ERROR. This presents as
+flaky upgrade-job failures.
+
+Example failure, on the voting kolla-ansible-debian-bookworm-upgrade
+job (stable/2025.2):
+
+  https://zuul.opendev.org/t/openstack/build/73ff5a97567d4e05b1774170e0f4aada
+
+with primary/logs/kolla/libvirt/libvirtd.txt showing libvirt's own
+recommendation to tune this parameter:
+
+  warning : Client hit max requests limit 5. This may result in
+  keep-alive timeouts. Consider tuning the max_client_requests server
+  parameter
+  ...
+  error : connection closed due to keepalive timeout
+
+Raise the per-client cap to 20 -- comfortably above the handful of
+concurrent builds plus periodics seen in practice -- and the worker
+pool to 50 so that lifting the per-client limit does not starve other
+connections such as live migration, health checks and periodic tasks.
+Both values are exposed as variables (libvirt_max_client_requests and
+libvirt_max_workers) so operators can tune them further.
+
+This is not a Kolla-specific workaround -- the stock libvirtd.conf
+comment warns that setting max_client_requests too low "may cause
+keepalive timeouts", and since 2022 libvirtd emits the runtime warning
+quoted above. As Daniel Berrange explained when he added that warning,
+the keepalive packets "are subject to the 'max_client_requests' limit
+just like any API calls", so a client that saturates the limit can have
+its connection dropped:
+
+  https://lists.libvirt.org/archives/list/devel@lists.libvirt.org/message/5NIJPA7SJVY55VSK7RTEDEHKWOZYJKT6/
+
+Red Hat documents the same tuning for libvirt hosts under load in its
+knowledge base, notably "Too many active clients are dropping the
+connection" at https://access.redhat.com/solutions/28146.
+
+Assisted-By: Claude Opus 4.8 (1M context, medium effort)
+Change-Id: I131c3d4d57dc73ca4dd421cc8f28465248c9830e
+Signed-off-by: Michael Still <mikal@stillhq.com>
