@@ -1,4 +1,4 @@
-Tune libvirtd connection limits for OpenStack.
+Tune libvirtd connection limits for OpenStack
 
 The libvirt daemon ships with max_workers=20 and max_client_requests=5.
 Those defaults suit a multi-tenant host serving many mutually
@@ -54,5 +54,6 @@ knowledge base, notably "Too many active clients are dropping the
 connection" at https://access.redhat.com/solutions/28146.
 
 Assisted-By: Claude Opus 4.8 (1M context, medium effort)
+Partial-Bug: 2158515
 Change-Id: I131c3d4d57dc73ca4dd421cc8f28465248c9830e
 Signed-off-by: Michael Still <mikal@stillhq.com>
