@@ -1,0 +1,41 @@
+Add opt-in SPICE support for Rocky via COPR.
+
+RHEL9 dropped SPICE support from qemu-kvm, and Rocky Linux followed
+suit. Up until now the documented guidance has been to use the Debian
+or Ubuntu container images if you want to serve the ``spice-direct``
+console type, because the stock Rocky nova-libvirt image will simply
+fail to start any SPICE-enabled instance.
+
+This change adds a second version of the nova-libvirt container image
+called nova-libvirt-spice. It is always built, but is identical for
+all supported container base distributions except for Rocky Linux.
+In the Rocky Linux case, this container adds the community
+maintained ligenix/enterprise-qemu-spice COPR repository that provides
+a rebuild of ``qemu-kvm`` with SPICE support re-enabled for both
+EPEL 9 and EPEL 10.
+
+Which nova-libvirt container should be used in a given deployment is
+delegated to logic in kolla-ansible, based on the deployer's settings
+in globals.yml.
+
+The COPR is a third-party rebuild with no vendor support contract.
+The release note and support matrix are updated to describe the
+opt-in path and call this caveat out explicitly. The earlier
+"you must use Debian or Ubuntu" wording in the support matrix is
+softened here, rather than by retroactively editing the kerbside
+container-build patch that introduced it, so that this feature can
+land (or not land) independently of the earlier change.
+
+Partial-Bug: #2131793 (spice-direct consoles)
+
+Prompt: I am interested in seeing how we would go about using
+https://copr.fedorainfracloud.org/coprs/ligenix/enterprise-qemu-spice/
+to add SPICE support back to the Kolla build Rocky Linux containers
+as a new patch in the kolla/ORDER list. Could you please investigate
+options here?
+
+Assisted-By: Claude Code
+Co-Authored-By: Claude Opus 4.7 (1M context, medium effort) <noreply@anthropic.com>
+
+Change-Id: I410b87b7f8cdd541c48d9a749b3fea634a5f4e6c
+Signed-off-by: Michael Still <mikal@stillhq.com>

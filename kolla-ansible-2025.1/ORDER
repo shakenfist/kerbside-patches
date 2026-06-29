@@ -5,4 +5,3 @@
 ../_patches/patch011-allow-concurrent-spice-connections.patch
 ../_patches/patch135-debug-ca-cert-selection.patch
 ../_patches/patch136-debug-wsgi-config-selection.patch
-../_patches/patch170-kolla-ansible-libvirtd-tuning.patch
