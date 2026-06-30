@@ -8,4 +8,3 @@
 ../_patches/patch158-kerbside-tempest-via-haproxy.patch
 ../_patches/patch165-kolla-ansible-master-rabbitmq-healthcheck-timeout.patch
 ../_patches/patch169-kolla-ansible-master-virtlogd-preflight.patch
-../_patches/patch170-kolla-ansible-libvirtd-tuning.patch

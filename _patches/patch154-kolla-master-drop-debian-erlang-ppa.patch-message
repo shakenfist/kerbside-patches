@@ -1,0 +1,43 @@
+Address intermittent launchpad availability.
+
+Launchpad has recently been unreliable due to denial of service
+attacks.
+
+The kolla-toolbox and rabbitmq images on Debian enable the
+rabbitmq-erlang PPA hosted on Launchpad
+(ppa.launchpadcontent.net) to obtain Erlang 27. Debian Trixie now
+ships erlang-base 1:27.3.4.1+dfsg-1+deb13u1 in the base archive,
+which removes the Launchpad dependency for Debian builds entirely
+on both amd64 and arm64.
+
+For Ubuntu Noble on amd64, the RabbitMQ team publishes the same
+packages at
+``https://deb1.rabbitmq.com/rabbitmq-erlang/ubuntu/noble``, signed
+by the same ``RabbitMQ Release Signing Key`` (key ID
+``6B73A36E6026DFCA``) that the existing ``rabbitmq-server`` apt
+repo already uses.
+
+The RabbitMQ-hosted mirror only publishes amd64 Erlang packages
+(per ``https://www.rabbitmq.com/docs/install-debian``), so
+``ubuntu-aarch64`` builds keep using the Launchpad PPA via an
+arch-specific override in ``kolla/template/repos.yaml``. The
+``erlang-ppa`` keyring entry in ``base_apt_keys`` is therefore
+retained -- it is still required to verify the Launchpad PPA on
+``ubuntu-aarch64``.
+
+Net effect: Debian builds (both arches) and Ubuntu amd64 builds
+no longer touch Launchpad. Ubuntu arm64 builds remain dependent
+on Launchpad until the RabbitMQ team publishes arm64 Erlang
+builds.
+
+Prompt: Upstream review pointed out that the rabbitmq.com
+mirror is amd64-only and asked whether we need to special-case
+by architecture. Update the patch to keep the Launchpad PPA as
+an arm64 fallback for Ubuntu, while still dropping it for
+Debian (both arches) and Ubuntu amd64.
+
+Assisted-By: Claude Code
+Co-Authored-By: Claude Opus 4.7 (1M context, medium effort) <noreply@anthropic.com>
+
+Change-Id: I52679ced9d918990fab84d870d93b3651fad9ef7
+Signed-off-by: Michael Still <mikal@stillhq.com>
