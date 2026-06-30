@@ -5,7 +5,7 @@ shallow_clone: false
 directory: kolla-ansible
 release: 2025.2-virtlogd
 depends_on: ''
-source_sha: 2a370db5c8785f5d4ab7759adf4298a886e455e4
+source_sha: 6baf0ddeba86343b70b78d74b8b25743eca7ff6d
 skip_rebase: true
 skip_claude: true
-previous_source_sha: 36839f577dc9abed5b0d41cf99bfb6e34ede38f0
+previous_source_sha: 2a370db5c8785f5d4ab7759adf4298a886e455e4
