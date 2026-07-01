@@ -5,6 +5,6 @@ shallow_clone: true
 directory: kolla
 release: 2025.1
 depends_on: ''
-source_sha: 9b05368ea341c49d2aa129a90302fc1728a74260
-previous_source_sha: cdfcb2d6076577275599433c6913fddac92d2dc1
+source_sha: 69e6bb41698837b9d3def849c07823543c62f0be
+previous_source_sha: 9b05368ea341c49d2aa129a90302fc1728a74260
 skip_rebase: true
