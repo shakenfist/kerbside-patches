@@ -201,6 +201,27 @@ pipeline stages within a single tarball.
 The workflow is configured to skip functional tests when only files in `data/`
 are changed, preventing infinite loops when layer data PRs are merged.
 
+# CI Reliability Reporting
+
+The `CI reliability reporting` workflow (`ci-reporting.yml`, run on demand
+via workflow_dispatch) tracks the health of the upstream OpenDev CI jobs
+that this repository depends on. It currently refreshes one dataset: how
+often Kolla CI builds log the libvirt message `Client hit max requests
+limit`, the failure mode fixed by kolla-ansible change 995171. The chart it
+produces marks the fix-merge boundary so the before/after effect stays
+visible over time.
+
+State lives in `data/ci-reporting/` (the CSV, its checkpoint, and the
+chart) and is committed to the repository. Runs are incremental: the
+committed checkpoint means only builds newer than the previous run are
+fetched, and the Zuul API is listed exactly once per run, keeping load on
+OpenDev's infrastructure to a minimum. Each run uploads the refreshed chart
+as a workflow artifact and proposes a PR updating the committed data.
+
+The scan tool (`tools/count_libvirt_errors.py`) was prototyped in a
+separate repository and copied here as a stable, pinned artifact; see the
+header of that file for details.
+
 # Security Vulnerability Scanning
 
 After container images are built, `debsecan` is run against each image to

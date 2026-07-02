@@ -1,0 +1,35 @@
+name: CI reliability reporting
+
+# On-demand refresh of the Kolla libvirt "max requests limit" dataset and
+# chart (see tools/ci-libvirt-report.sh). State is committed in
+# data/ci-reporting/ so runs are incremental and gentle on the OpenDev
+# infrastructure; each run uploads the chart as a workflow artifact and
+# proposes a PR updating the committed data.
+
+on:
+  workflow_dispatch:
+
+jobs:
+  libvirt-report:
+    runs-on: [self-hosted, vm, debian-12, s]
+    timeout-minutes: 300
+    steps:
+      - name: Checkout kerbside-patches
+        uses: actions/checkout@v4
+
+      - name: Refresh libvirt error dataset and chart
+        run: ./tools/ci-libvirt-report.sh
+
+      - name: Upload report as workflow artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: kolla-libvirt-report
+          path: |
+            data/ci-reporting/kolla_libvirt_chart.png
+            data/ci-reporting/kolla_libvirt_errors.csv
+
+      - name: Propose data update PR
+        env:
+          GITHUB_TOKEN: ${{ secrets.DAILY_REBASE_TOKEN }}
+          RUN_ID: ${{ github.run_id }}
+        run: ./tools/ci-report-propose-pr.sh
