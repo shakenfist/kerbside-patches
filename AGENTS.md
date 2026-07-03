@@ -77,6 +77,12 @@ Other workflows:
 - `local-container-builds.yml` -- tests local builds work
 - `daily-rebase-checks.yml` -- daily upstream rebase with
   Claude-assisted patch fixing
+- `ci-reporting.yml` -- on-demand refresh of the OpenDev CI
+  reliability data in `data/ci-reporting/` (currently the Kolla
+  libvirt "max requests limit" scan behind kolla-ansible change
+  995171). Incremental via a committed checkpoint so OpenDev is
+  never re-scraped; uploads the chart as a workflow artifact and
+  proposes a data-update PR
 
 **Runner types and constraints:**
 
