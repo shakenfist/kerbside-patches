@@ -28,7 +28,7 @@ jobs:
       is_bot: ${{ steps.check.outputs.is_bot }}
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           fetch-depth: 1
 
@@ -61,7 +61,7 @@ jobs:
 
     steps:
       - name: Checkout kerbside-patches
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           path: kerbside-patches
           fetch-depth: 0
@@ -101,7 +101,7 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           fetch-depth: 0
           token: ${{ secrets.DAILY_REBASE_TOKEN }}
@@ -157,7 +157,7 @@ jobs:
 
     steps:
       - name: Checkout kerbside-patches
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           path: kerbside-patches
           fetch-depth: 0

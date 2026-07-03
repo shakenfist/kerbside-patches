@@ -28,7 +28,7 @@ jobs:
           } >> $GITHUB_ENV
 
       - name: Checkout kerbside-patches
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           path: kerbside-patches
           fetch-depth: 0
