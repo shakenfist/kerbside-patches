@@ -82,7 +82,9 @@ Other workflows:
   libvirt "max requests limit" scan behind kolla-ansible change
   995171). Incremental via a committed checkpoint so OpenDev is
   never re-scraped; uploads the chart as a workflow artifact and
-  proposes a data-update PR
+  proposes a data-update PR. The scan runs on a vm runner but the
+  PR step runs on a static runner, because `gh` is only installed
+  on static runners (same split as the layer data flow)
 
 **Runner types and constraints:**
 
