@@ -324,6 +324,7 @@ else
     claude -p "$(cat "${output_dir}/claude-prompt.txt")" \
         --dangerously-skip-permissions \
         --max-turns "${max_turns}" \
+        --model opus \
         --output-format text || true
 fi
 
