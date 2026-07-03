@@ -179,24 +179,29 @@ sudo kolla-ansible -i /etc/kolla/inventory deploy
 
 The CI workflow collects layer metadata during the occystrap
 image push pipeline and proposes a PR to add this data to the
-`data/` directory. This allows tracking of container layer
-optimization over time.
+`data/layers/` directory. This allows tracking of container
+layer optimization over time.
 
 In CI, the build uses an occystrap filtering proxy
 (`--use-proxy`). kolla-build pushes images directly to the
 local proxy as they finish building, and the proxy applies
 filters (normalize-timestamps, exclude `.git`) before
 forwarding to the CI registry. This overlaps build and push
-for faster CI runs.
+for faster CI runs. Inspect filters in the proxy capture layer
+metadata at each stage of that pipeline (as-built,
+post-normalize and post-exclude).
 
-Layer metadata JSONL files are packaged into a tarball
-(`layers.tar.gz`) and stored in `data/` with the naming
-format:
-`{prefix}-YYYYMMDD-HHMM-runNNNN-{build-name}.tar.gz`
+The `collect_layer_data` CI job merges the per-stage records
+into one record per image and appends it to a per-image time
+series file, `data/layers/<build-name>/<image>.jsonl`. One line
+is appended per build run, so the files are structured to
+answer two questions: are images getting bigger over time (and
+if so, which layer grew), and is the occystrap pipeline
+increasing layer reuse between builds?
 
 Use `tools/summarize_layers.py` to analyze the collected data.
-Pass `--compare-stages` to compare layer counts and sizes across
-pipeline stages within a single tarball.
+It produces `growth`, `reuse` and `stages` reports; see
+`--report`.
 
 The workflow is configured to skip functional tests when only files in `data/`
 are changed, preventing infinite loops when layer data PRs are merged.
@@ -326,7 +331,8 @@ directories. This section documents each script and its purpose.
 
 | Script | Description |
 |--------|-------------|
-| `summarize_layers.py` | Analyzes Docker image layer data collected from CI builds. Layer data is stored as `.tar.gz` tarballs containing per-image JSONL files organized by pipeline stage. Use `-d data/` for chronological build progression analysis, `--stage` to select a pipeline stage (default: `post-exclude`), and `--compare-stages` to compare the effect of each optimization filter. |
+| `summarize_layers.py` | Analyzes the per-image layer data time series in `data/layers/`. The `growth` report tracks image size over time and attributes growth to specific layers, the `reuse` report tracks layer reuse between builds, and the `stages` report compares the effect of each occystrap pipeline stage. Use `--build` and `--image` to narrow the analysis. |
+| `collect-layer-data.py` | Used by the `collect_layer_data` CI job to convert a build's `layers.tar.gz` artifact into appends to the per-image time series files in `data/layers/`. |
 
 ### Automated Lint Fixing
 

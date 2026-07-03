@@ -29,7 +29,7 @@ kerbside-patches/
     _patches/                # All patch files (shared pool)
         patchNNN-desc.patch  # Patch files
         patchNNN-desc.patch-message  # Optional commit messages
-    data/                    # Layer data tarballs from CI
+    data/                    # Per-image layer time series from CI
     docs/                    # Additional documentation
     tools/                   # Utility scripts
         summarize_layers.py  # Layer data analysis
@@ -106,7 +106,12 @@ imagebuild.sh (kolla-build --push --registry 127.0.0.1:5050)
     |
     v
 occystrap proxy filters + forwards to CI registry:
-    normalize-timestamps -> exclude .git -> registry push
+    inspect (as-built)
+        -> normalize-timestamps
+    inspect (post-normalize)
+        -> exclude .git
+    inspect (post-exclude)
+        -> registry push
     |
     v
 build-containers.sh stops proxy (SIGTERM, graceful drain)
@@ -142,17 +147,30 @@ build-containers.sh pushes each image via occystrap process:
 
 ### Layer Data Collection
 
-Layer metadata is collected during image pushes. In proxy
-mode, a single JSONL file captures all images. In sequential
-mode, per-image per-stage JSONL files are produced via
-occystrap's inspect filter.
+Layer metadata is collected during image pushes by occystrap
+inspect filters at three pipeline stages: as-built,
+post-normalize and post-exclude. In proxy mode all images
+append to combined per-stage JSONL files (each line records
+which image it describes). In sequential mode per-image
+per-stage files are produced.
 
 Data flow:
 1. JSONL files written during push
 2. Files are tarred into `layers.tar.gz`
 3. CI uploads as build artifact
-4. `collect_layer_data` job aggregates across matrix builds
-5. Tarballs are committed to `data/` via automated PR
+4. `collect_layer_data` job runs `tools/collect-layer-data.py`
+   for each matrix build, which merges the three stages into
+   one record per image
+5. Each record is appended to the per-image time series file
+   `data/layers/<build-name>/<image>.jsonl` and committed via
+   automated PR
+
+The time series structure is deliberate: one file per image
+per build variant, one line per build run. That makes the two
+questions the data exists to answer cheap to compute -- image
+size over time (and which layer grew) is a single-file read,
+and layer reuse between builds is a digest comparison between
+adjacent lines.
 
 ### Security Vulnerability Scanning
 
@@ -180,13 +198,18 @@ packages have available security fixes.
 
 ### Analysis
 
-`tools/summarize_layers.py` processes the tarballs:
+`tools/summarize_layers.py` processes the time series in
+`data/layers/`:
 
-- `--data-dir` -- chronological build progression, tracking
-  layer reuse across builds
-- `--compare-stages` -- per-stage comparison showing how
-  each filter affects layer count and size
-- `--stage` -- select a specific pipeline stage for analysis
+- `--report growth` -- image size over time, attributing
+  growth to specific layers (matched across runs by their
+  CreatedBy command)
+- `--report reuse` -- layer reuse between builds, based on
+  the post-exclude digests actually pushed to the registry
+- `--report stages` -- per-stage comparison showing how each
+  filter affects layer count and size
+- `--build` / `--image` -- narrow the analysis to one build
+  variant or one image
 
 ## CI/CD
 
@@ -202,10 +225,11 @@ The main CI workflow (`functional-tests.yml`) runs on PRs:
    bundle is included in the build artifact.
 2. **deploy** -- deploys OpenStack via kolla-ansible and
    runs functional tests (VM creation, console access)
-3. **collect_layer_data** -- aggregates layer tarballs and
-   proposes a PR to store them in `data/`. Runs even when
-   some builds fail (uses `!cancelled()`) so that layer
-   data from successful builds is still collected.
+3. **collect_layer_data** -- appends each build's layer
+   records to the per-image time series in `data/layers/`
+   and proposes a PR. Runs even when some builds fail (uses
+   `!cancelled()`) so that layer data from successful builds
+   is still collected.
 
 ### Rebase Tests Workflow
 

@@ -43,15 +43,20 @@ push loop.
 
 ### Working with Layer Data
 
-Layer metadata is collected during CI builds via occystrap.
-In proxy mode, a single JSONL file captures all images. In
-sequential mode, per-image per-stage JSONL files are produced
-via occystrap's inspect filter. Data flows:
+Layer metadata is collected during CI builds via occystrap
+inspect filters at three pipeline stages (as-built,
+post-normalize, post-exclude). In proxy mode, all images
+append to combined per-stage JSONL files. In sequential mode,
+per-image per-stage JSONL files are produced. Data flows:
 
 1. JSONL files written during push
 2. Files packaged into `layers.tar.gz` tarball
-3. Tarballs stored in `data/` via automated PR
-4. `tools/summarize_layers.py` analyzes the tarballs
+3. CI uploads the tarball as a build artifact
+4. `tools/collect-layer-data.py` merges the stages into one
+   record per image and appends it to the time series file
+   `data/layers/<build-name>/<image>.jsonl` via automated PR
+5. `tools/summarize_layers.py` analyzes the time series
+   (growth, reuse and stage-comparison reports)
 
 ### Modifying GitHub Actions Workflows
 
@@ -130,5 +135,6 @@ dependencies and, on rocky-9, upgrades Python to 3.12 via
   --test-patch patchNNN <project>`
 - **Check shared patch usage**: `_build/find-patch-usage.py
   _patches/patchNNN.patch`
-- **Analyze layer optimization**: `tools/summarize_layers.py
-  -d data/ --compare-stages`
+- **Analyze layer optimization**: `tools/summarize_layers.py`
+  (add `--report growth`, `--report reuse` or
+  `--report stages` to narrow the output)

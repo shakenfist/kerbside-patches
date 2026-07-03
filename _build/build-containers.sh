@@ -34,6 +34,11 @@ start_occystrap_proxy() {
     echo -e "${H3}Downstream: ${ci_registry}${Color_Off}"
     echo -e "${H3}Layer cache: ${cache_file}${Color_Off}"
 
+    # Layer metadata is collected at each pipeline stage via inspect
+    # filters. All images pushed through the proxy append to the same
+    # combined per-stage files -- each JSONL line records which image
+    # it describes, and tools/collect-layer-data.py separates them
+    # per image later in the CI pipeline.
     http_proxy='' HTTP_PROXY='' https_proxy='' HTTPS_PROXY='' \
     all_proxy='' ALL_PROXY='' \
     /tmp/occystrap/bin/occystrap \
@@ -44,8 +49,11 @@ start_occystrap_proxy() {
         proxy \
         --downstream "${ci_registry}" \
         --concurrency 4 \
+        -f "inspect:file=${layers_dir}/proxy-as-built.jsonl" \
         -f normalize-timestamps \
+        -f "inspect:file=${layers_dir}/proxy-post-normalize.jsonl" \
         -f "exclude:pattern=**/.git" \
+        -f "inspect:file=${layers_dir}/proxy-post-exclude.jsonl" \
         &
     PROXY_PID=$!
 
