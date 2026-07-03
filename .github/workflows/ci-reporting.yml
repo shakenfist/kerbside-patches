@@ -5,6 +5,11 @@ name: CI reliability reporting
 # data/ci-reporting/ so runs are incremental and gentle on the OpenDev
 # infrastructure; each run uploads the chart as a workflow artifact and
 # proposes a PR updating the committed data.
+#
+# The scan runs on an ephemeral vm runner, but PR creation runs on a
+# static runner because gh is only installed there (the same split the
+# layer data flow in functional-tests.yml uses). The workflow artifact
+# carries the refreshed data between the two jobs.
 
 on:
   workflow_dispatch:
@@ -27,6 +32,24 @@ jobs:
           path: |
             data/ci-reporting/kolla_libvirt_chart.png
             data/ci-reporting/kolla_libvirt_errors.csv
+            data/ci-reporting/kolla_libvirt_errors.csv.checkpoint
+
+  propose-pr:
+    needs: libvirt-report
+    runs-on: [self-hosted, static]
+    timeout-minutes: 30
+    steps:
+      - name: Checkout kerbside-patches
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.DAILY_REBASE_TOKEN }}
+
+      - name: Download refreshed report data
+        uses: actions/download-artifact@v4
+        with:
+          name: kolla-libvirt-report
+          path: data/ci-reporting
 
       - name: Propose data update PR
         env:
