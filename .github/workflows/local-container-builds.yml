@@ -43,7 +43,7 @@ jobs:
           echo "SHAKENFIST_NAMESPACE=$(hostname)" >> $GITHUB_ENV
 
       - name: Checkout kerbside-patches
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           path: kerbside-patches
           fetch-depth: 0
@@ -52,7 +52,7 @@ jobs:
       # need this for a normal local build, but it is imposed by this being
       # a CI job pretending to be a local build.
       - name: Checkout the actions repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           repository: shakenfist/actions
           path: actions
