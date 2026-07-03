@@ -46,6 +46,16 @@ jobs:
             "Failed to connect to opendev.org"
             "unable to access 'https://opendev.org"
             "Could not resolve host: opendev.org"
+            # A truncated artifact download surfaces as a gzip/tar EOF when
+            # the source tarball is extracted (actions/download-artifact can
+            # silently deliver a partial file); seen 2026-07-03 where the
+            # same artifact extracted fine on sibling runners.
+            "gzip: stdin: unexpected end of file"
+            "tar: Unexpected EOF in archive"
+            # apt mirror/metadata failures at test-VM provision time; seen
+            # 2026-07-03 failing identically on all seven multinode VMs at
+            # the same instant.
+            "No package matching 'git' is available"
           )
 
           # Get PR number if this was a PR-triggered run
