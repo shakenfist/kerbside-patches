@@ -172,7 +172,7 @@ jobs:
           steps.rebase.outputs.patches_failed == 'true' &&
           (steps.rebase.outputs.claude_available != 'true' ||
            steps.rebase.outputs.fix_succeeded == 'false')
-        uses: actions/github-script@v7
+        uses: actions/github-script@v9
         with:
           github-token: ${{ secrets.DAILY_REBASE_TOKEN }}
           script: |
