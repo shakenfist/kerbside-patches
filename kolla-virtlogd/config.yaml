@@ -7,5 +7,5 @@ release: master-virtlogd
 depends_on: ''
 skip_rebase: true
 skip_claude: true
-source_sha: ebc7eb82969af107f5a54b29b8ef898cd759a997
-previous_source_sha: 575baf05c4964d46f0c8f13bcdf193ce5e863c82
+source_sha: 5d2e09e6535aef10620af1c549998892d8b9218b
+previous_source_sha: ebc7eb82969af107f5a54b29b8ef898cd759a997
