@@ -525,6 +525,12 @@ jobs:
         uses: actions/download-artifact@v8
         with:
           pattern: "buildresult-${{ matrix.test.release }}-${{ matrix.test.container_distro }}-${{ matrix.test.container_distro_version }}*"
+          # Since download-artifact v5, a pattern matching a single artifact is
+          # extracted directly into the destination instead of a subdirectory
+          # named after the artifact. Merge into an explicit path so the layout
+          # is the same no matter how many artifacts match.
+          path: "buildresult-${{ matrix.test.release }}-${{ matrix.test.container_distro }}-${{ matrix.test.container_distro_version }}"
+          merge-multiple: true
 
       - name: Log incoming results
         id: incoming
