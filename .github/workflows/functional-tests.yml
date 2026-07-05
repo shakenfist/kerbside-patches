@@ -1124,6 +1124,12 @@ jobs:
               echo "${excluded_builds}"
           fi
 
+          # Run the collection script from the checkout under test, not
+          # develop's copy: the branch switch below replaces the working
+          # tree, so script fixes on a PR would otherwise never run in
+          # that PR's own CI.
+          cp ./tools/collect-layer-data.py "${RUNNER_TEMP}/collect-layer-data.py"
+
           # Create a branch for the layer data (include run_id for uniqueness)
           branch_name="${DATA_PREFIX}-data-${DATESTAMP}-run${RUN_ID}"
           git checkout develop
@@ -1147,7 +1153,7 @@ jobs:
                   build_name=$(basename "${dir}")
 
                   echo "Collecting layer data from ${build_name}"
-                  ./tools/collect-layer-data.py \
+                  "${RUNNER_TEMP}/collect-layer-data.py" \
                       --tarball "${dir}layers.tar.gz" \
                       --build-name "${build_name}" \
                       --data-dir "data/${DATA_PREFIX}" \
