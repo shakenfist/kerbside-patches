@@ -137,7 +137,12 @@ def main():
 
     with tempfile.TemporaryDirectory() as workdir:
         with tarfile.open(args.tarball) as tar:
-            tar.extractall(workdir, filter='data')
+            # The filter argument requires Python 3.12 (or a 3.11.4+ security backport),
+            # but some CI runners are older than that.
+            if hasattr(tarfile, 'data_filter'):
+                tar.extractall(workdir, filter='data')
+            else:
+                tar.extractall(workdir)
 
         layers_dir = os.path.join(workdir, 'layers')
         if not os.path.isdir(layers_dir):
