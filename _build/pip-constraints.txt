@@ -1,0 +1,17 @@
+# Constraints applied (via PIP_CONSTRAINT) when building the tox linters
+# environment for kolla-ansible projects. This is deliberately scoped to
+# the linters environment only: the other tox environments use OpenStack's
+# upper-constraints, and adding a second constraint source there risks
+# resolution conflicts.
+#
+# dulwich 1.2.9 (released 2026-07-06) has a regression from its zlib
+# decompression-bomb hardening (https://github.com/dulwich/dulwich/pull/2287):
+# _parse_legacy_object_header() raises "object header exceeds maximum size"
+# for any loose git object whose content decompresses to more than 8KB,
+# because it checks for leftover compressed input before checking whether
+# the header's \0 terminator was already found. Our patch application
+# creates loose objects, and "reno lint" (run by tox -elinters) walks
+# them with dulwich and crashes.
+#
+# Remove this pin once a fixed dulwich release is available.
+dulwich==1.2.8

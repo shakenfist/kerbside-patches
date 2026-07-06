@@ -21,6 +21,11 @@ set -e
 topdir=$(cd "$(dirname "$0")/.." && pwd)
 cd "${topdir}"
 
+# This script only builds tox linters environments, which are not covered
+# by upper-constraints, so their dependencies float. Apply our own
+# constraints (e.g. the dulwich pin); see the constraints file for details.
+export PIP_CONSTRAINT="${topdir}/_build/pip-constraints.txt"
+
 # Activate venv if available (CI runner may pre-install one)
 if [ -e /srv/shakenfist/kerbside-patches-tools/bin/activate ]; then
     . /srv/shakenfist/kerbside-patches-tools/bin/activate
