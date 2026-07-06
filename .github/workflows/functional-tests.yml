@@ -100,7 +100,7 @@ jobs:
           mkdir src
           mv ./*.tgz src/
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         id: upload_source
         if: success()
         with:
@@ -359,7 +359,7 @@ jobs:
               echo "No daemon.json found" > ${archive_path}/daemon.json
           fi
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: always()
         with:
           name: ${{ matrix.test.name }}
@@ -376,7 +376,7 @@ jobs:
               "\"image_tag\": \"${{ steps.build_images.outputs.image_tag }}\"" \
               "}" >> /tmp/result.json
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: success()
         with:
           name: buildresult-${{ matrix.test.release }}-${{ matrix.test.container_distro }}-${{ matrix.test.container_distro_version }}
@@ -1026,7 +1026,7 @@ jobs:
           echo "::endgroup::"
 
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: always()
         with:
           name: bundle-${{ matrix.test.name }}
