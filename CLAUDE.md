@@ -272,6 +272,41 @@ tools/fix-lint-with-claude.sh --ci
 A `check_bot_commit` guard prevents infinite loops (same pattern as
 shakenfist/shakenfist's automated delinter).
 
+### Automated Data PR Conflict Healing
+
+Automated data PRs (layers data, CI reporting data) append records to shared
+time-series files under `data/`, so PRs open concurrently conflict as soon as
+one merges. The `heal-data-prs.yml` workflow runs on every push to develop
+and union-merges develop into any conflicted data PR (git's `union` merge
+driver via `.gitattributes` keeps both sides' appended lines), verifies the
+result is append-only and well formed, and pushes the merge to the PR branch.
+
+```bash
+# See what the healer would do without pushing or commenting
+tools/heal-data-prs.sh --dry-run
+
+# Verify a merged data branch manually
+tools/verify-data-merge.py --base origin/develop --run-id <run-id>
+```
+
+GitHub's conflict detection ignores merge drivers, so committing
+`.gitattributes` alone is not enough -- the merge must be redone and pushed,
+which is what the workflow does.
+
+The healer only touches bot-authored data PRs. A human PR whose branch was
+cut from (or cherry-picked) a data commit that also merged separately will
+conflict in the same files, but a union merge would duplicate the records.
+If develop already contains every data record the branch adds, resolve by
+taking develop's side instead:
+
+```bash
+git merge origin/develop           # conflicts in data/**.jsonl
+git checkout --theirs -- data/
+git add data/
+# verify: data/ should now match develop exactly
+git diff --cached origin/develop -- data/   # expect no output
+```
+
 ### CI Scripts for Patch Testing
 
 ```bash

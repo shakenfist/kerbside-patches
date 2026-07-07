@@ -15,6 +15,7 @@ kerbside-patches/
             daily-rebase-checks.yml  # Daily upstream rebase
             trigger-downstream.yml  # Trigger kerbside CI on develop push
             local-container-builds.yml  # Test local builds work
+            heal-data-prs.yml  # Auto-resolve conflicted data PRs
     _build/                  # Build and CI scripts
         common.sh            # Shared functions and CLI parsing
         assemble-source.sh   # Clone repos, apply patches
@@ -230,6 +231,18 @@ The main CI workflow (`functional-tests.yml`) runs on PRs:
    and proposes a PR. Runs even when some builds fail (uses
    `!cancelled()`) so that layer data from successful builds
    is still collected.
+
+Because each data PR appends a line to the same per-image
+files, data PRs open concurrently conflict as soon as one of
+them merges. The `heal-data-prs.yml` workflow runs on every
+push to develop and re-resolves those conflicts with git's
+`union` merge driver (configured in `.gitattributes`), which
+keeps both sides' appended lines. The result is verified to be
+append-only and well formed before it is pushed back to the PR
+branch (`tools/heal-data-prs.sh` and
+`tools/verify-data-merge.py`). GitHub's own conflict detection
+ignores merge drivers, which is why the merge has to be redone
+and pushed rather than just configured.
 
 ### Rebase Tests Workflow
 
