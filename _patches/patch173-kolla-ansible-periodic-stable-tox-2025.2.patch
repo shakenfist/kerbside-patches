@@ -1,0 +1,41 @@
+commit 9e123bacc0e101362fd2156f096b74cc14341d42
+Author: Michael Still <mikal@stillhq.com>
+Date:   Thu Jul 2 20:35:43 2026 +1000
+
+    Replace periodic-stable-jobs with local job list.
+    
+    The shared periodic-stable-jobs template in openstack-zuul-jobs runs
+    openstack-tox-py310 on stable/2025.2, but kolla-ansible on this branch
+    sets python_requires >= 3.11 and its ansible-core requirement carries
+    a python_version >= '3.11' marker. The py310 tox environment therefore
+    cannot install kolla-ansible at all and the job has failed on every
+    run. In the 30 days to 2026-07-01 that was 30 failures from 30 runs in
+    the periodic-stable pipeline, pure noise for anyone watching the
+    periodic dashboards.
+    
+    Zuul templates cannot exclude individual jobs, so replace the shared
+    template with an explicit periodic-stable job list running what the
+    shared template would have run minus the impossible interpreter: docs
+    and py312. This mirrors the approach already taken for check and gate
+    on this branch with the local openstack-python3-jobs-kolla-ansible
+    template, which exists precisely to skip py310 jobs.
+    
+    Assisted-By: Claude Fable 5 (1M context, medium effort)
+    Change-Id: I2ebc2098eff8c9c7ff154cfa768c14eccb4d802c
+    Signed-off-by: Michael Still <mikal@stillhq.com>
+
+diff --git a/zuul.d/project.yaml b/zuul.d/project.yaml
+index cebe4b8..25d9c9f 100644
+--- a/zuul.d/project.yaml
++++ b/zuul.d/project.yaml
+@@ -33,6 +33,9 @@
+       - kolla-ansible-scenario-telemetry
+       - openstack-cover-jobs
+       - openstack-python3-jobs-kolla-ansible
+-      - periodic-stable-jobs
+       - publish-openstack-docs-pti
+       - release-notes-jobs-python3
++    periodic-stable:
++      jobs:
++        - openstack-tox-docs
++        - openstack-tox-py312
