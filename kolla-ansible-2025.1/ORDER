@@ -1,8 +1,0 @@
-../_patches/patch003-kolla-ansible-expose-spice-configuration.patch
-../_patches/patch009-support-secure-spice.patch
-../_patches/patch117-kolla-ansible-epoxy-compressed.patch
-../_patches/patch132-fix-kerbside-bootstrap-multinode.patch
-../_patches/patch011-allow-concurrent-spice-connections.patch
-../_patches/patch135-debug-ca-cert-selection.patch
-../_patches/patch136-debug-wsgi-config-selection.patch
-../_patches/patch170-kolla-ansible-libvirtd-tuning.patch
