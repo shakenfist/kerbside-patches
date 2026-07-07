@@ -90,6 +90,14 @@ Other workflows:
   proposes a data-update PR. The scan runs on a vm runner but the
   PR step runs on a static runner, because `gh` is only installed
   on static runners (same split as the layer data flow)
+- `heal-data-prs.yml` -- runs on every push to develop and
+  union-merges develop into any automated data PR that GitHub
+  reports as conflicted. Data PRs append records to shared
+  time-series files under `data/`, so concurrent PRs always
+  conflict once one merges; the union of both sides' appended
+  lines is always the correct resolution. The merge is verified
+  append-only and well formed (`tools/verify-data-merge.py`)
+  before being pushed (`tools/heal-data-prs.sh`)
 
 **Runner types and constraints:**
 

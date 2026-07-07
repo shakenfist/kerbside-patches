@@ -1,0 +1,14 @@
+# Automated data PRs append one record per run to shared time-series
+# files under data/, so two PRs open at the same time always conflict at
+# end-of-file as soon as one of them merges. The correct resolution is
+# always the union of both sides' appended lines, which is what git's
+# built-in "union" merge driver produces. Record order within a file does
+# not matter: consumers (e.g. tools/summarize_layers.py) sort by the
+# datestamp embedded in each record.
+#
+# Note that GitHub's PR conflict detection ignores merge drivers, so
+# conflicted data PRs are re-merged server-side by the heal-data-prs
+# workflow (tools/heal-data-prs.sh), which relies on these attributes.
+data/**/*.jsonl merge=union
+data/**/*.csv merge=union
+data/**/*.csv.checkpoint merge=union
