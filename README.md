@@ -13,7 +13,7 @@ The remainder of the patches are ancillary changes -- support for new Nova API
 microversions in clients, things which helped me debug along the way, and that
 sort of thing.
 
-These patches last successfully applied via CI on 6 July 2026. When this occurs,
+These patches last successfully applied via CI on 7 July 2026. When this occurs,
 the SHAs the patches were applied to for each project are recorded in the
 relevant config.yaml file, and will be used for patch applications until
 updated.
@@ -205,6 +205,16 @@ It produces `growth`, `reuse` and `stages` reports; see
 
 The workflow is configured to skip functional tests when only files in `data/`
 are changed, preventing infinite loops when layer data PRs are merged.
+
+Because every run appends a line to the same per-image files, data PRs that
+are open at the same time conflict as soon as one of them merges. The
+`heal-data-prs.yml` workflow runs on each push to develop and re-resolves
+those conflicts automatically: it union-merges develop into the conflicted
+PR branch (git's `union` merge driver, configured in `.gitattributes`,
+keeps both sides' appended lines), verifies the result is append-only and
+well formed with `tools/verify-data-merge.py`, and pushes the merge back to
+the PR branch. Record order within a file does not matter because
+`tools/summarize_layers.py` sorts records by their embedded datestamp.
 
 # CI Reliability Reporting
 
