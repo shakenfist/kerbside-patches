@@ -408,12 +408,7 @@ function run_tests {
 
         # Kolla-Ansible also has additional linters as well as a pep8
         if [ $(tox -a | grep -c linters) -gt 0 ]; then
-            # The linters environment is not covered by upper-constraints,
-            # so its dependencies float. Apply our own constraints (e.g.
-            # the dulwich pin) while it is built; see the constraints file
-            # for details.
-            PIP_CONSTRAINT="${topdir}/_build/pip-constraints.txt" \
-                install_test_environment linters
+            install_test_environment linters
             echo
             echo -e "${H3}tox -elinters${Color_Off}"
             # ansible-lint clones ansible-collection-kolla from opendev.org,
@@ -428,8 +423,7 @@ function run_tests {
             linters_rc=0
             set +e
             for (( linters_try=1; linters_try<=linters_attempts; linters_try++ )); do
-                PIP_CONSTRAINT="${topdir}/_build/pip-constraints.txt" \
-                    tox -elinters 2>&1 \
+                tox -elinters 2>&1 \
                     | tee "${linters_tmp}" \
                     | ts "%b %d %H:%M:%S ${2} ${3} linters"
                 linters_rc=${PIPESTATUS[0]}
