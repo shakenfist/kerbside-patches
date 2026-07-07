@@ -1,0 +1,33 @@
+name: Heal conflicted data PRs
+
+# Automated data PRs (layers data, CI reporting data) append records to
+# shared time-series files under data/, so PRs open at the same time
+# conflict as soon as one of them merges. Whenever develop moves, this
+# workflow union-merges develop into any conflicted data PR, verifies
+# the result is append-only and well formed, and pushes the merge back
+# to the PR branch. See tools/heal-data-prs.sh for details.
+
+on:
+  push:
+    branches:
+      - develop
+  workflow_dispatch:
+
+concurrency:
+  group: heal-data-prs
+  cancel-in-progress: false
+
+jobs:
+  heal:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout kerbside-patches
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.DAILY_REBASE_TOKEN }}
+
+      - name: Heal conflicted data PRs
+        env:
+          GH_TOKEN: ${{ secrets.DAILY_REBASE_TOKEN }}
+        run: ./tools/heal-data-prs.sh
