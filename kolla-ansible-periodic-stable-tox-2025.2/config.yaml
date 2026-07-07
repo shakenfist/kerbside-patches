@@ -1,0 +1,11 @@
+repo: https://opendev.org/openstack/kolla-ansible
+source_branch: stable/2025.2
+destination_branch: periodic-stable-tox
+shallow_clone: false
+directory: kolla-ansible
+release: 2025.2-periodic-stable-tox
+depends_on: ''
+source_sha: 6baf0ddeba86343b70b78d74b8b25743eca7ff6d
+previous_source_sha: 6baf0ddeba86343b70b78d74b8b25743eca7ff6d
+skip_rebase: true
+skip_claude: true

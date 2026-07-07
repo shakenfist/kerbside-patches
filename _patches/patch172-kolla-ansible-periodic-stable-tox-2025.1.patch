@@ -1,0 +1,48 @@
+commit 663c2b570932d710f6d974879369f394790acf61
+Author: Michael Still <mikal@stillhq.com>
+Date:   Thu Jul 2 20:31:43 2026 +1000
+
+    Replace periodic-stable-jobs with local job list.
+    
+    The shared periodic-stable-jobs template in openstack-zuul-jobs runs
+    openstack-tox-py39 on stable/2025.1, but kolla-ansible on this branch
+    sets python_requires >= 3.10 and requires ansible-core >= 2.17, which
+    itself needs Python >= 3.10. The py39 tox environment therefore cannot
+    even install: pip fails to resolve ansible-core in seconds, and the
+    job has failed on every run. In the 30 days to 2026-07-01 that was 30
+    failures from 30 runs in the periodic-stable pipeline, pure noise for
+    anyone watching the periodic dashboards.
+    
+    Zuul templates cannot exclude individual jobs, so replace the shared
+    template with an explicit periodic-stable job list running what the
+    shared template would have run minus the impossible interpreter: docs
+    and py312. Interpreter coverage is unchanged in practice because check
+    already runs py310, py311 and py312 on every change proposed to this
+    branch. This mirrors the approach already taken for check and gate on
+    newer branches with the local openstack-python3-jobs-kolla-ansible
+    template.
+    
+    Assisted-By: Claude Fable 5 (1M context, medium effort)
+    Change-Id: I9bac870318af72936145ceed2a787846e36fb496
+    Signed-off-by: Michael Still <mikal@stillhq.com>
+
+diff --git a/zuul.d/project.yaml b/zuul.d/project.yaml
+index f5aac8c..8c83786 100644
+--- a/zuul.d/project.yaml
++++ b/zuul.d/project.yaml
+@@ -10,7 +10,6 @@
+       - ansible-role-jobs
+       - publish-openstack-docs-pti
+       - release-notes-jobs-python3
+-      - periodic-stable-jobs
+     check:
+       jobs:
+         - openstack-tox-pep8
+@@ -99,3 +98,7 @@
+     post:
+       jobs:
+         - publish-openstack-python-branch-tarball
++    periodic-stable:
++      jobs:
++        - openstack-tox-docs
++        - openstack-tox-py312
