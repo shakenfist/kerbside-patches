@@ -1,6 +1,6 @@
-commit 9e123bacc0e101362fd2156f096b74cc14341d42
+commit dd18ab01df0327216be6999b3af7fd0c9244d14f
 Author: Michael Still <mikal@stillhq.com>
-Date:   Thu Jul 2 20:35:43 2026 +1000
+Date:   Wed Jul 8 17:49:08 2026 +1000
 
     Replace periodic-stable-jobs with local job list.
     
@@ -25,7 +25,7 @@ Date:   Thu Jul 2 20:35:43 2026 +1000
     Signed-off-by: Michael Still <mikal@stillhq.com>
 
 diff --git a/zuul.d/project.yaml b/zuul.d/project.yaml
-index cebe4b8..25d9c9f 100644
+index cebe4b88c..25d9c9fe1 100644
 --- a/zuul.d/project.yaml
 +++ b/zuul.d/project.yaml
 @@ -33,6 +33,9 @@
