@@ -7,10 +7,10 @@ Date:   Mon Jun 22 12:03:49 2026 +1000
     Change-Id: Iaf574403969f993c6ce753e46e7207a9b7ed64cd
     Signed-off-by: Michael Still <mikal@stillhq.com>
 
-diff --git a/docker/fluentd/Dockerfile.j2 b/docker/fluentd/Dockerfile.j2
+diff --git a/kolla/docker/fluentd/Dockerfile.j2 b/kolla/docker/fluentd/Dockerfile.j2
 index 899b4b6d1..5cf14a931 100644
---- a/docker/fluentd/Dockerfile.j2
-+++ b/docker/fluentd/Dockerfile.j2
+--- a/kolla/docker/fluentd/Dockerfile.j2
++++ b/kolla/docker/fluentd/Dockerfile.j2
 @@ -48,6 +48,7 @@ COPY extend_start.sh /usr/local/bin/kolla_extend_start
      'fluent-plugin-grok-parser',
      'fluent-plugin-prometheus',
