@@ -1,6 +1,6 @@
-commit 5992fdef6ddb3967bd70039cf6ea158984338382
+commit 5b9dfe413fb9090cb59c880161d5e5ec62c41102
 Author: Michael Still <mikal@stillhq.com>
-Date:   Tue Jun 23 17:52:06 2026 +1000
+Date:   Wed Jul 8 17:54:58 2026 +1000
 
     Add kerbside CI scenario jobs.
     
@@ -50,7 +50,7 @@ Date:   Tue Jun 23 17:52:06 2026 +1000
     Signed-off-by: Michael Still <mikal@stillhq.com>
 
 diff --git a/tests/run.yml b/tests/run.yml
-index bb06ebd6b..13f6a9942 100644
+index 294bc90f3..9e7125ca1 100644
 --- a/tests/run.yml
 +++ b/tests/run.yml
 @@ -30,7 +30,7 @@

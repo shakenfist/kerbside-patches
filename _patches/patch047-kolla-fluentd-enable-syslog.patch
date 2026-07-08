@@ -1,6 +1,6 @@
-commit 0e869bd11f62de7b3984c0c6ae491975e2e4651b
+commit 8d7736522adb46edd0bf820b1217e643db0ca1f4
 Author: Michael Still <mikal@stillhq.com>
-Date:   Mon Jun 22 12:03:49 2026 +1000
+Date:   Wed Jul 8 17:54:13 2026 +1000
 
     Add syslog to fluentd.
     
@@ -8,7 +8,7 @@ Date:   Mon Jun 22 12:03:49 2026 +1000
     Signed-off-by: Michael Still <mikal@stillhq.com>
 
 diff --git a/docker/fluentd/Dockerfile.j2 b/docker/fluentd/Dockerfile.j2
-index 899b4b6d1..5cf14a931 100644
+index c63e1b990..f3a6b3b1c 100644
 --- a/docker/fluentd/Dockerfile.j2
 +++ b/docker/fluentd/Dockerfile.j2
 @@ -48,6 +48,7 @@ COPY extend_start.sh /usr/local/bin/kolla_extend_start

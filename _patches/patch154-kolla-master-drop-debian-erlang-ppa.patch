@@ -1,6 +1,6 @@
-commit 83445b3a5e55d730b394e2834e1f5da54740dc88
+commit 85e2ee9a4f20b62e8e4bad4f67bb1f668481402f
 Author: Michael Still <mikal@stillhq.com>
-Date:   Mon Jun 22 12:04:31 2026 +1000
+Date:   Wed Jul 8 17:54:13 2026 +1000
 
     Address intermittent launchpad availability.
     
@@ -47,10 +47,10 @@ Date:   Mon Jun 22 12:04:31 2026 +1000
     Signed-off-by: Michael Still <mikal@stillhq.com>
 
 diff --git a/docker/kolla-toolbox/Dockerfile.j2 b/docker/kolla-toolbox/Dockerfile.j2
-index c730c5566..3e8103927 100644
+index eac78905d..4ea42a8e7 100644
 --- a/docker/kolla-toolbox/Dockerfile.j2
 +++ b/docker/kolla-toolbox/Dockerfile.j2
-@@ -13,7 +13,11 @@ LABEL maintainer="{{ maintainer }}" name="{{ image_name }}" build-date="{{ build
+@@ -13,7 +13,11 @@ LABEL maintainer="{{ maintainer }}" name="{{ image_name }}"
  {{ macros.configure_user(name='ansible') }}
  {{ macros.configure_user(name='rabbitmq') }}
  
@@ -63,10 +63,10 @@ index c730c5566..3e8103927 100644
  {% block rabbitmq_apt_preferences %}
  {% if base_package_type == 'deb' %}
 diff --git a/docker/rabbitmq/Dockerfile.j2 b/docker/rabbitmq/Dockerfile.j2
-index 36feb9c25..8b88fa39d 100644
+index a167356a7..c0612d1f2 100644
 --- a/docker/rabbitmq/Dockerfile.j2
 +++ b/docker/rabbitmq/Dockerfile.j2
-@@ -9,7 +9,11 @@ LABEL maintainer="{{ maintainer }}" name="{{ image_name }}" build-date="{{ build
+@@ -9,7 +9,11 @@ LABEL maintainer="{{ maintainer }}" name="{{ image_name }}"
  
  {{ macros.configure_user(name='rabbitmq') }}
  
@@ -79,7 +79,7 @@ index 36feb9c25..8b88fa39d 100644
  {% block rabbitmq_apt_preferences %}
  {% if base_package_type == 'deb' %}
 diff --git a/kolla/template/repos.yaml b/kolla/template/repos.yaml
-index f23c18eed..959032136 100644
+index 508d82990..5dada9f45 100644
 --- a/kolla/template/repos.yaml
 +++ b/kolla/template/repos.yaml
 @@ -20,11 +20,6 @@ deb:

@@ -1,6 +1,6 @@
-commit 60ecd47e9b11b1af01b2eca76f09847e259ee410
+commit f32b93cb7fe597fc73975e5af089443ade32037e
 Author: Michael Still <mikal@stillhq.com>
-Date:   Mon Jun 22 12:07:29 2026 +1000
+Date:   Wed Jul 8 17:54:48 2026 +1000
 
     Increase the RabbitMQ healthcheck timeout to 60s.
     
