@@ -2,11 +2,16 @@ commit df6778f790b51a77925a2e1cfb053e1ad7dc2f2e
 Author: Michael Still <mikal@stillhq.com>
 Date:   Wed Jul 8 17:54:13 2026 +1000
 
-    Setuptools released v82.0.0 which does not have pkg_resources.
-    
-    Pin setuptools in test-requirements.txt as well. The requirements.txt
-    pin is already present upstream.
-    
+    Constrain setuptools for kolla tox environments.
+
+    Setuptools v82.0.0 removed pkg_resources, so stay below that. At the
+    other end, kolla master's pyproject.toml uses a PEP 639 SPDX license
+    expression (license = "Apache-2.0"), which setuptools only
+    understands from v77.0.3 onwards. The setuptools that virtualenv
+    seeds on Debian 12 is 66.1.1, and a >=64.0.0 floor never forces pip
+    to upgrade the seeded copy, so tox's "setup.py --name" fails to
+    parse pyproject.toml. Raising the floor forces the upgrade.
+
     Change-Id: I55851cb5d8f0bb089bd9f49e70bb18a5f270573a
     Signed-off-by: Michael Still <mikal@stillhq.com>
 
@@ -18,4 +23,4 @@ index 2acfc73a4..f9d0c530e 100644
  oslotest>=3.2.0 # Apache-2.0
  stestr>=2.2.0 # Apache-2.0
  testtools>=2.2.0 # MIT
-+setuptools>=64.0.0,<82.0.0 # PSF/ZPL
++setuptools>=77.0.3,<82.0.0 # PSF/ZPL
