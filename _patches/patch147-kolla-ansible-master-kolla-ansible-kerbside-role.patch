@@ -432,7 +432,7 @@ new file mode 100644
 index 000000000..18130e572
 --- /dev/null
 +++ b/ansible/roles/kerbside/defaults/main.yml
-@@ -0,0 +1,161 @@
+@@ -0,0 +1,162 @@
 +---
 +kerbside_services:
 +  kerbside_api:
@@ -552,6 +552,7 @@ index 000000000..18130e572
 +  - "{{ node_config_directory }}/kerbside_api/:{{ container_config_directory }}/:ro"
 +kerbside_proxy_volumes:
 +  - "{{ node_config_directory }}/kerbside_proxy/:{{ container_config_directory }}/:ro"
++  - "kerbside_run:/run/kerbside"
 +kerbside_default_volumes:
 +  - "/etc/localtime:/etc/localtime:ro"
 +  - "{{ '/etc/timezone:/etc/timezone:ro' if ansible_facts.os_family == 'Debian' else '' }}"
@@ -1409,7 +1410,7 @@ new file mode 100644
 index 000000000..8fc68d54e
 --- /dev/null
 +++ b/ansible/roles/kerbside/templates/kerbside_proxy.json.j2
-@@ -0,0 +1,48 @@
+@@ -0,0 +1,53 @@
 +{
 +    "command": "kerbside daemon run",
 +    "config_files": [
@@ -1453,6 +1454,11 @@ index 000000000..8fc68d54e
 +    "permissions": [
 +        {
 +            "path": "/var/log/kolla/kerbside",
++            "owner": "kerbside:kerbside",
++            "recurse": true
++        },
++        {
++            "path": "/run/kerbside",
 +            "owner": "kerbside:kerbside",
 +            "recurse": true
 +        }
