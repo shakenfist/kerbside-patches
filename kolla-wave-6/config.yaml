@@ -5,7 +5,7 @@ shallow_clone: false
 directory: kolla
 release: master-wave-6
 depends_on: ''
-source_sha: 2743e10856d4cfcf9eed2fe21cfccf8dd3533c52
-previous_source_sha: 44b4d81399792f539716618953f2cafa64086a5c
+source_sha: 6b3724a59c94dd7818821f5ea9c9d50b2a880d09
+previous_source_sha: 2743e10856d4cfcf9eed2fe21cfccf8dd3533c52
 skip_rebase: true
 skip_claude: true
