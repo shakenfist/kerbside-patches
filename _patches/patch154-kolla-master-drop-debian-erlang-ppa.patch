@@ -47,10 +47,10 @@ Date:   Mon Jun 22 12:04:31 2026 +1000
     Signed-off-by: Michael Still <mikal@stillhq.com>
 
 diff --git a/kolla/docker/kolla-toolbox/Dockerfile.j2 b/kolla/docker/kolla-toolbox/Dockerfile.j2
-index c730c5566..3e8103927 100644
+index eac78905d..4ea42a8e7 100644
 --- a/kolla/docker/kolla-toolbox/Dockerfile.j2
 +++ b/kolla/docker/kolla-toolbox/Dockerfile.j2
-@@ -13,7 +13,11 @@ LABEL maintainer="{{ maintainer }}" name="{{ image_name }}" build-date="{{ build
+@@ -13,7 +13,11 @@ LABEL maintainer="{{ maintainer }}" name="{{ image_name }}"
  {{ macros.configure_user(name='ansible') }}
  {{ macros.configure_user(name='rabbitmq') }}
  
@@ -63,10 +63,10 @@ index c730c5566..3e8103927 100644
  {% block rabbitmq_apt_preferences %}
  {% if base_package_type == 'deb' %}
 diff --git a/kolla/docker/rabbitmq/Dockerfile.j2 b/kolla/docker/rabbitmq/Dockerfile.j2
-index 36feb9c25..8b88fa39d 100644
+index a167356a7..c0612d1f2 100644
 --- a/kolla/docker/rabbitmq/Dockerfile.j2
 +++ b/kolla/docker/rabbitmq/Dockerfile.j2
-@@ -9,7 +9,11 @@ LABEL maintainer="{{ maintainer }}" name="{{ image_name }}" build-date="{{ build
+@@ -9,7 +9,11 @@ LABEL maintainer="{{ maintainer }}" name="{{ image_name }}"
  
  {{ macros.configure_user(name='rabbitmq') }}
  
@@ -79,13 +79,13 @@ index 36feb9c25..8b88fa39d 100644
  {% block rabbitmq_apt_preferences %}
  {% if base_package_type == 'deb' %}
 diff --git a/kolla/template/repos.yaml b/kolla/template/repos.yaml
-index f23c18eed..959032136 100644
+index 42e0185c4..05c1bd16c 100644
 --- a/kolla/template/repos.yaml
 +++ b/kolla/template/repos.yaml
-@@ -20,11 +20,6 @@ deb:
-     gpg_key: "opensearch.asc"
- 
- debian:
+@@ -24,11 +24,6 @@ debian:
+     distro: True
+   debian-security:
+     distro: True
 -  erlang:
 -    url: "https://ppa.launchpadcontent.net/rabbitmq/rabbitmq-erlang/ubuntu"
 -    suite: "noble"
@@ -94,9 +94,9 @@ index f23c18eed..959032136 100644
    docker-ce:
      url: "https://download.docker.com/linux/debian"
      suite: "trixie"
-@@ -64,10 +59,10 @@ debian-aarch64:
- 
- ubuntu:
+@@ -77,10 +72,10 @@ ubuntu:
+     component: "main"
+     gpg_key: "/usr/share/keyrings/ubuntu-cloud-keyring.gpg"
    erlang:
 -    url: "https://ppa.launchpadcontent.net/rabbitmq/rabbitmq-erlang/ubuntu"
 +    url: "https://deb1.rabbitmq.com/rabbitmq-erlang/ubuntu/noble"
@@ -107,7 +107,7 @@ index f23c18eed..959032136 100644
    docker-ce:
      url: "https://download.docker.com/linux/ubuntu"
      suite: "noble"
-@@ -103,6 +98,14 @@ ubuntu-aarch64:
+@@ -120,6 +115,14 @@ ubuntu-aarch64:
      # syncing binary-aarch64 - we're using amd64 here.
      arch: "amd64"
      gpg_key: "rabbitmq.gpg"
