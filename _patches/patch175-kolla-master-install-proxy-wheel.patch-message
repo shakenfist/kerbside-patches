@@ -1,0 +1,23 @@
+Install a staged kerbside-proxy wheel into the kerbside images.
+
+The kerbside-proxy transition replaces the in-tree Python SPICE proxy
+with a compiled Rust binary supervised by "kerbside daemon run". That
+binary is not part of the kerbside Python source tree installed by
+/kerbside above; it ships in a separate maturin "bin" wheel (name
+kerbside-proxy) that lays the compiled binary onto PATH.
+
+Install that wheel when, and only when, one has been staged into the
+build tree at kerbside/proxy-wheels/. This lets CI (and local
+development) build the kerbside-base image against a proxy compiled from
+the checked-out kerbside source, which the daemon then finds on PATH.
+
+Deliberately no PyPI fallback yet. kerbside's default branch still runs
+the pure-Python proxy and needs no binary, and kerbside-proxy is not
+published on PyPI, so an unconditional "pip install kerbside-proxy"
+would break every production image build. Leaving the else branch out
+(mirroring the /plugins conditional above) keeps production master
+builds byte-for-byte unchanged -- a working Python-proxy container --
+until the Rust proxy lands on the default branch and is released to
+PyPI, at which point a PyPI fallback can be added here.
+
+Signed-off-by: Michael Still <mikal@stillhq.com>
