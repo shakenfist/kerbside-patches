@@ -10,20 +10,28 @@ echo -e "${H1}==================================================${Color_Off}"
 
 cd "${topsrcdir}"
 
-for client in openstacksdk python-openstackclient; do
-    if [ -e ${client} ]; then
-        cd ${client}
+# python-openstackclient 10.2.0 rewrote the volume client plugin to return
+# the openstacksdk block_storage proxy, which performs endpoint discovery
+# eagerly when client_manager.volume is touched. "server create" touches it
+# unconditionally, so on clouds without cinder (all of our test clouds) any
+# server create now fails with "internalURL endpoint for block-storage
+# service in RegionOne region not found". Pin below 10.2 until upstream
+# handles catalogs without block-storage again.
+for client in openstacksdk 'python-openstackclient<10.2'; do
+    package=${client%%[<>=!]*}
+    if [ -e ${package} ]; then
+        cd ${package}
 
-        echo -e "${H2}Installing ${client}${Color_Off}"
+        echo -e "${H2}Installing ${package}${Color_Off}"
         pip3 install -e .
         echo
 
         cd ..
     else
-        pip3 install ${client}
+        pip3 install "${client}"
     fi
 
-    for executable in $(pip3 show -f ${client} | grep "/bin/" | sed 's/.*\///'); do
+    for executable in $(pip3 show -f ${package} | grep "/bin/" | sed 's/.*\///'); do
         ln -s /srv/kolla-ansible/venv/bin/${executable} /usr/local/bin/
         echo "Linked /srv/kolla-ansible/venv/bin/${executable} ${Arrow} /usr/local/bin/"
     done

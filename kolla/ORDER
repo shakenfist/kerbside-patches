@@ -1,2 +1,3 @@
 ../_patches/patch047-kolla-fluentd-enable-syslog.patch
 ../_patches/patch154-kolla-master-drop-debian-erlang-ppa.patch
+../_patches/patch175-kolla-master-install-proxy-wheel.patch
