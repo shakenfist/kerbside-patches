@@ -1,41 +1,45 @@
-commit f3441dc3b8b1e876d84594a64889f7b6843eefcb
+commit 14ef5f222c371a83572fd30b4018ee341705ed69
 Author: Michael Still <mikal@stillhq.com>
-Date:   Mon Jul 13 16:33:45 2026 +1000
+Date:   Thu Jul 16 06:47:30 2026 +1000
 
-    Install a staged kerbside-proxy wheel into the kerbside images.
+    Install the kerbside-proxy wheel into kerbside images.
     
-    The kerbside-proxy transition replaces the in-tree Python SPICE proxy
+    The kerbside-proxy transition replaced the in-tree Python SPICE proxy
     with a compiled Rust binary supervised by "kerbside daemon run". That
     binary is not part of the kerbside Python source tree installed by
     /kerbside above; it ships in a separate maturin "bin" wheel (name
     kerbside-proxy) that lays the compiled binary onto PATH.
     
-    Install that wheel when, and only when, one has been staged into the
-    build tree at kerbside/proxy-wheels/. This lets CI (and local
-    development) build the kerbside-base image against a proxy compiled from
-    the checked-out kerbside source, which the daemon then finds on PATH.
+    Prefer a wheel staged into the build tree at kerbside/proxy-wheels/:
+    CI (and local development) stages one built from the checked-out
+    kerbside source, so pull requests test the proxy in lockstep with the
+    Python side. When no wheel is staged -- every production image build --
+    fall back to installing kerbside-proxy from PyPI.
     
-    Deliberately no PyPI fallback yet. kerbside's default branch still runs
-    the pure-Python proxy and needs no binary, and kerbside-proxy is not
-    published on PyPI, so an unconditional "pip install kerbside-proxy"
-    would break every production image build. Leaving the else branch out
-    (mirroring the /plugins conditional above) keeps production master
-    builds byte-for-byte unchanged -- a working Python-proxy container --
-    until the Rust proxy lands on the default branch and is released to
-    PyPI, at which point a PyPI fallback can be added here.
+    The fallback is now required rather than merely safe: the Rust proxy
+    merged to kerbside's default branch (shakenfist/kerbside#99) and
+    kerbside-proxy 0.3.0 is published on PyPI, so a kerbside container
+    without the binary fails at startup. The PyPI install is deliberately
+    unpinned, matching the unpinned clone of kerbside itself in
+    assemble-source.sh: both track their respective tips, and the SPICE
+    console CI lane guards against contract drift between them. It also
+    bypasses upper-constraints (the false argument), which do not know
+    about kerbside-proxy.
     
     Signed-off-by: Michael Still <mikal@stillhq.com>
 
 diff --git a/kolla/docker/kerbside/kerbside-base/Dockerfile.j2 b/kolla/docker/kerbside/kerbside-base/Dockerfile.j2
-index 77f8813..a2d5207 100644
+index 77f881399..32b92d67d 100644
 --- a/kolla/docker/kerbside/kerbside-base/Dockerfile.j2
 +++ b/kolla/docker/kerbside/kerbside-base/Dockerfile.j2
-@@ -33,6 +33,9 @@ RUN ln -s kerbside-source/* kerbside \
+@@ -33,6 +33,11 @@ RUN ln -s kerbside-source/* kerbside \
             {{ macros.install_pip(kerbside_plugins_pip_packages) }}; \
         fi \
      && {{ macros.install_pip(kerbside_pip_packages | customizable("pip_packages"), false) }} \
 +    && if ls /kerbside/proxy-wheels/*.whl >/dev/null 2>&1; then \
 +           {{ macros.install_pip(['/kerbside/proxy-wheels/*.whl'], false) }}; \
++       else \
++           {{ macros.install_pip(['kerbside-proxy'], false) }}; \
 +       fi \
      && rm -f /etc/machine-id
  
