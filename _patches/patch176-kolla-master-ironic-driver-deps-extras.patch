@@ -1,0 +1,58 @@
+commit 94dd5e4f9440b42da568d2a5a5b757793a417ee5
+Author: Michael Still <mikal@stillhq.com>
+Date:   Fri Jul 17 08:02:16 2026 +1000
+
+    Install ironic driver deps via extras.
+    
+    Ironic change I4de9cf96fd66ef3ddf3f55bb9e1850859a3fd82b removed
+    driver-requirements.txt, moving the two driver dependencies it
+    listed (ansible and networking-generic-switch) into pip extras of
+    the same names. The ironic-conductor image still installed
+    '-r /ironic/driver-requirements.txt', so image builds against
+    Ironic master now fail with:
+    
+        ERROR: Could not open requirements file: [Errno 2] No such
+        file or directory: '/ironic/driver-requirements.txt'
+    
+    Install the equivalent extras from the Ironic source tree at
+    /ironic instead. This keeps the list of driver dependencies
+    maintained in Ironic rather than duplicating it in Kolla.
+    
+    Prompt: Debug why CI failed on kerbside-patches PR 1461, then
+    write a patch fixing the ironic-conductor image build so it can
+    be validated in private CI before being proposed upstream to
+    Kolla.
+    
+    Assisted-By: Claude Code
+    Co-Authored-By: Claude Fable 5 (200K context, high effort) <noreply@anthropic.com>
+    
+    Change-Id: I39c1e17040e2d71ba6544a15dc17776ce48bdc6e
+    Signed-off-by: Michael Still <mikal@stillhq.com>
+
+diff --git a/kolla/docker/ironic/ironic-conductor/Dockerfile.j2 b/kolla/docker/ironic/ironic-conductor/Dockerfile.j2
+index bce981fb0..9249f34ab 100644
+--- a/kolla/docker/ironic/ironic-conductor/Dockerfile.j2
++++ b/kolla/docker/ironic/ironic-conductor/Dockerfile.j2
+@@ -52,7 +52,7 @@ LABEL maintainer="{{ maintainer }}" name="{{ image_name }}"
+ {% endif %}
+ 
+ {% set ironic_conductor_pip_packages = [
+-    '-r /ironic/driver-requirements.txt',
++    '/ironic[ansible,networking_generic_switch]',
+     'ironic-staging-drivers',
+ ] %}
+ 
+diff --git a/releasenotes/notes/ironic-driver-deps-extras-7fe7d3cea50f41de.yaml b/releasenotes/notes/ironic-driver-deps-extras-7fe7d3cea50f41de.yaml
+new file mode 100644
+index 000000000..8a527275f
+--- /dev/null
++++ b/releasenotes/notes/ironic-driver-deps-extras-7fe7d3cea50f41de.yaml
+@@ -0,0 +1,8 @@
++---
++fixes:
++  - |
++    The ``ironic-conductor`` image now installs Ironic's driver
++    dependencies via the ``ansible`` and ``networking_generic_switch``
++    extras instead of ``driver-requirements.txt``, which was removed
++    from Ironic. This fixes the image build failing with "Could not
++    open requirements file: /ironic/driver-requirements.txt".
