@@ -4,7 +4,7 @@ name: Rebase tests
 # which is available as GITHUB_WORKSPACE. You can find other environment
 # variables at https://docs.github.com/en/actions/learn-github-actions/environment-variables
 #
-# These jobs run directly on conductor-provisioned VM runners (debian-12
+# These jobs run directly on conductor-provisioned VM runners (debian-13
 # and rocky-9). The runner is already the OS under test, so the patch test
 # suites run locally via _build/test-apply.sh -- there is no longer any
 # bare-metal runner or nested Shakenfist VM involved.
@@ -23,7 +23,7 @@ jobs:
   # commit was from the bot.
   check_bot_commit:
     name: "Check bot commit"
-    runs-on: [self-hosted, vm, debian-12, s]
+    runs-on: [self-hosted, vm, debian-13, s]
     outputs:
       is_bot: ${{ steps.check.outputs.is_bot }}
     steps:
@@ -48,7 +48,7 @@ jobs:
   # via tox -elinters. Much faster than the deep test matrix.
   lint_check:
     name: "Ansible lint check"
-    runs-on: [self-hosted, vm, debian-12, m]
+    runs-on: [self-hosted, vm, debian-13, m]
     outputs:
       linters_failed: ${{ steps.lint.outcome == 'failure' }}
     concurrency:
@@ -122,10 +122,10 @@ jobs:
       matrix:
         test: [
           {
-              'description': "kolla on debian 12",
-              'name': 'debian-12-kolla',
+              'description': "kolla on debian 13",
+              'name': 'debian-13-kolla',
               'project': 'kolla',
-              'runs_on': 'debian-12'
+              'runs_on': 'debian-13'
           },
           {
               'description': "kolla on rocky 9",
@@ -134,10 +134,10 @@ jobs:
               'runs_on': 'rocky-9'
           },
           {
-              'description': "kolla-ansible on debian 12",
-              'name': 'debian-12-kolla-ansible',
+              'description': "kolla-ansible on debian 13",
+              'name': 'debian-13-kolla-ansible',
               'project': 'kolla-ansible',
-              'runs_on': 'debian-12'
+              'runs_on': 'debian-13'
           },
           {
               'description': "kolla-ansible on rocky 9",

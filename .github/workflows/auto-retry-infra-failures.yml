@@ -15,7 +15,7 @@ on:
 jobs:
   check-and-retry:
     if: github.event.workflow_run.conclusion == 'failure'
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, static]
     steps:
       - name: Check for infrastructure failures and retry
         env:

@@ -76,7 +76,7 @@ action, not inlined in the workflow.
 Other workflows:
 - `rebase-tests.yml` -- applies the patch stack and runs the
   test suites (`_build/test-apply.sh`) for kolla and
-  kolla-ansible on both debian-12 and rocky-9 VM runners
+  kolla-ansible on both debian-13 and rocky-9 VM runners
 - `trigger-downstream.yml` -- triggers kerbside CI on push
   to develop (e.g. after daily rebase PR merges)
 - `local-container-builds.yml` -- tests local builds work
@@ -104,7 +104,9 @@ Other workflows:
 - `vm` runners -- ephemeral VMs with full sudo access,
   provisioned on demand by the conductor (shakenfist/private-ci)
   per `runs-on` labels `[self-hosted, vm, <os>, <size>]`. OS
-  labels are `debian-12` and `rocky-9`; sizes are `s`, `m`, `xl`.
+  labels are `debian-13` and `rocky-9` (`debian-12` images still
+  exist but kolla-ansible master no longer supports bookworm, so
+  new jobs should use `debian-13`); sizes are `s`, `m`, `xl`.
 - `static` runners -- persistent machines without passwordless
   sudo for the CI user
 - `claude-code` -- persistent runner with the Claude Code CLI,

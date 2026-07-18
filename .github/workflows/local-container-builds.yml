@@ -30,7 +30,7 @@ jobs:
               'container_distro_version': 'trixie'
           },
         ]
-    runs-on: [self-hosted, vm, 'debian-12', 'xl']
+    runs-on: [self-hosted, vm, 'debian-13', 'xl']
     concurrency:
       group: ${{ github.workflow }}-${{ github.ref }}-local-${{ matrix.test.release }}
       cancel-in-progress: true
