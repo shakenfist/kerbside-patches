@@ -19,7 +19,7 @@ if command -v apt-get >/dev/null 2>&1; then
     sudo apt-get update
     sudo apt-get install -y \
         python3-pip python3-dev build-essential \
-        moreutils libpq-dev libpcre3-dev
+        moreutils libpq-dev libpcre2-dev
     # -U matters: the runner image may have an older tox baked in, and
     # without it this install is a "requirement already satisfied" no-op.
     # Old tox (v3) cannot test projects using PEP 639 metadata.
