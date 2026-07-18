@@ -119,6 +119,15 @@ fine; `tools/ci-install-test-deps.sh` installs the apt-vs-dnf
 dependencies and, on rocky-9, upgrades Python to 3.12 via
 `tools/upgrade-python`.
 
+Python CLI tooling (tox, yq, occystrap, clingwrap, ...) is never
+installed into the system Python: pip cannot upgrade distro-owned
+packages, so system installs break on every distro upgrade. Instead
+`_build/setup-tools-venv.sh` maintains a shared venv at
+`/srv/shakenfist/kerbside-patches-tools` and symlinks its console
+scripts into `/usr/local/bin`. `_build/common.sh` (and the lint/test
+entry points) activate that venv when it exists; the symlinks cover
+everything else. Add new Python CLI tools via that helper, not pip.
+
 ### Documentation
 
 - **Do not edit README.md directly.** Edit `README.md.tmpl`

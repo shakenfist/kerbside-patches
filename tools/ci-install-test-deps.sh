@@ -18,15 +18,9 @@ here="$(cd "$(dirname "$0")" && pwd)"
 if command -v apt-get >/dev/null 2>&1; then
     sudo apt-get update
     sudo apt-get install -y \
-        python3-pip python3-dev build-essential \
+        python3-pip python3-dev python3-venv build-essential \
         moreutils libpq-dev libpcre2-dev
-    # -U matters: the runner image may have an older tox baked in, and
-    # without it this install is a "requirement already satisfied" no-op.
-    # Old tox (v3) cannot test projects using PEP 639 metadata.
-    # --ignore-installed because pip cannot uninstall apt-owned packages
-    # (no RECORD file, e.g. python3-pluggy on trixie); the fresh copies
-    # land in /usr/local and shadow the apt versions instead.
-    sudo pip3 install --break-system-packages --ignore-installed -U yq tox
+    "${here}/../_build/setup-tools-venv.sh" yq tox
 
 elif command -v dnf >/dev/null 2>&1; then
     sudo dnf install -y dnf-plugins-core epel-release
@@ -36,9 +30,9 @@ elif command -v dnf >/dev/null 2>&1; then
         moreutils libpq-devel pcre-devel
     # kolla / kolla-ansible master need a newer Python than rocky 9 ships.
     # upgrade-python relinks python3 -> 3.12 on rocky 9 and is a no-op on
-    # rocky 10 and other distros, so run it before the final pip install.
+    # rocky 10 and other distros, so run it before creating the venv.
     sudo "${here}/upgrade-python"
-    sudo pip3 install -U yq tox flake8
+    "${here}/../_build/setup-tools-venv.sh" yq tox flake8
 
 else
     echo "Unsupported runner: neither apt-get nor dnf found" >&2
