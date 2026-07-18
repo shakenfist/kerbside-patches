@@ -23,7 +23,10 @@ if command -v apt-get >/dev/null 2>&1; then
     # -U matters: the runner image may have an older tox baked in, and
     # without it this install is a "requirement already satisfied" no-op.
     # Old tox (v3) cannot test projects using PEP 639 metadata.
-    sudo pip3 install --break-system-packages -U yq tox
+    # --ignore-installed because pip cannot uninstall apt-owned packages
+    # (no RECORD file, e.g. python3-pluggy on trixie); the fresh copies
+    # land in /usr/local and shadow the apt versions instead.
+    sudo pip3 install --break-system-packages --ignore-installed -U yq tox
 
 elif command -v dnf >/dev/null 2>&1; then
     sudo dnf install -y dnf-plugins-core epel-release

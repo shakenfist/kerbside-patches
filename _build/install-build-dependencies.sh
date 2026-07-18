@@ -56,8 +56,11 @@ else
         python3-dbus python3-venv netcat-openbsd python3-dev \
         build-essential libpcre2-dev openssl
     sudo apt-get remove -y python3-virtualenv
-    sudo pip3 install --break-system-packages tox yq occystrap virtualenv \
-        MarkupSafe==2.1.5 /srv/shakenfist/clingwrap
+    # --ignore-installed because pip cannot uninstall apt-owned packages
+    # (no RECORD file, e.g. python3-pluggy on trixie); the fresh copies
+    # land in /usr/local and shadow the apt versions instead.
+    sudo pip3 install --break-system-packages --ignore-installed tox yq \
+        occystrap virtualenv MarkupSafe==2.1.5 /srv/shakenfist/clingwrap
     echo
 
     echo -e "${H2}Install a recent Docker${Color_Off}"
