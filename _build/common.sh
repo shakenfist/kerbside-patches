@@ -14,6 +14,13 @@ fi
 export PIP_RETRIES=${PIP_RETRIES:-5}
 export PIP_DEFAULT_TIMEOUT=${PIP_DEFAULT_TIMEOUT:-120}
 
+# Debian 13 mounts /tmp as a small tmpfs by default. kolla-build work
+# directories and occystrap temporary layer blobs are much bigger than
+# it, so send temporary files to the disk-backed /var/tmp instead.
+if [ -z "${TMPDIR:-}" ] && [ "$(findmnt -no FSTYPE /tmp 2>/dev/null)" == "tmpfs" ]; then
+    export TMPDIR=/var/tmp
+fi
+
 ##############################################################################
 # Command line parsing                                                       #
 ##############################################################################
