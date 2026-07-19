@@ -19,7 +19,7 @@ concurrency:
 
 jobs:
   heal:
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, static]
     steps:
       - name: Checkout kerbside-patches
         uses: actions/checkout@v7
