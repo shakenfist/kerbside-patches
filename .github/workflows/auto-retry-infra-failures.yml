@@ -15,7 +15,7 @@ on:
 jobs:
   check-and-retry:
     if: github.event.workflow_run.conclusion == 'failure'
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, static]
     steps:
       - name: Check for infrastructure failures and retry
         env:
@@ -56,6 +56,10 @@ jobs:
             # 2026-07-03 failing identically on all seven multinode VMs at
             # the same instant.
             "No package matching 'git' is available"
+            # A runner VM with failing storage; seen 2026-07-18 where even
+            # /usr/bin/sleep returned EIO and the build produced garbage
+            # (empty container hash, dead occystrap proxy).
+            "Input/output error"
           )
 
           # Get PR number if this was a PR-triggered run

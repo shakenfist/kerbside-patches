@@ -76,7 +76,7 @@ action, not inlined in the workflow.
 Other workflows:
 - `rebase-tests.yml` -- applies the patch stack and runs the
   test suites (`_build/test-apply.sh`) for kolla and
-  kolla-ansible on both debian-12 and rocky-9 VM runners
+  kolla-ansible on both debian-13 and rocky-9 VM runners
 - `trigger-downstream.yml` -- triggers kerbside CI on push
   to develop (e.g. after daily rebase PR merges)
 - `local-container-builds.yml` -- tests local builds work
@@ -104,7 +104,9 @@ Other workflows:
 - `vm` runners -- ephemeral VMs with full sudo access,
   provisioned on demand by the conductor (shakenfist/private-ci)
   per `runs-on` labels `[self-hosted, vm, <os>, <size>]`. OS
-  labels are `debian-12` and `rocky-9`; sizes are `s`, `m`, `xl`.
+  labels are `debian-13` and `rocky-9` (`debian-12` images still
+  exist but kolla-ansible master no longer supports bookworm, so
+  new jobs should use `debian-13`); sizes are `s`, `m`, `xl`.
 - `static` runners -- persistent machines without passwordless
   sudo for the CI user
 - `claude-code` -- persistent runner with the Claude Code CLI,
@@ -116,6 +118,15 @@ VMs). The runners have passwordless sudo, so privileged steps are
 fine; `tools/ci-install-test-deps.sh` installs the apt-vs-dnf
 dependencies and, on rocky-9, upgrades Python to 3.12 via
 `tools/upgrade-python`.
+
+Python CLI tooling (tox, yq, occystrap, clingwrap, ...) is never
+installed into the system Python: pip cannot upgrade distro-owned
+packages, so system installs break on every distro upgrade. Instead
+`_build/setup-tools-venv.sh` maintains a shared venv at
+`/srv/shakenfist/kerbside-patches-tools` and symlinks its console
+scripts into `/usr/local/bin`. `_build/common.sh` (and the lint/test
+entry points) activate that venv when it exists; the symlinks cover
+everything else. Add new Python CLI tools via that helper, not pip.
 
 ### Documentation
 
