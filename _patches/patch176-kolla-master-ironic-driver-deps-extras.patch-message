@@ -3,16 +3,15 @@ Install ironic driver deps via extras.
 Ironic change I4de9cf96fd66ef3ddf3f55bb9e1850859a3fd82b removed
 driver-requirements.txt, moving the two driver dependencies it
 listed (ansible and networking-generic-switch) into pip extras of
-the same names. The ironic-conductor image still installed
-'-r /ironic/driver-requirements.txt', so image builds against
-Ironic master now fail with:
+the same names. Kolla has since dropped the
+'-r /ironic/driver-requirements.txt' install from the
+ironic-conductor image, but does not install the equivalent
+extras, so the ansible and networking-generic-switch drivers are
+no longer available in the image.
 
-    ERROR: Could not open requirements file: [Errno 2] No such
-    file or directory: '/ironic/driver-requirements.txt'
-
-Install the equivalent extras from the Ironic source tree at
-/ironic instead. This keeps the list of driver dependencies
-maintained in Ironic rather than duplicating it in Kolla.
+Install those extras from the Ironic source tree at /ironic. This
+keeps the list of driver dependencies maintained in Ironic rather
+than duplicating it in Kolla.
 
 Prompt: Debug why CI failed on kerbside-patches PR 1461, then
 write a patch fixing the ironic-conductor image build so it can
