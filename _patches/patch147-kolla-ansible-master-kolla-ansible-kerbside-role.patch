@@ -1,6 +1,6 @@
-commit 7fee9bde0327af60532ba9b5b8ef3ba5eb28e11d
+commit defb0cc49400bd70ce45a54b5d1cdf6eb70aaca4
 Author: Michael Still <mikal@stillhq.com>
-Date:   Wed Jul 8 17:54:58 2026 +1000
+Date:   Tue Jul 21 11:56:38 2026 +1000
 
     Deploy Kerbside with Kolla-Ansible.
     
@@ -350,10 +350,10 @@ index 04cb91ba5..e8cd8bdfa 100644
        - { name: "magnum", enabled: "{{ enable_magnum | bool }}" }
        - { name: "manila", enabled: "{{ enable_manila | bool }}" }
 diff --git a/ansible/roles/fluentd/defaults/main.yml b/ansible/roles/fluentd/defaults/main.yml
-index e21b24458..c64ba1781 100644
+index b462027d4..f42ad0b34 100644
 --- a/ansible/roles/fluentd/defaults/main.yml
 +++ b/ansible/roles/fluentd/defaults/main.yml
-@@ -99,6 +99,8 @@ fluentd_input_openstack_services:
+@@ -98,6 +98,8 @@ fluentd_input_openstack_services:
      enabled: "{{ enable_horizon | bool }}"
    - name: ironic
      enabled: "{{ enable_ironic | bool }}"
@@ -429,7 +429,7 @@ index 000000000..257dbeb06
 +</source>
 diff --git a/ansible/roles/kerbside/defaults/main.yml b/ansible/roles/kerbside/defaults/main.yml
 new file mode 100644
-index 000000000..18130e572
+index 000000000..b11b3861b
 --- /dev/null
 +++ b/ansible/roles/kerbside/defaults/main.yml
 @@ -0,0 +1,162 @@
@@ -1407,7 +1407,7 @@ index 000000000..389245c32
 +}
 diff --git a/ansible/roles/kerbside/templates/kerbside_proxy.json.j2 b/ansible/roles/kerbside/templates/kerbside_proxy.json.j2
 new file mode 100644
-index 000000000..8fc68d54e
+index 000000000..851f39218
 --- /dev/null
 +++ b/ansible/roles/kerbside/templates/kerbside_proxy.json.j2
 @@ -0,0 +1,53 @@
@@ -1551,7 +1551,7 @@ index 54ab85903..b37fae01d 100644
    ansible.builtin.wait_for:
      host: "{{ kolla_internal_vip_address }}"
 diff --git a/ansible/roles/nova-cell/defaults/main.yml b/ansible/roles/nova-cell/defaults/main.yml
-index 0872bb332..6ec403f0b 100644
+index d9a36fb90..ad3f2b348 100644
 --- a/ansible/roles/nova-cell/defaults/main.yml
 +++ b/ansible/roles/nova-cell/defaults/main.yml
 @@ -298,7 +298,7 @@ nova_cell_notify_rabbitmq_users:
@@ -1578,10 +1578,10 @@ index d45bb4602..75d3a339d 100644
  server_proxyclient_address = {{ api_interface_address }}
  {%         if inventory_hostname in groups[nova_cell_compute_group] %}
 diff --git a/ansible/roles/nova/defaults/main.yml b/ansible/roles/nova/defaults/main.yml
-index 5141d4022..13a41331e 100644
+index a13d624ac..ea0196cb3 100644
 --- a/ansible/roles/nova/defaults/main.yml
 +++ b/ansible/roles/nova/defaults/main.yml
-@@ -231,7 +231,6 @@ nova_super_conductor_extra_volumes: "{{ nova_extra_volumes }}"
+@@ -226,7 +226,6 @@ nova_super_conductor_extra_volumes: "{{ nova_extra_volumes }}"
  # Used by bootstrapping containers.
  nova_api_bootstrap_extra_volumes: "{{ nova_extra_volumes }}"
  
@@ -1590,7 +1590,7 @@ index 5141d4022..13a41331e 100644
  # OpenStack
  ####################
 diff --git a/ansible/site.yml b/ansible/site.yml
-index 6fc705074..c3042a985 100644
+index 5ab1bb251..4b29b43ba 100644
 --- a/ansible/site.yml
 +++ b/ansible/site.yml
 @@ -43,6 +43,7 @@
@@ -1601,7 +1601,7 @@ index 6fc705074..c3042a985 100644
          - enable_keystone_{{ enable_keystone | bool }}
          - enable_letsencrypt_{{ enable_letsencrypt | bool }}
          - enable_loadbalancer_{{ enable_loadbalancer | bool }}
-@@ -257,6 +258,12 @@
+@@ -262,6 +263,12 @@
              tasks_from: loadbalancer
            tags: keystone
            when: enable_keystone | bool
