@@ -1,25 +1,14 @@
 Install the kerbside-proxy wheel into kerbside images.
 
-The kerbside-proxy transition replaced the in-tree Python SPICE proxy
-with a compiled Rust binary supervised by "kerbside daemon run". That
-binary is not part of the kerbside Python source tree installed by
-/kerbside above; it ships in a separate maturin "bin" wheel (name
-kerbside-proxy) that lays the compiled binary onto PATH.
+Kerbside recently split out the proxying element which shovels SPICE
+packets around from the python business logic and re-implemented
+the high bandwidth proxy component in rust. The proxy is still pip
+installable because of a maturin wrapper, and the kerbside package
+depends on the kerbside-proxy package correctly.
 
-Prefer a wheel staged into the build tree at kerbside/proxy-wheels/:
-CI (and local development) stages one built from the checked-out
-kerbside source, so pull requests test the proxy in lockstep with the
-Python side. When no wheel is staged -- every production image build --
-fall back to installing kerbside-proxy from PyPI.
+However, it might be desirable for developers or deployers to be
+able to optionally override the kerbside-proxy wheel when building
+images. This patch therefore exposes such an override mechanism.
 
-The fallback is now required rather than merely safe: the Rust proxy
-merged to kerbside's default branch (shakenfist/kerbside#99) and
-kerbside-proxy 0.3.0 is published on PyPI, so a kerbside container
-without the binary fails at startup. The PyPI install is deliberately
-unpinned, matching the unpinned clone of kerbside itself in
-assemble-source.sh: both track their respective tips, and the SPICE
-console CI lane guards against contract drift between them. It also
-bypasses upper-constraints (the false argument), which do not know
-about kerbside-proxy.
-
+Change-Id: Iaa556368a1d995a6764bd8b47833cc9472b1bb5d
 Signed-off-by: Michael Still <mikal@stillhq.com>

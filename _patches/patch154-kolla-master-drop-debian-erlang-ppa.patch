@@ -1,6 +1,6 @@
-commit 83445b3a5e55d730b394e2834e1f5da54740dc88
+commit 2513bb5e3c2f5d7dbb6d5e8a7ff776bfb9802ae9
 Author: Michael Still <mikal@stillhq.com>
-Date:   Mon Jun 22 12:04:31 2026 +1000
+Date:   Tue Jul 21 11:23:48 2026 +1000
 
     Address intermittent launchpad availability.
     
