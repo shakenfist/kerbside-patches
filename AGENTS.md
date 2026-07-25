@@ -83,13 +83,16 @@ Other workflows:
 - `daily-rebase-checks.yml` -- daily upstream rebase with
   Claude-assisted patch fixing
 - `ci-reporting.yml` -- on-demand refresh of the OpenDev CI
-  reliability data in `data/ci-reporting/` (currently the Kolla
-  libvirt "max requests limit" scan behind kolla-ansible change
-  995171). Incremental via a committed checkpoint so OpenDev is
-  never re-scraped; uploads the chart as a workflow artifact and
-  proposes a data-update PR. The scan runs on a vm runner but the
-  PR step runs on a static runner, because `gh` is only installed
-  on static runners (same split as the layer data flow)
+  reliability data in `data/ci-reporting/`. A workflow_dispatch
+  dropdown picks the report; the report catalogue is in
+  `tools/ci-report.sh` (mariadb-ist, wsrep-sync-fatal,
+  libvirt-limit) and the shared scan/chart engine is
+  `tools/count_ci_log_errors.py`. Incremental via committed
+  per-report checkpoints so OpenDev is never re-scraped; uploads
+  the refreshed data as a workflow artifact and proposes a
+  data-update PR. The scan runs on a vm runner but the PR step
+  runs on a static runner, because `gh` is only installed on
+  static runners (same split as the layer data flow)
 - `heal-data-prs.yml` -- runs on every push to develop and
   union-merges develop into any automated data PR that GitHub
   reports as conflicted. Data PRs append records to shared

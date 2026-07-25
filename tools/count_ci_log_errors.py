@@ -1,33 +1,32 @@
 #!/usr/bin/env python3
-"""Count 'Client hit max requests limit' hits in Kolla libvirtd.txt logs.
+"""Count occurrences of a target string in OpenDev Zuul CI build logs.
 
-This is a copy of the tool prototyped in the (private) openstack_zuul_tools
-repository, which remains the canonical source; it was copied here (rather
-than referenced) because it is stable, self-contained, and CI wants a pinned
-copy. It was the tool behind kolla-ansible change 995171 ("Tune libvirtd
-connection limits for OpenStack"); the ci-reporting workflow now runs it
-periodically to track that fix.
+This is the generalized successor to count_libvirt_errors.py (itself a copy of
+the tool prototyped in the private openstack_zuul_tools repository, and the
+tool behind kolla-ansible change 995171 "Tune libvirtd connection limits for
+OpenStack"). The scan/aggregate/chart machinery is unchanged; the log file to
+inspect and the string to count are now command line arguments so the same
+tool can track multiple CI reliability signals. The per-signal configuration
+lives in tools/ci-report.sh.
 
-This walks every OpenStack Kolla build recorded by the OpenDev Zuul over a
-trailing window (default 30 days), locates the ``kolla/libvirt/libvirtd.txt``
-log file(s) produced by each build, and classifies each file as a 'hit' (it
-contains the string ``Client hit max requests limit``) or a 'miss' (the file
-exists but does not contain the string).
+This walks every build recorded by the OpenDev Zuul for the requested projects
+over a trailing window (default 30 days), locates the requested log file(s) in
+each build via zuul-manifest.json, and classifies each file as a 'hit' (it
+contains the target string) or a 'miss' (the file exists but does not contain
+the string). The OpenStack ElasticSearch (logstash) deployment does not index
+these service logs, which is why we have to walk the build logs in object
+storage directly.
 
-The OpenStack ElasticSearch (logstash) deployment does not index libvirtd.txt,
-which is why we have to walk the build logs in object storage directly.
-
-Results are written incrementally to a CSV file, one row per libvirtd.txt file
-found. Builds that do not produce a libvirtd.txt (unit test jobs, doc builds,
+Results are written incrementally to a CSV file, one row per log file found.
+Builds that do not produce a matching log file (unit test jobs, doc builds,
 node failures, and so on) are not written to the CSV but are tallied in the
 run summary. A checkpoint file records which build UUIDs have already been
 processed so the run can be interrupted and resumed without redoing work.
 
-Multinode jobs (for example the cells jobs) produce several libvirtd.txt files,
-one per node directory (primary, secondary1, secondary2, ...). Each of those is
-recorded as its own CSV row. We discover them from the build's
-zuul-manifest.json rather than guessing node directory names, so any node
-layout is handled correctly.
+Multinode jobs produce several copies of a log file, one per node directory
+(primary, secondary1, secondary2, ...). Each of those is recorded as its own
+CSV row. We discover them from the build's zuul-manifest.json rather than
+guessing node directory names, so any node layout is handled correctly.
 """
 
 import argparse
@@ -35,6 +34,7 @@ import csv
 import datetime
 import json
 import os
+import re
 import sys
 import threading
 import time
@@ -44,21 +44,15 @@ import requests
 
 
 ZUUL_API = 'https://zuul.opendev.org/api/tenant/openstack'
-TARGET_STRING = 'Client hit max requests limit'
-# Path suffixes of libvirt daemon logs, by deployment tooling. Kolla publishes
-# the daemon log as kolla/libvirt/libvirtd.txt. Devstack-based jobs (Nova,
-# Tempest, ...) publish it as <node>/logs/libvirt/libvirt/libvirtd_log.txt,
-# except grenade jobs which use <node>/logs/libvirt/libvirtd_log.txt, so match
-# on the bare filename.
-LIBVIRTD_SUFFIXES = {
-    'kolla': ['kolla/libvirt/libvirtd.txt'],
-    'devstack': ['/libvirtd_log.txt'],
-}
 DEFAULT_PROJECTS = ['openstack/kolla', 'openstack/kolla-ansible']
 
+# The last field was called 'libvirtd_url' when this tool only scanned
+# libvirtd.txt. Rows appended to a legacy CSV stay positionally compatible
+# (same column order, only the header cell differs), and nothing reads the
+# URL column when aggregating, so legacy files do not need migrating.
 CSV_FIELDS = [
     'build_uuid', 'project', 'job_name', 'branch', 'pipeline', 'result',
-    'end_time', 'node', 'status', 'match_count', 'libvirtd_url',
+    'end_time', 'node', 'status', 'match_count', 'log_url',
 ]
 
 
@@ -75,7 +69,7 @@ def parse_zuul_time(value):
 
 def make_session():
     session = requests.Session()
-    session.headers.update({'User-Agent': 'kolla-libvirt-error-counter/1.0 (mikal@stillhq.com)'})
+    session.headers.update({'User-Agent': 'kolla-ci-log-error-counter/1.0 (mikal@stillhq.com)'})
     return session
 
 
@@ -158,8 +152,8 @@ def walk_manifest(nodes, prefix=''):
             yield path
 
 
-def find_libvirtd_paths(session, log_url, suffixes):
-    """Return relative paths of every libvirt daemon log in a build's manifest.
+def find_log_paths(session, log_url, suffixes):
+    """Return relative paths of every matching log file in a build's manifest.
 
     A missing manifest (404) means no logs were published -> empty list. Any
     other failure is raised after retries, for the caller to treat as a build
@@ -175,8 +169,8 @@ def find_libvirtd_paths(session, log_url, suffixes):
             if any(p.endswith(suffix) for suffix in suffixes)]
 
 
-def classify_file(session, file_url):
-    """Return (status, match_count) for a single libvirtd.txt URL.
+def classify_file(session, file_url, target):
+    """Return (status, match_count) for a single log file URL.
 
     requests transparently decompresses the gzip-stored object, so a plain
     text search works. status is 'hit', 'miss', or 'missing' (404).
@@ -185,7 +179,7 @@ def classify_file(session, file_url):
     if resp.status_code == 404:
         return 'missing', 0
     resp.raise_for_status()
-    count = resp.text.count(TARGET_STRING)
+    count = resp.text.count(target)
     return ('hit' if count else 'miss'), count
 
 
@@ -194,26 +188,26 @@ def node_from_path(path):
     return path.split('/', 1)[0] if '/' in path else path
 
 
-def process_build(session, build, suffixes):
-    """Process one build's libvirt daemon log files.
+def process_build(session, build, suffixes, target):
+    """Process one build's matching log files.
 
     Returns ``(rows, ok)``. ``ok`` is False when the build could not be fully
     processed because of a transient fetch failure that survived all retries;
     such a build is left out of the checkpoint so it is retried on the next
     run, and its (partial) rows are discarded to keep the work atomic -- a
     build is either fully recorded or not recorded at all, never half. ``rows``
-    is empty for builds that simply have no libvirtd.txt.
+    is empty for builds that simply have no matching log file.
     """
     log_url = build.get('log_url')
     if not log_url:
         return [], True
 
     try:
-        rel_paths = find_libvirtd_paths(session, log_url, suffixes)
+        rel_paths = find_log_paths(session, log_url, suffixes)
         rows = []
         for rel_path in rel_paths:
             file_url = log_url.rstrip('/') + '/' + rel_path
-            status, count = classify_file(session, file_url)
+            status, count = classify_file(session, file_url, target)
             if status == 'missing':
                 # In the manifest but unfetchable as a 404; nothing to record.
                 continue
@@ -229,7 +223,7 @@ def process_build(session, build, suffixes):
                 'node': node_from_path(rel_path),
                 'status': status,
                 'match_count': count,
-                'libvirtd_url': file_url,
+                'log_url': file_url,
             })
         return rows, True
     except Exception as exc:
@@ -271,7 +265,7 @@ def distro_of(job_name):
 def aggregate_for_chart(csv_path, branch):
     """Aggregate the CSV into per-day series for the chart.
 
-    Aggregation is per *build* (not per libvirtd.txt row): a build counts once,
+    Aggregation is per *build* (not per log file row): a build counts once,
     and 'hits' if any of its files contain the target string. Only rows on
     ``branch`` are considered. Returns ``(days, hits_by_distro, totals, rates)``
     where ``days`` is a contiguous list of ``datetime.date`` from the first to
@@ -331,7 +325,7 @@ def aggregate_for_chart(csv_path, branch):
 
 
 def build_chart(csv_path, out_path, branch='master', title=None, fix_merged=None):
-    """Render the per-day libvirt chart from ``csv_path`` to ``out_path``.
+    """Render the per-day chart from ``csv_path`` to ``out_path``.
 
     matplotlib is imported lazily so the scrape path never needs it. The figure
     has two stacked panels sharing the date axis: the top shows per-day hit
@@ -361,7 +355,7 @@ def build_chart(csv_path, out_path, branch='master', title=None, fix_merged=None
 
     if title is None:
         scope = f'{branch} CI' if branch else 'CI'
-        title = f'libvirtd connection limit failures on {scope}'
+        title = f'Log error hits on {scope}'
 
     fig, (ax_top, ax_bot) = plt.subplots(
         2, 1, figsize=(14, 8), sharex=True, height_ratios=[2, 1],
@@ -418,17 +412,22 @@ def build_chart(csv_path, out_path, branch='master', title=None, fix_merged=None
 def main():
     parser = argparse.ArgumentParser(description=__doc__,
                                      formatter_class=argparse.RawDescriptionHelpFormatter)
+    parser.add_argument('--target-string', required=True,
+                        help='the string to count occurrences of in each log file')
+    parser.add_argument('--log-suffix', action='append', required=True,
+                        help='log path suffix to look for in each build manifest, e.g. '
+                             "'kolla/libvirt/libvirtd.txt'; repeatable, a file matching any "
+                             'suffix is scanned')
+    parser.add_argument('--job-filter', default=None, metavar='REGEX',
+                        help='only scan builds whose job name matches this regular expression '
+                             '(unanchored search); useful when the target log only appears in '
+                             'a job family, e.g. -mariadb')
     parser.add_argument('--days', type=int, default=30,
                         help='trailing window in days (default 30)')
     parser.add_argument('--projects', nargs='+', default=DEFAULT_PROJECTS,
                         help=f'Zuul projects to scan (default: {" ".join(DEFAULT_PROJECTS)})')
-    parser.add_argument('--log-layout', choices=sorted(LIBVIRTD_SUFFIXES), default='kolla',
-                        help='which libvirt daemon log path layout to look for: '
-                             "'kolla' (kolla/libvirt/libvirtd.txt) or 'devstack' "
-                             '(libvirt/libvirt/libvirtd_log.txt, used by Nova/Tempest '
-                             'devstack jobs) (default kolla)')
-    parser.add_argument('--output', default='kolla_libvirt_errors.csv',
-                        help='CSV output path (default kolla_libvirt_errors.csv)')
+    parser.add_argument('--output', required=True,
+                        help='CSV output path')
     parser.add_argument('--checkpoint', default=None,
                         help='checkpoint file (default <output>.checkpoint)')
     parser.add_argument('--builds-cache', default=None,
@@ -442,15 +441,15 @@ def main():
     parser.add_argument('--list-delay', type=float, default=0.5,
                         help='seconds to sleep between Zuul build-list pages (default 0.5)')
     parser.add_argument('--verbose', action='store_true', help='chatty progress')
-    parser.add_argument('--chart', nargs='?', const='kolla_libvirt_chart.png', default=None,
-                        metavar='PATH',
-                        help='after the run, render the per-day chart to PATH '
-                             '(default kolla_libvirt_chart.png when given without a value)')
+    parser.add_argument('--chart', default=None, metavar='PATH',
+                        help='after the run, render the per-day chart to PATH')
     parser.add_argument('--chart-only', action='store_true',
                         help='skip scraping; just (re)build the chart from the existing '
                              '--output CSV, then exit')
     parser.add_argument('--chart-branch', default='master',
                         help="branch to chart, or '' for all branches (default master)")
+    parser.add_argument('--chart-title', default=None,
+                        help='chart title (default derived from the branch)')
     parser.add_argument('--fix-merged', default=None, metavar='DATE',
                         help='date/ISO-datetime a fix merged; the chart marks the first '
                              'complete day after it (the merge day is mixed) as the '
@@ -458,15 +457,19 @@ def main():
     args = parser.parse_args()
 
     if args.chart_only:
-        out_path = args.chart or 'kolla_libvirt_chart.png'
-        build_chart(args.output, out_path, branch=args.chart_branch, fix_merged=args.fix_merged)
+        if not args.chart:
+            parser.error('--chart-only requires --chart')
+        build_chart(args.output, args.chart, branch=args.chart_branch,
+                    title=args.chart_title, fix_merged=args.fix_merged)
         return
 
+    job_filter = re.compile(args.job_filter) if args.job_filter else None
     checkpoint_path = args.checkpoint or (args.output + '.checkpoint')
     builds_cache_path = args.builds_cache or (args.output + '.builds.json')
     cutoff = datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(days=args.days)
     done = load_checkpoint(checkpoint_path)
     print(f'cutoff: {cutoff.isoformat()}  projects: {", ".join(args.projects)}', file=sys.stderr)
+    print(f'target: {args.target_string!r}  suffixes: {", ".join(args.log_suffix)}', file=sys.stderr)
     if done:
         print(f'resuming: {len(done)} builds already processed', file=sys.stderr)
 
@@ -495,6 +498,12 @@ def main():
         os.replace(tmp_path, builds_cache_path)
         print(f'build list cached to {builds_cache_path}', file=sys.stderr)
 
+    if job_filter is not None:
+        before = len(builds)
+        builds = [b for b in builds if job_filter.search(b.get('job_name', ''))]
+        print(f'job filter {args.job_filter!r}: {len(builds)} of {before} builds kept',
+              file=sys.stderr)
+
     todo = [b for b in builds if b.get('uuid') not in done]
     print(f'builds in window: {len(builds)}  to process: {len(todo)}', file=sys.stderr)
 
@@ -519,10 +528,9 @@ def main():
             thread_local.session = make_session()
         return thread_local.session
 
-    suffixes = LIBVIRTD_SUFFIXES[args.log_layout]
-
     def worker(build):
-        return build, process_build(session_for_thread(), build, suffixes)
+        return build, process_build(session_for_thread(), build, args.log_suffix,
+                                    args.target_string)
 
     with ThreadPoolExecutor(max_workers=args.workers) as pool:
         futures = [pool.submit(worker, b) for b in todo]
@@ -563,10 +571,10 @@ def main():
     total_files = tally['hit'] + tally['miss']
     print('\n=== summary ===')
     print(f'builds processed this run : {processed}')
-    print(f'builds with libvirtd.txt  : {builds_with_file}')
-    print(f'builds without libvirtd   : {builds_without_file}')
+    print(f'builds with a log file    : {builds_with_file}')
+    print(f'builds without a log file : {builds_without_file}')
     print(f'builds failed (retry next): {builds_failed}')
-    print(f'libvirtd.txt files (rows) : {total_files}')
+    print(f'log files (rows)          : {total_files}')
     print(f'  hits   : {tally["hit"]}')
     print(f'  misses : {tally["miss"]}')
     if total_files:
@@ -574,7 +582,8 @@ def main():
     print(f'CSV written to            : {args.output}')
 
     if args.chart is not None:
-        build_chart(args.output, args.chart, branch=args.chart_branch, fix_merged=args.fix_merged)
+        build_chart(args.output, args.chart, branch=args.chart_branch,
+                    title=args.chart_title, fix_merged=args.fix_merged)
 
 
 if __name__ == '__main__':

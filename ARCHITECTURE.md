@@ -267,3 +267,18 @@ with upstream. It updates source SHAs, tests patches, and
 uses Claude Code to auto-fix failures when possible. The
 resulting PR includes a summary of upstream commits pulled
 in for each project (short hashes and oneline messages).
+
+### CI Reliability Reporting
+
+`ci-reporting.yml` (on demand, with a dropdown selecting the
+report) refreshes datasets tracking upstream OpenDev CI failure
+modes we have fixes in flight for. `tools/count_ci_log_errors.py`
+is the shared engine: it walks the Zuul build history for a
+project, locates a named log file in each build via
+zuul-manifest.json, counts occurrences of a target string, and
+renders a per-day chart (hits stacked by distro, plus hit rate)
+with an optional fix-merged boundary marker. The per-report
+configuration (target string, log paths, job filter, data file
+names) lives in `tools/ci-report.sh`. State is committed under
+`data/ci-reporting/` with per-report checkpoints so runs are
+incremental and OpenDev is never re-scraped.
