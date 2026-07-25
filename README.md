@@ -13,7 +13,7 @@ The remainder of the patches are ancillary changes -- support for new Nova API
 microversions in clients, things which helped me debug along the way, and that
 sort of thing.
 
-These patches last successfully applied via CI on 24 July 2026. When this occurs,
+These patches last successfully applied via CI on 25 July 2026. When this occurs,
 the SHAs the patches were applied to for each project are recorded in the
 relevant config.yaml file, and will be used for patch applications until
 updated.
@@ -220,22 +220,34 @@ the PR branch. Record order within a file does not matter because
 
 The `CI reliability reporting` workflow (`ci-reporting.yml`, run on demand
 via workflow_dispatch) tracks the health of the upstream OpenDev CI jobs
-that this repository depends on. It currently refreshes one dataset: how
-often Kolla CI builds log the libvirt message `Client hit max requests
-limit`, the failure mode fixed by kolla-ansible change 995171. The chart it
-produces marks the fix-merge boundary so the before/after effect stays
-visible over time.
+that this repository depends on. The workflow_dispatch form has a dropdown
+selecting which report to refresh; the report catalogue lives in
+`tools/ci-report.sh` and currently covers:
 
-State lives in `data/ci-reporting/` (the CSV, its checkpoint, and the
-chart) and is committed to the repository. Runs are incremental: the
-committed checkpoint means only builds newer than the previous run are
+- `mariadb-ist` -- how often mariadb scenario jobs log the Galera error
+  `IST didn't contain all write sets`, which is terminal for the joining
+  node under the current `mariadb_recovery` flow (upstream MariaDB
+  MDEV-36621 / MDEV-33089).
+- `wsrep-sync-fatal` -- hard failures of the `Wait for first MariaDB
+  service to sync WSREP` bootstrap handler, the failure mode fixed by
+  kolla-ansible change 989612.
+- `libvirt-limit` -- how often Kolla CI builds log the libvirt message
+  `Client hit max requests limit`, the failure mode fixed by kolla-ansible
+  change 995171. Kept to confirm the fix holds; it should stay at zero.
+
+Each report is a target string plus the log file(s) to scan for it; the
+shared scan/aggregate/chart engine is `tools/count_ci_log_errors.py`
+(generalized from the earlier `count_libvirt_errors.py`, which was
+prototyped in a separate repository). The chart marks the fix-merge
+boundary, once a fix has merged, so the before/after effect stays visible
+over time.
+
+State lives in `data/ci-reporting/` (per-report CSVs, their checkpoints,
+and the charts) and is committed to the repository. Runs are incremental:
+the committed checkpoint means only builds newer than the previous run are
 fetched, and the Zuul API is listed exactly once per run, keeping load on
-OpenDev's infrastructure to a minimum. Each run uploads the refreshed chart
+OpenDev's infrastructure to a minimum. Each run uploads the refreshed data
 as a workflow artifact and proposes a PR updating the committed data.
-
-The scan tool (`tools/count_libvirt_errors.py`) was prototyped in a
-separate repository and copied here as a stable, pinned artifact; see the
-header of that file for details.
 
 # Security Vulnerability Scanning
 
