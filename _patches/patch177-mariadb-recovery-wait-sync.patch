@@ -1,9 +1,9 @@
-commit 0000000000000000000000000000000000000000
+commit 5ac027d1222b0fb1f68df40958d5cae08b738d95
 Author: Michael Still <mikal@stillhq.com>
-Date:   Sat Jul 25 12:48:19 2026 +1000
+Date:   Sat Jul 25 16:50:02 2026 +1000
 
     Wait for slaves to sync before the recovery master restart.
-
+    
     During mariadb_recovery, recover_cluster.yml starts the bootstrap
     node, starts the slave containers, and then recreates the master
     container to clear pc.bootstrap. The "Wait for slave MariaDB" task
@@ -16,34 +16,34 @@ Date:   Sat Jul 25 12:48:19 2026 +1000
     required". The joiner then drops to non-primary, self-leaves, and
     sits permanently wsrep-disconnected; nothing restarts it, and the
     Galera readiness check added by commit aed9d890 fails the recovery.
-
+    
     Over the last 30 days this hit 16 of 954 mariadb scenario CI runs
     (1.7%), was terminal in every case, and accounts for about 30% of
     all failures in those jobs, across Debian, Ubuntu and Rocky. The
     Ubuntu failures are on MariaDB 11.4.12, which already contains the
     upstream fixes for MDEV-36621 and MDEV-39643, so this window has to
     be closed at the orchestration layer.
-
+    
     Add a wait for every slave to report wsrep_local_state_comment
     Synced before the master restart, using the same defensive until
     pattern as the bootstrap WSREP sync wait. The retry budget is
     larger than the port waits because a slave may legitimately still
     be receiving an SST at this point.
-
+    
     Prompt: Michael asked for a kerbside-patches patch fixing the
     mariadb_recovery IST race we diagnosed from the kolla-ansible
     989612 gate failures, where the master restart during recovery
     races slaves that are still receiving state transfer.
-
+    
     Assisted-By: Claude Fable 5 (200K context, medium effort) <noreply@anthropic.com>
     Co-Authored-By: Claude Fable 5 (200K context, medium effort) <noreply@anthropic.com>
-
+    
     Closes-Bug: #2161773
     Change-Id: Ifd0260fa4875051b1c38ee52de4f0de1806f6cc9
     Signed-off-by: Michael Still <mikal@stillhq.com>
 
 diff --git a/ansible/roles/mariadb/tasks/recover_cluster.yml b/ansible/roles/mariadb/tasks/recover_cluster.yml
-index 16f0d05..0592cb3 100644
+index 16f0d05fc..0592cb390 100644
 --- a/ansible/roles/mariadb/tasks/recover_cluster.yml
 +++ b/ansible/roles/mariadb/tasks/recover_cluster.yml
 @@ -215,6 +215,30 @@
