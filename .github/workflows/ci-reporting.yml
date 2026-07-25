@@ -1,10 +1,11 @@
 name: CI reliability reporting
 
-# On-demand refresh of the Kolla libvirt "max requests limit" dataset and
-# chart (see tools/ci-libvirt-report.sh). State is committed in
-# data/ci-reporting/ so runs are incremental and gentle on the OpenDev
-# infrastructure; each run uploads the chart as a workflow artifact and
-# proposes a PR updating the committed data.
+# On-demand refresh of the OpenDev CI reliability datasets and charts in
+# data/ci-reporting/ (see tools/ci-report.sh for the report catalogue). The
+# dropdown picks which report to refresh; state is committed so runs are
+# incremental and gentle on the OpenDev infrastructure. Each run uploads the
+# refreshed data as a workflow artifact and proposes a PR updating the
+# committed data.
 #
 # The scan runs on an ephemeral vm runner, but PR creation runs on a
 # static runner because gh is only installed there (the same split the
@@ -13,29 +14,37 @@ name: CI reliability reporting
 
 on:
   workflow_dispatch:
+    inputs:
+      report:
+        description: Which CI reliability report to refresh
+        type: choice
+        required: true
+        default: mariadb-ist
+        options:
+          - mariadb-ist
+          - wsrep-sync-fatal
+          - libvirt-limit
+          - all
 
 jobs:
-  libvirt-report:
+  ci-report:
     runs-on: [self-hosted, vm, debian-13, s]
     timeout-minutes: 300
     steps:
       - name: Checkout kerbside-patches
         uses: actions/checkout@v7
 
-      - name: Refresh libvirt error dataset and chart
-        run: ./tools/ci-libvirt-report.sh
+      - name: Refresh CI reliability dataset and chart
+        run: ./tools/ci-report.sh "${{ inputs.report }}"
 
       - name: Upload report as workflow artifact
         uses: actions/upload-artifact@v7
         with:
-          name: kolla-libvirt-report
-          path: |
-            data/ci-reporting/kolla_libvirt_chart.png
-            data/ci-reporting/kolla_libvirt_errors.csv
-            data/ci-reporting/kolla_libvirt_errors.csv.checkpoint
+          name: ci-report-${{ inputs.report }}
+          path: data/ci-reporting/
 
   propose-pr:
-    needs: libvirt-report
+    needs: ci-report
     runs-on: [self-hosted, static]
     timeout-minutes: 30
     steps:
@@ -48,11 +57,12 @@ jobs:
       - name: Download refreshed report data
         uses: actions/download-artifact@v8
         with:
-          name: kolla-libvirt-report
+          name: ci-report-${{ inputs.report }}
           path: data/ci-reporting
 
       - name: Propose data update PR
         env:
           GITHUB_TOKEN: ${{ secrets.DAILY_REBASE_TOKEN }}
           RUN_ID: ${{ github.run_id }}
+          REPORT: ${{ inputs.report }}
         run: ./tools/ci-report-propose-pr.sh
