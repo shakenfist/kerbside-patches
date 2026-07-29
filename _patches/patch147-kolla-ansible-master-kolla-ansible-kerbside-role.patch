@@ -1,6 +1,6 @@
-commit defb0cc49400bd70ce45a54b5d1cdf6eb70aaca4
+commit 89e28412c06421675543d287b2b3be3efe025bb4
 Author: Michael Still <mikal@stillhq.com>
-Date:   Tue Jul 21 11:56:38 2026 +1000
+Date:   Wed Jul 29 11:38:30 2026 +1000
 
     Deploy Kerbside with Kolla-Ansible.
     
@@ -1501,10 +1501,10 @@ index 000000000..fce52d4de
 +---
 +project_name: "kerbside"
 diff --git a/ansible/roles/loadbalancer/tasks/precheck.yml b/ansible/roles/loadbalancer/tasks/precheck.yml
-index 54ab85903..b37fae01d 100644
+index 53c5da174..40a8ef88b 100644
 --- a/ansible/roles/loadbalancer/tasks/precheck.yml
 +++ b/ansible/roles/loadbalancer/tasks/precheck.yml
-@@ -439,6 +439,45 @@
+@@ -463,6 +463,45 @@
      - haproxy_stat.find('ironic_api') == -1
      - haproxy_vip_prechecks
  
@@ -1551,7 +1551,7 @@ index 54ab85903..b37fae01d 100644
    ansible.builtin.wait_for:
      host: "{{ kolla_internal_vip_address }}"
 diff --git a/ansible/roles/nova-cell/defaults/main.yml b/ansible/roles/nova-cell/defaults/main.yml
-index d9a36fb90..ad3f2b348 100644
+index 297a912bd..052ed4e63 100644
 --- a/ansible/roles/nova-cell/defaults/main.yml
 +++ b/ansible/roles/nova-cell/defaults/main.yml
 @@ -298,7 +298,7 @@ nova_cell_notify_rabbitmq_users:
