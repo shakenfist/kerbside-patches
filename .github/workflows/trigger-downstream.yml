@@ -14,6 +14,6 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.DAILY_REBASE_TOKEN }}
         run: |
-          gh workflow run "Test cloud compatibility" \
+          gh workflow run functional-tests.yml \
               --repo shakenfist/kerbside \
               -f target='["kolla-ansible-master-debian-12"]'
