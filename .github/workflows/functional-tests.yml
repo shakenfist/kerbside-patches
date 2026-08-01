@@ -201,7 +201,10 @@ jobs:
           FROM scratch
           COPY identifier identifier
           EOF
-          docker build -t heartbeat:latest .
+          # Attestations produce an OCI index whose child manifests docker
+          # 29.7.0 pushes in an order the GitLab registry rejects ("blob
+          # unknown to registry"). The heartbeat doesn't need provenance.
+          docker build --provenance=false -t heartbeat:latest .
 
           echo
           echo "Log into regisry..."
