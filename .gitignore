@@ -1,0 +1,4 @@
+# The assembled source tree, created by _build/assemble-source.sh. It holds
+# clones of the upstream OpenStack repos with our patches applied, each with
+# its own .git, and is regenerated from scratch on every build.
+src/

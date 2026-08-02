@@ -41,6 +41,25 @@ to the CI registry. If the proxy fails to start, the
 build falls back to the sequential `occystrap process`
 push loop.
 
+### The Assembled Source Tree
+
+`_build/assemble-source.sh` clones the upstream OpenStack
+repos into `src/` and applies our patch stack to them. That
+tree is generated output, not source: it is regenerated from
+scratch on every build and is listed in `.gitignore`.
+
+- Never edit `src/` to change patched behaviour, and never
+  commit from it. Edits belong in `_patches/`; regenerate
+  with `_build/test-apply.sh` to see them applied.
+- Each subdirectory (`src/kolla`, `src/kolla-ansible`, ...)
+  is a separate git repository with its own `.git`. The
+  `git add -A .` and commit calls in
+  `_build/apply-patches-and-test.sh` run inside those repos,
+  so this repository's `.gitignore` does not affect them.
+- Because `src/` is ignored, a finished build worktree can be
+  torn down with a plain `git worktree remove`, with no
+  `--force` needed.
+
 ### Working with Layer Data
 
 Layer metadata is collected during CI builds via occystrap
