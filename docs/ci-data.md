@@ -66,6 +66,17 @@ lives in `tools/ci-report.sh` and currently covers:
   `Client hit max requests limit`, the failure mode fixed by
   kolla-ansible change 995171. Kept to confirm the fix holds; it
   should stay at zero.
+- `ovs-create-tap` -- os-vif refusing to pre-create a TAP device for a
+  hybrid-plugged OVS port, logged by nova-compute as `create_tap is
+  only supported for VIFOpenVSwitch`. Neutron's ML2/OVS mechanism
+  driver began advertising `ovs_create_tap` on 2026-07-31 without
+  consulting `OVS_HYBRID_PLUG`; nova copies the flag onto a shared
+  port profile before it chooses `VIFBridge`, and os-vif then rejects
+  the plug, so no instance boots at all. Kolla-Ansible hardcodes the
+  hybrid firewall driver, so Kolla CI is exposed as soon as it picks
+  up a new enough neutron. We tripped it first because we rebuild
+  from master daily -- our patch178 opts out locally, and this report
+  watches for the same failure reaching upstream.
 
 Each report is a target string plus the log file(s) to scan for it; the
 shared scan/aggregate/chart engine is `tools/count_ci_log_errors.py`
