@@ -19,6 +19,15 @@
 #                      989612 fix); the target string is the handler's until
 #                      expression, which only appears in logs when the
 #                      conditional errors out
+#   ovs-create-tap   - os-vif refusing to pre-create a TAP device for a
+#                      hybrid-plugged OVS port. Neutron's ML2/OVS driver
+#                      started advertising ovs_create_tap on 2026-07-31
+#                      without checking OVS_HYBRID_PLUG, nova copies it onto
+#                      the shared port profile before choosing VIFBridge, and
+#                      os-vif then rejects the plug so no instance boots. We
+#                      hit this before upstream did because we rebuild from
+#                      master daily; this report watches for Kolla CI picking
+#                      up a new enough neutron to start failing too
 #
 # State (the CSV, its checkpoint, and the chart) lives in data/ci-reporting/
 # and is committed to this repository, so each run only fetches logs for
@@ -35,7 +44,7 @@ DATA_DIR="data/ci-reporting"
 report="$1"
 if [ -z "${report}" ]; then
     echo "Usage: $0 <report>|all" >&2
-    echo "Reports: libvirt-limit mariadb-ist wsrep-sync-fatal" >&2
+    echo "Reports: libvirt-limit mariadb-ist wsrep-sync-fatal ovs-create-tap" >&2
     exit 1
 fi
 
@@ -84,6 +93,16 @@ run_report() {
             chart_title='MariaDB WSREP sync wait hard failures on master CI'
             fix_merged=''
             ;;
+        ovs-create-tap)
+            target='create_tap is only supported for VIFOpenVSwitch'
+            projects='openstack/kolla openstack/kolla-ansible'
+            job_filter=''
+            suffixes='kolla/nova/nova-compute.txt'
+            basename='kolla_ovs_create_tap_errors'
+            chart='kolla_ovs_create_tap_chart.png'
+            chart_title='os-vif TAP pre-creation refused on hybrid-plug OVS ports on master CI'
+            fix_merged=''
+            ;;
         *)
             echo "Unknown report: ${name}" >&2
             exit 1
@@ -119,7 +138,7 @@ run_report() {
 }
 
 if [ "${report}" = "all" ]; then
-    for name in libvirt-limit mariadb-ist wsrep-sync-fatal; do
+    for name in libvirt-limit mariadb-ist wsrep-sync-fatal ovs-create-tap; do
         run_report "${name}"
     done
 else

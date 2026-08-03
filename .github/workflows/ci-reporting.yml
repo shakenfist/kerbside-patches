@@ -24,6 +24,7 @@ on:
           - mariadb-ist
           - wsrep-sync-fatal
           - libvirt-limit
+          - ovs-create-tap
           - all
 
 jobs:
