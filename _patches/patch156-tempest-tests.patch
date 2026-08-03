@@ -1,6 +1,6 @@
-commit d9d1412643533bb25fc598c8648cbf133613d5ed
+commit 755767e3f8a57219e06b9572af293f1afe6a67dc
 Author: Michael Still <mikal@stillhq.com>
-Date:   Wed Jul 29 11:38:30 2026 +1000
+Date:   Mon Aug 3 10:52:21 2026 +1000
 
     Add kerbside CI scenario jobs.
     
@@ -63,7 +63,7 @@ index e21890b17..0472af348 100644
          upper_constraints_file: "{{ ansible_env.HOME }}/src/opendev.org/openstack/requirements/upper-constraints.txt"
          docker_image_tag_suffix: "{{ '-aarch64' if ansible_architecture == 'aarch64' else '' }}"
 diff --git a/tests/templates/globals-default.j2 b/tests/templates/globals-default.j2
-index 1ea0b587f..76814e775 100644
+index fb2b715bb..e0a808adf 100644
 --- a/tests/templates/globals-default.j2
 +++ b/tests/templates/globals-default.j2
 @@ -124,6 +124,12 @@ enable_masakari: "yes"

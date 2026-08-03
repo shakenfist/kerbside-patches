@@ -1,6 +1,6 @@
-commit 89e28412c06421675543d287b2b3be3efe025bb4
+commit a013037bd8b678eac1a07b6af5c1f29cc7967cc7
 Author: Michael Still <mikal@stillhq.com>
-Date:   Wed Jul 29 11:38:30 2026 +1000
+Date:   Mon Aug 3 10:52:20 2026 +1000
 
     Deploy Kerbside with Kolla-Ansible.
     
@@ -363,7 +363,7 @@ index b462027d4..f42ad0b34 100644
      enabled: "{{ enable_keystone | bool }}"
    - name: magnum
 diff --git a/ansible/roles/fluentd/tasks/config.yml b/ansible/roles/fluentd/tasks/config.yml
-index 830ce9148..ce1291af3 100644
+index e5e266653..271a1fd1e 100644
 --- a/ansible/roles/fluentd/tasks/config.yml
 +++ b/ansible/roles/fluentd/tasks/config.yml
 @@ -101,6 +101,8 @@
