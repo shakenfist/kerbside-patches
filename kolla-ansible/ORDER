@@ -7,3 +7,4 @@
 ../_patches/patch158-kerbside-tempest-via-haproxy.patch
 ../_patches/patch165-kolla-ansible-master-rabbitmq-healthcheck-timeout.patch
 ../_patches/patch177-mariadb-recovery-wait-sync.patch
+../_patches/patch178-kolla-ansible-master-disable-ovs-create-tap.patch
