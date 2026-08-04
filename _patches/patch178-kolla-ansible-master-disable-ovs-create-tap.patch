@@ -1,0 +1,68 @@
+commit ccd2a82cefc45b1ab2d797483c93b22659fdfdb8
+Author: Michael Still <mikal@stillhq.com>
+Date:   Tue Aug 4 09:20:33 2026 +1000
+
+    Disable ovs_create_tap for ML2/OVS deployments.
+    
+    Neutron's ML2/OVS mechanism driver gained an `ovs_create_tap` flag in
+    a818987db ("ml2: Add ``ovs_create_tap`` flag to ML2/OVS mechanism
+    driver", 2026-07-31), mirroring the existing ML2/OVN support. It
+    defaults to True and is set in vif_details for any kernel datapath
+    port that is not VNIC_DIRECT -- notably without consulting
+    OVS_HYBRID_PLUG.
+    
+    Kolla-Ansible hardcodes the OVS hybrid iptables firewall driver in
+    the openvswitch agent config, so hybrid plugging is always on here.
+    Nova's _nova_to_osvif_vif_ovs() builds a single port profile, copies
+    create_tap onto it from vif_details, and only then branches between
+    VIFBridge (hybrid) and VIFOpenVSwitch, so the VIFBridge inherits a
+    flag it cannot honour. os-vif then rejects the plug outright with
+    "Tap device creation requested for unsupported VIF type. create_tap
+    is only supported for VIFOpenVSwitch, got VIFBridge", nova reschedules
+    until it runs out of hosts, and the instance lands in ERROR. No guest
+    boots at all.
+    
+    The nova and os-vif halves of this have been in place since early
+    2026 and were simply dormant; the Neutron flag is what arms them.
+    Opt out in the ML2 config for openvswitch deployments until the
+    upstream ordering is fixed. The flag is marked deprecated-for-removal
+    from birth (deprecated_since 2026.2, LP#2069718) and exists only for
+    this transition, so this override is expected to be short lived.
+    Deployments using ML2/OVN are untouched.
+    
+    Prompt: Michael asked me to unblock CI by landing a patch that turns
+    off ovs_create_tap, after we traced the kerbside OpenStack lane going
+    red on 2026-08-03 to this three-way interaction and confirmed via the
+    CI artifact bundles that nova was byte-identical across the last
+    passing and first failing runs while neutron moved dev79 to dev88.
+    
+    Assisted-By: Claude Opus 5 (1M context, high effort) <noreply@anthropic.com>
+    Co-Authored-By: Claude Opus 5 (1M context, high effort) <noreply@anthropic.com>
+    
+    Change-Id: I8cd115e7cc334e12e8dcc359fa9bcab5a0d0ed8a
+    Signed-off-by: Michael Still <mikal@stillhq.com>
+
+diff --git a/ansible/roles/neutron/templates/ml2_conf.ini.j2 b/ansible/roles/neutron/templates/ml2_conf.ini.j2
+index 7a4e72bdb..fa20bb543 100644
+--- a/ansible/roles/neutron/templates/ml2_conf.ini.j2
++++ b/ansible/roles/neutron/templates/ml2_conf.ini.j2
+@@ -30,6 +30,19 @@ flat_networks = {{ neutron_physical_networks }}
+ [ml2_type_vxlan]
+ vni_ranges = 1:1000
+ 
++{% if neutron_plugin_agent == 'openvswitch' %}
++[OVS_DRIVER]
++# ML2/OVS advertises ovs_create_tap in vif_details for every kernel
++# datapath port, without checking whether hybrid plugging is in use.
++# We deploy the OVS hybrid iptables firewall driver, so Neutron hands
++# Nova a VIFBridge that still carries create_tap, and os-vif refuses it
++# ("create_tap is only supported for VIFOpenVSwitch, got VIFBridge").
++# Every instance build then fails. Opt out until the upstream ordering
++# is fixed; this flag is deprecated-for-removal from birth and only
++# exists for this transition.
++ovs_create_tap = False
++{% endif %}
++
+ {% if neutron_plugin_agent == 'ovn' %}
+ [ml2_type_geneve]
+ vni_ranges = 1001:2000
