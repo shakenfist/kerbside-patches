@@ -25,6 +25,7 @@ on:
           - wsrep-sync-fatal
           - libvirt-limit
           - ovs-create-tap
+          - scheduler-unhealthy
           - all
 
 jobs:

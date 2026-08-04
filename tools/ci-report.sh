@@ -19,6 +19,14 @@
 #                      989612 fix); the target string is the handler's until
 #                      expression, which only appears in logs when the
 #                      conditional errors out
+#   scheduler-unhealthy
+#                    - nova_scheduler flagged unhealthy by kolla-ansible's
+#                      post-deploy/post-reconfigure check-failure.sh. Its
+#                      healthcheck (healthcheck_port nova-scheduler 5672,
+#                      30s interval x 3 retries = 90s) cannot survive the
+#                      ~163s window in which cotyledon has SIGTERMed the
+#                      scheduler workers and not yet respawned them, so any
+#                      sanity check landing in that window fails
 #   ovs-create-tap   - os-vif refusing to pre-create a TAP device for a
 #                      hybrid-plugged OVS port. Neutron's ML2/OVS driver
 #                      started advertising ovs_create_tap on 2026-07-31
@@ -44,7 +52,7 @@ DATA_DIR="data/ci-reporting"
 report="$1"
 if [ -z "${report}" ]; then
     echo "Usage: $0 <report>|all" >&2
-    echo "Reports: libvirt-limit mariadb-ist wsrep-sync-fatal ovs-create-tap" >&2
+    echo "Reports: libvirt-limit mariadb-ist wsrep-sync-fatal ovs-create-tap scheduler-unhealthy" >&2
     exit 1
 fi
 
@@ -93,6 +101,16 @@ run_report() {
             chart_title='MariaDB WSREP sync wait hard failures on master CI'
             fix_merged=''
             ;;
+        scheduler-unhealthy)
+            target='Discovered unhealthy container: nova_scheduler'
+            projects='openstack/kolla openstack/kolla-ansible'
+            job_filter='^(kolla-ansible|kayobe)-'
+            suffixes='job-output.txt'
+            basename='kolla_scheduler_unhealthy_errors'
+            chart='kolla_scheduler_unhealthy_chart.png'
+            chart_title='nova_scheduler flagged unhealthy by post-deploy sanity checks on master CI'
+            fix_merged=''
+            ;;
         ovs-create-tap)
             target='create_tap is only supported for VIFOpenVSwitch'
             projects='openstack/kolla openstack/kolla-ansible'
@@ -138,7 +156,7 @@ run_report() {
 }
 
 if [ "${report}" = "all" ]; then
-    for name in libvirt-limit mariadb-ist wsrep-sync-fatal ovs-create-tap; do
+    for name in libvirt-limit mariadb-ist wsrep-sync-fatal ovs-create-tap scheduler-unhealthy; do
         run_report "${name}"
     done
 else
