@@ -66,6 +66,22 @@ lives in `tools/ci-report.sh` and currently covers:
   `Client hit max requests limit`, the failure mode fixed by
   kolla-ansible change 995171. Kept to confirm the fix holds; it
   should stay at zero.
+- `scheduler-unhealthy` -- how often kolla-ansible's post-deploy and
+  post-reconfigure `check-failure.sh` finds `nova_scheduler`
+  unhealthy. The container healthcheck is `healthcheck_port
+  nova-scheduler 5672`, which asserts an established AMQP connection,
+  at a 30 second interval with 3 retries -- 90 seconds of tolerance.
+  Every kolla-ansible deploy and reconfigure SIGTERMs the scheduler's
+  cotyledon workers and takes a very consistent ~163 seconds to
+  respawn them, during which no process holds a connection and the
+  probe correctly reports unhealthy. Whether a job fails is therefore
+  down to where its sanity check lands relative to that window.
+  Measured over 30 days this hits 328 builds and is fatal to 118 of
+  them, spread evenly across rocky-10, ubuntu-noble and debian-trixie
+  on OpenDev's own nodes, so it is an upstream defaults mismatch
+  rather than anything about our hardware. Raising
+  `nova_scheduler_healthcheck_retries` past the reload window is the
+  workaround this report justifies.
 - `ovs-create-tap` -- os-vif refusing to pre-create a TAP device for a
   hybrid-plugged OVS port, logged by nova-compute as `create_tap is
   only supported for VIFOpenVSwitch`. Neutron's ML2/OVS mechanism
