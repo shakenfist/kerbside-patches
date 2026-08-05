@@ -1,0 +1,138 @@
+commit a8143fba13e5208049358fd387663d9c53fc992c
+Author: Michael Still <mikal@stillhq.com>
+Date:   Wed Aug 5 17:30:44 2026 +1000
+
+    Widen the nova_scheduler healthcheck in CI.
+    
+    nova_scheduler's healthcheck is "healthcheck_port nova-scheduler
+    5672", which asserts an established AMQP connection. Since Nova
+    33.0.0 (2026.1) every Nova service sleeps for
+    [DEFAULT]/manager_shutdown_timeout, which is 160 seconds by default,
+    inside its SIGTERM handler, so every deploy and every reconfigure
+    leaves the scheduler with no AMQP connection for the best part of
+    three minutes. Nova's release note for that feature says as much,
+    and tells operators to widen their supervision timeouts to suit:
+    
+      The default value of [DEFAULT]/graceful_shutdown_timeout has been
+      changed from 60 to 180 seconds for all Nova services. [...]
+      Operators using external system (e.g. k8s, systemd) to manage the
+      Nova services should ensure that their service stop timeouts are
+      set to at least graceful_shutdown_timeout to avoid forcefully
+      killing service before Nova finish its graceful shutdown.
+    
+    Kolla-Ansible supervises Nova with container healthchecks rather
+    than systemd, and those were never widened to match. The default 30
+    second interval with 3 retries tolerates only 90 seconds, so
+    whether check-failure.sh trips comes down to where its poll lands
+    in the restart window. From a rocky-10 job on 2026-08-03:
+    
+      01:38:55.303 Caught SIGTERM signal, graceful exiting of service
+      01:38:56.787 service stopped RPC server on topic: scheduler
+      01:38:56.787 Scheduler service manager is waiting for 160 seconds
+                   to finish in-progress tasks
+      01:41:36.787 manager graceful shutdown finished
+      01:41:36.850 Starting scheduler node (version 33.1.0)
+    
+    The post-deploy sanity check ran at 01:40:53, inside that window,
+    and the job failed. Across a trailing 30 days this shows up in 328
+    Kolla CI builds and is fatal to 118 of them, across 13 job variants
+    and spread evenly over rocky-10, ubuntu-noble and debian-trixie.
+    Every one of those is on master or stable/2026.1 and none is on an
+    older branch, which is exactly where the Nova change landed.
+    
+    Every service already accepts per-service healthcheck overrides via
+    <service>_healthcheck_<option>, so no code change is needed. Set
+    nova_scheduler_healthcheck_retries to 8 in the CI globals template,
+    giving 240 seconds and comfortably clearing the restart window.
+    This follows 795fbb104, which widened
+    mariadb_monitor_galera_healthcheck_timeout in the same file for the
+    same class of problem.
+    
+    Also document the knob in the sample globals.yml, alongside the
+    defaults it overrides, and add a release note, since operators hit
+    the same window on any reconfigure. The sample entry stays
+    commented out and changes nothing for an existing deployment.
+    
+    Nova describes the feature as experimental and plans to replace the
+    fixed sleep with real task tracking (blueprint
+    nova-services-graceful-shutdown-part2-task-tracking, currently in
+    review as I2de2172b5836f156c2154ca73cbff558ec587ea3). Until that
+    lands the wait is unconditional, and for nova_scheduler it is dead
+    time: nova/service.py stops and drains the RPC server before
+    calling the manager's graceful_shutdown(), and only nova-compute
+    creates the second RPC server that can accept work during
+    shutdown. This override should be dropped once the Nova side is
+    fixed. nova_conductor and nova_compute share the same probe shape
+    and the same sleep, so they can trip the same way; only the
+    scheduler has been observed doing so in CI.
+    
+    Prompt: Michael asked for assistance debugging why CI jobs were
+    failing with nova-scheduler timeouts. We then traced the delay to
+    Nova's manager_shutdown_timeout, and confirming 2026.1 shipped that
+    behaviour, produced the citations above.
+    
+    Assisted-By: Claude Opus 5 (1M context, high effort) <noreply@anthropic.com>
+    Co-Authored-By: Claude Opus 5 (1M context, high effort) <noreply@anthropic.com>
+    
+    Closes-Bug: #2162860
+    Change-Id: If7c5a6d885b19e39cfc305440424f10de3a5ea05
+    Signed-off-by: Michael Still <mikal@stillhq.com>
+
+diff --git a/etc/kolla/globals.yml b/etc/kolla/globals.yml
+index 3785398b3..eed690815 100644
+--- a/etc/kolla/globals.yml
++++ b/etc/kolla/globals.yml
+@@ -209,6 +209,15 @@ workaround_ansible_issue_8743: true
+ #default_container_healthcheck_timeout: 30
+ #default_container_healthcheck_retries: 3
+ #default_container_healthcheck_start_period: 5
++# Individual services accept per-service overrides of the options above,
++# named <service>_healthcheck_<option>. nova_scheduler is the one most
++# often worth raising: its healthcheck asserts an established AMQP
++# connection, but a deploy or reconfigure stops the scheduler's workers
++# and they take around 160 seconds to come back. The default 30 second
++# interval with 3 retries only tolerates 90 seconds of that, so the
++# container is reported unhealthy for the rest of the restart. 8 retries
++# covers the whole window.
++#nova_scheduler_healthcheck_retries: 8
+ 
+ ##################
+ # Firewall options
+diff --git a/releasenotes/notes/nova-scheduler-healthcheck-retries-12e681b16f6322aa.yaml b/releasenotes/notes/nova-scheduler-healthcheck-retries-12e681b16f6322aa.yaml
+new file mode 100644
+index 000000000..51cf8ecb7
+--- /dev/null
++++ b/releasenotes/notes/nova-scheduler-healthcheck-retries-12e681b16f6322aa.yaml
+@@ -0,0 +1,13 @@
++---
++other:
++  - |
++    The ``nova_scheduler`` container healthcheck asserts an established AMQP
++    connection, but a deploy or a reconfigure stops the scheduler's workers
++    and they take around 160 seconds to come back. The default 30 second
++    interval with 3 retries only covers 90 seconds of that, so the container
++    can report as unhealthy for the rest of the restart even though the
++    scheduler is fine. Deployments that hit this can raise
++    ``nova_scheduler_healthcheck_retries``, which is now documented in the
++    sample ``globals.yml``; 8 retries covers the whole window. Kolla CI now
++    sets it. `LP#2162860
++    <https://bugs.launchpad.net/kolla/+bug/2162860>`__
+diff --git a/tests/templates/globals-default.j2 b/tests/templates/globals-default.j2
+index fb2b715bb..32cb2af98 100644
+--- a/tests/templates/globals-default.j2
++++ b/tests/templates/globals-default.j2
+@@ -51,6 +51,14 @@ mariadb_monitor_ping_interval: "60000"
+ mariadb_monitor_ping_max_failures: "10"
+ mariadb_monitor_ping_timeout: "10000"
+ 
++# Nova scheduler - widen the healthcheck past the worker restart gap.
++# The healthcheck asserts an established AMQP connection, but a deploy or
++# a reconfigure stops the scheduler's workers and they take around 160
++# seconds to come back. The default 30 second interval with 3 retries
++# only covers 90 seconds of that, so check-failure.sh catches the
++# container mid-restart and fails the job.
++nova_scheduler_healthcheck_retries: 8
++
+ nova_compute_virt_type: "{{ virt_type }}"
+ 
+ neutron_agents_wrappers: "yes"

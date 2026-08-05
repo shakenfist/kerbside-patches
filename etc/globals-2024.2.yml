@@ -219,24 +219,6 @@ neutron_external_interface: "eth1"
 #default_container_healthcheck_retries: 3
 #default_container_healthcheck_start_period: 5
 
-# nova_scheduler's healthcheck is "healthcheck_port nova-scheduler 5672",
-# asserting an established AMQP connection. Every deploy and every
-# reconfigure SIGTERMs the scheduler's cotyledon workers and takes a very
-# consistent ~163 seconds to respawn them, and for that whole window no
-# process holds a connection, so the probe correctly reports unhealthy.
-# The stock 30 second interval with 3 retries only tolerates 90 seconds,
-# so whether check-failure.sh trips is purely down to where it lands in
-# that window. Over a trailing 30 days this hits 328 upstream Kolla CI
-# builds and is fatal to 118 of them, evenly spread across rocky-10,
-# ubuntu-noble and debian-trixie on OpenDev's own nodes, so it is an
-# upstream defaults mismatch rather than anything about our hardware --
-# see the scheduler-unhealthy report in data/ci-reporting/.
-#
-# 8 retries at the 30 second interval gives 240 seconds, comfortably past
-# the reload window. Drop this once the underlying restart gap is fixed
-# upstream.
-nova_scheduler_healthcheck_retries: 8
-
 ##################
 # Firewall options
 ##################
