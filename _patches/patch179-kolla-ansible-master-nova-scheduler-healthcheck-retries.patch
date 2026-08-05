@@ -1,6 +1,6 @@
-commit a8143fba13e5208049358fd387663d9c53fc992c
+commit ecdece9af45f7f725380e644e78ba8b381857311
 Author: Michael Still <mikal@stillhq.com>
-Date:   Wed Aug 5 17:30:44 2026 +1000
+Date:   Thu Aug 6 09:46:57 2026 +1000
 
     Widen the nova_scheduler healthcheck in CI.
     
@@ -78,6 +78,23 @@ Date:   Wed Aug 5 17:30:44 2026 +1000
     Change-Id: If7c5a6d885b19e39cfc305440424f10de3a5ea05
     Signed-off-by: Michael Still <mikal@stillhq.com>
 
+diff --git a/ansible/roles/nova/defaults/main.yml b/ansible/roles/nova/defaults/main.yml
+index a13d624ac..fb7dfe6fa 100644
+--- a/ansible/roles/nova/defaults/main.yml
++++ b/ansible/roles/nova/defaults/main.yml
+@@ -168,7 +168,11 @@ nova_metadata_healthcheck:
+ 
+ nova_scheduler_enable_healthchecks: "{{ enable_container_healthchecks }}"
+ nova_scheduler_healthcheck_interval: "{{ default_container_healthcheck_interval }}"
+-nova_scheduler_healthcheck_retries: "{{ default_container_healthcheck_retries }}"
++
++# NOTE(mikal): this one is deliberately overridden because of the issues discussed
++# in releasenotes/notes/nova-scheduler-healthcheck-retries-12e681b16f6322aa.yaml
++nova_scheduler_healthcheck_retries: "8"
++
+ nova_scheduler_healthcheck_start_period: "{{ default_container_healthcheck_start_period }}"
+ nova_scheduler_healthcheck_test: ["CMD-SHELL", "healthcheck_port nova-scheduler {{ om_rpc_port }}"]
+ nova_scheduler_healthcheck_timeout: "{{ default_container_healthcheck_timeout }}"
 diff --git a/etc/kolla/globals.yml b/etc/kolla/globals.yml
 index 3785398b3..eed690815 100644
 --- a/etc/kolla/globals.yml
