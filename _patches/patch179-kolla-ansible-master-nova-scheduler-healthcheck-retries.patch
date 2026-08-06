@@ -1,6 +1,6 @@
-commit ecdece9af45f7f725380e644e78ba8b381857311
+commit def77fcc49041cafef5ac361b4fdc70a1a24efbf
 Author: Michael Still <mikal@stillhq.com>
-Date:   Thu Aug 6 09:46:57 2026 +1000
+Date:   Thu Aug 6 19:05:49 2026 +1000
 
     Widen the nova_scheduler healthcheck in CI.
     
@@ -79,7 +79,7 @@ Date:   Thu Aug 6 09:46:57 2026 +1000
     Signed-off-by: Michael Still <mikal@stillhq.com>
 
 diff --git a/ansible/roles/nova/defaults/main.yml b/ansible/roles/nova/defaults/main.yml
-index a13d624ac..fb7dfe6fa 100644
+index ea0196cb3..9ccaf1223 100644
 --- a/ansible/roles/nova/defaults/main.yml
 +++ b/ansible/roles/nova/defaults/main.yml
 @@ -168,7 +168,11 @@ nova_metadata_healthcheck:
@@ -96,7 +96,7 @@ index a13d624ac..fb7dfe6fa 100644
  nova_scheduler_healthcheck_test: ["CMD-SHELL", "healthcheck_port nova-scheduler {{ om_rpc_port }}"]
  nova_scheduler_healthcheck_timeout: "{{ default_container_healthcheck_timeout }}"
 diff --git a/etc/kolla/globals.yml b/etc/kolla/globals.yml
-index 3785398b3..eed690815 100644
+index eb4ef0384..3bfb3728a 100644
 --- a/etc/kolla/globals.yml
 +++ b/etc/kolla/globals.yml
 @@ -209,6 +209,15 @@ workaround_ansible_issue_8743: true
@@ -135,7 +135,7 @@ index 000000000..51cf8ecb7
 +    sets it. `LP#2162860
 +    <https://bugs.launchpad.net/kolla/+bug/2162860>`__
 diff --git a/tests/templates/globals-default.j2 b/tests/templates/globals-default.j2
-index fb2b715bb..32cb2af98 100644
+index e0a808adf..746f0127b 100644
 --- a/tests/templates/globals-default.j2
 +++ b/tests/templates/globals-default.j2
 @@ -51,6 +51,14 @@ mariadb_monitor_ping_interval: "60000"

@@ -1,6 +1,6 @@
-commit a013037bd8b678eac1a07b6af5c1f29cc7967cc7
+commit cef0d8ad90395e94407b6d7a28b7c703e17729a8
 Author: Michael Still <mikal@stillhq.com>
-Date:   Mon Aug 3 10:52:20 2026 +1000
+Date:   Thu Aug 6 19:05:48 2026 +1000
 
     Deploy Kerbside with Kolla-Ansible.
     
@@ -42,10 +42,10 @@ index decf2682b..0956ff88a 100644
    hosts: localhost
 diff --git a/ansible/group_vars/all/kerbside.yml b/ansible/group_vars/all/kerbside.yml
 new file mode 100644
-index 000000000..da4d90b1e
+index 000000000..d62d2a3d5
 --- /dev/null
 +++ b/ansible/group_vars/all/kerbside.yml
-@@ -0,0 +1,16 @@
+@@ -0,0 +1,18 @@
 +---
 +enable_kerbside: false
 +
@@ -60,6 +60,8 @@ index 000000000..da4d90b1e
 +kerbside_vdi_secure_port: 5898
 +kerbside_vdi_secure_listen_port: "{{ kerbside_vdi_secure_port }}"
 +kerbside_api_url: "http://{{ kolla_external_fqdn }}:{{ kerbside_port }}"
++kerbside_external_fqdn: "{{ kolla_external_fqdn }}"
++kerbside_spice_direct_proxy_base_url: "{{ kerbside_external_fqdn | kolla_url('https', kerbside_api_public_port, '/nova-console.vv') }}"
 +kerbside_safety_upgrade: false
 +kerbside_enable_tls_backend: true
 diff --git a/ansible/inventory/all-in-one b/ansible/inventory/all-in-one
@@ -204,17 +206,20 @@ index 4f24f6e1c..2ec04b969 100644
  # database.  This should be done once all cells have been upgraded.
  
 diff --git a/ansible/roles/certificates/defaults/main.yml b/ansible/roles/certificates/defaults/main.yml
-index 156a5c7fd..f432cbd96 100644
+index 156a5c7fd..835079a36 100644
 --- a/ansible/roles/certificates/defaults/main.yml
 +++ b/ansible/roles/certificates/defaults/main.yml
-@@ -4,6 +4,7 @@ certificates_external_dir: "{{ kolla_certificates_dir }}/private/external"
- certificates_internal_dir: "{{ kolla_certificates_dir }}/private/internal"
- certificates_backend_dir: "{{ kolla_certificates_dir }}/private/backend"
- certificates_libvirt_dir: "{{ kolla_certificates_dir }}/private/libvirt"
-+certificates_kerbside_dir: "{{ kolla_certificates_dir }}/private/kerbside"
+@@ -7,5 +7,10 @@ certificates_libvirt_dir: "{{ kolla_certificates_dir }}/private/libvirt"
  
  # Whether to generate certificates for libvirt TLS.
  certificates_generate_libvirt: "{{ libvirt_tls | default(false) | bool }}"
++
++# Whether to generate certificates because kerbside is enabled. Kerbside must
++# always have TLS certificates if deployed.
++certificates_generate_kerbside: "{{ enable_kerbside | default(false) | bool }}"
++
+ # Directory into which to copy generated certificates and keys for libvirt TLS.
+ certificates_libvirt_output_dir: "{{ node_custom_config }}/nova/nova-libvirt"
 diff --git a/ansible/roles/certificates/tasks/generate-kerbside.yml b/ansible/roles/certificates/tasks/generate-kerbside.yml
 new file mode 100644
 index 000000000..0d18fccac
@@ -296,7 +301,7 @@ index 000000000..0d18fccac
 +    dest: "{{ kolla_certificates_dir }}/kerbside-key.pem"
 +    mode: "0660"
 diff --git a/ansible/roles/certificates/tasks/main.yml b/ansible/roles/certificates/tasks/main.yml
-index 564ef4802..013d560f2 100644
+index 564ef4802..34bf092cd 100644
 --- a/ansible/roles/certificates/tasks/main.yml
 +++ b/ansible/roles/certificates/tasks/main.yml
 @@ -6,7 +6,11 @@
@@ -304,11 +309,11 @@ index 564ef4802..013d560f2 100644
    ansible.builtin.include_tasks: generate-backend.yml
    when:
 -    - kolla_enable_tls_backend | bool or rabbitmq_enable_tls | bool or database_enable_tls_backend | bool
-+    - kolla_enable_tls_backend | bool or rabbitmq_enable_tls | bool or database_enable_tls_backend | bool or enable_kerbside | bool
++    - kolla_enable_tls_backend | bool or rabbitmq_enable_tls | bool or database_enable_tls_backend | bool or certificates_generate_kerbside | bool
 +- name: Generate kerbside certificates
 +  ansible.builtin.include_tasks: generate-kerbside.yml
 +  when:
-+    - enable_kerbside | bool
++    - certificates_generate_kerbside | bool
  - name: Generate libvirt certificates
    ansible.builtin.include_tasks: generate-libvirt.yml
    when: certificates_generate_libvirt | bool
@@ -429,10 +434,10 @@ index 000000000..257dbeb06
 +</source>
 diff --git a/ansible/roles/kerbside/defaults/main.yml b/ansible/roles/kerbside/defaults/main.yml
 new file mode 100644
-index 000000000..b11b3861b
+index 000000000..c80485ac0
 --- /dev/null
 +++ b/ansible/roles/kerbside/defaults/main.yml
-@@ -0,0 +1,162 @@
+@@ -0,0 +1,173 @@
 +---
 +kerbside_services:
 +  kerbside_api:
@@ -582,6 +587,17 @@ index 000000000..b11b3861b
 +      shard_id: "{{ kerbside_database_shard_id }}"
 +    - user: "{{ kerbside_database_user }}"
 +      shard_id: "{{ kerbside_database_shard_id }}"
++
++####################
++# Keystone
++####################
++kerbside_ks_users:
++  - project: "service"
++    user: "{{ kerbside_keystone_user }}"
++    password: "{{ kerbside_keystone_password }}"
++    role: "admin"
++
++openstack_kerbside_auth: "{{ openstack_auth }}"
 +
 +####################
 +# Kolla
@@ -763,7 +779,7 @@ index 000000000..296e39383
 +    role: service-check
 diff --git a/ansible/roles/kerbside/tasks/config.yml b/ansible/roles/kerbside/tasks/config.yml
 new file mode 100644
-index 000000000..7f900a956
+index 000000000..810747122
 --- /dev/null
 +++ b/ansible/roles/kerbside/tasks/config.yml
 @@ -0,0 +1,167 @@
@@ -906,7 +922,7 @@ index 000000000..7f900a956
 +  become: true
 +  ansible.builtin.template:
 +    src: "{{ item }}"
-+    dest: "{{ node_config_directory }}/kerbside/kerbside-wsgi.conf"
++    dest: "{{ node_config_directory }}/kerbside_api/kerbside-wsgi.conf"
 +    mode: "0660"
 +  with_first_found:
 +    - "{{ node_custom_config }}/kerbside/{{ inventory_hostname }}/kerbside-wsgi.conf"
@@ -982,11 +998,14 @@ index 000000000..20b5e8720
 +  ansible.builtin.import_tasks: check-containers.yml
 diff --git a/ansible/roles/kerbside/tasks/deploy.yml b/ansible/roles/kerbside/tasks/deploy.yml
 new file mode 100644
-index 000000000..f47601806
+index 000000000..b0ee6ee22
 --- /dev/null
 +++ b/ansible/roles/kerbside/tasks/deploy.yml
-@@ -0,0 +1,10 @@
+@@ -0,0 +1,13 @@
 +---
++- name: Register kerbside in Keystone
++  ansible.builtin.import_tasks: register.yml
++
 +- name: Configure kerbside
 +  ansible.builtin.import_tasks: config.yml
 +- name: Check kerbside containers
@@ -1175,6 +1194,19 @@ index 000000000..baabdbefc
 +---
 +- name: Deploy kerbside
 +  ansible.builtin.import_tasks: deploy.yml
+diff --git a/ansible/roles/kerbside/tasks/register.yml b/ansible/roles/kerbside/tasks/register.yml
+new file mode 100644
+index 000000000..353a42bf2
+--- /dev/null
++++ b/ansible/roles/kerbside/tasks/register.yml
+@@ -0,0 +1,7 @@
++---
++- name: Register kerbside user in Keystone
++  ansible.builtin.import_role:
++    name: service-ks-register
++  vars:
++    service_ks_register_auth: "{{ openstack_kerbside_auth }}"
++    service_ks_register_users: "{{ kerbside_ks_users }}"
 diff --git a/ansible/roles/kerbside/tasks/reload.yml b/ansible/roles/kerbside/tasks/reload.yml
 new file mode 100644
 index 000000000..ae846b944
@@ -1271,7 +1303,7 @@ index 000000000..304ef982f
 +</VirtualHost>
 diff --git a/ansible/roles/kerbside/templates/kerbside.ini.j2 b/ansible/roles/kerbside/templates/kerbside.ini.j2
 new file mode 100644
-index 000000000..aa88c2da5
+index 000000000..da845b842
 --- /dev/null
 +++ b/ansible/roles/kerbside/templates/kerbside.ini.j2
 @@ -0,0 +1,34 @@
@@ -1300,9 +1332,9 @@ index 000000000..aa88c2da5
 +auth_secret_seed = {{ kerbside_auth_secret_seed }}
 +keystone_auth_url = {{ keystone_internal_url }}
 +keystone_auth_verify = false
-+keystone_service_auth_user = {{ keystone_admin_user }}
-+keystone_service_auth_password = {{ keystone_admin_password }}
-+keystone_service_auth_project = {{ keystone_admin_project }}
++keystone_service_auth_user = {{ kerbside_keystone_user }}
++keystone_service_auth_password = {{ kerbside_keystone_password }}
++keystone_service_auth_project = service
 +keystone_service_auth_user_domain_id = {{ default_user_domain_id }}
 +keystone_service_auth_project_domain_id = {{ default_project_domain_id }}
 +keystone_access_group = kerbside
@@ -1311,10 +1343,10 @@ index 000000000..aa88c2da5
 +os_cacert = {{ openstack_cacert }}
 diff --git a/ansible/roles/kerbside/templates/kerbside_api.json.j2 b/ansible/roles/kerbside/templates/kerbside_api.json.j2
 new file mode 100644
-index 000000000..f57153de4
+index 000000000..311b7583d
 --- /dev/null
 +++ b/ansible/roles/kerbside/templates/kerbside_api.json.j2
-@@ -0,0 +1,60 @@
+@@ -0,0 +1,72 @@
 +{
 +    "command": "uwsgi /etc/kerbside/kerbside-uwsgi.ini",
 +    "config_files": [
@@ -1367,20 +1399,32 @@ index 000000000..f57153de4
 +            "perm": "0600"
 +        }
 +    ],
-+    "permissions": [
++    "directories": [
++        {
++            "path": "/var/log/kolla",
++            "owner": "fluentd:kolla",
++            "perm": "2775"
++        },
 +        {
 +            "path": "/var/log/kolla/kerbside",
-+            "owner": "kerbside:kerbside",
-+            "recurse": true
++            "owner": "kerbside:kolla",
++            "perm": "2775"
++        }
++    ],
++    "permissions": [
++        {
++            "path": "/var/log/kolla/kerbside/*.log",
++            "owner": "kerbside:kolla",
++            "perm": "0664"
 +        }
 +    ]
 +}
 diff --git a/ansible/roles/kerbside/templates/kerbside_bootstrap.json.j2 b/ansible/roles/kerbside/templates/kerbside_bootstrap.json.j2
 new file mode 100644
-index 000000000..389245c32
+index 000000000..9d820063a
 --- /dev/null
 +++ b/ansible/roles/kerbside/templates/kerbside_bootstrap.json.j2
-@@ -0,0 +1,24 @@
+@@ -0,0 +1,36 @@
 +{
 +    "command": "/etc/kerbside/kerbside_alembic_wrapper",
 +    "config_files": [
@@ -1397,20 +1441,32 @@ index 000000000..389245c32
 +            "perm": "0700"
 +        }
 +    ],
-+    "permissions": [
++    "directories": [
++        {
++            "path": "/var/log/kolla",
++            "owner": "fluentd:kolla",
++            "perm": "2775"
++        },
 +        {
 +            "path": "/var/log/kolla/kerbside",
-+            "owner": "kerbside:kerbside",
-+            "recurse": true
++            "owner": "kerbside:kolla",
++            "perm": "2775"
++        }
++    ],
++    "permissions": [
++        {
++            "path": "/var/log/kolla/kerbside/*.log",
++            "owner": "kerbside:kolla",
++            "perm": "0664"
 +        }
 +    ]
 +}
 diff --git a/ansible/roles/kerbside/templates/kerbside_proxy.json.j2 b/ansible/roles/kerbside/templates/kerbside_proxy.json.j2
 new file mode 100644
-index 000000000..851f39218
+index 000000000..3952637bb
 --- /dev/null
 +++ b/ansible/roles/kerbside/templates/kerbside_proxy.json.j2
-@@ -0,0 +1,53 @@
+@@ -0,0 +1,65 @@
 +{
 +    "command": "kerbside daemon run",
 +    "config_files": [
@@ -1451,35 +1507,45 @@ index 000000000..851f39218
 +            "perm": "0600"
 +        }
 +    ],
-+    "permissions": [
++    "directories": [
++        {
++            "path": "/var/log/kolla",
++            "owner": "fluentd:kolla",
++            "perm": "2775"
++        },
 +        {
 +            "path": "/var/log/kolla/kerbside",
-+            "owner": "kerbside:kerbside",
-+            "recurse": true
++            "owner": "kerbside:kolla",
++            "perm": "2775"
 +        },
 +        {
 +            "path": "/run/kerbside",
 +            "owner": "kerbside:kerbside",
-+            "recurse": true
++            "perm": "0755"
++        }
++    ],
++    "permissions": [
++        {
++            "path": "/var/log/kolla/kerbside/*.log",
++            "owner": "kerbside:kolla",
++            "perm": "0664"
 +        }
 +    ]
 +}
 diff --git a/ansible/roles/kerbside/templates/kerbside_sources.yaml.j2 b/ansible/roles/kerbside/templates/kerbside_sources.yaml.j2
 new file mode 100644
-index 000000000..a046f4124
+index 000000000..42faa93c8
 --- /dev/null
 +++ b/ansible/roles/kerbside/templates/kerbside_sources.yaml.j2
-@@ -0,0 +1,22 @@
+@@ -0,0 +1,20 @@
 +---
-+# NOTE(mikal): we really should use kerbside_keystone_user and
-+# kerbside_keystone_password here.
 +- source: {{ openstack_region_name }}
 +  type: openstack
 +  url: {{ keystone_internal_url }}
 +  verify: false
-+  username: {{ keystone_admin_user }}
-+  password: {{ keystone_admin_password }}
-+  project_name: {{ keystone_admin_project }}
++  username: {{ kerbside_keystone_user }}
++  password: {{ kerbside_keystone_password }}
++  project_name: service
 +  user_domain_id: {{ default_user_domain_id }}
 +  project_domain_id: {{ default_project_domain_id }}
 +{% if nova_spice_require_secure | bool %}
@@ -1564,15 +1630,15 @@ index 297a912bd..052ed4e63 100644
  nova_libvirt_image_full: "{{ nova_libvirt_image }}:{{ nova_libvirt_tag }}"
  nova_libvirt_cpu_mode: "{{ 'host-passthrough' if ansible_facts.architecture == 'aarch64' else '' }}"
 diff --git a/ansible/roles/nova-cell/templates/nova.conf.j2 b/ansible/roles/nova-cell/templates/nova.conf.j2
-index d45bb4602..75d3a339d 100644
+index 01ec6fd1f..5a3a76526 100644
 --- a/ansible/roles/nova-cell/templates/nova.conf.j2
 +++ b/ansible/roles/nova-cell/templates/nova.conf.j2
-@@ -86,6 +86,9 @@ jpeg_compression = {{ nova_spice_jpeg_compression }}
+@@ -87,6 +87,9 @@ jpeg_compression = {{ nova_spice_jpeg_compression }}
  zlib_compression = {{ nova_spice_zlib_compression }}
  playback_compression = {{ nova_spice_playback_compression }}
  streaming_mode = {{ nova_spice_streaming_mode }}
 +{%     if enable_kerbside | bool %}
-+spice_direct_proxy_base_url = "https://{{ kolla_external_fqdn }}:13002/nova-console.vv"
++spice_direct_proxy_base_url = {{ kerbside_spice_direct_proxy_base_url }}
 +{%     endif %}
  {%     if nova_spice_html5 | bool %}
  server_proxyclient_address = {{ api_interface_address }}
@@ -1625,6 +1691,18 @@ index 367210639..104c9b858 100644
 +{% if enable_kerbside | bool %}
 +export KERBSIDE_API_URL='{{ kerbside_api_url }}'
 +{% endif %}
+diff --git a/etc/kolla/globals.yml b/etc/kolla/globals.yml
+index 3785398b3..eb4ef0384 100644
+--- a/etc/kolla/globals.yml
++++ b/etc/kolla/globals.yml
+@@ -373,6 +373,7 @@ workaround_ansible_issue_8743: true
+ #enable_ironic_prometheus_exporter: "{{ enable_ironic | bool and enable_prometheus | bool }}"
+ #enable_ironic_pxe_filter: false
+ #enable_iscsid: "{{ enable_cinder | bool and enable_cinder_backend_iscsi | bool }}"
++#enable_kerbside: false
+ #enable_magnum: false
+ #enable_manila: false
+ #enable_manila_backend_generic: false
 diff --git a/etc/kolla/passwords.yml b/etc/kolla/passwords.yml
 index 7bb9845d8..07a230641 100644
 --- a/etc/kolla/passwords.yml

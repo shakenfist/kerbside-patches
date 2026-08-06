@@ -1,6 +1,6 @@
-commit 5ac027d1222b0fb1f68df40958d5cae08b738d95
+commit 28775c233f7e2d5ce499b27a1dd4bf6a704342c7
 Author: Michael Still <mikal@stillhq.com>
-Date:   Sat Jul 25 16:50:02 2026 +1000
+Date:   Thu Aug 6 19:05:49 2026 +1000
 
     Wait for slaves to sync before the recovery master restart.
     
@@ -43,12 +43,12 @@ Date:   Sat Jul 25 16:50:02 2026 +1000
     Signed-off-by: Michael Still <mikal@stillhq.com>
 
 diff --git a/ansible/roles/mariadb/tasks/recover_cluster.yml b/ansible/roles/mariadb/tasks/recover_cluster.yml
-index 16f0d05fc..0592cb390 100644
+index 1d0460a68..217cd76e0 100644
 --- a/ansible/roles/mariadb/tasks/recover_cluster.yml
 +++ b/ansible/roles/mariadb/tasks/recover_cluster.yml
-@@ -215,6 +215,30 @@
+@@ -197,6 +197,30 @@
      - bootstrap_host is defined
-     - bootstrap_host != inventory_hostname
+     - bootstrap_host == inventory_hostname
  
 +# The master restart below is a Galera cluster membership change. If it
 +# happens while a slave is still receiving its IST, the joiner aborts with

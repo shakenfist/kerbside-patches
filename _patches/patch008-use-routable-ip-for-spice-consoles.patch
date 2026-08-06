@@ -1,6 +1,6 @@
-commit ba26b940a794ce62b645a4926e74f5d393e4ac35
+commit c63c334b825c836c03354d518e264327e7948e52
 Author: Michael Still <mikal@stillhq.com>
-Date:   Mon Aug 3 10:52:21 2026 +1000
+Date:   Thu Aug 6 19:05:48 2026 +1000
 
     Use a routable IP for qemu SPICE consoles.
     
@@ -13,16 +13,16 @@ Date:   Mon Aug 3 10:52:21 2026 +1000
     Signed-off-by: Michael Still <mikal@stillhq.com>
 
 diff --git a/ansible/roles/nova-cell/templates/nova.conf.j2 b/ansible/roles/nova-cell/templates/nova.conf.j2
-index 75d3a339d..9d30d9d44 100644
+index 5a3a76526..04e9af35e 100644
 --- a/ansible/roles/nova-cell/templates/nova.conf.j2
 +++ b/ansible/roles/nova-cell/templates/nova.conf.j2
-@@ -86,11 +86,11 @@ jpeg_compression = {{ nova_spice_jpeg_compression }}
+@@ -87,11 +87,11 @@ jpeg_compression = {{ nova_spice_jpeg_compression }}
  zlib_compression = {{ nova_spice_zlib_compression }}
  playback_compression = {{ nova_spice_playback_compression }}
  streaming_mode = {{ nova_spice_streaming_mode }}
 +server_proxyclient_address = {{ api_interface_address }}
  {%     if enable_kerbside | bool %}
- spice_direct_proxy_base_url = "https://{{ kolla_external_fqdn }}:13002/nova-console.vv"
+ spice_direct_proxy_base_url = {{ kerbside_spice_direct_proxy_base_url }}
  {%     endif %}
  {%     if nova_spice_html5 | bool %}
 -server_proxyclient_address = {{ api_interface_address }}
