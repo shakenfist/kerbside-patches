@@ -1,6 +1,6 @@
-commit ecdece9af45f7f725380e644e78ba8b381857311
+commit 2e86ad639d6724ea3a9fb4c5d993c66b9d105fba
 Author: Michael Still <mikal@stillhq.com>
-Date:   Thu Aug 6 09:46:57 2026 +1000
+Date:   Thu Aug 6 11:13:32 2026 +1000
 
     Widen the nova_scheduler healthcheck in CI.
     
@@ -135,7 +135,7 @@ index 000000000..51cf8ecb7
 +    sets it. `LP#2162860
 +    <https://bugs.launchpad.net/kolla/+bug/2162860>`__
 diff --git a/tests/templates/globals-default.j2 b/tests/templates/globals-default.j2
-index fb2b715bb..32cb2af98 100644
+index e0a808adf..746f0127b 100644
 --- a/tests/templates/globals-default.j2
 +++ b/tests/templates/globals-default.j2
 @@ -51,6 +51,14 @@ mariadb_monitor_ping_interval: "60000"

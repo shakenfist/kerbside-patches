@@ -1,6 +1,6 @@
-commit f32b93cb7fe597fc73975e5af089443ade32037e
+commit 6de10576bdb3743945d194c4d98745fdb7cf56a8
 Author: Michael Still <mikal@stillhq.com>
-Date:   Wed Jul 8 17:54:48 2026 +1000
+Date:   Thu Aug 6 11:13:31 2026 +1000
 
     Increase the RabbitMQ healthcheck timeout to 60s.
     
@@ -37,7 +37,7 @@ Date:   Wed Jul 8 17:54:48 2026 +1000
     Signed-off-by: Michael Still <mikal@stillhq.com>
 
 diff --git a/ansible/roles/rabbitmq/defaults/main.yml b/ansible/roles/rabbitmq/defaults/main.yml
-index 0a1c7b1ce..435d50539 100644
+index 4b01efb90..4f403ad40 100644
 --- a/ansible/roles/rabbitmq/defaults/main.yml
 +++ b/ansible/roles/rabbitmq/defaults/main.yml
 @@ -42,7 +42,7 @@ rabbitmq_healthcheck_interval: "{{ default_container_healthcheck_interval }}"

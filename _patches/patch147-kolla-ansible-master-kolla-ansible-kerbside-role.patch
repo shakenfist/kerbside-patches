@@ -1,6 +1,6 @@
-commit a013037bd8b678eac1a07b6af5c1f29cc7967cc7
+commit 884dbc2e9d982678f765bda39fbbb0c30d390788
 Author: Michael Still <mikal@stillhq.com>
-Date:   Mon Aug 3 10:52:20 2026 +1000
+Date:   Thu Aug 6 11:13:31 2026 +1000
 
     Deploy Kerbside with Kolla-Ansible.
     
@@ -204,17 +204,20 @@ index 4f24f6e1c..2ec04b969 100644
  # database.  This should be done once all cells have been upgraded.
  
 diff --git a/ansible/roles/certificates/defaults/main.yml b/ansible/roles/certificates/defaults/main.yml
-index 156a5c7fd..f432cbd96 100644
+index 156a5c7fd..835079a36 100644
 --- a/ansible/roles/certificates/defaults/main.yml
 +++ b/ansible/roles/certificates/defaults/main.yml
-@@ -4,6 +4,7 @@ certificates_external_dir: "{{ kolla_certificates_dir }}/private/external"
- certificates_internal_dir: "{{ kolla_certificates_dir }}/private/internal"
- certificates_backend_dir: "{{ kolla_certificates_dir }}/private/backend"
- certificates_libvirt_dir: "{{ kolla_certificates_dir }}/private/libvirt"
-+certificates_kerbside_dir: "{{ kolla_certificates_dir }}/private/kerbside"
+@@ -7,5 +7,10 @@ certificates_libvirt_dir: "{{ kolla_certificates_dir }}/private/libvirt"
  
  # Whether to generate certificates for libvirt TLS.
  certificates_generate_libvirt: "{{ libvirt_tls | default(false) | bool }}"
++
++# Whether to generate certificates because kerbside is enabled. Kerbside must
++# always have TLS certificates if deployed.
++certificates_generate_kerbside: "{{ enable_kerbside | default(false) | bool }}"
++
+ # Directory into which to copy generated certificates and keys for libvirt TLS.
+ certificates_libvirt_output_dir: "{{ node_custom_config }}/nova/nova-libvirt"
 diff --git a/ansible/roles/certificates/tasks/generate-kerbside.yml b/ansible/roles/certificates/tasks/generate-kerbside.yml
 new file mode 100644
 index 000000000..0d18fccac
@@ -296,7 +299,7 @@ index 000000000..0d18fccac
 +    dest: "{{ kolla_certificates_dir }}/kerbside-key.pem"
 +    mode: "0660"
 diff --git a/ansible/roles/certificates/tasks/main.yml b/ansible/roles/certificates/tasks/main.yml
-index 564ef4802..013d560f2 100644
+index 564ef4802..23736bc90 100644
 --- a/ansible/roles/certificates/tasks/main.yml
 +++ b/ansible/roles/certificates/tasks/main.yml
 @@ -6,7 +6,11 @@
@@ -308,7 +311,7 @@ index 564ef4802..013d560f2 100644
 +- name: Generate kerbside certificates
 +  ansible.builtin.include_tasks: generate-kerbside.yml
 +  when:
-+    - enable_kerbside | bool
++    - certificates_generate_kerbside | bool
  - name: Generate libvirt certificates
    ansible.builtin.include_tasks: generate-libvirt.yml
    when: certificates_generate_libvirt | bool
@@ -763,7 +766,7 @@ index 000000000..296e39383
 +    role: service-check
 diff --git a/ansible/roles/kerbside/tasks/config.yml b/ansible/roles/kerbside/tasks/config.yml
 new file mode 100644
-index 000000000..7f900a956
+index 000000000..810747122
 --- /dev/null
 +++ b/ansible/roles/kerbside/tasks/config.yml
 @@ -0,0 +1,167 @@
@@ -906,7 +909,7 @@ index 000000000..7f900a956
 +  become: true
 +  ansible.builtin.template:
 +    src: "{{ item }}"
-+    dest: "{{ node_config_directory }}/kerbside/kerbside-wsgi.conf"
++    dest: "{{ node_config_directory }}/kerbside_api/kerbside-wsgi.conf"
 +    mode: "0660"
 +  with_first_found:
 +    - "{{ node_custom_config }}/kerbside/{{ inventory_hostname }}/kerbside-wsgi.conf"
@@ -1564,10 +1567,10 @@ index 297a912bd..052ed4e63 100644
  nova_libvirt_image_full: "{{ nova_libvirt_image }}:{{ nova_libvirt_tag }}"
  nova_libvirt_cpu_mode: "{{ 'host-passthrough' if ansible_facts.architecture == 'aarch64' else '' }}"
 diff --git a/ansible/roles/nova-cell/templates/nova.conf.j2 b/ansible/roles/nova-cell/templates/nova.conf.j2
-index d45bb4602..75d3a339d 100644
+index 01ec6fd1f..bd7359956 100644
 --- a/ansible/roles/nova-cell/templates/nova.conf.j2
 +++ b/ansible/roles/nova-cell/templates/nova.conf.j2
-@@ -86,6 +86,9 @@ jpeg_compression = {{ nova_spice_jpeg_compression }}
+@@ -87,6 +87,9 @@ jpeg_compression = {{ nova_spice_jpeg_compression }}
  zlib_compression = {{ nova_spice_zlib_compression }}
  playback_compression = {{ nova_spice_playback_compression }}
  streaming_mode = {{ nova_spice_streaming_mode }}

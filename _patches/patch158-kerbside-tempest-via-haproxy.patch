@@ -1,6 +1,6 @@
-commit 7d7e6a913ad14c43dc2c173d3f14cdf7e9a9130e
+commit 238d164f37e2b3828c1b51cb7b703db8496c6eb9
 Author: Michael Still <mikal@stillhq.com>
-Date:   Mon Aug 3 10:52:21 2026 +1000
+Date:   Thu Aug 6 11:13:31 2026 +1000
 
     Run a Kerbside-fronted SPICE tempest test in the kerbside scenario.
     

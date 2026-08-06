@@ -1,6 +1,6 @@
-commit 8a129e142cd6b50bfe7fce5253677af752d156d4
+commit 66dac25bb0c1fb20270312e6cca620d5a55e723f
 Author: Michael Still <mikal@stillhq.com>
-Date:   Wed Jul 8 17:54:48 2026 +1000
+Date:   Thu Aug 6 11:13:31 2026 +1000
 
     Allow concurrent sessions with SPICE.
     
@@ -39,7 +39,7 @@ index d45bb4602..01ec6fd1f 100644
  image_compression = {{ nova_spice_image_compression }}
  jpeg_compression = {{ nova_spice_jpeg_compression }}
 diff --git a/doc/source/reference/compute/nova-guide.rst b/doc/source/reference/compute/nova-guide.rst
-index 9ac7d6f08..d5cdf4733 100644
+index 1c7f6b89e..651358c1e 100644
 --- a/doc/source/reference/compute/nova-guide.rst
 +++ b/doc/source/reference/compute/nova-guide.rst
 @@ -57,6 +57,8 @@ serial console support can be enabled by setting
