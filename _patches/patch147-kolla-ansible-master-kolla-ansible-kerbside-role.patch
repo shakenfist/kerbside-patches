@@ -1691,6 +1691,18 @@ index 367210639..104c9b858 100644
 +{% if enable_kerbside | bool %}
 +export KERBSIDE_API_URL='{{ kerbside_api_url }}'
 +{% endif %}
+diff --git a/etc/kolla/globals.yml b/etc/kolla/globals.yml
+index 3785398b3..eb4ef0384 100644
+--- a/etc/kolla/globals.yml
++++ b/etc/kolla/globals.yml
+@@ -373,6 +373,7 @@
+ #enable_ironic_prometheus_exporter: "{{ enable_ironic | bool and enable_prometheus | bool }}"
+ #enable_ironic_pxe_filter: false
+ #enable_iscsid: "{{ enable_cinder | bool and enable_cinder_backend_iscsi | bool }}"
++#enable_kerbside: false
+ #enable_magnum: false
+ #enable_manila: false
+ #enable_manila_backend_generic: false
 diff --git a/etc/kolla/passwords.yml b/etc/kolla/passwords.yml
 index 7bb9845d8..07a230641 100644
 --- a/etc/kolla/passwords.yml
