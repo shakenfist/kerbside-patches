@@ -437,7 +437,7 @@ new file mode 100644
 index 000000000..b11b3861b
 --- /dev/null
 +++ b/ansible/roles/kerbside/defaults/main.yml
-@@ -0,0 +1,162 @@
+@@ -0,0 +1,173 @@
 +---
 +kerbside_services:
 +  kerbside_api:
@@ -587,6 +587,17 @@ index 000000000..b11b3861b
 +      shard_id: "{{ kerbside_database_shard_id }}"
 +    - user: "{{ kerbside_database_user }}"
 +      shard_id: "{{ kerbside_database_shard_id }}"
++
++####################
++# Keystone
++####################
++kerbside_ks_users:
++  - project: "service"
++    user: "{{ kerbside_keystone_user }}"
++    password: "{{ kerbside_keystone_password }}"
++    role: "admin"
++
++openstack_kerbside_auth: "{{ openstack_auth }}"
 +
 +####################
 +# Kolla
@@ -990,8 +1001,11 @@ new file mode 100644
 index 000000000..f47601806
 --- /dev/null
 +++ b/ansible/roles/kerbside/tasks/deploy.yml
-@@ -0,0 +1,10 @@
+@@ -0,0 +1,13 @@
 +---
++- name: Register kerbside in Keystone
++  ansible.builtin.import_tasks: register.yml
++
 +- name: Configure kerbside
 +  ansible.builtin.import_tasks: config.yml
 +- name: Check kerbside containers
@@ -1180,6 +1194,19 @@ index 000000000..baabdbefc
 +---
 +- name: Deploy kerbside
 +  ansible.builtin.import_tasks: deploy.yml
+diff --git a/ansible/roles/kerbside/tasks/register.yml b/ansible/roles/kerbside/tasks/register.yml
+new file mode 100644
+index 000000000..353a42bf2
+--- /dev/null
++++ b/ansible/roles/kerbside/tasks/register.yml
+@@ -0,0 +1,7 @@
++---
++- name: Register kerbside user in Keystone
++  ansible.builtin.import_role:
++    name: service-ks-register
++  vars:
++    service_ks_register_auth: "{{ openstack_kerbside_auth }}"
++    service_ks_register_users: "{{ kerbside_ks_users }}"
 diff --git a/ansible/roles/kerbside/tasks/reload.yml b/ansible/roles/kerbside/tasks/reload.yml
 new file mode 100644
 index 000000000..ae846b944
@@ -1305,9 +1332,9 @@ index 000000000..aa88c2da5
 +auth_secret_seed = {{ kerbside_auth_secret_seed }}
 +keystone_auth_url = {{ keystone_internal_url }}
 +keystone_auth_verify = false
-+keystone_service_auth_user = {{ keystone_admin_user }}
-+keystone_service_auth_password = {{ keystone_admin_password }}
-+keystone_service_auth_project = {{ keystone_admin_project }}
++keystone_service_auth_user = {{ kerbside_keystone_user }}
++keystone_service_auth_password = {{ kerbside_keystone_password }}
++keystone_service_auth_project = service
 +keystone_service_auth_user_domain_id = {{ default_user_domain_id }}
 +keystone_service_auth_project_domain_id = {{ default_project_domain_id }}
 +keystone_access_group = kerbside
@@ -1510,17 +1537,15 @@ new file mode 100644
 index 000000000..a046f4124
 --- /dev/null
 +++ b/ansible/roles/kerbside/templates/kerbside_sources.yaml.j2
-@@ -0,0 +1,22 @@
+@@ -0,0 +1,20 @@
 +---
-+# NOTE(mikal): we really should use kerbside_keystone_user and
-+# kerbside_keystone_password here.
 +- source: {{ openstack_region_name }}
 +  type: openstack
 +  url: {{ keystone_internal_url }}
 +  verify: false
-+  username: {{ keystone_admin_user }}
-+  password: {{ keystone_admin_password }}
-+  project_name: {{ keystone_admin_project }}
++  username: {{ kerbside_keystone_user }}
++  password: {{ kerbside_keystone_password }}
++  project_name: service
 +  user_domain_id: {{ default_user_domain_id }}
 +  project_domain_id: {{ default_project_domain_id }}
 +{% if nova_spice_require_secure | bool %}
