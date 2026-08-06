@@ -1,6 +1,6 @@
-commit 90878e851405cfd231749275285c42a667f46325
+commit e9cb998763c460017dd48bf085aa7f74157568ac
 Author: Michael Still <mikal@stillhq.com>
-Date:   Thu Aug 6 11:13:32 2026 +1000
+Date:   Thu Aug 6 19:05:49 2026 +1000
 
     Disable ovs_create_tap for ML2/OVS deployments.
     

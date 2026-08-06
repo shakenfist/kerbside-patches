@@ -1,6 +1,6 @@
-commit 2e86ad639d6724ea3a9fb4c5d993c66b9d105fba
+commit def77fcc49041cafef5ac361b4fdc70a1a24efbf
 Author: Michael Still <mikal@stillhq.com>
-Date:   Thu Aug 6 11:13:32 2026 +1000
+Date:   Thu Aug 6 19:05:49 2026 +1000
 
     Widen the nova_scheduler healthcheck in CI.
     
@@ -79,7 +79,7 @@ Date:   Thu Aug 6 11:13:32 2026 +1000
     Signed-off-by: Michael Still <mikal@stillhq.com>
 
 diff --git a/ansible/roles/nova/defaults/main.yml b/ansible/roles/nova/defaults/main.yml
-index a13d624ac..fb7dfe6fa 100644
+index ea0196cb3..9ccaf1223 100644
 --- a/ansible/roles/nova/defaults/main.yml
 +++ b/ansible/roles/nova/defaults/main.yml
 @@ -168,7 +168,11 @@ nova_metadata_healthcheck:
@@ -96,7 +96,7 @@ index a13d624ac..fb7dfe6fa 100644
  nova_scheduler_healthcheck_test: ["CMD-SHELL", "healthcheck_port nova-scheduler {{ om_rpc_port }}"]
  nova_scheduler_healthcheck_timeout: "{{ default_container_healthcheck_timeout }}"
 diff --git a/etc/kolla/globals.yml b/etc/kolla/globals.yml
-index 3785398b3..eed690815 100644
+index eb4ef0384..3bfb3728a 100644
 --- a/etc/kolla/globals.yml
 +++ b/etc/kolla/globals.yml
 @@ -209,6 +209,15 @@ workaround_ansible_issue_8743: true

@@ -1,6 +1,6 @@
-commit f5839fcd5141a8c647cd91d084a9c76d89c1af6f
+commit 28775c233f7e2d5ce499b27a1dd4bf6a704342c7
 Author: Michael Still <mikal@stillhq.com>
-Date:   Thu Aug 6 11:13:31 2026 +1000
+Date:   Thu Aug 6 19:05:49 2026 +1000
 
     Wait for slaves to sync before the recovery master restart.
     

@@ -1,6 +1,6 @@
-commit 884dbc2e9d982678f765bda39fbbb0c30d390788
+commit cef0d8ad90395e94407b6d7a28b7c703e17729a8
 Author: Michael Still <mikal@stillhq.com>
-Date:   Thu Aug 6 11:13:31 2026 +1000
+Date:   Thu Aug 6 19:05:48 2026 +1000
 
     Deploy Kerbside with Kolla-Ansible.
     
@@ -42,7 +42,7 @@ index decf2682b..0956ff88a 100644
    hosts: localhost
 diff --git a/ansible/group_vars/all/kerbside.yml b/ansible/group_vars/all/kerbside.yml
 new file mode 100644
-index 000000000..da4d90b1e
+index 000000000..d62d2a3d5
 --- /dev/null
 +++ b/ansible/group_vars/all/kerbside.yml
 @@ -0,0 +1,18 @@
@@ -301,7 +301,7 @@ index 000000000..0d18fccac
 +    dest: "{{ kolla_certificates_dir }}/kerbside-key.pem"
 +    mode: "0660"
 diff --git a/ansible/roles/certificates/tasks/main.yml b/ansible/roles/certificates/tasks/main.yml
-index 564ef4802..23736bc90 100644
+index 564ef4802..34bf092cd 100644
 --- a/ansible/roles/certificates/tasks/main.yml
 +++ b/ansible/roles/certificates/tasks/main.yml
 @@ -6,7 +6,11 @@
@@ -434,7 +434,7 @@ index 000000000..257dbeb06
 +</source>
 diff --git a/ansible/roles/kerbside/defaults/main.yml b/ansible/roles/kerbside/defaults/main.yml
 new file mode 100644
-index 000000000..b11b3861b
+index 000000000..c80485ac0
 --- /dev/null
 +++ b/ansible/roles/kerbside/defaults/main.yml
 @@ -0,0 +1,173 @@
@@ -998,7 +998,7 @@ index 000000000..20b5e8720
 +  ansible.builtin.import_tasks: check-containers.yml
 diff --git a/ansible/roles/kerbside/tasks/deploy.yml b/ansible/roles/kerbside/tasks/deploy.yml
 new file mode 100644
-index 000000000..f47601806
+index 000000000..b0ee6ee22
 --- /dev/null
 +++ b/ansible/roles/kerbside/tasks/deploy.yml
 @@ -0,0 +1,13 @@
@@ -1303,7 +1303,7 @@ index 000000000..304ef982f
 +</VirtualHost>
 diff --git a/ansible/roles/kerbside/templates/kerbside.ini.j2 b/ansible/roles/kerbside/templates/kerbside.ini.j2
 new file mode 100644
-index 000000000..aa88c2da5
+index 000000000..da845b842
 --- /dev/null
 +++ b/ansible/roles/kerbside/templates/kerbside.ini.j2
 @@ -0,0 +1,34 @@
@@ -1343,7 +1343,7 @@ index 000000000..aa88c2da5
 +os_cacert = {{ openstack_cacert }}
 diff --git a/ansible/roles/kerbside/templates/kerbside_api.json.j2 b/ansible/roles/kerbside/templates/kerbside_api.json.j2
 new file mode 100644
-index 000000000..f57153de4
+index 000000000..311b7583d
 --- /dev/null
 +++ b/ansible/roles/kerbside/templates/kerbside_api.json.j2
 @@ -0,0 +1,72 @@
@@ -1421,7 +1421,7 @@ index 000000000..f57153de4
 +}
 diff --git a/ansible/roles/kerbside/templates/kerbside_bootstrap.json.j2 b/ansible/roles/kerbside/templates/kerbside_bootstrap.json.j2
 new file mode 100644
-index 000000000..389245c32
+index 000000000..9d820063a
 --- /dev/null
 +++ b/ansible/roles/kerbside/templates/kerbside_bootstrap.json.j2
 @@ -0,0 +1,36 @@
@@ -1463,7 +1463,7 @@ index 000000000..389245c32
 +}
 diff --git a/ansible/roles/kerbside/templates/kerbside_proxy.json.j2 b/ansible/roles/kerbside/templates/kerbside_proxy.json.j2
 new file mode 100644
-index 000000000..851f39218
+index 000000000..3952637bb
 --- /dev/null
 +++ b/ansible/roles/kerbside/templates/kerbside_proxy.json.j2
 @@ -0,0 +1,65 @@
@@ -1534,7 +1534,7 @@ index 000000000..851f39218
 +}
 diff --git a/ansible/roles/kerbside/templates/kerbside_sources.yaml.j2 b/ansible/roles/kerbside/templates/kerbside_sources.yaml.j2
 new file mode 100644
-index 000000000..a046f4124
+index 000000000..42faa93c8
 --- /dev/null
 +++ b/ansible/roles/kerbside/templates/kerbside_sources.yaml.j2
 @@ -0,0 +1,20 @@
@@ -1630,7 +1630,7 @@ index 297a912bd..052ed4e63 100644
  nova_libvirt_image_full: "{{ nova_libvirt_image }}:{{ nova_libvirt_tag }}"
  nova_libvirt_cpu_mode: "{{ 'host-passthrough' if ansible_facts.architecture == 'aarch64' else '' }}"
 diff --git a/ansible/roles/nova-cell/templates/nova.conf.j2 b/ansible/roles/nova-cell/templates/nova.conf.j2
-index 01ec6fd1f..bd7359956 100644
+index 01ec6fd1f..5a3a76526 100644
 --- a/ansible/roles/nova-cell/templates/nova.conf.j2
 +++ b/ansible/roles/nova-cell/templates/nova.conf.j2
 @@ -87,6 +87,9 @@ jpeg_compression = {{ nova_spice_jpeg_compression }}
@@ -1695,7 +1695,7 @@ diff --git a/etc/kolla/globals.yml b/etc/kolla/globals.yml
 index 3785398b3..eb4ef0384 100644
 --- a/etc/kolla/globals.yml
 +++ b/etc/kolla/globals.yml
-@@ -373,6 +373,7 @@
+@@ -373,6 +373,7 @@ workaround_ansible_issue_8743: true
  #enable_ironic_prometheus_exporter: "{{ enable_ironic | bool and enable_prometheus | bool }}"
  #enable_ironic_pxe_filter: false
  #enable_iscsid: "{{ enable_cinder | bool and enable_cinder_backend_iscsi | bool }}"
