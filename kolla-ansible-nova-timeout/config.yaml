@@ -1,0 +1,11 @@
+repo: https://opendev.org/openstack/kolla-ansible
+source_branch: master
+destination_branch: bug-2162860
+shallow_clone: false
+directory: kolla-ansible
+release: master-bug-2162860
+depends_on: ''
+source_sha: f76bd31e6fefc3b830acaca6975c3bc50cd18a64
+previous_source_sha: d107ca38f00856d6f602178089479dc47ba9c10e
+skip_rebase: true
+skip_claude: true
