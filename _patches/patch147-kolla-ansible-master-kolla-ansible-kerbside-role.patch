@@ -309,7 +309,7 @@ index 564ef4802..23736bc90 100644
    ansible.builtin.include_tasks: generate-backend.yml
    when:
 -    - kolla_enable_tls_backend | bool or rabbitmq_enable_tls | bool or database_enable_tls_backend | bool
-+    - kolla_enable_tls_backend | bool or rabbitmq_enable_tls | bool or database_enable_tls_backend | bool or enable_kerbside | bool
++    - kolla_enable_tls_backend | bool or rabbitmq_enable_tls | bool or database_enable_tls_backend | bool or certificates_generate_kerbside | bool
 +- name: Generate kerbside certificates
 +  ansible.builtin.include_tasks: generate-kerbside.yml
 +  when:
