@@ -22,7 +22,7 @@ index bd7359956..2b02fd6ed 100644
  streaming_mode = {{ nova_spice_streaming_mode }}
 +server_proxyclient_address = {{ api_interface_address }}
  {%     if enable_kerbside | bool %}
- spice_direct_proxy_base_url = "https://{{ kolla_external_fqdn }}:13002/nova-console.vv"
+ spice_direct_proxy_base_url = {{ kerbside_spice_direct_proxy_base_url }}
  {%     endif %}
  {%     if nova_spice_html5 | bool %}
 -server_proxyclient_address = {{ api_interface_address }}

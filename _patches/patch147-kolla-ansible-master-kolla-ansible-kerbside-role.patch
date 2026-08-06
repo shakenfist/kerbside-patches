@@ -45,7 +45,7 @@ new file mode 100644
 index 000000000..da4d90b1e
 --- /dev/null
 +++ b/ansible/group_vars/all/kerbside.yml
-@@ -0,0 +1,16 @@
+@@ -0,0 +1,18 @@
 +---
 +enable_kerbside: false
 +
@@ -60,6 +60,8 @@ index 000000000..da4d90b1e
 +kerbside_vdi_secure_port: 5898
 +kerbside_vdi_secure_listen_port: "{{ kerbside_vdi_secure_port }}"
 +kerbside_api_url: "http://{{ kolla_external_fqdn }}:{{ kerbside_port }}"
++kerbside_external_fqdn: "{{ kolla_external_fqdn }}"
++kerbside_spice_direct_proxy_base_url: "{{ kerbside_external_fqdn | kolla_url('https', kerbside_api_public_port, '/nova-console.vv') }}"
 +kerbside_safety_upgrade: false
 +kerbside_enable_tls_backend: true
 diff --git a/ansible/inventory/all-in-one b/ansible/inventory/all-in-one
@@ -1611,7 +1613,7 @@ index 01ec6fd1f..bd7359956 100644
  playback_compression = {{ nova_spice_playback_compression }}
  streaming_mode = {{ nova_spice_streaming_mode }}
 +{%     if enable_kerbside | bool %}
-+spice_direct_proxy_base_url = "https://{{ kolla_external_fqdn }}:13002/nova-console.vv"
++spice_direct_proxy_base_url = {{ kerbside_spice_direct_proxy_base_url }}
 +{%     endif %}
  {%     if nova_spice_html5 | bool %}
  server_proxyclient_address = {{ api_interface_address }}
