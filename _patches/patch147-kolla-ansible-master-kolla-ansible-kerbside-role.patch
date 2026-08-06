@@ -1317,7 +1317,7 @@ new file mode 100644
 index 000000000..f57153de4
 --- /dev/null
 +++ b/ansible/roles/kerbside/templates/kerbside_api.json.j2
-@@ -0,0 +1,60 @@
+@@ -0,0 +1,72 @@
 +{
 +    "command": "uwsgi /etc/kerbside/kerbside-uwsgi.ini",
 +    "config_files": [
@@ -1370,11 +1370,23 @@ index 000000000..f57153de4
 +            "perm": "0600"
 +        }
 +    ],
-+    "permissions": [
++    "directories": [
++        {
++            "path": "/var/log/kolla",
++            "owner": "fluentd:kolla",
++            "perm": "2775"
++        },
 +        {
 +            "path": "/var/log/kolla/kerbside",
-+            "owner": "kerbside:kerbside",
-+            "recurse": true
++            "owner": "kerbside:kolla",
++            "perm": "2775"
++        }
++    ],
++    "permissions": [
++        {
++            "path": "/var/log/kolla/kerbside/*.log",
++            "owner": "kerbside:kolla",
++            "perm": "0664"
 +        }
 +    ]
 +}
@@ -1383,7 +1395,7 @@ new file mode 100644
 index 000000000..389245c32
 --- /dev/null
 +++ b/ansible/roles/kerbside/templates/kerbside_bootstrap.json.j2
-@@ -0,0 +1,24 @@
+@@ -0,0 +1,36 @@
 +{
 +    "command": "/etc/kerbside/kerbside_alembic_wrapper",
 +    "config_files": [
@@ -1400,11 +1412,23 @@ index 000000000..389245c32
 +            "perm": "0700"
 +        }
 +    ],
-+    "permissions": [
++    "directories": [
++        {
++            "path": "/var/log/kolla",
++            "owner": "fluentd:kolla",
++            "perm": "2775"
++        },
 +        {
 +            "path": "/var/log/kolla/kerbside",
-+            "owner": "kerbside:kerbside",
-+            "recurse": true
++            "owner": "kerbside:kolla",
++            "perm": "2775"
++        }
++    ],
++    "permissions": [
++        {
++            "path": "/var/log/kolla/kerbside/*.log",
++            "owner": "kerbside:kolla",
++            "perm": "0664"
 +        }
 +    ]
 +}
@@ -1413,7 +1437,7 @@ new file mode 100644
 index 000000000..851f39218
 --- /dev/null
 +++ b/ansible/roles/kerbside/templates/kerbside_proxy.json.j2
-@@ -0,0 +1,53 @@
+@@ -0,0 +1,65 @@
 +{
 +    "command": "kerbside daemon run",
 +    "config_files": [
@@ -1454,16 +1478,28 @@ index 000000000..851f39218
 +            "perm": "0600"
 +        }
 +    ],
-+    "permissions": [
++    "directories": [
++        {
++            "path": "/var/log/kolla",
++            "owner": "fluentd:kolla",
++            "perm": "2775"
++        },
 +        {
 +            "path": "/var/log/kolla/kerbside",
-+            "owner": "kerbside:kerbside",
-+            "recurse": true
++            "owner": "kerbside:kolla",
++            "perm": "2775"
 +        },
 +        {
 +            "path": "/run/kerbside",
 +            "owner": "kerbside:kerbside",
-+            "recurse": true
++            "perm": "0755"
++        }
++    ],
++    "permissions": [
++        {
++            "path": "/var/log/kolla/kerbside/*.log",
++            "owner": "kerbside:kolla",
++            "perm": "0664"
 +        }
 +    ]
 +}
