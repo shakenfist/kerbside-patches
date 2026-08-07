@@ -17,7 +17,12 @@ kerbside-proxy is not talking HTTP to clients, and expects TLS encrypted
 traffic on the secure port, it uses the frontend certificates to do TLS
 itself, and haproxy simply acts as a layer four load balancer.
 
+Prompt: Michael asked for assistance with implementing the keystone
+account for kerbside, updating to the new configuration file format,
+and updating role docs.
+
 Change-Id: I73a7a0b521085fd4023b08ab6f8a137d53a8712a
 Depends-On: https://review.opendev.org/c/openstack/kolla/+/975495
 Closes-Bug: #2131793
+Assisted-By: Claude Code
 Signed-off-by: Michael Still <mikal@stillhq.com>
