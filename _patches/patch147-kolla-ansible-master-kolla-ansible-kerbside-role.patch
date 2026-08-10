@@ -1,6 +1,6 @@
-commit cef0d8ad90395e94407b6d7a28b7c703e17729a8
+commit 234398991ccc4e1b438d795527c1b219d0a2bcfa
 Author: Michael Still <mikal@stillhq.com>
-Date:   Thu Aug 6 19:05:48 2026 +1000
+Date:   Tue Aug 11 05:53:03 2026 +1000
 
     Deploy Kerbside with Kolla-Ansible.
     
@@ -20,11 +20,11 @@ Date:   Thu Aug 6 19:05:48 2026 +1000
     kerbside-proxy is not talking HTTP to clients, and expects TLS encrypted
     traffic on the secure port, it uses the frontend certificates to do TLS
     itself, and haproxy simply acts as a layer four load balancer.
-
+    
     Prompt: Michael asked for assistance with implementing the keystone
     account for kerbside, updating to the new configuration file format,
     and updating role docs.
-
+    
     Change-Id: I73a7a0b521085fd4023b08ab6f8a137d53a8712a
     Depends-On: https://review.opendev.org/c/openstack/kolla/+/975495
     Closes-Bug: #2131793
@@ -1635,10 +1635,10 @@ index 297a912bd..052ed4e63 100644
  nova_libvirt_image_full: "{{ nova_libvirt_image }}:{{ nova_libvirt_tag }}"
  nova_libvirt_cpu_mode: "{{ 'host-passthrough' if ansible_facts.architecture == 'aarch64' else '' }}"
 diff --git a/ansible/roles/nova-cell/templates/nova.conf.j2 b/ansible/roles/nova-cell/templates/nova.conf.j2
-index 01ec6fd1f..5a3a76526 100644
+index d45bb4602..05578fb19 100644
 --- a/ansible/roles/nova-cell/templates/nova.conf.j2
 +++ b/ansible/roles/nova-cell/templates/nova.conf.j2
-@@ -87,6 +87,9 @@ jpeg_compression = {{ nova_spice_jpeg_compression }}
+@@ -86,6 +86,9 @@ jpeg_compression = {{ nova_spice_jpeg_compression }}
  zlib_compression = {{ nova_spice_zlib_compression }}
  playback_compression = {{ nova_spice_playback_compression }}
  streaming_mode = {{ nova_spice_streaming_mode }}
@@ -1767,7 +1767,7 @@ index 000000000..90e10f0a9
 +Kerbside when ``certificates_generate_kerbside`` is enabled. That variable
 +defaults to the value of ``enable_kerbside``.
 diff --git a/doc/source/reference/compute/nova-guide.rst b/doc/source/reference/compute/nova-guide.rst
-index 1c7f6b89e..e14be7327 100644
+index 1c7f6b89e..e14be732f 100644
 --- a/doc/source/reference/compute/nova-guide.rst
 +++ b/doc/source/reference/compute/nova-guide.rst
 @@ -68,6 +68,10 @@ through to ``nova``:
