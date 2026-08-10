@@ -46,39 +46,6 @@ when the container is next recreated. This follows 795fbb104, which
 widened mariadb_monitor_galera_healthcheck_timeout for the same
 class of problem.
 
-The scheduler is the only Nova service that needs this, and the
-reason is how Kolla-Ansible restarts it rather than anything
-particular to the scheduler manager:
-
-* nova-scheduler is signalled in place: refresh_scheduler_cell_cache
-  sends SIGHUP to the container's PID on every deploy and every
-  reconfigure, oslo.service's ProcessLauncher turns that into
-  SIGTERM to its children, and the whole 160 second wait then
-  elapses with nothing to cut it short.
-
-* nova-conductor and nova-super-conductor wait for the same period
-  in ConductorManager.graceful_shutdown(), but are only ever
-  stopped by the container engine, which SIGKILLs them after
-  docker_graceful_timeout, 60 seconds by default. That plus the
-  container start stays inside the 90 seconds the default
-  healthcheck covers.
-
-* nova-compute waits too, but nova/cmd/compute.py is the only
-  caller passing topic_alt, so compute holds a second RPC server --
-  and so an established AMQP connection -- open for the whole wait,
-  and its healthcheck never goes red.
-
-Scanning 357 master and stable/2026.1 Kolla builds from the last
-ten days for every "Discovered unhealthy container" line -- every
-build where nova_scheduler was flagged, plus a one in eight sample
-of the rest, including the upgrade jobs that do restart conductor
-and compute -- nova_scheduler is the only container ever reported.
-The conductors' margin is thinner than it looks though, and it
-comes from docker_graceful_timeout rather than from anything in
-Nova, so the sample globals.yml and the release note point at
-nova_conductor_healthcheck_retries for deployments that raise
-docker_graceful_timeout towards manager_shutdown_timeout.
-
 Nova describes the feature as experimental and plans to replace the
 fixed sleep with real task tracking (blueprint
 nova-services-graceful-shutdown-part2-task-tracking, currently in
