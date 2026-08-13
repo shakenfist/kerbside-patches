@@ -1,12 +1,7 @@
-Widen the nova_scheduler healthcheck.
+Extend the nova_scheduler healthcheck timeout.
 
-nova_scheduler's healthcheck is "healthcheck_port nova-scheduler
-5672", which asserts an established AMQP connection. Since Nova
-33.0.0 (2026.1) the scheduler, conductor and compute managers each
-sleep for [DEFAULT]/manager_shutdown_timeout, 160 seconds by
-default, inside their SIGTERM handler. Nova's release note for that
-feature tells operators to widen their supervision timeouts to
-suit:
+Nova changed in 2026.1 how long their services take to gracefully
+shutdown.
 
   The default value of [DEFAULT]/graceful_shutdown_timeout has been
   changed from 60 to 180 seconds for all Nova services. [...]
@@ -15,52 +10,12 @@ suit:
   set to at least graceful_shutdown_timeout to avoid forcefully
   killing service before Nova finish its graceful shutdown.
 
-Kolla-Ansible supervises Nova with container healthchecks rather
-than systemd, and those were never widened to match. The default 30
-second interval with 3 retries tolerates only 90 seconds, so
-whether check-failure.sh trips comes down to where its poll lands
-in the restart window. From a rocky-10 job on 2026-08-03:
-
-  01:38:55.303 Caught SIGTERM signal, graceful exiting of service
-  01:38:56.787 service stopped RPC server on topic: scheduler
-  01:38:56.787 Scheduler service manager is waiting for 160 seconds
-               to finish in-progress tasks
-  01:41:36.787 manager graceful shutdown finished
-  01:41:36.850 Starting scheduler node (version 33.1.0)
-
-The post-deploy sanity check ran at 01:40:53, inside that window,
-and the job failed. Across a trailing 30 days this shows up in 328
-Kolla CI builds and is fatal to 118 of them, across 13 job variants
-and spread evenly over rocky-10, ubuntu-noble and debian-trixie.
-Every one of those is on master or stable/2026.1 and none is on an
-older branch, which is exactly where the Nova change landed.
-
-Raise nova_scheduler_healthcheck_retries from
-default_container_healthcheck_retries to 8, which gives 240 seconds
-and comfortably clears the window. Services already accept
-per-service healthcheck overrides (<service>_healthcheck_<option>),
-so this is a change of default rather than of code. Document it in
-the sample globals.yml alongside the defaults it overrides, and add
-a release note: existing deployments pick the wider healthcheck up
-when the container is next recreated. This follows 795fbb104, which
-widened mariadb_monitor_galera_healthcheck_timeout for the same
-class of problem.
-
-Nova describes the feature as experimental and plans to replace the
-fixed sleep with real task tracking (blueprint
-nova-services-graceful-shutdown-part2-task-tracking, currently in
-review as I2de2172b5836f156c2154ca73cbff558ec587ea3). Until that
-lands the wait is unconditional, and for nova_scheduler it is dead
-time: nova/service.py stops and drains the RPC server before
-calling the manager's graceful_shutdown(). This override should be
-dropped once the Nova side is fixed.
+Kolla-Ansible failed to update the period of time that ansible waits
+for Nova services to shut down. This causes both CI failures and
+failures for deployers when trying to manage some Nova containers.
 
 Prompt: Michael asked for assistance debugging why CI jobs were
-failing with nova-scheduler timeouts. We traced the delay to Nova's
-manager_shutdown_timeout, and confirming 2026.1 shipped that
-behaviour, produced the citations above. Michael then asked whether
-the healthcheck needed widening for the other Nova services too,
-which produced the per-service analysis and the CI log scan.
+failing with nova-scheduler timeouts.
 
 Assisted-By: Claude Opus 5 (1M context, high effort) <noreply@anthropic.com>
 Co-Authored-By: Claude Opus 5 (1M context, high effort) <noreply@anthropic.com>
