@@ -10,6 +10,23 @@ components (Nova, Kolla, Kolla-Ansible) to enable native
 SPICE console functionality. It also contains container image
 build infrastructure for Kolla-Ansible deployments.
 
+## Where the documentation lives
+
+| Question | Document |
+|----------|----------|
+| How is it put together? | [ARCHITECTURE.md](ARCHITECTURE.md) |
+| How do I build patched container images? | [docs/building.md](docs/building.md) |
+| What does each helper script do? | [docs/script-reference.md](docs/script-reference.md) |
+| How does CI data collection work? | [docs/ci-data.md](docs/ci-data.md) |
+| How do the Zuul and Tempest jobs run? | [docs/kolla-ansible-tempest-jobs.md](docs/kolla-ansible-tempest-jobs.md) |
+| How do I iterate quickly on Kerbside? | [docs/kolla-devmode.md](docs/kolla-devmode.md) |
+| How do I query review.opendev.org? | [docs/gerrit-api.md](docs/gerrit-api.md) |
+| How do I get changes landed upstream? | [docs/tactics.md](docs/tactics.md) |
+
+[docs/index.md](docs/index.md) is the full index. New user-visible
+documentation belongs in `docs/`; this file and `ARCHITECTURE.md` are a
+summary and an index into it.
+
 ## Key Patterns
 
 ### Adding a New Patch

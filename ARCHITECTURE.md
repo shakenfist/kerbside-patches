@@ -5,6 +5,12 @@ system for OpenStack components. It maintains patches that
 enable native SPICE console support and builds Kolla
 container images with those patches applied.
 
+This document is the map. Building the images is
+[docs/building.md](docs/building.md), the helper scripts are
+catalogued in [docs/script-reference.md](docs/script-reference.md), the
+CI data pipeline is [docs/ci-data.md](docs/ci-data.md), and
+[docs/index.md](docs/index.md) indexes the rest.
+
 ## Directory Structure
 
 ```
