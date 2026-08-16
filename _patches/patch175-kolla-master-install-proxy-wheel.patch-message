@@ -4,7 +4,11 @@ Kerbside recently split out the proxying element which shovels SPICE
 packets around from the python business logic and re-implemented
 the high bandwidth proxy component in rust. The proxy is still pip
 installable because of a maturin wrapper, and the kerbside package
-depends on the kerbside-proxy package correctly.
+depends on the kerbside-proxy package with a dev-inclusive floor
+which admits the rolling dev wheels published from the kerbside
+develop branch. Image builds which install kerbside from git
+therefore receive a matching proxy from PyPI with no help from
+kolla.
 
 However, it might be desirable for developers or deployers to be
 able to optionally override the kerbside-proxy wheel when building
