@@ -421,3 +421,13 @@ The configured hooks include:
 |----------|-------------|
 | `gerrit-api.md` | Reference guide for interacting with the OpenStack Gerrit instance at review.opendev.org. Covers both SSH API (for querying changes) and REST API (for fetching inline comments). Includes examples for batch fetching reviews and analyzing feedback patterns. |
 | `tactics.md` | Tactical advice for getting Kolla/Kolla-Ansible patches reviewed quickly. Based on analysis of reviewer activity patterns - optimal posting times, peak days, key reviewers and their timezones. |
+
+## Claude Code Skills (`.claude/skills/`)
+
+| Skill | Description |
+|-------|-------------|
+| `check-patches` | Validating that the patches in `_patches/` still apply and stay consistent across releases. |
+| `debug-ci` | Diagnosing a failed CI run in this repository - which job, which step, and whether the patches or the environment are at fault. |
+| `extract-bundle` | Fetching and navigating a clingwrap debug bundle from a `Build test clouds` job. |
+| `propose-upstream-patch` | Authoring and submitting a change to an upstream OpenStack project via review.opendev.org, including the commit message and code comment conventions upstream reviewers expect. |
+| `rebase-patch` | Rebasing a patch onto a newer upstream SHA when it stops applying. |

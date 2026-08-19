@@ -81,6 +81,83 @@ activity times.
 4. **Friday afternoon is risky** - You may get feedback but no time to address
    it before the weekend lull
 
+## Writing the Change Itself
+
+Reviewer time is the scarce resource. Everything a reviewer has to read but
+does not need is friction, and friction costs revision cycles. Two rules
+below came out of real review feedback on Kerbside CI fixes -- both were
+raised as review comments, and both cost a round trip to fix.
+
+### Commit Messages: Two Short Paragraphs, Hard Stop
+
+Upstream reviewers do not want a long commit message. Long messages read as
+a sign that the change is doing too much, and reviewers ask for them to be
+cut down.
+
+1. **Subject**: 50 characters ideal, 72 maximum.
+2. **Body**: at most **two paragraphs**.
+   - Paragraph one: what is broken, and what this change does about it.
+   - Paragraph two (optional): why *this* approach -- the constraint that
+     ruled out the obvious alternative.
+   - There is no paragraph three.
+3. **Each paragraph is at most 4 lines** wrapped at 72 characters, so 8 body
+   lines total.
+4. **Footers do not count** toward the two paragraphs: `Closes-Bug`,
+   `Change-Id`, `Depends-On`, `Signed-off-by`, `Co-Authored-By`.
+
+Do not put these in the commit message:
+
+- Bullet lists enumerating the hunks in the diff.
+- Multi-line logs, tracebacks, or command output. A single line that
+  *is* the symptom is fine.
+- A "background" or "history" section.
+- Links to Kerbside repositories, or Kerbside-specific motivation.
+
+Evidence and reasoning a reviewer might want goes in a **Gerrit comment on
+the change**, not in the commit message. A comment is discussable and
+disposable; the commit message is permanent and is read by everyone who
+runs `git log` for the next decade.
+
+Example of the shape that works, from Michal Nasiadka -- the most active
+Kolla-Ansible core reviewer, so this is the standard being applied to us
+(`7dc2b7f81` in kolla-ansible):
+
+```
+CI: Install kernel-modules-extra on Rocky
+
+Started failing on Rocky 10 with:
+Jul 18 09:28:34 localhost iptables.init[857]: Warning: Extension state is not supported, missing kernel module?
+
+Change-Id: Ib7df1eaa8a3f75fe8040fd2d646cf7d02e0322cc
+Signed-off-by: Michal Nasiadka <mnasiadka@gmail.com>
+```
+
+Subject, one two-line paragraph, footers. No second paragraph, because the
+change needed no justification beyond the symptom.
+
+### Comments in the Code: Minimal Without Being Negligent
+
+The same review feedback applies to comments in the patch itself. A comment
+that restates the code is noise a reviewer has to read and then ask you to
+remove.
+
+1. **Default to no comment.** The task `name:`, the variable name, or the
+   function name should carry the meaning.
+2. **Comment only what the code cannot express**: a workaround for a
+   specific upstream or distro bug (name it, with a bug number or URL), a
+   non-obvious ordering or timing constraint, or the provenance of a magic
+   value.
+3. **Never restate the following line.** `# Set the timeout to 30` above
+   `timeout: 30` is exactly what gets flagged.
+4. **One line where one line suffices.** No comment banners, no block
+   headers above a task.
+5. **In Ansible, sharpen the task `name:` instead of adding a comment.** The
+   name is user-visible during a deploy, so reviewers treat it as the real
+   documentation. A comment is not.
+6. **If the justification needs more than about two lines, it is not a
+   comment** -- it is a release note or a `doc/source/` change.
+7. **Nothing Kerbside-specific goes upstream**, in code or in comments.
+
 ## Common Review Feedback (Pre-emptive Checklist)
 
 Before posting, check these common issues (see `gerrit-pre-push-lint` tool):
@@ -88,6 +165,8 @@ Before posting, check these common issues (see `gerrit-pre-push-lint` tool):
 - [ ] **Release notes** - Add for user-visible changes (`reno new <slug>`)
 - [ ] **Bug reference** - Add `Closes-Bug: #NNNN` for non-trivial fixes
 - [ ] **Commit message** - Subject ≤50 chars ideal, ≤72 max
+- [ ] **Commit body** - At most two paragraphs, ≤4 lines each
+- [ ] **Code comments** - Only where the code cannot explain itself
 - [ ] **YAML line length** - Keep under 160 characters
 - [ ] **Ansible changed_when** - Use `false` for read-only commands
 - [ ] **Jinja2 spacing** - `{{ variable }}` not `{{variable}}`
