@@ -45,6 +45,10 @@ if [ "${NAME}" == "Rocky Linux" ]; then
     echo
 
     echo -e "${H2}Install a recent Docker${Color_Off}"
+    # dockerd needs the xt_addrtype netfilter module for its NAT rules, and
+    # on Rocky that ships in kernel-modules-extra. Pin to the running kernel
+    # because the dnf update above may have staged a newer one.
+    sudo dnf install -y "kernel-modules-extra-$(uname -r)"
     sudo dnf config-manager --add-repo \
         https://download.docker.com/linux/centos/docker-ce.repo
     sudo dnf install -y docker-ce docker-ce-cli containerd.io
