@@ -333,6 +333,45 @@ class GerritLinter:
     # =========================================================================
     # Check 3: Commit Message Quality
     # =========================================================================
+    @staticmethod
+    def get_commit_body_paragraphs(commit_message: str) -> list[list[str]]:
+        """Split the commit body into paragraphs, ignoring subject and footers.
+
+        Returns a list of paragraphs, each a list of lines. The subject line
+        and any trailing footer block (Change-Id, Closes-Bug, Signed-off-by
+        and friends) are excluded, since those do not count against the
+        two paragraph budget.
+        """
+        footer_re = re.compile(
+            r'^(Change-Id|Closes-Bug|Partial-Bug|Related-Bug|Depends-On|'
+            r'Implements|Partially-Implements|Blueprint|Signed-off-by|'
+            r'Co-Authored-By|Co-authored-by|Reviewed-by|Tested-by|'
+            r'Needed-By|Story|Task|Fixes):',
+            re.IGNORECASE,
+        )
+
+        body = commit_message.split('\n')[1:]
+        paragraphs: list[list[str]] = []
+        current: list[str] = []
+        for line in body:
+            stripped = line.strip()
+            if not stripped:
+                if current:
+                    paragraphs.append(current)
+                    current = []
+                continue
+            if footer_re.match(stripped):
+                # A footer ends the body. Anything after it is metadata.
+                if current:
+                    paragraphs.append(current)
+                    current = []
+                continue
+            current.append(stripped)
+        if current:
+            paragraphs.append(current)
+
+        return paragraphs
+
     def check_commit_message(self, commit_message: str):
         """Check commit message formatting and content."""
         if not commit_message:
@@ -362,6 +401,34 @@ class GerritLinter:
                 'ideal ≤50).',
                 None,
             )
+
+        # Check body length. Upstream reviewers ask for long commit
+        # messages to be cut down, so cap the body at two short paragraphs.
+        # See docs/tactics.md, "Writing the Change Itself".
+        paragraphs = self.get_commit_body_paragraphs(commit_message)
+        if len(paragraphs) > 2:
+            self.add_issue(
+                Severity.WARNING,
+                'COMMIT',
+                None,
+                f'Commit body has {len(paragraphs)} paragraphs (max 2).',
+                'Upstream reviewers ask for long messages to be cut down.\n'
+                '  Paragraph 1: what is broken and what this change does.\n'
+                '  Paragraph 2 (optional): why this approach.\n'
+                '  Put evidence and reasoning in a Gerrit comment instead.',
+            )
+
+        for index, paragraph in enumerate(paragraphs[:2], start=1):
+            if len(paragraph) > 4:
+                self.add_issue(
+                    Severity.WARNING,
+                    'COMMIT',
+                    None,
+                    f'Commit body paragraph {index} is {len(paragraph)} '
+                    'lines (max 4).',
+                    'Wrap at 72 characters and keep each paragraph to four '
+                    'lines or fewer.',
+                )
 
         # Check for Trivial: misuse
         if subject.lower().startswith('trivial:'):
