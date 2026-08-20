@@ -1,6 +1,6 @@
-commit 0f7317ec4319732ece92faeb584eeab8f2658626
+commit eb163df5210dd7eb5c153da8ce198ca960a0fea1
 Author: Michael Still <mikal@stillhq.com>
-Date:   Thu Aug 13 16:57:08 2026 +1000
+Date:   Thu Aug 20 12:16:19 2026 +1000
 
     Deploy Kerbside with Kolla-Ansible.
     
@@ -1649,10 +1649,10 @@ index d45bb4602..05578fb19 100644
  server_proxyclient_address = {{ api_interface_address }}
  {%         if inventory_hostname in groups[nova_cell_compute_group] %}
 diff --git a/ansible/roles/nova/defaults/main.yml b/ansible/roles/nova/defaults/main.yml
-index a13d624ac..ea0196cb3 100644
+index 24778696e..35986e283 100644
 --- a/ansible/roles/nova/defaults/main.yml
 +++ b/ansible/roles/nova/defaults/main.yml
-@@ -226,7 +226,6 @@ nova_super_conductor_extra_volumes: "{{ nova_extra_volumes }}"
+@@ -230,7 +230,6 @@ nova_super_conductor_extra_volumes: "{{ nova_extra_volumes }}"
  # Used by bootstrapping containers.
  nova_api_bootstrap_extra_volumes: "{{ nova_extra_volumes }}"
  
@@ -1782,10 +1782,10 @@ index 1c7f6b89e..e14be732f 100644
  =====
  
 diff --git a/etc/kolla/globals.yml b/etc/kolla/globals.yml
-index 3785398b3..eb4ef0384 100644
+index a9ec40c3b..01dbc357f 100644
 --- a/etc/kolla/globals.yml
 +++ b/etc/kolla/globals.yml
-@@ -373,6 +373,7 @@ workaround_ansible_issue_8743: true
+@@ -388,6 +388,7 @@ workaround_ansible_issue_8743: true
  #enable_ironic_prometheus_exporter: "{{ enable_ironic | bool and enable_prometheus | bool }}"
  #enable_ironic_pxe_filter: false
  #enable_iscsid: "{{ enable_cinder | bool and enable_cinder_backend_iscsi | bool }}"

@@ -1,6 +1,6 @@
-commit fc64bb63d06b267b2f937d950bdd48ed974b9144
+commit 8728d7236a08191f206dfce7cd8f615a1c71a2ba
 Author: Michael Still <mikal@stillhq.com>
-Date:   Thu Aug 13 16:55:53 2026 +1000
+Date:   Thu Aug 20 12:44:38 2026 +1000
 
     Install the kerbside-proxy wheel into kerbside images.
     
@@ -22,7 +22,7 @@ Date:   Thu Aug 13 16:55:53 2026 +1000
     Signed-off-by: Michael Still <mikal@stillhq.com>
 
 diff --git a/kolla/docker/kerbside/kerbside-base/Dockerfile.j2 b/kolla/docker/kerbside/kerbside-base/Dockerfile.j2
-index bc181258f..c8eedf49a 100644
+index bc181258f..fbf3fc519 100644
 --- a/kolla/docker/kerbside/kerbside-base/Dockerfile.j2
 +++ b/kolla/docker/kerbside/kerbside-base/Dockerfile.j2
 @@ -35,6 +35,9 @@ RUN ln -s kerbside-source/* kerbside \
