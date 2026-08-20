@@ -103,7 +103,10 @@ cut down.
 3. **Each paragraph is at most 4 lines** wrapped at 72 characters, so 8 body
    lines total.
 4. **Footers do not count** toward the two paragraphs: `Closes-Bug`,
-   `Change-Id`, `Depends-On`, `Signed-off-by`, `Co-Authored-By`.
+   `Change-Id`, `Depends-On`, `Signed-off-by`, `Co-Authored-By`, and the
+   `Assisted-By` and `Prompt` metadata this repository adds. `Prompt` is
+   the only one that runs over several lines; it ends at the next blank
+   line.
 
 Do not put these in the commit message:
 

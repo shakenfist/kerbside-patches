@@ -340,31 +340,40 @@ class GerritLinter:
         Returns a list of paragraphs, each a list of lines. The subject line
         and any trailing footer block (Change-Id, Closes-Bug, Signed-off-by
         and friends) are excluded, since those do not count against the
-        two paragraph budget.
+        two paragraph budget. Assisted-By and Prompt are treated the same
+        way: they are metadata about how the change was written rather than
+        prose a reviewer has to read. Prompt is the only one that runs over
+        several lines, so it is consumed through to the next blank line.
         """
         footer_re = re.compile(
             r'^(Change-Id|Closes-Bug|Partial-Bug|Related-Bug|Depends-On|'
             r'Implements|Partially-Implements|Blueprint|Signed-off-by|'
             r'Co-Authored-By|Co-authored-by|Reviewed-by|Tested-by|'
-            r'Needed-By|Story|Task|Fixes):',
+            r'Needed-By|Story|Task|Fixes|Assisted-By|Prompt):',
             re.IGNORECASE,
         )
+        multiline_footer_re = re.compile(r'^Prompt:', re.IGNORECASE)
 
         body = commit_message.split('\n')[1:]
         paragraphs: list[list[str]] = []
         current: list[str] = []
+        in_multiline_footer = False
         for line in body:
             stripped = line.strip()
             if not stripped:
                 if current:
                     paragraphs.append(current)
                     current = []
+                in_multiline_footer = False
+                continue
+            if in_multiline_footer:
                 continue
             if footer_re.match(stripped):
                 # A footer ends the body. Anything after it is metadata.
                 if current:
                     paragraphs.append(current)
                     current = []
+                in_multiline_footer = bool(multiline_footer_re.match(stripped))
                 continue
             current.append(stripped)
         if current:

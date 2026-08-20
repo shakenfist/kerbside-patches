@@ -121,10 +121,10 @@ Other workflows:
 - `ci-reporting.yml` -- on-demand refresh of the OpenDev CI
   reliability data in `data/ci-reporting/`. A workflow_dispatch
   dropdown picks the report; the report catalogue is in
-  `tools/ci-report.sh` (mariadb-ist, wsrep-sync-fatal,
-  libvirt-limit) and the shared scan/chart engine is
-  `tools/count_ci_log_errors.py`. Incremental via committed
-  per-report checkpoints so OpenDev is never re-scraped; uploads
+  `tools/ci-report.sh` (described in `docs/ci-data.md`) and the
+  shared scan/chart engine is `tools/count_ci_log_errors.py`.
+  Incremental via committed per-report checkpoints so OpenDev is
+  never re-scraped; uploads
   the refreshed data as a workflow artifact and proposes a
   data-update PR. The scan runs on a vm runner but the PR step
   runs on a static runner, because `gh` is only installed on
