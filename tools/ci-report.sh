@@ -131,7 +131,8 @@ run_report() {
             basename='kolla_scheduler_unhealthy_errors'
             chart='kolla_scheduler_unhealthy_chart.png'
             chart_title='nova_scheduler flagged unhealthy by post-deploy sanity checks on master CI'
-            fix_merged=''
+            # Change 999789 raised nova_scheduler_healthcheck_retries to 8.
+            fix_merged='2026-08-19'
             ;;
         ovs-create-tap)
             target='create_tap is only supported for VIFOpenVSwitch'

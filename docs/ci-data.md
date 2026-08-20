@@ -81,7 +81,10 @@ lives in `tools/ci-report.sh` and currently covers:
   on OpenDev's own nodes, so it is an upstream defaults mismatch
   rather than anything about our hardware. Raising
   `nova_scheduler_healthcheck_retries` past the reload window is the
-  workaround this report justifies.
+  workaround this report justifies. That landed upstream as change
+  999789 on 2026-08-19, which the report now carries as its
+  `fix_merged` date, so the chart marks the boundary and the report
+  becomes a measurement of whether the fix worked.
 - `ovs-create-tap` -- os-vif refusing to pre-create a TAP device for a
   hybrid-plugged OVS port, logged by nova-compute as `create_tap is
   only supported for VIFOpenVSwitch`. Neutron's ML2/OVS mechanism
