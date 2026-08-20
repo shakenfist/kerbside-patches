@@ -9,7 +9,9 @@ Retry for three refresh intervals before failing. This only sleeps
 when there is a gap, so a healthy job is unaffected.
 
 Prompt: Michael asked why change 976889 was given a Verified-1 by an
-unrelated check-logs.sh failure, and then for a fix.
+unrelated check-logs.sh failure. Investigation indicated this was a
+race between fluentd detecting new log files and the test timing out.
+We then developed a fix.
 
 Assisted-By: Claude Opus 5 (1M context, high effort) <noreply@anthropic.com>
 Co-Authored-By: Claude Opus 5 (1M context, high effort) <noreply@anthropic.com>

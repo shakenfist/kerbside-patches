@@ -13,7 +13,9 @@ Date:   Thu Aug 20 18:55:00 2026 +1000
     when there is a gap, so a healthy job is unaffected.
 
     Prompt: Michael asked why change 976889 was given a Verified-1 by an
-    unrelated check-logs.sh failure, and then for a fix.
+    unrelated check-logs.sh failure. Investigation indicated this was a
+    race between fluentd detecting new log files and the test timing out.
+    We then developed a fix.
 
     Assisted-By: Claude Opus 5 (1M context, high effort) <noreply@anthropic.com>
     Co-Authored-By: Claude Opus 5 (1M context, high effort) <noreply@anthropic.com>
@@ -36,7 +38,7 @@ index 454fbf8..a098e38 100755
 -        echo >> $fluentd_error_summary_file
 -    fi
 +    # NOTE(mikal): in_tail only finds new files every refresh_interval (60s
-+    #              by default), so retry before believing one is missing.
++    # by default), so retry before believing one is missing.
 +    missing_retries=0
 +    missing_retries_max=6
 +    while check_fluentd_missing_logs >/dev/null; do
