@@ -1,0 +1,11 @@
+repo: https://opendev.org/openstack/kolla-ansible
+source_branch: master
+destination_branch: fluentd-tail-patience
+shallow_clone: false
+directory: kolla-ansible
+release: master-fluentd-tail-patience
+depends_on: ''
+source_sha: 1a681814eb19a4840ca307a25f21b2907b432272
+previous_source_sha: 1a681814eb19a4840ca307a25f21b2907b432272
+skip_rebase: true
+skip_claude: true

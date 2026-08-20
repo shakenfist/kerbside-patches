@@ -1,0 +1,56 @@
+commit c4e1e2b295a640adf1f5e27eb6e25f6192da017b
+Author: Michael Still <mikal@stillhq.com>
+Date:   Thu Aug 20 18:55:00 2026 +1000
+
+    Wait for fluentd to tail late log files.
+
+    check-logs.sh fails a job when a log file under /var/log/kolla has no
+    "following tail of" line in fluentd.log, but never waits for one.
+    in_tail only finds new files every refresh_interval, 60 seconds by
+    default, so a service logging just before the check looks missing.
+
+    Retry for three refresh intervals before failing. This only sleeps
+    when there is a gap, so a healthy job is unaffected.
+
+    Prompt: Michael asked why change 976889 was given a Verified-1 by an
+    unrelated check-logs.sh failure, and then for a fix.
+
+    Assisted-By: Claude Opus 5 (1M context, high effort) <noreply@anthropic.com>
+    Co-Authored-By: Claude Opus 5 (1M context, high effort) <noreply@anthropic.com>
+
+    Change-Id: I1e250d2128e360c4022870bf05c282661d879c84
+    Signed-off-by: Michael Still <mikal@stillhq.com>
+
+diff --git a/tests/check-logs.sh b/tests/check-logs.sh
+index 454fbf8..a098e38 100755
+--- a/tests/check-logs.sh
++++ b/tests/check-logs.sh
+@@ -211,12 +211,22 @@ if sudo test -d /var/log/kolla; then
+         fi
+     done
+ 
+-    if check_fluentd_missing_logs >/dev/null; then
+-        any_critical=1
+-        echo "(critical) Found some missing log files in fluentd logs. Matches in $fluentd_error_summary_file"
+-        check_fluentd_missing_logs >> $fluentd_error_summary_file
+-        echo >> $fluentd_error_summary_file
+-    fi
++    # NOTE(mikal): in_tail only finds new files every refresh_interval (60s
++    #              by default), so retry before believing one is missing.
++    missing_retries=0
++    missing_retries_max=6
++    while check_fluentd_missing_logs >/dev/null; do
++        if [[ $missing_retries -eq $missing_retries_max ]]; then
++            any_critical=1
++            echo "(critical) Found some missing log files in fluentd logs. Matches in $fluentd_error_summary_file"
++            check_fluentd_missing_logs >> $fluentd_error_summary_file
++            echo >> $fluentd_error_summary_file
++            break
++        fi
++        missing_retries=$((missing_retries + 1))
++        echo "Found missing log files in fluentd logs, sleeping 30 seconds"
++        sleep 30
++    done
+ fi
+ 
+ if check_docker_log_file_for_sigkill >/dev/null; then
