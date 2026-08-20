@@ -26,6 +26,7 @@ on:
           - libvirt-limit
           - ovs-create-tap
           - scheduler-unhealthy
+          - fluentd-missing-logs
           - all
 
 jobs:

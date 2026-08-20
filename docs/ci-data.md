@@ -93,6 +93,31 @@ lives in `tools/ci-report.sh` and currently covers:
   up a new enough neutron. We tripped it first because we rebuild
   from master daily -- our patch178 opts out locally, and this report
   watches for the same failure reaching upstream.
+- `fluentd-missing-logs` -- how often `check-logs.sh` aborts a job
+  because fluentd never started tailing a log file under
+  `/var/log/kolla`, logged as `no match for <file>`. Its
+  `check_fluentd_missing_logs()` requires every non-exempt log file to
+  have a matching `following tail of <file>` line in `fluentd.log` and
+  treats a gap as critical, but it never waits for one to appear.
+  fluentd's `in_tail` discovers files created after it started only on
+  its `refresh_interval`, which Kolla leaves at the 60 second default
+  (every `following tail of` line in a build lands on the same
+  once-a-minute tick), so any service whose first log line arrives
+  within a minute of the check is reported missing even though nothing
+  is wrong. That makes the exposure a function of deploy order rather
+  than of the service: `ansible/site.yml` applies masakari second to
+  last and skyline last, and heat and horizon are also in the tail, so
+  those are the names that show up. A second, rarer path reaches the
+  same signature -- fluentd only refreshes while its output plugin is
+  healthy, so an OpenSearch stall (`Could not communicate to
+  OpenSearch`) stretches the window, and the script's guard loop for
+  that greps only the last five lines of `fluentd.log`, so it stops
+  waiting when the warning scrolls out of view rather than when fluentd
+  has caught up. A genuine gap -- a service fluentd is not configured
+  to collect at all -- looks identical in the chart but reproduces on
+  every run of that scenario. The `log_url` column in the CSV points at
+  the `fluentd-error.txt` naming the files, which is what tells the
+  cases apart.
 
 Each report is a target string plus the log file(s) to scan for it; the
 shared scan/aggregate/chart engine is `tools/count_ci_log_errors.py`
@@ -100,6 +125,20 @@ shared scan/aggregate/chart engine is `tools/count_ci_log_errors.py`
 prototyped in a separate repository). The chart marks the fix-merge
 boundary, once a fix has merged, so the before/after effect stays
 visible over time.
+
+A report's denominator is implicit: it is the set of builds that
+published any of its log files, because a build with no matching file is
+not recorded at all. That is usually what you want, but it breaks for a
+signature whose log file only exists when the check has already failed.
+`fluentd-missing-logs` is such a case -- `fluentd-error.txt` is written
+only when `check-logs.sh` finds something critical, and the job then
+fails, so on its own the report would chart a constant 100% hit rate
+over a handful of builds. It therefore names a second log suffix,
+`kolla/fluentd/fluentd.txt`, purely as a denominator: fluentd's own log
+is published by exactly the builds where the check runs, and can never
+contain the target string, so those builds are recorded as misses and
+the hit rate becomes a real per-build failure rate. Use the same trick
+for any future signature that is only published on failure.
 
 State lives in `data/ci-reporting/` (per-report CSVs, their
 checkpoints, and the charts) and is committed to the repository. Runs

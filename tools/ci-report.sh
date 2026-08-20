@@ -36,6 +36,27 @@
 #                      hit this before upstream did because we rebuild from
 #                      master daily; this report watches for Kolla CI picking
 #                      up a new enough neutron to start failing too
+#   fluentd-missing-logs
+#                    - check-logs.sh's check_fluentd_missing_logs() finding a
+#                      log file under /var/log/kolla that fluentd never
+#                      started tailing ("no match for <file>"). Treated as
+#                      critical, so it fails the job outright, and the check
+#                      never waits: fluentd's in_tail only discovers new files
+#                      on its refresh_interval (Kolla leaves it at the 60s
+#                      default), so a service that starts logging within a
+#                      minute of the check is reported missing. Exposure
+#                      therefore tracks deploy order -- site.yml applies
+#                      masakari second to last -- rather than the service
+#                      itself. A genuine gap (logs fluentd is not configured
+#                      to collect) produces the same string but repeats every
+#                      run
+#
+# Note on the fluentd-missing-logs denominator: fluentd-error.txt is only
+# published by builds that already failed this check, so on its own it would
+# chart a constant 100% hit rate. The second log suffix, fluentd/fluentd.txt,
+# is the denominator -- it is published by exactly the builds where
+# check-logs.sh's fluentd section runs, and can never contain the target
+# string, so those builds are recorded as misses.
 #
 # State (the CSV, its checkpoint, and the chart) lives in data/ci-reporting/
 # and is committed to this repository, so each run only fetches logs for
@@ -53,6 +74,7 @@ report="$1"
 if [ -z "${report}" ]; then
     echo "Usage: $0 <report>|all" >&2
     echo "Reports: libvirt-limit mariadb-ist wsrep-sync-fatal ovs-create-tap scheduler-unhealthy" >&2
+    echo "         fluentd-missing-logs" >&2
     exit 1
 fi
 
@@ -121,6 +143,18 @@ run_report() {
             chart_title='os-vif TAP pre-creation refused on hybrid-plug OVS ports on master CI'
             fix_merged=''
             ;;
+        fluentd-missing-logs)
+            target='no match for /var/log/kolla/'
+            projects='openstack/kolla openstack/kolla-ansible'
+            job_filter=''
+            # fluentd-error.txt carries the signature; fluentd/fluentd.txt is
+            # the denominator (see the note at the top of this file).
+            suffixes='kolla/fluentd-error.txt kolla/fluentd/fluentd.txt'
+            basename='kolla_fluentd_missing_logs_errors'
+            chart='kolla_fluentd_missing_logs_chart.png'
+            chart_title='fluentd log files never tailed, failing check-logs.sh on master CI'
+            fix_merged=''
+            ;;
         *)
             echo "Unknown report: ${name}" >&2
             exit 1
@@ -156,7 +190,8 @@ run_report() {
 }
 
 if [ "${report}" = "all" ]; then
-    for name in libvirt-limit mariadb-ist wsrep-sync-fatal ovs-create-tap scheduler-unhealthy; do
+    for name in libvirt-limit mariadb-ist wsrep-sync-fatal ovs-create-tap scheduler-unhealthy \
+                fluentd-missing-logs; do
         run_report "${name}"
     done
 else
