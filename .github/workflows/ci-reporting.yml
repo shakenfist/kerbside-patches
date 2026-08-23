@@ -12,6 +12,12 @@ name: CI reliability reporting
 # layer data flow in functional-tests.yml uses). The workflow artifact
 # carries the refreshed data between the two jobs.
 
+# The reporting job checks out with the default token; everything that
+# writes (the branch push and the pull request) runs as
+# DAILY_REBASE_TOKEN, which carries its own scope.
+permissions:
+  contents: read
+
 on:
   workflow_dispatch:
     inputs:

@@ -1,5 +1,10 @@
 name: Build test clouds
 
+# Checkout only. The layer-data pull request at the end of the run is
+# made with DAILY_REBASE_TOKEN, which carries its own scope.
+permissions:
+  contents: read
+
 on:
   workflow_dispatch:
     inputs:

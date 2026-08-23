@@ -4,6 +4,17 @@ name: Auto-retry infrastructure failures
 # due to infrastructure issues (e.g., self-hosted runner losing connection).
 # It does NOT retry jobs that fail due to actual test failures.
 
+# The only workflow here that drives GITHUB_TOKEN itself rather than
+# DAILY_REBASE_TOKEN, so these are the scopes it actually exercises:
+# reading a workflow run and its job logs, reading the check-run
+# annotations it greps for infrastructure failures, commenting on the
+# pull request, and re-running the failed jobs.
+permissions:
+  actions: write
+  checks: read
+  contents: read
+  pull-requests: write
+
 on:
   workflow_run:
     workflows:

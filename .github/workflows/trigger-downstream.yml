@@ -1,5 +1,10 @@
 name: Trigger downstream CI
 
+# Nothing here uses GITHUB_TOKEN: there is no checkout, and the
+# downstream dispatch runs as DAILY_REBASE_TOKEN because it targets
+# another repository.
+permissions: {}
+
 on:
   push:
     branches:
