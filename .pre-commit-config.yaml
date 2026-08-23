@@ -18,3 +18,12 @@ repos:
         types: [text]
         exclude: '(find_images|spice-connect\.py|extract-commit-message|summarize_layers\.py|analyze-shared-patches\.py|analyze-gerrit-new-roles|analyze-gerrit-patch-size|analyze-gerrit-review-times|gerrit-pre-push-lint)$'
         args: ['-x']
+
+  # skillsaw lints the agent context in this repository -- CLAUDE.md,
+  # AGENTS.md and the skills under .claude/ -- for malformed skills,
+  # smuggled unicode and pasted credentials. The rev is kept current by
+  # renovate's pre-commit manager.
+  - repo: https://github.com/stbenjam/skillsaw
+    rev: v0.18.0
+    hooks:
+      - id: skillsaw
