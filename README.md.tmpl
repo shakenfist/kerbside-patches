@@ -74,6 +74,8 @@ The detailed documentation lives in [docs/][docs]:
 - [CI data collection and reporting][ci-data] -- the container layer data time
   series, and the reliability reports for the upstream OpenDev CI jobs this
   repository depends on.
+- [Security scanning][security] -- the gitleaks credential scan, CodeQL, and
+  how to accept a finding.
 - [Kolla-Ansible Zuul and Tempest CI][zuul] -- notes for adding
   Kerbside-enabled Zuul jobs to Kolla-Ansible.
 - [Kerbside development mode][devmode] -- rapid iteration on the Kerbside proxy
@@ -102,6 +104,7 @@ which Claude will use automatically when a task matches:
 [building]: https://github.com/shakenfist/kerbside-patches/blob/develop/docs/building.md
 [scripts]: https://github.com/shakenfist/kerbside-patches/blob/develop/docs/script-reference.md
 [ci-data]: https://github.com/shakenfist/kerbside-patches/blob/develop/docs/ci-data.md
+[security]: https://github.com/shakenfist/kerbside-patches/blob/develop/docs/security-scanning.md
 [zuul]: https://github.com/shakenfist/kerbside-patches/blob/develop/docs/kolla-ansible-tempest-jobs.md
 [devmode]: https://github.com/shakenfist/kerbside-patches/blob/develop/docs/kolla-devmode.md
 [gerrit]: https://github.com/shakenfist/kerbside-patches/blob/develop/docs/gerrit-api.md
