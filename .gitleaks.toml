@@ -1,0 +1,70 @@
+# gitleaks configuration for kerbside-patches.
+#
+# Run in CI by the credential_scan job in
+# .github/workflows/secret-scanning.yml, which invokes a pinned gitleaks
+# 8.16.0 through tools/gitleaks-scan.sh rather than using
+# gitleaks-action, because that action refuses to run on organization
+# repositories without a paid licence.
+#
+# There are two places to record an accepted finding, and they are not
+# interchangeable. Content which recurs -- a documentation placeholder,
+# a test fixture, an upstream default -- is allowlisted here, because it
+# reappears in a new commit every time the file around it is edited. A
+# specific historical event is recorded as a fingerprint in
+# .gitleaksignore, which forgives that one occurrence and nothing else.
+#
+# This file is written against 8.16's schema, which is not the one the
+# current upstream documentation describes -- per-rule allowlists became
+# a repeatable [[rules.allowlists]] array in a later release, while 8.16
+# takes a single [rules.allowlist] table. Note also that 8.16 matches
+# global allowlist regexes against the whole match rather than the
+# secret alone, so anchoring one with ^...$ silently stops it matching.
+# The regexes below are therefore written against the matched text, not
+# against the captured secret. Check any change against the pinned
+# version rather than the website.
+
+title = "Kerbside patches"
+
+[extend]
+# This repository mints no credentials of its own -- it is an archive of
+# patches against upstream OpenStack -- so there is nothing to add to
+# the upstream rules for third party credential shapes.
+useDefault = true
+
+[allowlist]
+description = """
+Repository-wide exceptions. Every entry here is a place a scanner
+believes it has found a credential and has not; adding one is a claim
+that has to be true, so each carries the reason it is safe.
+
+These match on content rather than on path, which is both narrower and
+more durable. A path entry blinds a whole file, including a real
+credential added to it later -- and since the files in question are
+patch files that get rewritten on every upstream rebase, a path entry
+here would be especially wide. A content entry also survives editing:
+the same text in a rebased patch is a new finding in a new commit, so a
+fingerprint in .gitleaksignore would have to be replaced every time,
+while the text itself does not change.
+"""
+regexes = [
+  # APT repository signing key fingerprints, in the Kolla patches which
+  # add the RabbitMQ and Erlang archives. A GPG key id identifies a
+  # *public* key -- it is what you check a signature against, published
+  # by the archive precisely so that everyone has it. The generic-api-key
+  # rule sees 'keyid' next to a long hex string and cannot tell the
+  # difference.
+  '''keyid':\s*'[0-9A-Fa-f]{8,40}''',
+
+  # Nova's object version hash registry, in the console token patches.
+  # These are hashes *of* an object's schema, used by
+  # test_objects.test_versions to catch unversioned changes to a
+  # versioned object. They authorise nothing and are meant to change
+  # whenever the object does.
+  '''AuthToken':\s*'\d+\.\d+-[0-9a-f]{32}''',
+
+  # Console URLs in Nova's unit tests and API samples. The UUID is a
+  # test fixture: the console token it names is minted per connection
+  # and lives for seconds, and these particular ones never existed
+  # outside a test run.
+  '''token=[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}''',
+]
