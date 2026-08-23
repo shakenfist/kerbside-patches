@@ -106,7 +106,7 @@ jobs:
       # The retired pr-address-comments.yml always did this; this
       # file did not.
       - name: Checkout the pull request
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           ref: refs/pull/${{ needs.trigger-re-review.outputs.pr_number }}/merge
           fetch-depth: 0
