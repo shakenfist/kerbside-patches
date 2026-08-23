@@ -266,6 +266,29 @@ The `rebase-tests.yml` workflow runs on PRs and includes:
    skipping automated fixers when the last commit was
    from the bot (same pattern as shakenfist).
 
+### Security and Repository Automation
+
+Four lanes run alongside the test workflows and are independent of
+them:
+
+- `secret-scanning.yml` -- scans every commit reachable from `HEAD`
+  for leaked credentials via `tools/gitleaks-scan.sh`. Deliberately
+  its own workflow with no path filter, because a credential pasted
+  into documentation is still a credential.
+- `codeql-analysis.yml` -- CodeQL analysis on pushes and pull
+  requests against develop, plus weekly.
+- `export-repo-config.yml` -- exports the repository's GitHub
+  settings daily and opens a PR when they drift, so configuration
+  changes are reviewable rather than invisible.
+- `pr-re-review.yml` and `pr-retest.yml` -- respond to
+  `@shakenfist-bot please re-review` and `@shakenfist-bot please
+  retest` from authorised commenters. Useful here because bot commits
+  do not trigger CI. Both reach the trigger handling through
+  `shakenfist/actions/pr-bot-trigger@main`, which refuses fork pull
+  requests.
+
+See `docs/security-scanning.md` for the scanning half.
+
 ### Daily Rebase
 
 `daily-rebase-checks.yml` runs daily to keep patches current

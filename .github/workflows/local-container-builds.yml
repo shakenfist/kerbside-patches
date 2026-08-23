@@ -8,6 +8,10 @@ name: Ensure local container builds work
 # This workflow should closely follow the instructions from README.md,
 # although there are some minor githubisms in here (git clones mostly).
 
+# Checkout only; this workflow builds images and writes nothing back.
+permissions:
+  contents: read
+
 on:
   workflow_dispatch:
   pull_request:

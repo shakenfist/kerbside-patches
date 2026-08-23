@@ -102,6 +102,12 @@ directories. This page documents each script and its purpose.
 |--------|-------------|
 | `find_images` | Python CLI tool for finding images in GitLab Container Registry. Searches by tag patterns and lists available images. |
 
+### Security Scanning
+
+| Script | Description |
+|--------|-------------|
+| `gitleaks-scan.sh` | Scans every commit reachable from `HEAD` for leaked credentials, against `.gitleaks.toml`. Runs a positive control first -- it plants an AWS access key id and an SSH private key and fails if gitleaks does not report both -- so a clean scan means "found nothing" rather than "did nothing". Refuses to run against a shallow clone. Takes `--gitleaks PATH` to use a specific binary. See [security-scanning.md](security-scanning.md). |
+
 ### Pre-commit Hooks
 
 This repository uses [pre-commit](https://pre-commit.com/) to validate files
@@ -121,6 +127,7 @@ The configured hooks include:
 |------|-------------|
 | `actionlint` | Lints GitHub Actions workflow files for syntax errors, invalid expressions, and other issues. Custom runner labels are configured in `.github/actionlint.yaml`. |
 | `shellcheck` | Static analysis tool for shell scripts. Checks scripts in `_build/` and `tools/` directories for common issues. Configuration is in `.shellcheckrc`. |
+| `skillsaw` | Lints the agent context in this repository -- `CLAUDE.md`, `AGENTS.md` and the skills under `.claude/` -- for malformed skills, smuggled unicode and pasted credentials. The pin is kept current by renovate's pre-commit manager. |
 
 ### Git Hooks and Utilities
 

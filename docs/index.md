@@ -16,6 +16,9 @@ and tracks the health of the pipelines involved.
   tooling, Gerrit helpers, and pre-commit hooks.
 - [CI data collection and reporting](ci-data.md) — the container layer
   data time series and the upstream OpenDev CI reliability reports.
+- [Security scanning](security-scanning.md) — the gitleaks credential
+  scan, CodeQL, the GitHub-side secret scanning settings, and how to
+  accept a finding.
 - [Kolla-Ansible Zuul and Tempest CI](kolla-ansible-tempest-jobs.md) —
   notes for adding Kerbside-enabled Zuul jobs to Kolla-Ansible.
 - [Kerbside development mode](kolla-devmode.md) — rapid iteration on

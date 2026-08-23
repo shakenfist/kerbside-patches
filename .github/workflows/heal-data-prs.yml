@@ -7,6 +7,11 @@ name: Heal conflicted data PRs
 # the result is append-only and well formed, and pushes the merge back
 # to the PR branch. See tools/heal-data-prs.sh for details.
 
+# Checkout only -- and even that uses DAILY_REBASE_TOKEN, because the
+# healer pushes the merge back to the pull request branch.
+permissions:
+  contents: read
+
 on:
   push:
     branches:

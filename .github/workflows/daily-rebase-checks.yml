@@ -1,5 +1,10 @@
 name: Ensure patches still apply once a day
 
+# Checkout only. The branch push, the pull request and the issue are all
+# made with DAILY_REBASE_TOKEN, which carries its own scope.
+permissions:
+  contents: read
+
 on:
   workflow_dispatch:
   schedule:

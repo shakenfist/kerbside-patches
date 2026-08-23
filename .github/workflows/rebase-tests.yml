@@ -9,6 +9,11 @@ name: Rebase tests
 # suites run locally via _build/test-apply.sh -- there is no longer any
 # bare-metal runner or nested Shakenfist VM involved.
 
+# Checkout only. The automated lint fixer checks out and pushes with
+# DAILY_REBASE_TOKEN, which carries its own scope.
+permissions:
+  contents: read
+
 on:
   pull_request:
     branches:

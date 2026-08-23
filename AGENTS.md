@@ -20,6 +20,7 @@ build infrastructure for Kolla-Ansible deployments.
 | How does CI data collection work? | [docs/ci-data.md](docs/ci-data.md) |
 | How do the Zuul and Tempest jobs run? | [docs/kolla-ansible-tempest-jobs.md](docs/kolla-ansible-tempest-jobs.md) |
 | How do I iterate quickly on Kerbside? | [docs/kolla-devmode.md](docs/kolla-devmode.md) |
+| How does security scanning work? | [docs/security-scanning.md](docs/security-scanning.md) |
 | How do I query review.opendev.org? | [docs/gerrit-api.md](docs/gerrit-api.md) |
 | How do I get changes landed upstream? | [docs/tactics.md](docs/tactics.md) |
 
@@ -108,6 +109,18 @@ install-clients, post-install) are shared with kerbside's
 CI via the `shakenfist/actions/deploy-kolla-ansible` composite
 action. Changes to the deploy flow should be made in that
 action, not inlined in the workflow.
+
+Every workflow needs a top-level `permissions:` block. Most of the
+automation here authenticates as `DAILY_REBASE_TOKEN` rather than
+`GITHUB_TOKEN`, so `contents: read` is usually the whole of it -- but
+the block has to be there, and a new workflow without one fails the
+fleet consistency audit.
+
+Never suppress a gitleaks finding for a credential that still
+authorises something; rotate it first. For a false positive, add a
+content regex to `.gitleaks.toml` rather than a path entry, because
+patch files are rewritten wholesale on every upstream rebase. See
+[docs/security-scanning.md](docs/security-scanning.md).
 
 Other workflows:
 - `rebase-tests.yml` -- applies the patch stack and runs the

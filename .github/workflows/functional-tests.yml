@@ -1,5 +1,10 @@
 name: Build test clouds
 
+# Checkout only. The layer-data pull request at the end of the run is
+# made with DAILY_REBASE_TOKEN, which carries its own scope.
+permissions:
+  contents: read
+
 on:
   workflow_dispatch:
     inputs:
@@ -33,6 +38,7 @@ jobs:
           cat > ~/.config/pip/pip.conf <<'PIPCONF'
           [global]
           index-url = https://devpi.home.stillhq.com/root/pypi/+simple/
+          extra-index-url = https://pypi.org/simple/
           PIPCONF
 
       - name: Install pre-commit and shellcheck
