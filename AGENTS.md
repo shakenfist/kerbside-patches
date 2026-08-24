@@ -116,6 +116,13 @@ automation here authenticates as `DAILY_REBASE_TOKEN` rather than
 the block has to be there, and a new workflow without one fails the
 fleet consistency audit.
 
+If a job pushes a branch, its `actions/checkout` must take
+`token: ${{ secrets.DAILY_REBASE_TOKEN }}`. Checkout persists whichever
+token it used into `.git/config`, and that persisted credential is what
+`git push` authenticates with -- setting `GITHUB_TOKEN` in the pushing
+step's `env` only reaches `gh`, so with `contents: read` the push fails
+as `github-actions[bot]` with a 403.
+
 Never suppress a gitleaks finding for a credential that still
 authorises something; rotate it first. For a false positive, add a
 content regex to `.gitleaks.toml` rather than a path entry, because
