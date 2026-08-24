@@ -1,7 +1,10 @@
 name: Ensure patches still apply once a day
 
-# Checkout only. The branch push, the pull request and the issue are all
-# made with DAILY_REBASE_TOKEN, which carries its own scope.
+# Unused. Every operation here -- the checkout, the branch push, the pull
+# request and the issue -- authenticates as DAILY_REBASE_TOKEN, which
+# carries its own scope. The checkout has to take the token explicitly
+# because actions/checkout persists whatever token it used into
+# .git/config, and that is what the later "git push" authenticates with.
 permissions:
   contents: read
 
@@ -37,6 +40,7 @@ jobs:
         with:
           path: kerbside-patches
           fetch-depth: 0
+          token: ${{ secrets.DAILY_REBASE_TOKEN }}
 
       - name: Create rebase branch and bump SHAs
         env:
