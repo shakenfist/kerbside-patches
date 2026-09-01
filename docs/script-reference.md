@@ -70,7 +70,7 @@ directories. This page documents each script and its purpose.
 | Script | Description |
 |--------|-------------|
 | `summarize_layers.py` | Analyzes the per-image layer data time series in `data/layers/`. The `growth` report tracks image size over time and attributes growth to specific layers, the `reuse` report tracks layer reuse between builds, and the `stages` report compares the effect of each occystrap pipeline stage. Use `--build` and `--image` to narrow the analysis. |
-| `collect-layer-data.py` | Used by the `collect_layer_data` CI job to convert a build's `layers.tar.gz` artifact into appends to the per-image time series files in `data/layers/`. |
+| `collect-layer-data.py` | Used by the `collect_layer_data` CI job to convert a build's `layers.tar.gz` artifact into appends to the per-image time series files in `data/layers/`. Writes the compact version 2 record format, maintains the per-build `commands.jsonl` dictionary, and caps each series at `--max-records` runs (90 by default). |
 
 ### Automated Lint Fixing
 
