@@ -1138,11 +1138,12 @@ jobs:
               echo "${excluded_builds}"
           fi
 
-          # Run the collection script from the checkout under test, not
+          # Run the collection scripts from the checkout under test, not
           # develop's copy: the branch switch below replaces the working
           # tree, so script fixes on a PR would otherwise never run in
           # that PR's own CI.
           cp ./tools/collect-layer-data.py "${RUNNER_TEMP}/collect-layer-data.py"
+          cp ./tools/create-data-pr.sh "${RUNNER_TEMP}/create-data-pr.sh"
 
           # Create a branch for the layer data (include run_id for uniqueness)
           branch_name="${DATA_PREFIX}-data-${DATESTAMP}-run${RUN_ID}"
@@ -1231,10 +1232,10 @@ jobs:
           data that was already collected in earlier PRs."
           fi
 
-          gh pr create \
+          printf '%s\n' "${pr_body}" > "${RUNNER_TEMP}/pr-body.md"
+
+          "${RUNNER_TEMP}/create-data-pr.sh" \
               --assignee mikalstill \
               --title "${DATA_PREFIX} data from ${DATESTAMP} (run ${RUN_ID}, attempt ${CURRENT_ATTEMPT})" \
-              --body "${pr_body}" \
+              --body-file "${RUNNER_TEMP}/pr-body.md" \
               --head "${branch_name}"
-
-          echo "Pull request created."

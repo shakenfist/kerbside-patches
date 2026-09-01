@@ -39,17 +39,25 @@ Co-Authored-By: shakenfist-bot <bot@shakenfist.com>"
 git push -f origin "${branch_name}"
 sleep 5
 
-gh pr create \
-    --assignee mikalstill \
-    --title "CI reliability report data (${REPORT}) from ${DATESTAMP} (run ${RUN_ID})" \
-    --body "This PR refreshes the \`${REPORT}\` CI reliability dataset and
+body_file=$(mktemp)
+trap 'rm -f "${body_file}"' EXIT
+cat > "${body_file}" <<EOF
+This PR refreshes the \`${REPORT}\` CI reliability dataset and
 chart in \`data/ci-reporting/\` with builds that completed since the
 previous run. See \`tools/ci-report.sh\` for what each report tracks. The
 updated chart is also attached to the workflow run as an artifact.
 
 **Report:** ${REPORT}
 **Run date:** ${DATESTAMP}
-**Run ID:** ${RUN_ID}" \
-    --head "${branch_name}"
+**Run ID:** ${RUN_ID}
+EOF
 
-echo "Pull request created."
+# Through create-data-pr.sh rather than gh directly: these CSVs are
+# large enough that createPullRequest can exceed GitHub's ten second
+# GraphQL timeout and 502 after the pull request has already been
+# created.
+"$(dirname "$0")/create-data-pr.sh" \
+    --assignee mikalstill \
+    --title "CI reliability report data (${REPORT}) from ${DATESTAMP} (run ${RUN_ID})" \
+    --body-file "${body_file}" \
+    --head "${branch_name}"

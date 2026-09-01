@@ -72,6 +72,12 @@ directories. This page documents each script and its purpose.
 | `summarize_layers.py` | Analyzes the per-image layer data time series in `data/layers/`. The `growth` report tracks image size over time and attributes growth to specific layers, the `reuse` report tracks layer reuse between builds, and the `stages` report compares the effect of each occystrap pipeline stage. Use `--build` and `--image` to narrow the analysis. |
 | `collect-layer-data.py` | Used by the `collect_layer_data` CI job to convert a build's `layers.tar.gz` artifact into appends to the per-image time series files in `data/layers/`. |
 
+### Automated Data PRs
+
+| Script | Description |
+|--------|-------------|
+| `create-data-pr.sh --head BRANCH --title TITLE --body-file FILE [--assignee USER]` | Creates the pull request for an automated data branch, tolerating the GitHub GraphQL timeout that makes `gh pr create` report a 502 for a pull request it has in fact created. Used by the `collect_layer_data` CI job and by `ci-report-propose-pr.sh`. |
+
 ### Automated Lint Fixing
 
 | Script | Description |

@@ -47,6 +47,20 @@ result is append-only and well formed with
 branch. Record order within a file does not matter because
 `tools/summarize_layers.py` sorts records by their embedded datestamp.
 
+Both the layer data job and `tools/ci-report-propose-pr.sh` create their
+pull request through `tools/create-data-pr.sh` rather than calling `gh pr
+create` directly. A data PR touches every time series file at once, and
+GitHub terminates any GraphQL request that takes longer than ten seconds
+with `HTTP 502: 502 Bad Gateway`. The `createPullRequest` mutation has
+already taken effect when that happens, so the pull request exists and
+only the response was lost -- comparing a PR's `createdAt` against the
+502 in the job log shows exactly ten seconds. `create-data-pr.sh` treats
+a failed create as inconclusive: it asks GitHub whether a pull request
+now exists for the head branch, succeeds if one does, and only retries a
+branch that genuinely has none. Layer data runs from 2026-08-28 onwards
+failed this way, each with its pull request created and merged
+regardless.
+
 ## CI reliability reporting
 
 The `CI reliability reporting` workflow (`ci-reporting.yml`, run on
