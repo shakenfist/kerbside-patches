@@ -32,6 +32,56 @@ Use `tools/summarize_layers.py` to analyze the collected data.
 It produces `growth`, `reuse` and `stages` reports; see
 `--report`.
 
+### Record format
+
+Records are written in a version 2 format that exists because
+version 1 was overwhelmingly repetition. A version 1 record inlined a
+full `docker history` dump for each of the three stages, and the three
+stages differ only in each layer's digest and size, so every layer's
+command text was stored three times per record and again in full on
+every subsequent run. On the `neutron-server` series that was 71% of
+each 94KB record, to express 46 distinct commands across 102 runs of a
+9MB file.
+
+Version 2 removes both axes of that repetition. The fields that are
+identical across the stages (the command, comment, creation time and
+tags) are stored once per layer, with only the per-stage digest and
+size kept per stage; and command text is replaced by a short hash
+referring to `data/layers/<build-name>/commands.jsonl`, a dictionary
+that gains a line only when a command is seen for the first time.
+Together those take a record from about 94KB to about 20KB, measured
+on real build artifacts.
+
+Version 1 records stay readable -- `tools/summarize_layers.py` expands
+version 2 records into the version 1 shape on load and the reports are
+version agnostic -- so the existing history was left in place to age
+out rather than rewritten. Reports run either side of the change
+produce identical numbers. If a future filter ever makes the three
+stages describe different layers, the shared fields cannot be hoisted;
+the collector detects that, warns, and writes a version 1 record
+instead of losing anything.
+
+### Retention
+
+Each series file keeps the most recent `--max-records` runs (90 by
+default, about three months of daily builds) and drops the oldest
+beyond that. Without a cap `data/layers` had reached 1.6GB and was
+growing by about 20MB per run, which is also what pushed PR creation
+past GitHub's ten second GraphQL timeout.
+
+Trimming the oldest records is compatible with the union merge driver:
+every data branch is cut from the same develop, so concurrent branches
+trim the same leading records and only their appends need merging.
+`tools/verify-data-merge.py` allows a series to lose records only when
+everything still present is newer than everything dropped, so a
+retention trim passes and a merge that drops live data does not.
+
+The command dictionary is not trimmed, since records outlive the run
+that first recorded their commands. It is rewritten deduplicated on
+each run instead: a union merge duplicates its entries whenever two
+data PRs both create it from scratch, and leaving that unchecked would
+compound on every heal.
+
 The workflow is configured to skip functional tests when only files in
 `data/` are changed, preventing infinite loops when layer data PRs are
 merged.

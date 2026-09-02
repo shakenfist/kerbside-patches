@@ -1,11 +1,18 @@
 #!/usr/bin/env python3
 """Analyze the per-image layer data time series collected from CI builds.
 
-Layer data lives in data/layers/<build-name>/<image>.jsonl. Each file is an append-only
-time series with one line per build run, written by tools/collect-layer-data.py. Each
-record contains the layers observed at three pipeline stages: as-built (before any
-filtering), post-normalize (after timestamp normalization) and post-exclude (after path
-exclusions -- the content actually pushed to the registry).
+Layer data lives in data/layers/<build-name>/<image>.jsonl. Each file is a time series
+with one line per build run, written by tools/collect-layer-data.py. Each record
+contains the layers observed at three pipeline stages: as-built (before any filtering),
+post-normalize (after timestamp normalization) and post-exclude (after path exclusions
+-- the content actually pushed to the registry).
+
+Records come in two formats and both are read here. Version 1 inlines a full layer dump
+per stage. Version 2 stores the fields that are identical across the three stages once
+per layer and refers to command text by hash, resolved through the build's
+commands.jsonl dictionary; it is roughly a fifth of the size. Version 2 records are
+expanded into the version 1 shape on load, so the reports below do not care which they
+came from.
 
 The reports answer the questions the data was collected for:
 
@@ -32,6 +39,15 @@ STAGES = ['as-built', 'post-normalize', 'post-exclude']
 GROWTH_STAGE = 'as-built'
 REUSE_STAGE = 'post-exclude'
 
+# The per-build command dictionary written by tools/collect-layer-data.py. It sits
+# alongside the per-image series files but is not one of them.
+COMMANDS_FILE = 'commands.jsonl'
+
+# Layer digests are stored without their constant sha256: prefix from version 2
+# onwards, and restored on load so that records either side of the format change
+# compare equal.
+DIGEST_PREFIX = 'sha256:'
+
 
 def format_size(size_bytes):
     """Format bytes into human-readable string."""
@@ -52,6 +68,74 @@ def run_label(record):
     return '%s run %s' % (record.get('datestamp', '?'), record.get('run_id', '?'))
 
 
+def read_jsonl(path):
+    """Read a JSONL file into a list of records, skipping corrupt lines."""
+    records = []
+    with open(path) as f:
+        for lineno, line in enumerate(f, start=1):
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                records.append(json.loads(line))
+            except json.JSONDecodeError as e:
+                print('WARNING: skipping corrupt line %d of %s: %s' % (lineno, path, e),
+                      file=sys.stderr)
+    return records
+
+
+def load_commands(build_dir):
+    """Load a build's command dictionary, returning a dict of hash to command text."""
+    path = os.path.join(build_dir, COMMANDS_FILE)
+    if not os.path.exists(path):
+        return {}
+
+    commands = {}
+    for record in read_jsonl(path):
+        key = record.get('cmd')
+        if key:
+            commands[key] = record.get('command', '')
+    return commands
+
+
+def normalize_record(record, commands):
+    """Return a record in the version 1 shape, whatever version it was written in.
+
+    The reports below all work in terms of per-stage lists of layers carrying
+    CreatedBy, Id and Size. Version 2 records store the fields that are common to the
+    three stages once per layer and refer to command text by hash, so they are
+    expanded here and the reports stay version agnostic.
+    """
+    if record.get('version', 1) < 2:
+        return record
+
+    stages = {}
+    for layer in record.get('layers', []):
+        key = layer.get('cmd', '')
+        # An unresolvable hash keeps its own identity rather than collapsing every
+        # unknown layer into one, so the growth report still tracks them separately.
+        command = commands.get(key, '<unknown command %s>' % key)
+
+        for stage, observed in layer.get('stages', {}).items():
+            digest = observed.get('id', '')
+            entry = {
+                'CreatedBy': command,
+                'Id': DIGEST_PREFIX + digest if digest else '',
+                'Size': observed.get('size', 0),
+            }
+            if 'comment' in layer:
+                entry['Comment'] = layer['comment']
+            if 'created' in layer:
+                entry['Created'] = layer['created']
+            if 'tags' in layer:
+                entry['Tags'] = layer['tags']
+            stages.setdefault(stage, []).append(entry)
+
+    normalized = {k: v for k, v in record.items() if k not in ('layers', 'version')}
+    normalized['stages'] = stages
+    return normalized
+
+
 def load_series(data_dir, build=None, image=None):
     """Load the layer data time series.
 
@@ -70,25 +154,17 @@ def load_series(data_dir, build=None, image=None):
         if build and build_name != build:
             continue
 
+        commands = load_commands(build_dir)
+
         for filename in sorted(os.listdir(build_dir)):
-            if not filename.endswith('.jsonl'):
+            if not filename.endswith('.jsonl') or filename == COMMANDS_FILE:
                 continue
             image_name = filename[:-len('.jsonl')]
             if image and image_name != image:
                 continue
 
-            records = []
             path = os.path.join(build_dir, filename)
-            with open(path) as f:
-                for lineno, line in enumerate(f, start=1):
-                    line = line.strip()
-                    if not line:
-                        continue
-                    try:
-                        records.append(json.loads(line))
-                    except json.JSONDecodeError as e:
-                        print('WARNING: skipping corrupt line %d of %s: %s' % (lineno, path, e),
-                              file=sys.stderr)
+            records = [normalize_record(r, commands) for r in read_jsonl(path)]
 
             if records:
                 records.sort(key=run_key)
@@ -136,7 +212,9 @@ def print_layer_deltas(old_layers, new_layers, limit=None):
         delta = new_sizes.get(command, 0) - old_sizes.get(command, 0)
         if delta != 0:
             deltas.append((delta, command))
-    deltas.sort(key=lambda d: abs(d[0]), reverse=True)
+    # The command breaks ties, because the set union above iterates in an order that
+    # varies between interpreter runs and two layers often change by the same amount.
+    deltas.sort(key=lambda d: (-abs(d[0]), d[1]))
 
     if limit:
         deltas = deltas[:limit]
