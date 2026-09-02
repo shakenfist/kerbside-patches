@@ -511,7 +511,13 @@ jobs:
             'container_distro_version': 'trixie'
           },
         ]
-    runs-on: [self-hosted, vm, '${{ matrix.test.runs_on }}']
+    # This job is an orchestrator, not the machine under test: the cloud
+    # being deployed is built as instances on the Shaken Fist cluster by
+    # the actions repository's kerbside-*-node playbooks, and the runner
+    # only assembles source, copies it across and drives the deploy over
+    # ssh. "s" is therefore deliberate -- cluster capacity belongs to the
+    # nested cloud, not to the runner orchestrating it.
+    runs-on: [self-hosted, vm, '${{ matrix.test.runs_on }}', 's']
     needs: [build_images, aggregate_results]
     timeout-minutes: 120
     concurrency:
