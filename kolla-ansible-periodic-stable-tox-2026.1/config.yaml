@@ -5,7 +5,7 @@ shallow_clone: false
 directory: kolla-ansible
 release: 2026.1-periodic-stable-tox
 depends_on: ''
-source_sha: 2a76a1f0b98de0ed035224f6cdd02edee99d2dfc
-previous_source_sha: 6e12d225082ab0ff2273d61febbdd8fb2bfa6e22
+source_sha: a3badc9325e53d875b30f3b89947e7e2e2863781
+previous_source_sha: 2a76a1f0b98de0ed035224f6cdd02edee99d2dfc
 skip_rebase: true
 skip_claude: true
