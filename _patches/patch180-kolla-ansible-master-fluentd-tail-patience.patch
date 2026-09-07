@@ -1,30 +1,30 @@
-commit c4e1e2b295a640adf1f5e27eb6e25f6192da017b
+commit 334b4c02f5f46114d4bdb6b0912524974b768542
 Author: Michael Still <mikal@stillhq.com>
-Date:   Thu Aug 20 18:55:00 2026 +1000
+Date:   Mon Sep 7 18:15:35 2026 +1000
 
     Wait for fluentd to tail late log files.
-
+    
     check-logs.sh fails a job when a log file under /var/log/kolla has no
     "following tail of" line in fluentd.log, but never waits for one.
     in_tail only finds new files every refresh_interval, 60 seconds by
     default, so a service logging just before the check looks missing.
-
+    
     Retry for three refresh intervals before failing. This only sleeps
     when there is a gap, so a healthy job is unaffected.
-
+    
     Prompt: Michael asked why change 976889 was given a Verified-1 by an
     unrelated check-logs.sh failure. Investigation indicated this was a
     race between fluentd detecting new log files and the test timing out.
     We then developed a fix.
-
+    
     Assisted-By: Claude Opus 5 (1M context, high effort) <noreply@anthropic.com>
     Co-Authored-By: Claude Opus 5 (1M context, high effort) <noreply@anthropic.com>
-
+    
     Change-Id: I1e250d2128e360c4022870bf05c282661d879c84
     Signed-off-by: Michael Still <mikal@stillhq.com>
 
 diff --git a/tests/check-logs.sh b/tests/check-logs.sh
-index 454fbf8..a098e38 100755
+index 454fbf893..0341e7c56 100755
 --- a/tests/check-logs.sh
 +++ b/tests/check-logs.sh
 @@ -211,12 +211,22 @@ if sudo test -d /var/log/kolla; then
