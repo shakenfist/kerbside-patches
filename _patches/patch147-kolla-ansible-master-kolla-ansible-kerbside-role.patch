@@ -1,6 +1,6 @@
-commit a98aad63258e3efd95a6d527f230ba3559571e30
+commit 557ca873da7e6fb03ab75fc0b47dc272d88436c7
 Author: Michael Still <mikal@stillhq.com>
-Date:   Mon Sep 7 18:13:42 2026 +1000
+Date:   Tue Sep 8 17:40:25 2026 +1000
 
     Deploy Kerbside with Kolla-Ansible.
     
@@ -103,21 +103,20 @@ index 543371a4a..8baef8c5f 100644
 +[kerbside_proxy:children]
 +vdiproxy
 diff --git a/ansible/inventory/multinode b/ansible/inventory/multinode
-index d7db4653d..4c6db6b3b 100644
+index d7db4653d..5d7e1cb99 100644
 --- a/ansible/inventory/multinode
 +++ b/ansible/inventory/multinode
-@@ -29,6 +29,10 @@ monitoring01
+@@ -29,6 +29,9 @@ monitoring01
  [storage]
  storage01
  
-+[vdiproxy]
-+kerbside01
-+kerbside02
++[vdiproxy:children]
++control
 +
  [deployment]
  localhost       ansible_connection=local
  
-@@ -38,6 +42,7 @@ network
+@@ -38,6 +41,7 @@ network
  compute
  storage
  monitoring
@@ -125,7 +124,7 @@ index d7db4653d..4c6db6b3b 100644
  
  [tls-backend:children]
  control
-@@ -52,6 +57,7 @@ network
+@@ -52,6 +56,7 @@ network
  compute
  storage
  monitoring
@@ -133,7 +132,7 @@ index d7db4653d..4c6db6b3b 100644
  
  [collectd:children]
  compute
-@@ -604,3 +610,10 @@ letsencrypt
+@@ -604,3 +609,10 @@ letsencrypt
  
  [letsencrypt-lego:children]
  letsencrypt
