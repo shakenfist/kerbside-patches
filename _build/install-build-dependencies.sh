@@ -55,9 +55,13 @@ if [ "${NAME}" == "Rocky Linux" ]; then
     echo
 else
     echo -e "${H2}Additional packages${Color_Off}"
+    # python3-apt provides the apt bindings that ansible's package_facts
+    # module needs. Debian 12 shipped it in the base image, Debian 13 does
+    # not, and without it kolla-ansible's baremetal role cannot gather
+    # package facts.
     sudo apt-get install -y moreutils pkg-config python3-lxml libxml2-dev \
         libxslt1-dev jq gcc python3-dev libdbus-1-dev libglib2.0-dev \
-        python3-dbus python3-venv netcat-openbsd python3-dev \
+        python3-dbus python3-venv netcat-openbsd python3-apt \
         build-essential libpcre2-dev openssl
     sudo apt-get remove -y python3-virtualenv
     _build/setup-tools-venv.sh tox yq occystrap virtualenv \
