@@ -50,6 +50,19 @@
 #                      itself. A genuine gap (logs fluentd is not configured
 #                      to collect) produces the same string but repeats every
 #                      run
+#   haproxy-layer7-timeout
+#                    - haproxy marking a control plane backend DOWN with
+#                      "reason: Layer7 timeout", meaning the API behind it
+#                      accepted the connection but did not answer the health
+#                      check within 10s. Tempest requests in flight across
+#                      that window come back 502 or 504 and fail the job.
+#                      The service that stalls varies (keystone, neutron,
+#                      nova-api), which points at node-wide starvation rather
+#                      than a bug in any one of them. No job filter, because
+#                      which jobs stall is the question: a first two day
+#                      scan found the nested virt, NFV and aarch64 jobs
+#                      nearly always hit and the plain scenario jobs never,
+#                      so the CSV's job_name column is where the answer is
 #
 # Note on the fluentd-missing-logs denominator: fluentd-error.txt is only
 # published by builds that already failed this check, so on its own it would
@@ -74,7 +87,7 @@ report="$1"
 if [ -z "${report}" ]; then
     echo "Usage: $0 <report>|all" >&2
     echo "Reports: libvirt-limit mariadb-ist wsrep-sync-fatal ovs-create-tap scheduler-unhealthy" >&2
-    echo "         fluentd-missing-logs" >&2
+    echo "         fluentd-missing-logs haproxy-layer7-timeout" >&2
     exit 1
 fi
 
@@ -156,6 +169,16 @@ run_report() {
             chart_title='fluentd log files never tailed, failing check-logs.sh on master CI'
             fix_merged=''
             ;;
+        haproxy-layer7-timeout)
+            target='reason: Layer7 timeout'
+            projects='openstack/kolla openstack/kolla-ansible'
+            job_filter=''
+            suffixes='container_logs/haproxy.txt'
+            basename='kolla_haproxy_layer7_timeout_errors'
+            chart='kolla_haproxy_layer7_timeout_chart.png'
+            chart_title='Control plane API stalls (haproxy Layer7 health check timeouts) on master CI'
+            fix_merged=''
+            ;;
         *)
             echo "Unknown report: ${name}" >&2
             exit 1
@@ -192,7 +215,7 @@ run_report() {
 
 if [ "${report}" = "all" ]; then
     for name in libvirt-limit mariadb-ist wsrep-sync-fatal ovs-create-tap scheduler-unhealthy \
-                fluentd-missing-logs; do
+                fluentd-missing-logs haproxy-layer7-timeout; do
         run_report "${name}"
     done
 else
