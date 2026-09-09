@@ -33,6 +33,7 @@ on:
           - ovs-create-tap
           - scheduler-unhealthy
           - fluentd-missing-logs
+          - haproxy-layer7-timeout
           - all
 
 jobs:

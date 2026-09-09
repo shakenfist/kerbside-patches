@@ -1,6 +1,6 @@
-commit cdfc6e52582116f94d69b324028d17b0deafb4b9
+commit 5899796deed37338eb16d1b9535bd70a700093ba
 Author: Michael Still <mikal@stillhq.com>
-Date:   Mon Sep 7 18:13:43 2026 +1000
+Date:   Tue Sep 8 17:40:25 2026 +1000
 
     Run the spice-direct tempest test in the kerbside scenario.
     

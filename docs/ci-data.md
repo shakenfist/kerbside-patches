@@ -185,6 +185,35 @@ lives in `tools/ci-report.sh` and currently covers:
   every run of that scenario. The `log_url` column in the CSV points at
   the `fluentd-error.txt` naming the files, which is what tells the
   cases apart.
+- `haproxy-layer7-timeout` -- how often a control plane API stalls long
+  enough for haproxy to mark its backend DOWN with `reason: Layer7
+  timeout`. A Layer7 timeout means the service accepted the connection
+  but did not answer the HTTP health check within haproxy's 10 second
+  window, which is a different thing from the `Layer4 connection
+  problem, Connection refused` seen while services are still starting
+  during a deploy. Any tempest request in flight across that window
+  comes back 502 or 504 and fails the job, usually as a handful of
+  unrelated-looking network or compute tests. The service that stalls
+  varies between keystone, neutron-server and nova-api, which is what
+  distinguishes node-wide resource starvation from a bug in any one
+  service. The report deliberately sets no job filter, because which
+  jobs stall is the question: the CSV's `job_name` column carries the
+  breakdown. A first scan of a two day window on 2026-09-09 found 35
+  of 722 builds affected (4.8%), 31 of which failed, and the exposure
+  was strikingly uneven. The plain scenario jobs were untouched --
+  zero across 72 builds of `kolla-ansible-{debian-trixie,rocky-10,
+  ubuntu-noble}` -- while the nested virt and NFV jobs were nearly
+  always hit: 5/5 on both `debian-trixie-nfv` and `ubuntu-noble-nfv`,
+  6/7 on `rocky-10-kvm`, 4/7 on `debian-trixie-kvm`, and both aarch64
+  builds in the window. So the signature tracks jobs whose nodes are
+  doing something expensive (nested virtualisation, NFV feature sets,
+  emulated aarch64) rather than jobs with a large control plane: the
+  cells jobs, which pack a super conductor plus three cells onto one
+  16GB nodeset, were only 1 of 27. That single cells hit is the one
+  that failed our own change 976889. Note also that three of the 35
+  builds passed despite stalling, so a hit is a strong but not
+  perfect predictor of failure -- treat the CSV's `result` column as
+  part of the signal rather than assuming every hit is a job loss.
 
 Each report is a target string plus the log file(s) to scan for it; the
 shared scan/aggregate/chart engine is `tools/count_ci_log_errors.py`
