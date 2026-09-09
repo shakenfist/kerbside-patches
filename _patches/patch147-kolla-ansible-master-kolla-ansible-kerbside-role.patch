@@ -442,7 +442,7 @@ new file mode 100644
 index 000000000..c80485ac0
 --- /dev/null
 +++ b/ansible/roles/kerbside/defaults/main.yml
-@@ -0,0 +1,173 @@
+@@ -0,0 +1,171 @@
 +---
 +kerbside_services:
 +  kerbside_api:
@@ -564,8 +564,6 @@ index 000000000..c80485ac0
 +  - "{{ node_config_directory }}/kerbside_proxy/:{{ container_config_directory }}/:ro"
 +  - "kerbside_run:/run/kerbside"
 +kerbside_default_volumes:
-+  - "/etc/localtime:/etc/localtime:ro"
-+  - "{{ '/etc/timezone:/etc/timezone:ro' if ansible_facts.os_family == 'Debian' else '' }}"
 +  - "kolla_logs:/var/log/kolla/"
 +  - "{{ kolla_dev_repos_directory ~ '/kerbside:/dev-mode/kerbside' if kerbside_dev_mode | bool else '' }}"
 +kerbside_json_logging: false
