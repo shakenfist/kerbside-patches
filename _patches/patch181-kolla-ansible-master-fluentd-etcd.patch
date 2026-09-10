@@ -1,0 +1,104 @@
+commit 0000000000000000000000000000000000000000
+Author: Michael Still <mikal@stillhq.com>
+Date:   Thu Sep 11 07:30:00 2026 +1000
+
+    Collect etcd logs with Fluentd.
+    
+    etcd is configured with ETCD_LOGGER "zap" and logs to
+    /var/log/kolla/etcd/etcd.log, but nothing tails that file, so etcd is
+    the one deployed service whose logs never reach the central log store.
+    etcd 3.5 has no --log-format flag -- zap is the only logger, and
+    structured JSON is the only thing it emits -- so collecting etcd means
+    parsing JSON.
+    
+    Prompt: while deciding how to handle Kerbside's JSON logs we discovered
+    that etcd has the same concerns and has been exempted from fluentd log
+    collection. We then built this on top of the Kerbside changes to
+    demonstrate that the JSON parser generalises.
+    
+    Assisted-By: Claude Opus 5 (1M context, high effort) <noreply@anthropic.com>
+    Co-Authored-By: Claude Opus 5 (1M context, high effort) <noreply@anthropic.com>
+    
+    Signed-off-by: Michael Still <mikal@stillhq.com>
+
+diff --git a/ansible/roles/fluentd/tasks/config.yml b/ansible/roles/fluentd/tasks/config.yml
+index 271a1fd1e..8c4a3f712 100644
+--- a/ansible/roles/fluentd/tasks/config.yml
++++ b/ansible/roles/fluentd/tasks/config.yml
+@@ -103,6 +103,8 @@
+         enabled: "{{ enable_valkey | bool }}"
+       - name: "conf/input/15-kerbside.conf.j2"
+         enabled: "{{ enable_kerbside | bool }}"
++      - name: "conf/input/16-etcd.conf.j2"
++        enabled: "{{ enable_etcd | bool }}"
+     customised_input_files: "{{ find_custom_fluentd_inputs.files | map(attribute='path') | list }}"
+     # Filters
+     fluentd_filter_files: "{{ default_filter_files | customise_fluentd(customised_filter_files) }}"
+diff --git a/ansible/roles/fluentd/templates/conf/filter/02-parser.conf.j2 b/ansible/roles/fluentd/templates/conf/filter/02-parser.conf.j2
+index b7c2d94a6..d5e6f8a21 100644
+--- a/ansible/roles/fluentd/templates/conf/filter/02-parser.conf.j2
++++ b/ansible/roles/fluentd/templates/conf/filter/02-parser.conf.j2
+@@ -38,3 +38,16 @@
+   </record>
+   remove_keys ts,level,message
+ </filter>
++
++# etcd emits structured JSON. Rename its fields to the names the
++# rest of the pipeline uses, and keep the remainder (caller, and
++# any per-event keys) as they are.
++<filter infra.etcd>
++  @type record_transformer
++  <record>
++    Timestamp ${record["ts"]}
++    log_level ${record["level"]}
++    Payload ${record["msg"]}
++  </record>
++  remove_keys ts,level,msg
++</filter>
+diff --git a/ansible/roles/fluentd/templates/conf/input/16-etcd.conf.j2 b/ansible/roles/fluentd/templates/conf/input/16-etcd.conf.j2
+new file mode 100644
+index 000000000..4b7e1c093
+--- /dev/null
++++ b/ansible/roles/fluentd/templates/conf/input/16-etcd.conf.j2
+@@ -0,0 +1,14 @@
++<source>
++  @type tail
++  path /var/log/kolla/etcd/etcd.log
++  pos_file /var/run/fluentd/kolla-etcd.pos
++  tag infra.etcd
++  ignore_repeated_permission_error true
++  enable_watch_timer {{ fluentd_enable_watch_timer }}
++  <parse>
++    @type json
++    time_key ts
++    time_format %Y-%m-%dT%H:%M:%S.%NZ
++    keep_time_key true
++  </parse>
++</source>
+diff --git a/releasenotes/notes/fluentd-etcd-logs-9d3f1a6c4b28e057.yaml b/releasenotes/notes/fluentd-etcd-logs-9d3f1a6c4b28e057.yaml
+new file mode 100644
+index 000000000..7a1c8e2d4
+--- /dev/null
++++ b/releasenotes/notes/fluentd-etcd-logs-9d3f1a6c4b28e057.yaml
+@@ -0,0 +1,7 @@
++---
++features:
++  - |
++    etcd logs are now collected by Fluentd and forwarded to the central log
++    store alongside every other service. etcd logs in JSON, so its fields are
++    renamed to match the rest of the pipeline before being shipped, and the
++    gate check that every log file is being tailed no longer exempts etcd.
+diff --git a/tests/check-logs.sh b/tests/check-logs.sh
+index 8b3c1d2f7..e5a94f610 100755
+--- a/tests/check-logs.sh
++++ b/tests/check-logs.sh
+@@ -36,9 +36,6 @@
+         /var/log/kolla/ansible.log)
+             continue
+             ;;
+-        /var/log/kolla/etcd/etcd.log)
+-            continue
+-            ;;
+         /var/log/kolla/fluentd/fluentd.log)
+             continue
+             ;;
