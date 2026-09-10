@@ -217,3 +217,4 @@
 {"cmd": "fbd103beb894", "command": "RUN /bin/sh -c dnf -y install erlang-27.* rabbitmq-server-4.3.*     && dnf clean all && rm -rf /var/cache/dnf # buildkit", "run_attempt": "1", "run_id": "33668968789"}
 {"cmd": "fbf8354938cb", "command": "RUN /bin/sh -c dnf -y install httpd mod_ssl mod_auth_mellon mod_auth_openidc mod_proxy_uwsgi     && dnf clean all && rm -rf /var/cache/dnf # buildkit", "run_attempt": "1", "run_id": "33668968789"}
 {"cmd": "fcda5e3c096e", "command": "RUN /bin/sh -c chmod +x /usr/local/lib/neutron-wrappers/copy-wrappers     && chmod +x /usr/local/lib/neutron-wrappers/delete-wrappers # buildkit", "run_attempt": "1", "run_id": "33668968789"}
+{"cmd": "cc57b3f79bd8", "command": "RUN /bin/sh -c grafana-cli plugins install grafana-opensearch-datasource && grafana-cli plugins install prometheus # buildkit", "run_attempt": "1", "run_id": "34514661138"}
