@@ -431,10 +431,10 @@ jobs:
       matrix:
         test: [
           # {
-          #   'name': '2026.1-h-debian12-c-debian13-aio',
-          #   'description': '2026.1 debian 13 images on debian 12 all-in-one',
+          #   'name': '2026.1-h-debian13-c-debian13-aio',
+          #   'description': '2026.1 debian 13 images on debian 13 all-in-one',
           #   'release': '2026.1',
-          #   'base': 'debian:12',
+          #   'base': 'debian:13',
           #   'baseuser': 'debian',
           #   'topology': 'all-in-one',
           #   'runs_on': 'debian-13',
@@ -443,10 +443,10 @@ jobs:
           #   'enable_kerbside': 'true'
           # },
           {
-            'name': 'master-h-debian12-c-ubuntu2404-aio',
-            'description': 'master ubuntu 24.04 images on debian 12 all-in-one',
+            'name': 'master-h-debian13-c-ubuntu2404-aio',
+            'description': 'master ubuntu 24.04 images on debian 13 all-in-one',
             'release': 'master',
-            'base': 'debian:12',
+            'base': 'debian:13',
             'baseuser': 'debian',
             'topology': 'all-in-one',
             'runs_on': 'debian-13',
@@ -455,10 +455,10 @@ jobs:
             'enable_kerbside': 'true'
           },
           {
-            'name': 'master-h-debian12-c-debian13-aio-nokerbside',
-            'description': 'master debian 13 images on debian 12 all-in-one with no kerbside',
+            'name': 'master-h-debian13-c-debian13-aio-nokerbside',
+            'description': 'master debian 13 images on debian 13 all-in-one with no kerbside',
             'release': 'master',
-            'base': 'debian:12',
+            'base': 'debian:13',
             'baseuser': 'debian',
             'topology': 'all-in-one',
             'runs_on': 'debian-13',
@@ -467,10 +467,10 @@ jobs:
             'enable_kerbside': 'false'
           },
           {
-            'name': 'master-h-debian12-c-debian12-aio',
-            'description': 'master debian 13 images on debian 12 all-in-one',
+            'name': 'master-h-debian13-c-debian13-aio',
+            'description': 'master debian 13 images on debian 13 all-in-one',
             'release': 'master',
-            'base': 'debian:12',
+            'base': 'debian:13',
             'baseuser': 'debian',
             'topology': 'all-in-one',
             'runs_on': 'debian-13',
@@ -500,10 +500,10 @@ jobs:
             'container_distro_version': '10'
           },
           {
-            'name': 'master-h-debian12-c-debian12-multi',
-            'description': 'master debian 13 images on debian 12 multinode',
+            'name': 'master-h-debian13-c-debian13-multi',
+            'description': 'master debian 13 images on debian 13 multinode',
             'release': 'master',
-            'base': 'debian:12',
+            'base': 'debian:13',
             'baseuser': 'debian',
             'topology': 'multinode-2',
             'runs_on': 'debian-13',
