@@ -2,3 +2,4 @@
 # clones of the upstream OpenStack repos with our patches applied, each with
 # its own .git, and is regenerated from scratch on every build.
 src/
+__pycache__/

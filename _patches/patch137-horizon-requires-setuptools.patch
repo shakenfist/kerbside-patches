@@ -11,7 +11,7 @@ diff --git a/docker/macros.j2 b/docker/macros.j2
 index 34d67335c..9caf8f9da 100644
 --- a/docker/macros.j2
 +++ b/docker/macros.j2
-@@ -34,7 +34,9 @@
+@@ -34,8 +34,9 @@
  
  {% macro install_pip(packages, constraints=true, python_version='3') %}
  {%- if packages is sequence and packages|length > 0 -%}
