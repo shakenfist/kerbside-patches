@@ -29,22 +29,33 @@ The dependency on the Kerbside JSON parser is therefore expressed the Gerrit
 way, in the first patch's commit message:
 
 ```
-Depends-On: I73a7a0b521085fd4023b08ab6f8a137d53a8712a
+Depends-On: <patch181's Change-Id>
 ```
 
-That is `patch147`, the change that introduces the JSON parser.
+**This series is blocked until that `Change-Id` exists.** `patch181` is the
+etcd change and the last one to touch `02-parser.conf.j2`, which makes it the
+accurate textual ancestor --- `patch147` introduces the parser, but a series
+that depends on `patch147` alone would be modelling the chain wrongly, since
+`patch181` also modifies the file this series edits.
 
-Two caveats to settle before the first push:
+`patch181` has no `Change-Id` yet because it has not been pushed to Gerrit.
+The prerequisite sequence is therefore:
 
-- `patch181` (etcd) has no `Change-Id` yet. If we would rather depend on the
-  etcd change --- it is the last one to touch `02-parser.conf.j2`, so it is the
-  more accurate textual ancestor --- it has to be pushed to Gerrit first and
-  its minted `Change-Id` captured back into
-  `_patches/patch181-...patch-message`.
-- `tools/gerrit-pre-push-lint` warns when `Depends-On` references the same
-  repository. That warning is expected here and should be ignored: the two
-  series live on different branches, so the parent-commit relationship Gerrit
-  would normally use is not available.
+1. land the `kolla-ansible-wave-1` work (kerbside-patches PR #1678)
+2. push wave-1 to Gerrit, letting `tools/commit-msg.hook` mint `patch181`'s
+   `Change-Id`
+3. capture that value back into
+   `_patches/patch181-kolla-ansible-master-fluentd-etcd.patch-message` --- if
+   this is skipped, the next rebuild mints a *different* `Change-Id` and opens
+   a second Gerrit change for the same patch
+4. only then write Patch 1 of this series, with the real `Depends-On`
+
+Step 3 is the one that is easy to forget and expensive to undo.
+
+One expected warning: `tools/gerrit-pre-push-lint` flags `Depends-On` when it
+references the same repository. Ignore it here --- the two series live on
+different branches, so the parent-commit relationship Gerrit would normally use
+is not available to us.
 
 ## The two traps found while scoping
 
@@ -65,6 +76,10 @@ converted service.
 This is the single most important thing in the series and it must land in the
 structural patch, before any service is converted and well before a CI scenario
 turns the toggle on.
+
+Note that `patch181` already touches `tests/check-logs.sh` --- it removes the
+`/var/log/kolla/etcd/etcd.log` exemption from `check_fluentd_missing_logs` ---
+but in a different part of the file, so the two do not collide.
 
 ### asctime has no sub-second resolution
 
@@ -179,11 +194,16 @@ where the risk lives.
 - for Patch 1, verify both formats are detected by feeding it a text log and a
   JSON log containing an ERROR
 
+## Decided
+
+- **Depend on `patch181`, not `patch147`.** Wait for the accurate `Change-Id`
+  rather than depending on the parser's introduction, so the chain is modelled
+  correctly. See the prerequisite sequence above --- this blocks the start of
+  the series.
+
 ## Unresolved, needs a decision
 
-1. Depend on `patch147` (as written above) or on `patch181` once it has a
-   `Change-Id`?
-2. Dedicated CI scenario or convert an existing one?
-3. Does `openstack_logging_json` want to be per-service overridable
+1. Dedicated CI scenario or convert an existing one?
+2. Does `openstack_logging_json` want to be per-service overridable
    (`<svc>_logging_json`) from the start? The plan assumes yes, matching
    `openstack_logging_debug`, but it doubles the defaults churn.
