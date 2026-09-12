@@ -12,7 +12,7 @@ in `kolla-ansible-wave-1`.
 
 ## Status
 
-All three phases are written and verified. Ten patches, in
+All three phases are written and verified. Eleven patches, in
 `kolla-ansible-json-logging/ORDER`:
 
 | Patch | What | Files |
@@ -26,9 +26,11 @@ All three phases are written and verified. Ten patches, in
 | patch188 | storage batch: cinder, manila | 2 |
 | patch189 | telemetry batch: ceilometer, aodh, gnocchi, cloudkitty | 4 |
 | patch190 | heat, magnum, tacker, trove, blazar, mistral, watcher, barbican | 9 |
-| patch191 | turn the toggle on in the OpenSearch CI scenario | 1 |
+| patch191 | turn the toggle on in the telemetry CI scenario | 1 |
+| patch192 | document the option in the central logging guide | 1 |
 
-All ten apply to pristine upstream; ansible-lint, bashate and j2lint pass.
+All eleven apply to pristine upstream; ansible-lint, bashate, j2lint and doc8
+pass.
 
 Nothing has been pushed to Gerrit, so none of these have a `Change-Id` yet.
 When they are pushed, every minted `Change-Id` has to be captured back into
@@ -182,29 +184,63 @@ changes, since there is no per-service variable.
 
 ## Phase 3 --- CI
 
-**patch191 turns the toggle on in the existing `prometheus-opensearch`
-scenario** rather than adding a scenario of its own. That is one line in
+**patch191 turns the toggle on in the existing `telemetry` scenario** rather
+than adding one. That is a single line in
 `tests/templates/globals-default.j2`.
 
-It is the only scenario that sets `enable_central_logging`, so it is the only
-place the pipeline runs end to end --- a service writes JSON, fluentd parses
-and renames it, and the result has to arrive in OpenSearch. Any other scenario
-would only show that fluentd did not crash. Reusing it also costs no CI
-capacity; a dedicated scenario would add six jobs, three distributions with
-their upgrades, in both check and gate.
+The telemetry scenario deploys the OpenStack core --- Keystone, Glance, Nova,
+Neutron --- as well as Ceilometer, Aodh and Gnocchi, so one job exercises four
+of the six conversion batches against services that really emit oslo.log
+output. It adds no job, where a dedicated scenario would add six.
 
-The text format keeps its coverage, since it remains the default everywhere
-and every other job still runs `check-logs.sh` against it.
-`tests/test-prometheus-opensearch.sh` asserts only cluster health and service
-availability, so it makes no assumptions about field names and needs no
-change.
+**`prometheus-opensearch` is the trap here, and the first attempt fell into
+it.** It looks like the obvious home, being the only scenario that sets
+`enable_central_logging`. But `tests/run.yml` reads
 
-**Known gap.** The conversion patches touch role templates that are not in
-that scenario's file matcher, so they do not trigger those jobs themselves.
-The structural patches do, via `^ansible/roles/(fluentd|...)/`. A conversion
-that went wrong would therefore not be caught until something else ran the
-scenario. Widening the matcher to 24 role directories would make the
-OpenSearch jobs run on most Kolla-Ansible changes, which is a worse trade.
+```yaml
+openstack_core_enabled: "{{ scenario not in
+    ['bifrost', 'mariadb', 'prometheus-opensearch'] }}"
+```
+
+so that scenario deploys no OpenStack service at all --- its
+`scenario_images_core` list has no Keystone, Nova, Glance, Neutron or Cinder.
+Setting the option there sets a flag in a deployment with nothing to log.
+
+Central logging is not needed for the assertions that matter. `check-logs.sh`
+runs in every job and already treats fluentd's `pattern not matched` warnings
+and error-level messages as critical, so a service whose format the parser
+cannot read fails the job. Shipping to OpenSearch would add only the further
+claim that records arrive with the expected field names.
+
+**Known gap.** The conversion patches touch role templates that are not in the
+scenario's file matcher, so they do not trigger those jobs themselves. A
+conversion that went wrong would not be caught until something else ran the
+scenario. Widening the matcher to 24 role directories would make those jobs
+run on most Kolla-Ansible changes, which is a worse trade.
+
+## Phase 4 --- documentation
+
+**patch192 adds a "Log format" section to the central logging guide.** The
+guide already tells operators to search on `Hostname`, `Payload` and
+`programname`, so the section leads with those being unchanged, and records
+the two constraints worth knowing in advance: the setting covers every
+oslo.log service at once, and services that do not use oslo.log ignore it.
+
+### Horizon is the one service not converted
+
+`fluentd_input_openstack_services` tails 24 services and this series converts
+23. Horizon is the exception, because it logs through Django rather than
+oslo.log, and a non-JSON line in the shared input does produce
+`pattern not matched`, which `check-logs.sh` treats as critical.
+
+It is not a defect, because Horizon writes nothing to the files that input
+reads. Two independent checks say so: `check-logs.sh` grants Horizon no
+exemption and fails a job for any log file fluentd did not tail, and in the
+*current* text format a Django-formatted line already trips
+`got incomplete line before first line`, also critical. If Horizon were
+writing there, the gate would be red today. The residual risk is an operator
+who configures Horizon to log to a file in that directory, which patch192
+warns about.
 
 ## Verification for each patch
 
@@ -223,8 +259,10 @@ OpenSearch jobs run on most Kolla-Ansible changes, which is a worse trade.
   unimplementable rather than merely redundant.
 - **Six conversion batches grouped by project**, not one patch per role and
   not a single bulk commit.
-- **Reuse the `prometheus-opensearch` scenario** rather than adding a
-  dedicated one, for the reasons in Phase 3.
+- **Reuse the `telemetry` scenario** rather than adding a dedicated one, and
+  not `prometheus-opensearch`, which deploys no OpenStack services.
+- **Do not special-case Horizon.** It cannot reach the JSON parser, so
+  excluding it would be complexity guarding against nothing.
 
 ## Unresolved
 
