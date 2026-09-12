@@ -1,31 +1,33 @@
-Exercise JSON logging in the OpenSearch scenario.
+Exercise JSON logging in the telemetry scenario.
 
-Without a job that sets openstack_logging_json, everything added by
-this series is code no gate runs.
+Without a job that sets openstack_logging_json, everything this series
+adds is code no gate runs.
 
-This turns it on in the prometheus-opensearch scenario rather than
-adding a scenario of its own. That scenario is the only one that
-enables central logging, so it is the only place where the whole
-pipeline is exercised -- a service writes JSON, Fluentd parses and
-renames it, and the result has to arrive in OpenSearch. Anywhere else
-would only demonstrate that Fluentd did not fall over. It also costs
-no additional CI capacity, which a dedicated scenario would, six jobs
-at a time across three distributions and their upgrades.
+The telemetry scenario is used because it deploys the OpenStack core
+-- Keystone, Glance, Nova and Neutron -- as well as Ceilometer, Aodh
+and Gnocchi, so a single job exercises four of the six conversion
+batches with services that actually emit oslo.log output. No new job
+is added, and a dedicated scenario would have cost six, three
+distributions and their upgrades, in both check and gate.
 
-The text format keeps its coverage, since it stays the default
-everywhere and every other job still runs check-logs.sh against it.
-The scenario's own file matcher already includes the Fluentd role, so
-the patch that adds the JSON path runs these jobs.
+Central logging is deliberately not required for this. The assertions
+that matter are that services emit parseable JSON and that Fluentd
+reads it, and check-logs.sh already makes both in every job: it treats
+Fluentd's "pattern not matched" warnings and error level messages as
+critical, so a service whose format the parser cannot read fails the
+job. Shipping to OpenSearch would only add the further claim that the
+records arrive with the expected field names.
 
-Known gap: the service conversion patches touch role templates that
-are not in this scenario's file matcher, so they do not trigger these
-jobs themselves. They are one line each and the mechanism is proven by
-the earlier patches, but a conversion that went wrong would not be
-caught until something else ran the scenario.
+The prometheus-opensearch scenario would have looked like the obvious
+home, since it is the only one that enables central logging, but
+tests/run.yml disables the OpenStack core services there. Turning the
+option on in that scenario sets a flag in a deployment with nothing to
+log.
 
-Prompt: Michael asked for the whole series, including a CI scenario,
-to be implemented before pushing anything publicly, so that the story
-could be reviewed end to end.
+Prompt: Michael asked for phases two and three to be implemented
+before anything is pushed, so that the whole story could be reviewed
+before it goes public. Checking that story end to end is what found
+the empty scenario.
 
 Assisted-By: Claude Opus 5 (1M context, high effort) <noreply@anthropic.com>
 Co-Authored-By: Claude Opus 5 (1M context, high effort) <noreply@anthropic.com>
