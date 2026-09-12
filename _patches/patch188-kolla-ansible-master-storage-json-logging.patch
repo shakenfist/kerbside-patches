@@ -1,0 +1,38 @@
+commit 06977c3cdc3bb9b1d4441fa5ee535bb97c897266
+Author: Michael Still <mikal@stillhq.com>
+Date:   Sat Sep 12 17:47:05 2026 +1000
+
+    Convert the storage services to JSON logging.
+    
+    Cinder and Manila now honour openstack_logging_json.
+    
+    Prompt: Michael asked for the bulk conversion to be broken into
+    batches by project rather than landing as thirty separate commits.
+    
+    Assisted-By: Claude Opus 5 (1M context, high effort) <noreply@anthropic.com>
+    Co-Authored-By: Claude Opus 5 (1M context, high effort) <noreply@anthropic.com>
+    
+    Signed-off-by: Michael Still <mikal@stillhq.com>
+
+diff --git a/ansible/roles/cinder/templates/cinder.conf.j2 b/ansible/roles/cinder/templates/cinder.conf.j2
+index fc0dd2d..a2c6382 100644
+--- a/ansible/roles/cinder/templates/cinder.conf.j2
++++ b/ansible/roles/cinder/templates/cinder.conf.j2
+@@ -1,5 +1,6 @@
+ [DEFAULT]
+ debug = {{ cinder_logging_debug }}
++use_json = {{ openstack_logging_json }}
+ 
+ log_dir = /var/log/kolla/cinder
+ {% if service_name == "cinder-api" %}
+diff --git a/ansible/roles/manila/templates/manila.conf.j2 b/ansible/roles/manila/templates/manila.conf.j2
+index 148989d..7e3eb1a 100644
+--- a/ansible/roles/manila/templates/manila.conf.j2
++++ b/ansible/roles/manila/templates/manila.conf.j2
+@@ -1,5 +1,6 @@
+ [DEFAULT]
+ debug = {{ manila_logging_debug }}
++use_json = {{ openstack_logging_json }}
+ 
+ log_dir = /var/log/kolla/manila
+ {% if service_name == "manila-api" %}

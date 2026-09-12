@@ -1,0 +1,11 @@
+Convert the networking services to JSON logging.
+
+Neutron, Octavia and Designate now honour openstack_logging_json.
+
+Prompt: Michael asked for the bulk conversion to be broken into
+batches by project rather than landing as thirty separate commits.
+
+Assisted-By: Claude Opus 5 (1M context, high effort) <noreply@anthropic.com>
+Co-Authored-By: Claude Opus 5 (1M context, high effort) <noreply@anthropic.com>
+
+Signed-off-by: Michael Still <mikal@stillhq.com>

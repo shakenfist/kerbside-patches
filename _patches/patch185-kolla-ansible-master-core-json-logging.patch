@@ -1,0 +1,59 @@
+commit 41ae63f962193bccb7dcf883ac63523f1b5ee68b
+Author: Michael Still <mikal@stillhq.com>
+Date:   Sat Sep 12 17:47:05 2026 +1000
+
+    Convert the core services to JSON logging.
+    
+    Glance and Placement now honour openstack_logging_json, in the same
+    one line form as Keystone. Glance has two configuration files, the API
+    and the cache, and both need it or the cache logs would be the one
+    thing in the deployment the parser could not read.
+    
+    No per service variable is added, for the reason given when Keystone
+    was converted: every oslo.log service is tailed by a single Fluentd
+    input with a single parser, so the format cannot vary between them.
+    
+    Prompt: Michael asked for the bulk conversion to be broken into
+    batches by project rather than landing as thirty separate commits.
+    This is the first batch.
+    
+    Assisted-By: Claude Opus 5 (1M context, high effort) <noreply@anthropic.com>
+    Co-Authored-By: Claude Opus 5 (1M context, high effort) <noreply@anthropic.com>
+    
+    Signed-off-by: Michael Still <mikal@stillhq.com>
+
+diff --git a/ansible/roles/glance/templates/glance-api.conf.j2 b/ansible/roles/glance/templates/glance-api.conf.j2
+index aa6a3e8..bda046a 100644
+--- a/ansible/roles/glance/templates/glance-api.conf.j2
++++ b/ansible/roles/glance/templates/glance-api.conf.j2
+@@ -1,6 +1,7 @@
+ {# j2lint: disable=operator-enclosed-by-spaces #}
+ [DEFAULT]
+ debug = {{ glance_logging_debug }}
++use_json = {{ openstack_logging_json }}
+ 
+ # NOTE(elemoine) log_dir alone does not work for Glance
+ log_file = /var/log/kolla/glance/glance-api.log
+diff --git a/ansible/roles/glance/templates/glance-cache.conf.j2 b/ansible/roles/glance/templates/glance-cache.conf.j2
+index 4fc6400..99af461 100644
+--- a/ansible/roles/glance/templates/glance-cache.conf.j2
++++ b/ansible/roles/glance/templates/glance-cache.conf.j2
+@@ -1,6 +1,7 @@
+ [DEFAULT]
+ 
+ debug = {{ glance_logging_debug }}
++use_json = {{ openstack_logging_json }}
+ log_file = /var/log/kolla/glance/glance-cache.log
+ 
+ image_cache_max_size = {{ glance_cache_max_size }}
+diff --git a/ansible/roles/placement/templates/placement.conf.j2 b/ansible/roles/placement/templates/placement.conf.j2
+index 552862f..d1d34df 100644
+--- a/ansible/roles/placement/templates/placement.conf.j2
++++ b/ansible/roles/placement/templates/placement.conf.j2
+@@ -1,5 +1,6 @@
+ [DEFAULT]
+ debug = {{ placement_logging_debug }}
++use_json = {{ openstack_logging_json }}
+ 
+ log_file = /var/log/kolla/placement/{{ service_name }}.log
+ 
