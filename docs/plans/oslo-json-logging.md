@@ -12,17 +12,27 @@ in `kolla-ansible-wave-1`.
 
 ## Status
 
-Phase 1 is written and verified. Phase 2 and 3 are not started.
+All three phases are written and verified. Ten patches, in
+`kolla-ansible-json-logging/ORDER`:
 
-| Patch | What | State |
+| Patch | What | Files |
 |-------|------|-------|
-| patch182 | `check-logs.sh` understands JSON | done |
-| patch183 | fluentd JSON path, `openstack_logging_json` | done |
-| patch184 | Keystone conversion, the demonstration | done |
-| patch185-190 | bulk conversion, six batches | not started |
-| patch191 | CI scenario | not started |
+| patch182 | `check-logs.sh` understands JSON | 1 |
+| patch183 | fluentd JSON path, `openstack_logging_json` | 5 |
+| patch184 | Keystone, the demonstration conversion | 1 |
+| patch185 | core batch: glance, placement | 3 |
+| patch186 | compute batch: nova, nova-cell, ironic, cyborg, masakari | 6 |
+| patch187 | network batch: neutron, octavia, designate | 3 |
+| patch188 | storage batch: cinder, manila | 2 |
+| patch189 | telemetry batch: ceilometer, aodh, gnocchi, cloudkitty | 4 |
+| patch190 | heat, magnum, tacker, trove, blazar, mistral, watcher, barbican | 9 |
+| patch191 | turn the toggle on in the OpenSearch CI scenario | 1 |
+
+All ten apply to pristine upstream; ansible-lint, bashate and j2lint pass.
 
 Nothing has been pushed to Gerrit, so none of these have a `Change-Id` yet.
+When they are pushed, every minted `Change-Id` has to be captured back into
+the corresponding patch file's commit header --- see the warning below.
 
 ## Why this is possible now
 
@@ -172,10 +182,29 @@ changes, since there is no per-service variable.
 
 ## Phase 3 --- CI
 
-**patch191: a scenario that turns the toggle on.** Without this the JSON path
-is dead code that no job exercises. Model it on `zuul.d/scenarios/kerbside.yaml`
-from `patch156`: a scenario name, the `globals-default.j2` stanza setting
-`openstack_logging_json: "yes"`, and the `zuul.d/project.yaml` entry.
+**patch191 turns the toggle on in the existing `prometheus-opensearch`
+scenario** rather than adding a scenario of its own. That is one line in
+`tests/templates/globals-default.j2`.
+
+It is the only scenario that sets `enable_central_logging`, so it is the only
+place the pipeline runs end to end --- a service writes JSON, fluentd parses
+and renames it, and the result has to arrive in OpenSearch. Any other scenario
+would only show that fluentd did not crash. Reusing it also costs no CI
+capacity; a dedicated scenario would add six jobs, three distributions with
+their upgrades, in both check and gate.
+
+The text format keeps its coverage, since it remains the default everywhere
+and every other job still runs `check-logs.sh` against it.
+`tests/test-prometheus-opensearch.sh` asserts only cluster health and service
+availability, so it makes no assumptions about field names and needs no
+change.
+
+**Known gap.** The conversion patches touch role templates that are not in
+that scenario's file matcher, so they do not trigger those jobs themselves.
+The structural patches do, via `^ansible/roles/(fluentd|...)/`. A conversion
+that went wrong would therefore not be caught until something else ran the
+scenario. Widening the matcher to 24 role directories would make the
+OpenSearch jobs run on most Kolla-Ansible changes, which is a worse trade.
 
 ## Verification for each patch
 
@@ -194,10 +223,9 @@ from `patch156`: a scenario name, the `globals-default.j2` stanza setting
   unimplementable rather than merely redundant.
 - **Six conversion batches grouped by project**, not one patch per role and
   not a single bulk commit.
+- **Reuse the `prometheus-opensearch` scenario** rather than adding a
+  dedicated one, for the reasons in Phase 3.
 
-## Unresolved, needs a decision
+## Unresolved
 
-1. Dedicated `json-logging` CI scenario, or flip an existing scenario over? A
-   dedicated one is more honest about what it tests but costs another job;
-   flipping an existing one gets coverage free but changes what that job was
-   there to test.
+Nothing blocking. The series is ready to push.
