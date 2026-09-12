@@ -27,3 +27,17 @@ repos:
     rev: v0.20.0
     hooks:
       - id: skillsaw
+
+  # Hand editing a patch in _patches/ means keeping the @@ hunk headers in
+  # step with the body. A header that is too large makes git reject the
+  # patch; one that is too small is worse, because git silently truncates
+  # the hunk and applies the wrong content. recount-patch.py --check
+  # catches both. Run it without --check to see the fix, or with
+  # --in-place to apply it.
+  - repo: local
+    hooks:
+      - id: recount-patch
+        name: patch hunk headers are correct
+        entry: tools/recount-patch.py --check
+        language: system
+        files: ^_patches/.*\.patch$

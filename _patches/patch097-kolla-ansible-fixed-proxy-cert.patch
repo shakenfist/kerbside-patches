@@ -81,7 +81,7 @@ diff --git a/ansible/roles/certificates/tasks/main.yml b/ansible/roles/certifica
 index fc755bbe6..465e5ee02 100644
 --- a/ansible/roles/certificates/tasks/main.yml
 +++ b/ansible/roles/certificates/tasks/main.yml
-@@ -7,5 +7,9 @@
+@@ -7,6 +7,10 @@
    include_tasks: generate-backend.yml
    when:
      - kolla_enable_tls_backend | bool or rabbitmq_enable_tls | bool or database_enable_tls_backend | bool or enable_kerbside | bool

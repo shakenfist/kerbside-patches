@@ -117,26 +117,23 @@ Contains Kolla-Ansible configuration for test deployments. Key settings:
 
 ### Editing Patch Files Directly
 
-When editing `.patch` files in `_patches/`, you must update both the content AND the diff header in a single edit:
+When you edit a `.patch` file in `_patches/`, the `@@` hunk headers must be
+recounted to match the body. Do not do this arithmetic by hand:
 
-1. **Diff headers** look like `@@ -0,0 +1,54 @@` where:
-   - First pair (`-0,0`): line number and count in original file
-   - Second pair (`+1,54`): line number and count in new file
-   - If adding N lines to a hunk, increment the second count by N
+```bash
+tools/recount-patch.py --in-place _patches/patchNNN-whatever.patch
+```
 
-2. **Always edit header and content together** to keep them synchronized
+A pre-commit hook runs `tools/recount-patch.py --check` over `_patches/`, so a
+stale header fails before CI. A header that is too small is the dangerous case:
+git silently truncates the hunk and applies the wrong content rather than
+erroring. See [docs/patch-editing.md](docs/patch-editing.md) for the header
+format, the one genuinely ambiguous case, and the relationship to patchutils.
 
-3. **Example**: Adding a `name:` line to an Ansible task requires:
-   ```diff
-   # Before: @@ -0,0 +1,2 @@
-   # After:  @@ -0,0 +1,3 @@  (incremented by 1)
-   ```
-
-4. **Common linter issues**:
-   - `ansible-lint name[missing]`: All tasks need a `name:` attribute
-   - Kolla-Ansible runs `tox -elinters` which includes ansible-lint
-
-5. **Verify changes** by running `test-apply.sh` without `--skip-tests`
+Kolla-Ansible runs `tox -elinters` (ansible-lint), whose most common complaint
+is `name[missing]` -- every task needs a `name:`. Adding one changes the
+hunk's new-side count, so recount afterwards. Verify with
+`./_build/test-apply.sh --skip-tests kolla-ansible`.
 
 ## Pre-Push Linting for OpenStack Gerrit
 
