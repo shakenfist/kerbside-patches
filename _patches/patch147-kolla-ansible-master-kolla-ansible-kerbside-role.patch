@@ -358,19 +358,6 @@ index 04cb91ba5..e8cd8bdfa 100644
        - { name: "keystone", enabled: "{{ enable_keystone | bool }}" }
        - { name: "magnum", enabled: "{{ enable_magnum | bool }}" }
        - { name: "manila", enabled: "{{ enable_manila | bool }}" }
-diff --git a/ansible/roles/fluentd/defaults/main.yml b/ansible/roles/fluentd/defaults/main.yml
-index b462027d4..f42ad0b34 100644
---- a/ansible/roles/fluentd/defaults/main.yml
-+++ b/ansible/roles/fluentd/defaults/main.yml
-@@ -98,6 +98,8 @@ fluentd_input_openstack_services:
-     enabled: "{{ enable_horizon | bool }}"
-   - name: ironic
-     enabled: "{{ enable_ironic | bool }}"
-+  - name: kerbside
-+    enabled: "{{ enable_kerbside | bool }}"
-   - name: keystone
-     enabled: "{{ enable_keystone | bool }}"
-   - name: magnum
 diff --git a/ansible/roles/fluentd/tasks/config.yml b/ansible/roles/fluentd/tasks/config.yml
 index e5e266653..271a1fd1e 100644
 --- a/ansible/roles/fluentd/tasks/config.yml
@@ -384,42 +371,33 @@ index e5e266653..271a1fd1e 100644
      customised_input_files: "{{ find_custom_fluentd_inputs.files | map(attribute='path') | list }}"
      # Filters
      fluentd_filter_files: "{{ default_filter_files | customise_fluentd(customised_filter_files) }}"
-diff --git a/ansible/roles/fluentd/templates/conf/filter/01-rewrite.conf.j2 b/ansible/roles/fluentd/templates/conf/filter/01-rewrite.conf.j2
-index 02f960700..4264e5fcd 100644
---- a/ansible/roles/fluentd/templates/conf/filter/01-rewrite.conf.j2
-+++ b/ansible/roles/fluentd/templates/conf/filter/01-rewrite.conf.j2
-@@ -121,6 +121,11 @@
-     pattern ^(skyline)$
-     tag openstack_python
-   </rule>
-+  <rule>
-+    key     programname
-+    pattern ^(kerbside-api|kerbside-proxy)$
-+    tag kerbside
-+  </rule>
-   <rule>
-     key     programname
-     pattern .+
-diff --git a/ansible/roles/fluentd/templates/conf/input/00-global.conf.j2 b/ansible/roles/fluentd/templates/conf/input/00-global.conf.j2
-index e94f83b92..f3da628eb 100644
---- a/ansible/roles/fluentd/templates/conf/input/00-global.conf.j2
-+++ b/ansible/roles/fluentd/templates/conf/input/00-global.conf.j2
-@@ -9,7 +9,8 @@
-                 "/var/log/kolla/*/*-error.log",
-                 "/var/log/kolla/*/*_access.log",
-                 "/var/log/kolla/*/*_error.log",
--                "/var/log/kolla/*/*-uwsgi.log"]
-+                "/var/log/kolla/*/*-uwsgi.log",
-+                "/var/log/kolla/kerbside/*.log"]
-   pos_file /var/run/fluentd/kolla-openstack.pos
-   tag kolla.*
-   ignore_repeated_permission_error true
+diff --git a/ansible/roles/fluentd/templates/conf/filter/02-parser.conf.j2 b/ansible/roles/fluentd/templates/conf/filter/02-parser.conf.j2
+index 3a1f8e5d1..b7c2d94a6 100644
+--- a/ansible/roles/fluentd/templates/conf/filter/02-parser.conf.j2
++++ b/ansible/roles/fluentd/templates/conf/filter/02-parser.conf.j2
+@@ -25,3 +25,16 @@
+     timestamp ${time}
+   </record>
+ </filter>
++
++# Kerbside emits structured JSON, already parsed by its input. Rename its
++# fields to the names the rest of the pipeline uses, and keep the remainder
++# (logger_name, module, function, pid, thread_name, ...) as they are.
++<filter infra.kerbside>
++  @type record_transformer
++  <record>
++    Timestamp ${record["ts"]}
++    log_level ${record["level"]}
++    Payload ${record["message"]}
++  </record>
++  remove_keys ts,level,message
++</filter>
 diff --git a/ansible/roles/fluentd/templates/conf/input/15-kerbside.conf.j2 b/ansible/roles/fluentd/templates/conf/input/15-kerbside.conf.j2
 new file mode 100644
 index 000000000..257dbeb06
 --- /dev/null
 +++ b/ansible/roles/fluentd/templates/conf/input/15-kerbside.conf.j2
-@@ -0,0 +1,16 @@
+@@ -0,0 +1,15 @@
 +<source>
 +  @type tail
 +  path /var/log/kolla/kerbside/*.log
@@ -429,11 +407,10 @@ index 000000000..257dbeb06
 +  ignore_repeated_permission_error true
 +  enable_watch_timer {{ fluentd_enable_watch_timer }}
 +  <parse>
-+    @type multiline
-+    format_firstline /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2},\d{3} /
-+    format1 /^(?<Timestamp>\S+ \S+),\d{3} (?<log_level>\S+) (?<Program>.*?)\[(?<Pid>\d+):(?<Tid>\d+)\] (?<Payload>.*)$/
-+    time_key Timestamp
-+    time_format %F %T
++    @type json
++    time_key ts
++    time_format %Y-%m-%dT%H:%M:%S.%NZ
++    keep_time_key true
 +  </parse>
 +</source>
 diff --git a/ansible/roles/kerbside/defaults/main.yml b/ansible/roles/kerbside/defaults/main.yml
@@ -441,7 +418,7 @@ new file mode 100644
 index 000000000..c80485ac0
 --- /dev/null
 +++ b/ansible/roles/kerbside/defaults/main.yml
-@@ -0,0 +1,171 @@
+@@ -0,0 +1,170 @@
 +---
 +kerbside_services:
 +  kerbside_api:
@@ -565,7 +542,6 @@ index 000000000..c80485ac0
 +kerbside_default_volumes:
 +  - "kolla_logs:/var/log/kolla/"
 +  - "{{ kolla_dev_repos_directory ~ '/kerbside:/dev-mode/kerbside' if kerbside_dev_mode | bool else '' }}"
-+kerbside_json_logging: false
 +
 +####################
 +# Kerbside Database
@@ -1308,12 +1284,9 @@ new file mode 100644
 index 000000000..da845b842
 --- /dev/null
 +++ b/ansible/roles/kerbside/templates/kerbside.ini.j2
-@@ -0,0 +1,34 @@
+@@ -0,0 +1,31 @@
 +[kerbside]
 +log_output_path = /var/log/kolla/kerbside/{{ service_name }}.log
-+{% if kerbside_json_logging | bool %}
-+log_output_json = true
-+{% endif %}
 +
 +public_fqdn = {{ keystone_external_fqdn | put_address_in_context('url') }}
 +public_secure_port = {{ kerbside_vdi_secure_port }}

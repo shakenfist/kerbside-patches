@@ -1,0 +1,18 @@
+Collect etcd logs with Fluentd.
+
+etcd is configured with ETCD_LOGGER "zap" and logs to
+/var/log/kolla/etcd/etcd.log, but nothing tails that file, so etcd is
+the one deployed service whose logs never reach the central log store.
+etcd 3.5 has no --log-format flag -- zap is the only logger, and
+structured JSON is the only thing it emits -- so collecting etcd means
+parsing JSON.
+
+Prompt: while deciding how to handle Kerbside's JSON logs we discovered
+that etcd has the same concerns and has been exempted from fluentd log
+collection. We then built this on top of the Kerbside changes to
+demonstrate that the JSON parser generalises.
+
+Assisted-By: Claude Opus 5 (1M context, high effort) <noreply@anthropic.com>
+Co-Authored-By: Claude Opus 5 (1M context, high effort) <noreply@anthropic.com>
+
+Signed-off-by: Michael Still <mikal@stillhq.com>
