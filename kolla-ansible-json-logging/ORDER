@@ -7,3 +7,4 @@
 ../_patches/patch188-kolla-ansible-master-storage-json-logging.patch
 ../_patches/patch189-kolla-ansible-master-telemetry-json-logging.patch
 ../_patches/patch190-kolla-ansible-master-remaining-json-logging.patch
+../_patches/patch191-kolla-ansible-master-json-logging-ci-scenario.patch

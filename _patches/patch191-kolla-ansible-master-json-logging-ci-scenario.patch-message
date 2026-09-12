@@ -1,0 +1,33 @@
+Exercise JSON logging in the OpenSearch scenario.
+
+Without a job that sets openstack_logging_json, everything added by
+this series is code no gate runs.
+
+This turns it on in the prometheus-opensearch scenario rather than
+adding a scenario of its own. That scenario is the only one that
+enables central logging, so it is the only place where the whole
+pipeline is exercised -- a service writes JSON, Fluentd parses and
+renames it, and the result has to arrive in OpenSearch. Anywhere else
+would only demonstrate that Fluentd did not fall over. It also costs
+no additional CI capacity, which a dedicated scenario would, six jobs
+at a time across three distributions and their upgrades.
+
+The text format keeps its coverage, since it stays the default
+everywhere and every other job still runs check-logs.sh against it.
+The scenario's own file matcher already includes the Fluentd role, so
+the patch that adds the JSON path runs these jobs.
+
+Known gap: the service conversion patches touch role templates that
+are not in this scenario's file matcher, so they do not trigger these
+jobs themselves. They are one line each and the mechanism is proven by
+the earlier patches, but a conversion that went wrong would not be
+caught until something else ran the scenario.
+
+Prompt: Michael asked for the whole series, including a CI scenario,
+to be implemented before pushing anything publicly, so that the story
+could be reviewed end to end.
+
+Assisted-By: Claude Opus 5 (1M context, high effort) <noreply@anthropic.com>
+Co-Authored-By: Claude Opus 5 (1M context, high effort) <noreply@anthropic.com>
+
+Signed-off-by: Michael Still <mikal@stillhq.com>
