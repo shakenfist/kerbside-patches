@@ -1,0 +1,38 @@
+Add a fluentd path for JSON formatted OpenStack logs.
+
+oslo.log can emit JSON instead of its text format, which keeps fields
+such as the request context structured rather than packed into a
+message string that a regular expression then has to pick apart again.
+Fluentd has had a JSON parser since Kerbside's logs needed one, and
+etcd reuses it, but nothing lets an OpenStack service use it.
+
+Add openstack_logging_json, defaulting to False. When it is set, the
+global input parses JSON and takes the event time from the created
+member, which is a float with full sub-second resolution -- asctime is
+formatted with log_date_format and has none. A record transformer then
+renames oslo.log's members to the names the text parser produces, so
+the rest of the pipeline and anything reading the log store sees the
+same fields either way, and lifts the request context fields back to
+the top level. Everything else oslo.log emits is left in place, which
+is the point of logging JSON. The context is kept whole because
+oslo.context redacts auth_token before the formatter sees it.
+
+This is one switch for every oslo.log service rather than a per service
+option, because all of them share the single input in
+conf/input/00-global.conf.j2. That input has one parser, so a mix of
+formats underneath it cannot be read.
+
+No service emits JSON yet, so this changes nothing until one is
+converted. With the option off the rendered configuration is unchanged
+apart from blank lines, which this template already produces from its
+existing conditional.
+
+Prompt: Michael asked how much work it would be to let every oslo.log
+service in Kolla-Ansible log JSON using the parser added for Kerbside,
+and asked for the structural changes to land in small patches ahead of
+the bulk conversion. This is the second of those.
+
+Assisted-By: Claude Opus 5 (1M context, high effort) <noreply@anthropic.com>
+Co-Authored-By: Claude Opus 5 (1M context, high effort) <noreply@anthropic.com>
+
+Signed-off-by: Michael Still <mikal@stillhq.com>

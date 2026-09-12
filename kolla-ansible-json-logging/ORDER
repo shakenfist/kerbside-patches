@@ -1,1 +1,2 @@
 ../_patches/patch182-kolla-ansible-master-check-logs-json.patch
+../_patches/patch183-kolla-ansible-master-fluentd-json-logging.patch
