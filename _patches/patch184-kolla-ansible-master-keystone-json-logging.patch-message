@@ -1,0 +1,26 @@
+Let Keystone log JSON.
+
+This is the first service to honour openstack_logging_json, and the one
+that proves the mechanism end to end: every job deploys Keystone, so
+any scenario that sets the option exercises the Fluentd JSON path
+added in the previous patch.
+
+The option is referenced directly rather than through a
+keystone_logging_json indirection, which is how keystone_logging_debug
+works. Debug can sensibly differ per service. The log format cannot:
+every oslo.log service is tailed by the single input in
+conf/input/00-global.conf.j2, that input has one parser, and a service
+logging a different format to its neighbours would not be parsed at
+all. Making it look per service would offer a setting that quietly
+breaks log collection.
+
+Prompt: Michael asked how much work it would be to let every oslo.log
+service in Kolla-Ansible log JSON using the parser added for Kerbside,
+and asked for the structural changes and one demonstration conversion
+to land in small patches ahead of the bulk conversion. This is the
+demonstration.
+
+Assisted-By: Claude Opus 5 (1M context, high effort) <noreply@anthropic.com>
+Co-Authored-By: Claude Opus 5 (1M context, high effort) <noreply@anthropic.com>
+
+Signed-off-by: Michael Still <mikal@stillhq.com>

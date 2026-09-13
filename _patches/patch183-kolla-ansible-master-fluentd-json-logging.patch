@@ -1,0 +1,137 @@
+commit 697cf9c619a9be7ee650415503742b5ce3fb6d4f
+Author: Michael Still <mikal@stillhq.com>
+Date:   Sat Sep 12 16:20:24 2026 +1000
+
+    Add a fluentd path for JSON formatted OpenStack logs.
+    
+    oslo.log can emit JSON instead of its text format, which keeps fields
+    such as the request context structured rather than packed into a
+    message string that a regular expression then has to pick apart again.
+    Until now, Kerbside and etcd have been the only services to use JSON
+    logging.
+    
+    Add openstack_logging_json, defaulting to False. This is one switch
+    for every oslo.log service rather than a per service option, because
+    all of them share the single input in conf/input/00-global.conf.j2.
+    That input has one parser, so a mix of formats underneath it cannot be
+    read.
+    
+    No service emits JSON yet, so this changes nothing until one is
+    converted. With the option off the rendered configuration is unchanged
+    apart from blank lines, which this template already produces from its
+    existing conditional.
+    
+    Prompt: Michael asked how much work it would be to let every oslo.log
+    service in Kolla-Ansible log JSON using the parser added for Kerbside.
+    
+    Assisted-By: Claude Opus 5 (1M context, high effort) <noreply@anthropic.com>
+    Co-Authored-By: Claude Opus 5 (1M context, high effort) <noreply@anthropic.com>
+    
+    Signed-off-by: Michael Still <mikal@stillhq.com>
+
+diff --git a/ansible/group_vars/all/common.yml b/ansible/group_vars/all/common.yml
+index 52a6a60..80ad355 100644
+--- a/ansible/group_vars/all/common.yml
++++ b/ansible/group_vars/all/common.yml
+@@ -311,6 +311,7 @@ openstack_release: "master"
+ openstack_tag: "{{ openstack_release }}-{{ kolla_base_distro }}-{{ kolla_base_distro_version }}{{ openstack_tag_suffix }}"
+ openstack_tag_suffix: ""
+ openstack_logging_debug: "False"
++openstack_logging_json: "False"
+ 
+ openstack_region_name: "RegionOne"
+ 
+diff --git a/ansible/roles/fluentd/templates/conf/filter/00-record_transformer.conf.j2 b/ansible/roles/fluentd/templates/conf/filter/00-record_transformer.conf.j2
+index 508f7df..e0fb46c 100644
+--- a/ansible/roles/fluentd/templates/conf/filter/00-record_transformer.conf.j2
++++ b/ansible/roles/fluentd/templates/conf/filter/00-record_transformer.conf.j2
+@@ -7,6 +7,31 @@
+     </record>
+ </filter>
+ 
++{% if openstack_logging_json | bool %}
++# oslo.log's JSON formatter names its fields differently to the text format
++# that the parser in conf/input/00-global.conf.j2 reads, so rename them and
++# lift the request context out to where the text format put it. Everything
++# else oslo.log emits -- asctime, levelno, pathname, funcname, lineno,
++# thread_name and the rest -- is left in place, since keeping it is the
++# point of logging JSON. The context is safe to keep whole: oslo.context
++# redacts auth_token before the formatter ever sees it.
++<filter *.var.log.kolla.*.*.log>
++    @type record_transformer
++    enable_ruby true
++    <record>
++        Payload ${record["message"]}
++        log_level ${record["levelname"]}
++        python_module ${record["name"]}
++        Pid ${record["process"]}
++        global_request_id ${record.dig("context", "global_request_id")}
++        request_id ${record.dig("context", "request_id")}
++        user_id ${record.dig("context", "user")}
++        tenant_id ${record.dig("context", "project_id")}
++    </record>
++    remove_keys message,msg,args,levelname,name,process
++</filter>
++{% endif %}
++
+ <filter infra.*>
+     @type record_transformer
+     <record>
+diff --git a/ansible/roles/fluentd/templates/conf/input/00-global.conf.j2 b/ansible/roles/fluentd/templates/conf/input/00-global.conf.j2
+index e94f83b..05ef4f6 100644
+--- a/ansible/roles/fluentd/templates/conf/input/00-global.conf.j2
++++ b/ansible/roles/fluentd/templates/conf/input/00-global.conf.j2
+@@ -15,12 +15,19 @@
+   ignore_repeated_permission_error true
+   enable_watch_timer {{ fluentd_enable_watch_timer }}
+   <parse>
++{%     if openstack_logging_json | bool %}
++    @type json
++    time_key created
++    time_type float
++    keep_time_key true
++{%     else %}
+     @type multiline
+     format_firstline /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}.\d{3} \d+ \S+ \S+ \[.*\]/
+     format1 /^(?<Timestamp>\S+ \S+) (?<Pid>\d+) (?<log_level>\S+) (?<python_module>\S+) ((?:\[)(?:None|req-)(?<global_request_id>\S+)? (?:None|req-)(?<request_id>\S+) (?<user_id>\S+) (?<tenant_id>\S+) (?<domain_id>\S+) (?<system_scope>\S+) (?<user_domain>\S+) (?<project_domain>\S+)(?:\]))?(?<Payload>.*)?$/
+     time_key Timestamp
+     keep_time_key true
+     time_format %F %T.%L
++{%     endif %}
+   </parse>
+ </source>
+ {% endif %}
+diff --git a/etc/kolla/globals.yml b/etc/kolla/globals.yml
+index a9ec40c..f5e58fb 100644
+--- a/etc/kolla/globals.yml
++++ b/etc/kolla/globals.yml
+@@ -315,6 +315,13 @@ workaround_ansible_issue_8743: true
+ # Valid options are [ True, False ]
+ #openstack_logging_debug: "False"
+ 
++# Emit logs as JSON rather than oslo.log's text format. Fluentd parses
++# either, and JSON keeps fields such as the request context structured
++# instead of packed into the message. This is a single switch for every
++# oslo.log service, because they all share one Fluentd input.
++# Valid options are [ True, False ]
++#openstack_logging_json: "False"
++
+ # Enable core OpenStack services. This includes:
+ # glance, keystone, neutron, nova, heat, and horizon.
+ #enable_openstack_core: true
+diff --git a/releasenotes/notes/openstack-logging-json-7c41d0b59e83a2f6.yaml b/releasenotes/notes/openstack-logging-json-7c41d0b59e83a2f6.yaml
+new file mode 100644
+index 0000000..6868911
+--- /dev/null
++++ b/releasenotes/notes/openstack-logging-json-7c41d0b59e83a2f6.yaml
+@@ -0,0 +1,10 @@
++---
++features:
++  - |
++    Added ``openstack_logging_json``, which switches every oslo.log based
++    OpenStack service to structured JSON logging. Fluentd parses either
++    format, and JSON keeps fields such as the request context structured
++    rather than packed into the message text. It defaults to ``False``, so
++    existing deployments are unaffected. This is a single switch for all
++    oslo.log services because they share one Fluentd input, and a mix of
++    formats in that input cannot be parsed.

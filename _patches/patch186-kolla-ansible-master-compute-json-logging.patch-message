@@ -1,0 +1,18 @@
+Convert the compute services to JSON logging.
+
+Nova, the Nova cell services, Ironic, Cyborg and Masakari now honour
+openstack_logging_json.
+
+Both Nova templates carry several debug settings, but only the one in
+[DEFAULT] is oslo.log's -- the others configure client library debug
+for Glance, Cinder and friends, and are left alone. Masakari has a
+second configuration file for its monitors, which logs through
+oslo.log as well and so is converted with it.
+
+Prompt: Michael asked for the bulk conversion to be broken into
+batches by project rather than landing as thirty separate commits.
+
+Assisted-By: Claude Opus 5 (1M context, high effort) <noreply@anthropic.com>
+Co-Authored-By: Claude Opus 5 (1M context, high effort) <noreply@anthropic.com>
+
+Signed-off-by: Michael Still <mikal@stillhq.com>

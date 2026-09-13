@@ -1,0 +1,11 @@
+../_patches/patch182-kolla-ansible-master-check-logs-json.patch
+../_patches/patch183-kolla-ansible-master-fluentd-json-logging.patch
+../_patches/patch184-kolla-ansible-master-keystone-json-logging.patch
+../_patches/patch185-kolla-ansible-master-core-json-logging.patch
+../_patches/patch186-kolla-ansible-master-compute-json-logging.patch
+../_patches/patch187-kolla-ansible-master-network-json-logging.patch
+../_patches/patch188-kolla-ansible-master-storage-json-logging.patch
+../_patches/patch189-kolla-ansible-master-telemetry-json-logging.patch
+../_patches/patch190-kolla-ansible-master-remaining-json-logging.patch
+../_patches/patch191-kolla-ansible-master-json-logging-ci-scenario.patch
+../_patches/patch192-kolla-ansible-master-json-logging-docs.patch

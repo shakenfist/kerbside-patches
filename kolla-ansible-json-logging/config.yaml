@@ -1,0 +1,11 @@
+repo: https://opendev.org/openstack/kolla-ansible
+source_branch: master
+destination_branch: json-logging
+shallow_clone: false
+directory: kolla-ansible
+release: master-json-logging
+depends_on: ''
+source_sha: 0b57c6a6b363d787a20d7f2f71ba5838edb8e495
+previous_source_sha: e04cd6ffa501700c12f7cfed5926127bff68ae17
+skip_rebase: true
+skip_claude: true
