@@ -71,6 +71,15 @@ jobs:
             # /usr/bin/sleep returned EIO and the build produced garbage
             # (empty container hash, dead occystrap proxy).
             "Input/output error"
+            # GitHub's own error when a job never reaches a runner. Seen
+            # 2026-09-13 on run 34732771730, where all six "Build test
+            # clouds" matrix jobs failed three minutes after starting with
+            # runner_name empty, no steps recorded and no log to download.
+            # The full sentence is matched rather than "internal error"
+            # because the same list is grepped against job logs below, and
+            # a bare "internal error" is a plausible thing for a test under
+            # test to print. This one only ever appears as an annotation.
+            "GitHub Actions has encountered an internal error"
           )
 
           # Get PR number if this was a PR-triggered run
