@@ -1,0 +1,19 @@
+Convert the core services to JSON logging.
+
+Glance and Placement now honour openstack_logging_json, in the same
+one line form as Keystone. Glance has two configuration files, the API
+and the cache, and both need it or the cache logs would be the one
+thing in the deployment the parser could not read.
+
+No per service variable is added, for the reason given when Keystone
+was converted: every oslo.log service is tailed by a single Fluentd
+input with a single parser, so the format cannot vary between them.
+
+Prompt: Michael asked for the bulk conversion to be broken into
+batches by project rather than landing as thirty separate commits.
+This is the first batch.
+
+Assisted-By: Claude Opus 5 (1M context, high effort) <noreply@anthropic.com>
+Co-Authored-By: Claude Opus 5 (1M context, high effort) <noreply@anthropic.com>
+
+Signed-off-by: Michael Still <mikal@stillhq.com>

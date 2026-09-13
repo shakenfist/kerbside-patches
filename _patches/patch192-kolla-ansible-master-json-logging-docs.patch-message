@@ -1,0 +1,22 @@
+Document JSON logging.
+
+The central logging guide is where an operator is told how to turn log
+collection on and how to search what it gathers, so it is where the
+choice of log format belongs.
+
+The guide already tells people to search on Hostname, Payload and
+programname, so the important thing to state is that those keep
+working: the fields are the same in either format, and what JSON adds
+is the detail the text format throws away. The two constraints worth
+knowing in advance are also recorded -- that the setting covers every
+oslo.log service at once because they share one parser, and that
+services which do not use oslo.log, Horizon among them, ignore it.
+
+Prompt: Michael asked whether the series was complete. It was not:
+nothing documented the new option for operators, which is the first
+thing a reviewer would ask for.
+
+Assisted-By: Claude Opus 5 (1M context, high effort) <noreply@anthropic.com>
+Co-Authored-By: Claude Opus 5 (1M context, high effort) <noreply@anthropic.com>
+
+Signed-off-by: Michael Still <mikal@stillhq.com>

@@ -1,0 +1,56 @@
+commit 5e0762551c8563a96a1bc47870445c4a880ac512
+Author: Michael Still <mikal@stillhq.com>
+Date:   Sat Sep 12 17:47:05 2026 +1000
+
+    Convert the telemetry services to JSON logging.
+    
+    Ceilometer, Aodh, Gnocchi and CloudKitty now honour
+    openstack_logging_json.
+    
+    Signed-off-by: Michael Still <mikal@stillhq.com>
+
+diff --git a/ansible/roles/aodh/templates/aodh.conf.j2 b/ansible/roles/aodh/templates/aodh.conf.j2
+index c9c1803..62242a4 100644
+--- a/ansible/roles/aodh/templates/aodh.conf.j2
++++ b/ansible/roles/aodh/templates/aodh.conf.j2
+@@ -6,6 +6,7 @@ log_dir = /var/log/kolla/aodh
+ log_file = aodh-api.log
+ {% endif %}
+ debug = {{ aodh_logging_debug }}
++use_json = {{ openstack_logging_json }}
+ evaluation_interval = {{ aodh_evaluation_interval }}
+ transport_url = {{ rpc_transport_url }}
+ 
+diff --git a/ansible/roles/ceilometer/templates/ceilometer.conf.j2 b/ansible/roles/ceilometer/templates/ceilometer.conf.j2
+index b4359f1..8f39836 100644
+--- a/ansible/roles/ceilometer/templates/ceilometer.conf.j2
++++ b/ansible/roles/ceilometer/templates/ceilometer.conf.j2
+@@ -1,5 +1,6 @@
+ [DEFAULT]
+ debug = {{ ceilometer_logging_debug }}
++use_json = {{ openstack_logging_json }}
+ 
+ log_dir = /var/log/kolla/ceilometer
+ 
+diff --git a/ansible/roles/cloudkitty/templates/cloudkitty.conf.j2 b/ansible/roles/cloudkitty/templates/cloudkitty.conf.j2
+index 0231d46..ae1f1fc 100644
+--- a/ansible/roles/cloudkitty/templates/cloudkitty.conf.j2
++++ b/ansible/roles/cloudkitty/templates/cloudkitty.conf.j2
+@@ -1,5 +1,6 @@
+ [DEFAULT]
+ debug = {{ cloudkitty_logging_debug }}
++use_json = {{ openstack_logging_json }}
+ 
+ log_dir = /var/log/kolla/cloudkitty
+ 
+diff --git a/ansible/roles/gnocchi/templates/gnocchi.conf.j2 b/ansible/roles/gnocchi/templates/gnocchi.conf.j2
+index 56f74d7..e3f781e 100644
+--- a/ansible/roles/gnocchi/templates/gnocchi.conf.j2
++++ b/ansible/roles/gnocchi/templates/gnocchi.conf.j2
+@@ -1,5 +1,6 @@
+ [DEFAULT]
+ debug = {{ gnocchi_logging_debug }}
++use_json = {{ openstack_logging_json }}
+ 
+ log_dir = /var/log/kolla/gnocchi
+ 

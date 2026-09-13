@@ -1,0 +1,30 @@
+commit 4375ca7fb61f901dae65ce9db28744d44b159510
+Author: Michael Still <mikal@stillhq.com>
+Date:   Sat Sep 12 17:49:07 2026 +1000
+
+    Exercise JSON logging in the telemetry scenario.
+    
+    Without a job that sets openstack_logging_json, everything this series
+    adds is code no gate runs.
+    
+    The telemetry scenario is used because it deploys the OpenStack core
+    -- Keystone, Glance, Nova and Neutron -- as well as Ceilometer, Aodh
+    and Gnocchi, so a single job exercises four of the six conversion
+    batches with services that actually emit oslo.log output. No new job
+    is added, and a dedicated scenario would have cost six, three
+    distributions and their upgrades, in both check and gate.
+    
+    Signed-off-by: Michael Still <mikal@stillhq.com>
+
+diff --git a/tests/templates/globals-default.j2 b/tests/templates/globals-default.j2
+index fb2b715..89a1661 100644
+--- a/tests/templates/globals-default.j2
++++ b/tests/templates/globals-default.j2
+@@ -284,6 +284,7 @@ skyline_enable_sso: "yes"
+ {% endif %}
+ 
+ {% if scenario == "telemetry" %}
++openstack_logging_json: "yes"
+ enable_aodh: "yes"
+ enable_ceilometer: "yes"
+ enable_gnocchi: "yes"

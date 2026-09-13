@@ -1,0 +1,19 @@
+Convert the remaining services to JSON logging.
+
+Heat, Magnum, Tacker, Trove, Blazar, Mistral, Watcher and Barbican now
+honour openstack_logging_json, which is every remaining oslo.log
+service Kolla-Ansible deploys.
+
+Trove has a second configuration file for its guest agent. That agent
+runs inside the guest rather than on a Kolla host, so Fluentd never
+sees its log, but it reads the same template and leaving it on the
+text format would make the two disagree for no reason.
+
+Prompt: Michael asked for the bulk conversion to be broken into
+batches by project rather than landing as thirty separate commits.
+This is the last batch.
+
+Assisted-By: Claude Opus 5 (1M context, high effort) <noreply@anthropic.com>
+Co-Authored-By: Claude Opus 5 (1M context, high effort) <noreply@anthropic.com>
+
+Signed-off-by: Michael Still <mikal@stillhq.com>

@@ -1,0 +1,46 @@
+commit 158ec4c5af7d6675da74726f30b56953166eaf47
+Author: Michael Still <mikal@stillhq.com>
+Date:   Sat Sep 12 17:47:05 2026 +1000
+
+    Convert the networking services to JSON logging.
+    
+    Neutron, Octavia and Designate now honour openstack_logging_json.
+    
+    Signed-off-by: Michael Still <mikal@stillhq.com>
+
+diff --git a/ansible/roles/designate/templates/designate.conf.j2 b/ansible/roles/designate/templates/designate.conf.j2
+index f68c0b2..a9ecb1a 100644
+--- a/ansible/roles/designate/templates/designate.conf.j2
++++ b/ansible/roles/designate/templates/designate.conf.j2
+@@ -1,6 +1,7 @@
+ [DEFAULT]
+ 
+ debug = {{ designate_logging_debug }}
++use_json = {{ openstack_logging_json }}
+ 
+ log_dir = /var/log/kolla/designate
+ {% if service_name == 'designate-api' %}
+diff --git a/ansible/roles/neutron/templates/neutron.conf.j2 b/ansible/roles/neutron/templates/neutron.conf.j2
+index 094e7b1..93f1de9 100644
+--- a/ansible/roles/neutron/templates/neutron.conf.j2
++++ b/ansible/roles/neutron/templates/neutron.conf.j2
+@@ -1,6 +1,7 @@
+ # neutron.conf
+ [DEFAULT]
+ debug = {{ neutron_logging_debug }}
++use_json = {{ openstack_logging_json }}
+ 
+ {% if service_name == "neutron-server" %}
+ log_file = /var/log/kolla/neutron/neutron-server.log
+diff --git a/ansible/roles/octavia/templates/octavia.conf.j2 b/ansible/roles/octavia/templates/octavia.conf.j2
+index 8e40506..6e09f5d 100644
+--- a/ansible/roles/octavia/templates/octavia.conf.j2
++++ b/ansible/roles/octavia/templates/octavia.conf.j2
+@@ -1,6 +1,7 @@
+ #jinja2: trim_blocks:False
+ [DEFAULT]
+ debug = {{ octavia_logging_debug }}
++use_json = {{ openstack_logging_json }}
+ 
+ log_dir = /var/log/kolla/octavia
+ {% if service_name == "octavia-api" %}

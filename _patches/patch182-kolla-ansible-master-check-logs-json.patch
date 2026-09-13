@@ -1,0 +1,40 @@
+commit e0d879e629049f3d5afbe54500246402191fa017
+Author: Michael Still <mikal@stillhq.com>
+Date:   Sat Sep 12 16:12:05 2026 +1000
+
+    Detect log levels in JSON formatted logs.
+    
+    check-logs.sh finds CRITICAL, ERROR and WARNING messages by grepping
+    for the level as a space delimited field, which is how oslo.log's text
+    formatter writes it. oslo.log can also be configured to emit JSON,
+    where the level is the levelname member instead, and that form does
+    not match.
+    
+    No service in Kolla-Ansible emits JSON today, so this changes nothing
+    on its own. It has to land before anything does: a service switched to
+    JSON without it would not fail this check, it would silently stop being
+    checked at all, which is the worse of the two failures.
+    
+    Assisted-By: Claude Opus 5 (1M context, high effort) <noreply@anthropic.com>
+    Co-Authored-By: Claude Opus 5 (1M context, high effort) <noreply@anthropic.com>
+    
+    Depends-On: https://review.opendev.org/c/openstack/kolla-ansible/+/1005370
+    Signed-off-by: Michael Still <mikal@stillhq.com>
+
+diff --git a/tests/check-logs.sh b/tests/check-logs.sh
+index 454fbf8..6847871 100755
+--- a/tests/check-logs.sh
++++ b/tests/check-logs.sh
+@@ -13,8 +13,11 @@ declare -a fluentchecks=("got incomplete line before first line" "pattern not ma
+ function check_openstack_log_file_for_level {
+     # $1: file
+     # $2: log level
++    # oslo.log writes the level as a space delimited field in its text
++    # format, and as the levelname member when configured to emit JSON.
++    # Match either form.
+     # Filter out false positives from logged config options.
+-    sudo grep -E " $2 " $1 | grep -Ev "(logging_exception_prefix|rate_limit_except_level)"
++    sudo grep -E " $2 |\"levelname\": ?\"$2\"" $1 | grep -Ev "(logging_exception_prefix|rate_limit_except_level)"
+ }
+ 
+ function check_fluentd_log_file_for_level {

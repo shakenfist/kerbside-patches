@@ -1,0 +1,67 @@
+commit 9819e59ac74e8a0e89c5c22dfbd81b318971f3a3
+Author: Michael Still <mikal@stillhq.com>
+Date:   Sat Sep 12 19:03:02 2026 +1000
+
+    Document JSON logging.
+    
+    The central logging guide is where an operator is told how to turn log
+    collection on and how to search what it gathers, so it is where the
+    choice of log format belongs.
+    
+    The guide already tells people to search on Hostname, Payload and
+    programname, so the important thing to state is that those keep
+    working: the fields are the same in either format, and what JSON adds
+    is the detail the text format throws away. The two constraints worth
+    knowing in advance are also recorded -- that the setting covers every
+    oslo.log service at once because they share one parser, and that
+    services which do not use oslo.log, Horizon among them, ignore it.
+    
+    Prompt: Michael asked whether the series was complete. It was not:
+    nothing documented the new option for operators, which is the first
+    thing a reviewer would ask for.
+    
+    Assisted-By: Claude Opus 5 (1M context, high effort) <noreply@anthropic.com>
+    Co-Authored-By: Claude Opus 5 (1M context, high effort) <noreply@anthropic.com>
+    
+    Signed-off-by: Michael Still <mikal@stillhq.com>
+
+diff --git a/doc/source/reference/logging-and-monitoring/central-logging-guide.rst b/doc/source/reference/logging-and-monitoring/central-logging-guide.rst
+index aa732f8..a029c05 100644
+--- a/doc/source/reference/logging-and-monitoring/central-logging-guide.rst
++++ b/doc/source/reference/logging-and-monitoring/central-logging-guide.rst
+@@ -18,6 +18,35 @@ the following:
+ 
+    enable_central_logging: true
+ 
++Log format
++~~~~~~~~~~
++
++By default the OpenStack services write logs in oslo.log's text format,
++and Fluentd recovers the fields from them with a regular expression.
++Setting ``openstack_logging_json`` makes them emit JSON instead:
++
++.. code-block:: yaml
++
++   openstack_logging_json: true
++
++Fluentd reads either form and produces the same fields, so searches on
++``Hostname``, ``Payload``, ``programname`` and the rest are unaffected.
++What JSON adds is the detail the text format discards or flattens into
++the message: the request context arrives already structured rather than
++as a ``[req-... ]`` prefix to be taken apart again, timestamps keep
++their sub-second precision, and the source file, line number and
++function of each message are preserved.
++
++This is one setting for every oslo.log service rather than a per
++service one. All of them are read by a single Fluentd input, which has
++a single parser, so a service logging in a different format to its
++neighbours would not be collected at all.
++
++Services that do not use oslo.log, Horizon among them, do not honour
++this setting. They are unaffected because they do not write to the log
++files this input reads. If you have configured one of them to do so,
++its logs will no longer be parsed once this option is enabled.
++
+ OpenSearch
+ ~~~~~~~~~~
+ 

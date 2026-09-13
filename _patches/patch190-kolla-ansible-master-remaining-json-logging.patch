@@ -1,0 +1,124 @@
+commit dfbb069600e4ce2d71e42bc9ee1df6b663593c59
+Author: Michael Still <mikal@stillhq.com>
+Date:   Sat Sep 12 17:47:05 2026 +1000
+
+    Convert the remaining services to JSON logging.
+    
+    Heat, Magnum, Tacker, Trove, Blazar, Mistral, Watcher and Barbican now
+    honour openstack_logging_json, which is every remaining oslo.log
+    service Kolla-Ansible deploys.
+    
+    Trove has a second configuration file for its guest agent. That agent
+    runs inside the guest rather than on a Kolla host, so Fluentd never
+    sees its log, but it reads the same template and leaving it on the
+    text format would make the two disagree for no reason.
+    
+    Prompt: Michael asked for the bulk conversion to be broken into
+    batches by project rather than landing as thirty separate commits.
+    This is the last batch.
+    
+    Assisted-By: Claude Opus 5 (1M context, high effort) <noreply@anthropic.com>
+    Co-Authored-By: Claude Opus 5 (1M context, high effort) <noreply@anthropic.com>
+    
+    Signed-off-by: Michael Still <mikal@stillhq.com>
+
+diff --git a/ansible/roles/barbican/templates/barbican.conf.j2 b/ansible/roles/barbican/templates/barbican.conf.j2
+index 6f023bd..f8abf27 100644
+--- a/ansible/roles/barbican/templates/barbican.conf.j2
++++ b/ansible/roles/barbican/templates/barbican.conf.j2
+@@ -1,5 +1,6 @@
+ [DEFAULT]
+ debug = {{ barbican_logging_debug }}
++use_json = {{ openstack_logging_json }}
+ log_dir = /var/log/kolla/barbican
+ {% if service_name == "barbican-api" %}
+ log_file = barbican-api.log
+diff --git a/ansible/roles/blazar/templates/blazar.conf.j2 b/ansible/roles/blazar/templates/blazar.conf.j2
+index 633a0a3..db6b068 100644
+--- a/ansible/roles/blazar/templates/blazar.conf.j2
++++ b/ansible/roles/blazar/templates/blazar.conf.j2
+@@ -1,5 +1,6 @@
+ [DEFAULT]
+ debug = {{ blazar_logging_debug }}
++use_json = {{ openstack_logging_json }}
+ log_dir = /var/log/kolla/blazar
+ transport_url = {{ rpc_transport_url }}
+ host = {{ api_interface_address }}
+diff --git a/ansible/roles/heat/templates/heat.conf.j2 b/ansible/roles/heat/templates/heat.conf.j2
+index 3c6f7af..5c8b732 100644
+--- a/ansible/roles/heat/templates/heat.conf.j2
++++ b/ansible/roles/heat/templates/heat.conf.j2
+@@ -1,5 +1,6 @@
+ [DEFAULT]
+ debug = {{ heat_logging_debug }}
++use_json = {{ openstack_logging_json }}
+ 
+ log_dir = /var/log/kolla/heat
+ log_file = $log_dir/{{ service_name }}.log
+diff --git a/ansible/roles/magnum/templates/magnum.conf.j2 b/ansible/roles/magnum/templates/magnum.conf.j2
+index 00667ad..b837607 100644
+--- a/ansible/roles/magnum/templates/magnum.conf.j2
++++ b/ansible/roles/magnum/templates/magnum.conf.j2
+@@ -1,5 +1,6 @@
+ [DEFAULT]
+ debug = {{ magnum_logging_debug }}
++use_json = {{ openstack_logging_json }}
+ state_path = /var/lib/magnum
+ log_dir = /var/log/kolla/magnum
+ log_file = /var/log/kolla/magnum/{{ service_name }}.log
+diff --git a/ansible/roles/mistral/templates/mistral.conf.j2 b/ansible/roles/mistral/templates/mistral.conf.j2
+index aeb2dab..8ad8402 100644
+--- a/ansible/roles/mistral/templates/mistral.conf.j2
++++ b/ansible/roles/mistral/templates/mistral.conf.j2
+@@ -1,5 +1,6 @@
+ [DEFAULT]
+ debug = {{ mistral_logging_debug }}
++use_json = {{ openstack_logging_json }}
+ 
+ log_dir = /var/log/kolla/mistral
+ {% if service_name == 'mistral-api' %}
+diff --git a/ansible/roles/tacker/templates/tacker.conf.j2 b/ansible/roles/tacker/templates/tacker.conf.j2
+index de1d38a..144397a 100644
+--- a/ansible/roles/tacker/templates/tacker.conf.j2
++++ b/ansible/roles/tacker/templates/tacker.conf.j2
+@@ -1,5 +1,6 @@
+ [DEFAULT]
+ debug = {{ tacker_logging_debug }}
++use_json = {{ openstack_logging_json }}
+ log_dir = /var/log/kolla/tacker
+ 
+ transport_url = {{ rpc_transport_url }}
+diff --git a/ansible/roles/trove/templates/trove-guestagent.conf.j2 b/ansible/roles/trove/templates/trove-guestagent.conf.j2
+index c3333f6..3cf1b9b 100644
+--- a/ansible/roles/trove/templates/trove-guestagent.conf.j2
++++ b/ansible/roles/trove/templates/trove-guestagent.conf.j2
+@@ -6,6 +6,7 @@ control_exchange = trove
+ root_grant = ALL
+ root_grant_option = true
+ debug = {{ trove_logging_debug }}
++use_json = {{ openstack_logging_json }}
+ 
+ [service_credentials]
+ auth_url = {{ keystone_internal_url }}
+diff --git a/ansible/roles/trove/templates/trove.conf.j2 b/ansible/roles/trove/templates/trove.conf.j2
+index c3d7052..50549c8 100644
+--- a/ansible/roles/trove/templates/trove.conf.j2
++++ b/ansible/roles/trove/templates/trove.conf.j2
+@@ -1,5 +1,6 @@
+ [DEFAULT]
+ debug = {{ trove_logging_debug }}
++use_json = {{ openstack_logging_json }}
+ 
+ log_dir = /var/log/kolla/trove
+ {% if service_name == "trove-api" %}
+diff --git a/ansible/roles/watcher/templates/watcher.conf.j2 b/ansible/roles/watcher/templates/watcher.conf.j2
+index 74ed796..bd4f997 100644
+--- a/ansible/roles/watcher/templates/watcher.conf.j2
++++ b/ansible/roles/watcher/templates/watcher.conf.j2
+@@ -1,5 +1,6 @@
+ [DEFAULT]
+ debug = {{ watcher_logging_debug }}
++use_json = {{ openstack_logging_json }}
+ 
+ log_dir = /var/log/kolla/watcher
+ 
