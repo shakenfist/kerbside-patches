@@ -1,6 +1,6 @@
-commit bf081561218df95dd4192dae9fb0f4012422d7ae
+commit d9988e9c59b6abe5e3653b04891b3b15e2d74ec4
 Author: Michael Still <mikal@stillhq.com>
-Date:   Tue Sep 8 17:40:25 2026 +1000
+Date:   Mon Sep 14 06:03:20 2026 +1000
 
     Add kerbside CI scenario jobs.
     
@@ -123,7 +123,7 @@ index c6abc787b..413684771 100644
 +[kerbside_proxy:children]
 +vdiproxy
 diff --git a/zuul.d/project.yaml b/zuul.d/project.yaml
-index 9a2344c17..3b1ab2c6e 100644
+index f043f3a84..18beb2f26 100644
 --- a/zuul.d/project.yaml
 +++ b/zuul.d/project.yaml
 @@ -24,6 +24,7 @@

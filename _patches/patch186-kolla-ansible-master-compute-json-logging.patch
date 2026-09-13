@@ -1,6 +1,6 @@
-commit 9003ef3fd4bb55d8f55817a68be9c110b3f53a54
+commit 34c7486af37d695ddc94e2f9ebe51d5f3cabc632
 Author: Michael Still <mikal@stillhq.com>
-Date:   Sat Sep 12 17:47:05 2026 +1000
+Date:   Mon Sep 14 06:05:59 2026 +1000
 
     Convert the compute services to JSON logging.
     
@@ -19,10 +19,11 @@ Date:   Sat Sep 12 17:47:05 2026 +1000
     Assisted-By: Claude Opus 5 (1M context, high effort) <noreply@anthropic.com>
     Co-Authored-By: Claude Opus 5 (1M context, high effort) <noreply@anthropic.com>
     
+    Change-Id: Idcb690f157a8954eb79ebf758cf1418fb52cdcfd
     Signed-off-by: Michael Still <mikal@stillhq.com>
 
 diff --git a/ansible/roles/cyborg/templates/cyborg.conf.j2 b/ansible/roles/cyborg/templates/cyborg.conf.j2
-index 9de6cfc..225b6af 100644
+index 9de6cfc2d..225b6afd9 100644
 --- a/ansible/roles/cyborg/templates/cyborg.conf.j2
 +++ b/ansible/roles/cyborg/templates/cyborg.conf.j2
 @@ -5,6 +5,7 @@ log_dir = /var/log/kolla/cyborg
@@ -34,7 +35,7 @@ index 9de6cfc..225b6af 100644
  transport_url = {{ rpc_transport_url }}
  
 diff --git a/ansible/roles/ironic/templates/ironic.conf.j2 b/ansible/roles/ironic/templates/ironic.conf.j2
-index a808fba..4d9528e 100644
+index a808fba26..4d9528ea3 100644
 --- a/ansible/roles/ironic/templates/ironic.conf.j2
 +++ b/ansible/roles/ironic/templates/ironic.conf.j2
 @@ -3,6 +3,7 @@
@@ -46,7 +47,7 @@ index a808fba..4d9528e 100644
  tempdir = /var/lib/ironic/tmp
  
 diff --git a/ansible/roles/masakari/templates/masakari-monitors.conf.j2 b/ansible/roles/masakari/templates/masakari-monitors.conf.j2
-index e63d8e7..39e0673 100644
+index e63d8e7fb..39e0673b6 100644
 --- a/ansible/roles/masakari/templates/masakari-monitors.conf.j2
 +++ b/ansible/roles/masakari/templates/masakari-monitors.conf.j2
 @@ -1,5 +1,6 @@
@@ -57,7 +58,7 @@ index e63d8e7..39e0673 100644
  
  [api]
 diff --git a/ansible/roles/masakari/templates/masakari.conf.j2 b/ansible/roles/masakari/templates/masakari.conf.j2
-index 37832a3..4c5fdc7 100644
+index 37832a33e..4c5fdc7a3 100644
 --- a/ansible/roles/masakari/templates/masakari.conf.j2
 +++ b/ansible/roles/masakari/templates/masakari.conf.j2
 @@ -1,5 +1,6 @@
@@ -68,7 +69,7 @@ index 37832a3..4c5fdc7 100644
  log_file = /var/log/kolla/masakari/masakari-api.log
  {% else %}
 diff --git a/ansible/roles/nova-cell/templates/nova.conf.j2 b/ansible/roles/nova-cell/templates/nova.conf.j2
-index 01793f6..bcb7466 100644
+index 01793f6a7..bcb746601 100644
 --- a/ansible/roles/nova-cell/templates/nova.conf.j2
 +++ b/ansible/roles/nova-cell/templates/nova.conf.j2
 @@ -1,6 +1,7 @@
@@ -80,7 +81,7 @@ index 01793f6..bcb7466 100644
  log_dir = /var/log/kolla/nova
  
 diff --git a/ansible/roles/nova/templates/nova.conf.j2 b/ansible/roles/nova/templates/nova.conf.j2
-index 3a96e37..248ed6a 100644
+index 3a96e3749..248ed6a76 100644
 --- a/ansible/roles/nova/templates/nova.conf.j2
 +++ b/ansible/roles/nova/templates/nova.conf.j2
 @@ -1,6 +1,7 @@

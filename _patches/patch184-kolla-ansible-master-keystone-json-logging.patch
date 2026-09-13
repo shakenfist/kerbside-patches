@@ -1,16 +1,17 @@
-commit 52f235f66e65805a32398fd981e6896819a31e98
+commit 33a3f69b84dd97b3475c20c881a23fb179fb18fe
 Author: Michael Still <mikal@stillhq.com>
-Date:   Sat Sep 12 16:29:59 2026 +1000
+Date:   Mon Sep 14 06:05:59 2026 +1000
 
     Let Keystone log JSON.
     
     This is the first service to honour openstack_logging_json, so the
     demonstration is kept deliberately minimal.
     
+    Change-Id: I08eb215f664ec7627e60eaf234695f9454e0daca
     Signed-off-by: Michael Still <mikal@stillhq.com>
 
 diff --git a/ansible/roles/keystone/templates/keystone.conf.j2 b/ansible/roles/keystone/templates/keystone.conf.j2
-index e13d943..f11a08f 100644
+index e13d9436d..f11a08f3a 100644
 --- a/ansible/roles/keystone/templates/keystone.conf.j2
 +++ b/ansible/roles/keystone/templates/keystone.conf.j2
 @@ -1,5 +1,6 @@
