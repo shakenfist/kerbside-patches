@@ -7,12 +7,6 @@ Date:   Sat Sep 12 17:47:05 2026 +1000
     Ceilometer, Aodh, Gnocchi and CloudKitty now honour
     openstack_logging_json.
     
-    Prompt: Michael asked for the bulk conversion to be broken into
-    batches by project rather than landing as thirty separate commits.
-    
-    Assisted-By: Claude Opus 5 (1M context, high effort) <noreply@anthropic.com>
-    Co-Authored-By: Claude Opus 5 (1M context, high effort) <noreply@anthropic.com>
-    
     Signed-off-by: Michael Still <mikal@stillhq.com>
 
 diff --git a/ansible/roles/aodh/templates/aodh.conf.j2 b/ansible/roles/aodh/templates/aodh.conf.j2

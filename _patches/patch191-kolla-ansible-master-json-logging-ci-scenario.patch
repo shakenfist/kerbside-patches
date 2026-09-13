@@ -14,28 +14,6 @@ Date:   Sat Sep 12 17:49:07 2026 +1000
     is added, and a dedicated scenario would have cost six, three
     distributions and their upgrades, in both check and gate.
     
-    Central logging is deliberately not required for this. The assertions
-    that matter are that services emit parseable JSON and that Fluentd
-    reads it, and check-logs.sh already makes both in every job: it treats
-    Fluentd's "pattern not matched" warnings and error level messages as
-    critical, so a service whose format the parser cannot read fails the
-    job. Shipping to OpenSearch would only add the further claim that the
-    records arrive with the expected field names.
-    
-    The prometheus-opensearch scenario would have looked like the obvious
-    home, since it is the only one that enables central logging, but
-    tests/run.yml disables the OpenStack core services there. Turning the
-    option on in that scenario sets a flag in a deployment with nothing to
-    log.
-    
-    Prompt: Michael asked for phases two and three to be implemented
-    before anything is pushed, so that the whole story could be reviewed
-    before it goes public. Checking that story end to end is what found
-    the empty scenario.
-    
-    Assisted-By: Claude Opus 5 (1M context, high effort) <noreply@anthropic.com>
-    Co-Authored-By: Claude Opus 5 (1M context, high effort) <noreply@anthropic.com>
-    
     Signed-off-by: Michael Still <mikal@stillhq.com>
 
 diff --git a/tests/templates/globals-default.j2 b/tests/templates/globals-default.j2
