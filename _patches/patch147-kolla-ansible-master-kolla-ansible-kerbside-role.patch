@@ -394,10 +394,10 @@ index 5936a3cf5..837c74ce7 100644
 +</filter>
 diff --git a/ansible/roles/fluentd/templates/conf/input/15-kerbside.conf.j2 b/ansible/roles/fluentd/templates/conf/input/15-kerbside.conf.j2
 new file mode 100644
-index 000000000..8a0fd2436
+index 000000000..4409af80d
 --- /dev/null
 +++ b/ansible/roles/fluentd/templates/conf/input/15-kerbside.conf.j2
-@@ -0,0 +1,15 @@
+@@ -0,0 +1,35 @@
 +<source>
 +  @type tail
 +  path /var/log/kolla/kerbside/*.log
@@ -411,6 +411,26 @@ index 000000000..8a0fd2436
 +    time_key ts
 +    time_format %Y-%m-%dT%H:%M:%S.%NZ
 +    keep_time_key true
++  </parse>
++</source>
++
++# The uWSGI log excluded above is plain uWSGI output rather than Kerbside's
++# JSON, so it gets the same handling as every other service's uWSGI log.
++# Kerbside is not in fluentd_input_openstack_services, so 13-uwsgi.conf.j2
++# does not cover it.
++<source>
++  @type tail
++  path /var/log/kolla/kerbside/*-uwsgi.log
++  pos_file /var/run/fluentd/kolla-kerbside-uwsgi.pos
++  tag kolla.*
++  ignore_repeated_permission_error true
++  enable_watch_timer {{ fluentd_enable_watch_timer }}
++  <parse>
++    @type regexp
++    expression /^(?:\[pid: (?<Pid>\d+)\|app: (?<App>\d+)\|req: (?<Req>\d+\/\d+)\] (?<Address>\S+) \((?<User>\w*)\) \{(?<Vars>\d+) vars +in (?<Bytes>\d+) bytes\} \[(?<Timestamp>\w+ \w+\s+\d+ \d+:\d+:\d+ \d+)\] )?(?<Payload>.*)$/
++    time_key Timestamp
++    keep_time_key true
++    time_format %c
 +  </parse>
 +</source>
 diff --git a/ansible/roles/kerbside/defaults/main.yml b/ansible/roles/kerbside/defaults/main.yml
