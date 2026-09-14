@@ -1,6 +1,6 @@
-commit 0000000000000000000000000000000000000000
+commit 7bb1dd3c94559101f9554a5d5b57f4758f913f27
 Author: Michael Still <mikal@stillhq.com>
-Date:   Thu Sep 11 07:30:00 2026 +1000
+Date:   Mon Sep 14 06:03:21 2026 +1000
 
     Collect etcd logs with Fluentd.
     
@@ -19,10 +19,11 @@ Date:   Thu Sep 11 07:30:00 2026 +1000
     Assisted-By: Claude Opus 5 (1M context, high effort) <noreply@anthropic.com>
     Co-Authored-By: Claude Opus 5 (1M context, high effort) <noreply@anthropic.com>
     
+    Change-Id: I9bcd92bc3e8f30c2407df1096d8cdff54e967244
     Signed-off-by: Michael Still <mikal@stillhq.com>
 
 diff --git a/ansible/roles/fluentd/tasks/config.yml b/ansible/roles/fluentd/tasks/config.yml
-index 271a1fd1e..8c4a3f712 100644
+index 271a1fd1e..789694d81 100644
 --- a/ansible/roles/fluentd/tasks/config.yml
 +++ b/ansible/roles/fluentd/tasks/config.yml
 @@ -103,6 +103,8 @@
@@ -35,7 +36,7 @@ index 271a1fd1e..8c4a3f712 100644
      # Filters
      fluentd_filter_files: "{{ default_filter_files | customise_fluentd(customised_filter_files) }}"
 diff --git a/ansible/roles/fluentd/templates/conf/filter/02-parser.conf.j2 b/ansible/roles/fluentd/templates/conf/filter/02-parser.conf.j2
-index b7c2d94a6..d5e6f8a21 100644
+index 837c74ce7..1ffadfbbb 100644
 --- a/ansible/roles/fluentd/templates/conf/filter/02-parser.conf.j2
 +++ b/ansible/roles/fluentd/templates/conf/filter/02-parser.conf.j2
 @@ -38,3 +38,16 @@
@@ -57,7 +58,7 @@ index b7c2d94a6..d5e6f8a21 100644
 +</filter>
 diff --git a/ansible/roles/fluentd/templates/conf/input/16-etcd.conf.j2 b/ansible/roles/fluentd/templates/conf/input/16-etcd.conf.j2
 new file mode 100644
-index 000000000..4b7e1c093
+index 000000000..24ccc1c1d
 --- /dev/null
 +++ b/ansible/roles/fluentd/templates/conf/input/16-etcd.conf.j2
 @@ -0,0 +1,14 @@
@@ -77,7 +78,7 @@ index 000000000..4b7e1c093
 +</source>
 diff --git a/releasenotes/notes/fluentd-etcd-logs-9d3f1a6c4b28e057.yaml b/releasenotes/notes/fluentd-etcd-logs-9d3f1a6c4b28e057.yaml
 new file mode 100644
-index 000000000..7a1c8e2d4
+index 000000000..86b50de68
 --- /dev/null
 +++ b/releasenotes/notes/fluentd-etcd-logs-9d3f1a6c4b28e057.yaml
 @@ -0,0 +1,7 @@
@@ -89,10 +90,10 @@ index 000000000..7a1c8e2d4
 +    renamed to match the rest of the pipeline before being shipped, and the
 +    gate check that every log file is being tailed no longer exempts etcd.
 diff --git a/tests/check-logs.sh b/tests/check-logs.sh
-index 8b3c1d2f7..e5a94f610 100755
+index 454fbf893..aa4116e42 100755
 --- a/tests/check-logs.sh
 +++ b/tests/check-logs.sh
-@@ -36,9 +36,6 @@
+@@ -36,9 +36,6 @@ function check_fluentd_missing_logs {
          /var/log/kolla/ansible.log)
              continue
              ;;

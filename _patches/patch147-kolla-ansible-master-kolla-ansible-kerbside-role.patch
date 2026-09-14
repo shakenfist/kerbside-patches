@@ -1,6 +1,6 @@
-commit 557ca873da7e6fb03ab75fc0b47dc272d88436c7
+commit dfb5d97b65e4683aeb86112c370471deafec4093
 Author: Michael Still <mikal@stillhq.com>
-Date:   Tue Sep 8 17:40:25 2026 +1000
+Date:   Mon Sep 14 06:03:20 2026 +1000
 
     Deploy Kerbside with Kolla-Ansible.
     
@@ -372,7 +372,7 @@ index e5e266653..271a1fd1e 100644
      # Filters
      fluentd_filter_files: "{{ default_filter_files | customise_fluentd(customised_filter_files) }}"
 diff --git a/ansible/roles/fluentd/templates/conf/filter/02-parser.conf.j2 b/ansible/roles/fluentd/templates/conf/filter/02-parser.conf.j2
-index 3a1f8e5d1..b7c2d94a6 100644
+index 5936a3cf5..837c74ce7 100644
 --- a/ansible/roles/fluentd/templates/conf/filter/02-parser.conf.j2
 +++ b/ansible/roles/fluentd/templates/conf/filter/02-parser.conf.j2
 @@ -25,3 +25,16 @@
@@ -394,7 +394,7 @@ index 3a1f8e5d1..b7c2d94a6 100644
 +</filter>
 diff --git a/ansible/roles/fluentd/templates/conf/input/15-kerbside.conf.j2 b/ansible/roles/fluentd/templates/conf/input/15-kerbside.conf.j2
 new file mode 100644
-index 000000000..257dbeb06
+index 000000000..8a0fd2436
 --- /dev/null
 +++ b/ansible/roles/fluentd/templates/conf/input/15-kerbside.conf.j2
 @@ -0,0 +1,15 @@
@@ -415,7 +415,7 @@ index 000000000..257dbeb06
 +</source>
 diff --git a/ansible/roles/kerbside/defaults/main.yml b/ansible/roles/kerbside/defaults/main.yml
 new file mode 100644
-index 000000000..c80485ac0
+index 000000000..12f7be414
 --- /dev/null
 +++ b/ansible/roles/kerbside/defaults/main.yml
 @@ -0,0 +1,170 @@
@@ -1281,7 +1281,7 @@ index 000000000..304ef982f
 +</VirtualHost>
 diff --git a/ansible/roles/kerbside/templates/kerbside.ini.j2 b/ansible/roles/kerbside/templates/kerbside.ini.j2
 new file mode 100644
-index 000000000..da845b842
+index 000000000..0cd2c4443
 --- /dev/null
 +++ b/ansible/roles/kerbside/templates/kerbside.ini.j2
 @@ -0,0 +1,31 @@
@@ -1592,7 +1592,7 @@ index 53c5da174..40a8ef88b 100644
    ansible.builtin.wait_for:
      host: "{{ kolla_internal_vip_address }}"
 diff --git a/ansible/roles/nova-cell/defaults/main.yml b/ansible/roles/nova-cell/defaults/main.yml
-index 297a912bd..052ed4e63 100644
+index 9e194ee54..7cbd48811 100644
 --- a/ansible/roles/nova-cell/defaults/main.yml
 +++ b/ansible/roles/nova-cell/defaults/main.yml
 @@ -298,7 +298,7 @@ nova_cell_notify_rabbitmq_users:
@@ -1605,7 +1605,7 @@ index 297a912bd..052ed4e63 100644
  nova_libvirt_image_full: "{{ nova_libvirt_image }}:{{ nova_libvirt_tag }}"
  nova_libvirt_cpu_mode: "{{ 'host-passthrough' if ansible_facts.architecture == 'aarch64' else '' }}"
 diff --git a/ansible/roles/nova-cell/templates/nova.conf.j2 b/ansible/roles/nova-cell/templates/nova.conf.j2
-index d45bb4602..05578fb19 100644
+index 01793f6a7..b54bd3505 100644
 --- a/ansible/roles/nova-cell/templates/nova.conf.j2
 +++ b/ansible/roles/nova-cell/templates/nova.conf.j2
 @@ -86,6 +86,9 @@ jpeg_compression = {{ nova_spice_jpeg_compression }}
@@ -1619,7 +1619,7 @@ index d45bb4602..05578fb19 100644
  server_proxyclient_address = {{ api_interface_address }}
  {%         if inventory_hostname in groups[nova_cell_compute_group] %}
 diff --git a/ansible/roles/nova/defaults/main.yml b/ansible/roles/nova/defaults/main.yml
-index 24778696e..35986e283 100644
+index 35ea0bb95..88549c2d3 100644
 --- a/ansible/roles/nova/defaults/main.yml
 +++ b/ansible/roles/nova/defaults/main.yml
 @@ -230,7 +230,6 @@ nova_super_conductor_extra_volumes: "{{ nova_extra_volumes }}"

@@ -1,6 +1,6 @@
-commit 41ae63f962193bccb7dcf883ac63523f1b5ee68b
+commit d54b52bebd82dc1cfed81a59906f5d83fde516cc
 Author: Michael Still <mikal@stillhq.com>
-Date:   Sat Sep 12 17:47:05 2026 +1000
+Date:   Mon Sep 14 06:05:59 2026 +1000
 
     Convert the core services to JSON logging.
     
@@ -13,10 +13,11 @@ Date:   Sat Sep 12 17:47:05 2026 +1000
     was converted: every oslo.log service is tailed by a single Fluentd
     input with a single parser, so the format cannot vary between them.
     
+    Change-Id: Iadbb097c884fe4f6659719828681161bc2b73e1c
     Signed-off-by: Michael Still <mikal@stillhq.com>
 
 diff --git a/ansible/roles/glance/templates/glance-api.conf.j2 b/ansible/roles/glance/templates/glance-api.conf.j2
-index aa6a3e8..bda046a 100644
+index aa6a3e8f5..bda046aad 100644
 --- a/ansible/roles/glance/templates/glance-api.conf.j2
 +++ b/ansible/roles/glance/templates/glance-api.conf.j2
 @@ -1,6 +1,7 @@
@@ -28,7 +29,7 @@ index aa6a3e8..bda046a 100644
  # NOTE(elemoine) log_dir alone does not work for Glance
  log_file = /var/log/kolla/glance/glance-api.log
 diff --git a/ansible/roles/glance/templates/glance-cache.conf.j2 b/ansible/roles/glance/templates/glance-cache.conf.j2
-index 4fc6400..99af461 100644
+index 4fc6400ca..99af4610d 100644
 --- a/ansible/roles/glance/templates/glance-cache.conf.j2
 +++ b/ansible/roles/glance/templates/glance-cache.conf.j2
 @@ -1,6 +1,7 @@
@@ -40,7 +41,7 @@ index 4fc6400..99af461 100644
  
  image_cache_max_size = {{ glance_cache_max_size }}
 diff --git a/ansible/roles/placement/templates/placement.conf.j2 b/ansible/roles/placement/templates/placement.conf.j2
-index 552862f..d1d34df 100644
+index 552862fdf..d1d34df65 100644
 --- a/ansible/roles/placement/templates/placement.conf.j2
 +++ b/ansible/roles/placement/templates/placement.conf.j2
 @@ -1,5 +1,6 @@

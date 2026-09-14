@@ -1,6 +1,6 @@
-commit 697cf9c619a9be7ee650415503742b5ce3fb6d4f
+commit 519b3fce95a9e3f42c91830b5a6c2981b93c3808
 Author: Michael Still <mikal@stillhq.com>
-Date:   Sat Sep 12 16:20:24 2026 +1000
+Date:   Mon Sep 14 06:05:59 2026 +1000
 
     Add a fluentd path for JSON formatted OpenStack logs.
     
@@ -27,10 +27,11 @@ Date:   Sat Sep 12 16:20:24 2026 +1000
     Assisted-By: Claude Opus 5 (1M context, high effort) <noreply@anthropic.com>
     Co-Authored-By: Claude Opus 5 (1M context, high effort) <noreply@anthropic.com>
     
+    Change-Id: I8cd211f991c66d00875f0c47cba97d8ae065d45e
     Signed-off-by: Michael Still <mikal@stillhq.com>
 
 diff --git a/ansible/group_vars/all/common.yml b/ansible/group_vars/all/common.yml
-index 52a6a60..80ad355 100644
+index 52a6a6005..80ad355d7 100644
 --- a/ansible/group_vars/all/common.yml
 +++ b/ansible/group_vars/all/common.yml
 @@ -311,6 +311,7 @@ openstack_release: "master"
@@ -42,7 +43,7 @@ index 52a6a60..80ad355 100644
  openstack_region_name: "RegionOne"
  
 diff --git a/ansible/roles/fluentd/templates/conf/filter/00-record_transformer.conf.j2 b/ansible/roles/fluentd/templates/conf/filter/00-record_transformer.conf.j2
-index 508f7df..e0fb46c 100644
+index 508f7df1c..e0fb46cc7 100644
 --- a/ansible/roles/fluentd/templates/conf/filter/00-record_transformer.conf.j2
 +++ b/ansible/roles/fluentd/templates/conf/filter/00-record_transformer.conf.j2
 @@ -7,6 +7,31 @@
@@ -78,7 +79,7 @@ index 508f7df..e0fb46c 100644
      @type record_transformer
      <record>
 diff --git a/ansible/roles/fluentd/templates/conf/input/00-global.conf.j2 b/ansible/roles/fluentd/templates/conf/input/00-global.conf.j2
-index e94f83b..05ef4f6 100644
+index e94f83b92..05ef4f600 100644
 --- a/ansible/roles/fluentd/templates/conf/input/00-global.conf.j2
 +++ b/ansible/roles/fluentd/templates/conf/input/00-global.conf.j2
 @@ -15,12 +15,19 @@
@@ -102,7 +103,7 @@ index e94f83b..05ef4f6 100644
  </source>
  {% endif %}
 diff --git a/etc/kolla/globals.yml b/etc/kolla/globals.yml
-index a9ec40c..f5e58fb 100644
+index a9ec40c3b..f5e58fbc6 100644
 --- a/etc/kolla/globals.yml
 +++ b/etc/kolla/globals.yml
 @@ -315,6 +315,13 @@ workaround_ansible_issue_8743: true
@@ -121,7 +122,7 @@ index a9ec40c..f5e58fb 100644
  #enable_openstack_core: true
 diff --git a/releasenotes/notes/openstack-logging-json-7c41d0b59e83a2f6.yaml b/releasenotes/notes/openstack-logging-json-7c41d0b59e83a2f6.yaml
 new file mode 100644
-index 0000000..6868911
+index 000000000..68689116c
 --- /dev/null
 +++ b/releasenotes/notes/openstack-logging-json-7c41d0b59e83a2f6.yaml
 @@ -0,0 +1,10 @@

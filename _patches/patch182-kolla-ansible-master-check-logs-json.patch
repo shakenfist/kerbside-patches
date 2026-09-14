@@ -1,6 +1,6 @@
-commit e0d879e629049f3d5afbe54500246402191fa017
+commit 2bab545f37145e3a4e193eb2906ca46a3e524e81
 Author: Michael Still <mikal@stillhq.com>
-Date:   Sat Sep 12 16:12:05 2026 +1000
+Date:   Mon Sep 14 06:05:59 2026 +1000
 
     Detect log levels in JSON formatted logs.
     
@@ -19,10 +19,11 @@ Date:   Sat Sep 12 16:12:05 2026 +1000
     Co-Authored-By: Claude Opus 5 (1M context, high effort) <noreply@anthropic.com>
     
     Depends-On: https://review.opendev.org/c/openstack/kolla-ansible/+/1005370
+    Change-Id: Id69511ea84bd9d4cb005c39da471fc2d576686ac
     Signed-off-by: Michael Still <mikal@stillhq.com>
 
 diff --git a/tests/check-logs.sh b/tests/check-logs.sh
-index 454fbf8..6847871 100755
+index 454fbf893..68478718b 100755
 --- a/tests/check-logs.sh
 +++ b/tests/check-logs.sh
 @@ -13,8 +13,11 @@ declare -a fluentchecks=("got incomplete line before first line" "pattern not ma

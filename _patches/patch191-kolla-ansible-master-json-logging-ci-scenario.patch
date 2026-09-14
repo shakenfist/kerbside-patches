@@ -1,6 +1,6 @@
-commit 4375ca7fb61f901dae65ce9db28744d44b159510
+commit 8f052221ac8c2f06ad483e6ff5a13033519ad75f
 Author: Michael Still <mikal@stillhq.com>
-Date:   Sat Sep 12 17:49:07 2026 +1000
+Date:   Mon Sep 14 06:06:00 2026 +1000
 
     Exercise JSON logging in the telemetry scenario.
     
@@ -14,10 +14,11 @@ Date:   Sat Sep 12 17:49:07 2026 +1000
     is added, and a dedicated scenario would have cost six, three
     distributions and their upgrades, in both check and gate.
     
+    Change-Id: I202444f2215f4dcc0b1ada3371cfeb27292cd772
     Signed-off-by: Michael Still <mikal@stillhq.com>
 
 diff --git a/tests/templates/globals-default.j2 b/tests/templates/globals-default.j2
-index fb2b715..89a1661 100644
+index fb2b715bb..89a1661a1 100644
 --- a/tests/templates/globals-default.j2
 +++ b/tests/templates/globals-default.j2
 @@ -284,6 +284,7 @@ skyline_enable_sso: "yes"

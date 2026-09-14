@@ -1,6 +1,6 @@
-commit 9819e59ac74e8a0e89c5c22dfbd81b318971f3a3
+commit 3afdc3b00cb1c00f788715d1b8e48ebd7b0d74d3
 Author: Michael Still <mikal@stillhq.com>
-Date:   Sat Sep 12 19:03:02 2026 +1000
+Date:   Mon Sep 14 06:06:00 2026 +1000
 
     Document JSON logging.
     
@@ -23,10 +23,11 @@ Date:   Sat Sep 12 19:03:02 2026 +1000
     Assisted-By: Claude Opus 5 (1M context, high effort) <noreply@anthropic.com>
     Co-Authored-By: Claude Opus 5 (1M context, high effort) <noreply@anthropic.com>
     
+    Change-Id: Id80c6ca50bc44bac4df799ee075dff8a4ec7bdc5
     Signed-off-by: Michael Still <mikal@stillhq.com>
 
 diff --git a/doc/source/reference/logging-and-monitoring/central-logging-guide.rst b/doc/source/reference/logging-and-monitoring/central-logging-guide.rst
-index aa732f8..a029c05 100644
+index aa732f802..a029c05f4 100644
 --- a/doc/source/reference/logging-and-monitoring/central-logging-guide.rst
 +++ b/doc/source/reference/logging-and-monitoring/central-logging-guide.rst
 @@ -18,6 +18,35 @@ the following:

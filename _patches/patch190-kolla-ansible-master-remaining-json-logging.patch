@@ -1,6 +1,6 @@
-commit dfbb069600e4ce2d71e42bc9ee1df6b663593c59
+commit b7ca03a26fb0132aa719840038dd1db963dab25b
 Author: Michael Still <mikal@stillhq.com>
-Date:   Sat Sep 12 17:47:05 2026 +1000
+Date:   Mon Sep 14 06:06:00 2026 +1000
 
     Convert the remaining services to JSON logging.
     
@@ -20,10 +20,11 @@ Date:   Sat Sep 12 17:47:05 2026 +1000
     Assisted-By: Claude Opus 5 (1M context, high effort) <noreply@anthropic.com>
     Co-Authored-By: Claude Opus 5 (1M context, high effort) <noreply@anthropic.com>
     
+    Change-Id: I3e14c0f01fa3af6581232d17c4d88e1a867cf506
     Signed-off-by: Michael Still <mikal@stillhq.com>
 
 diff --git a/ansible/roles/barbican/templates/barbican.conf.j2 b/ansible/roles/barbican/templates/barbican.conf.j2
-index 6f023bd..f8abf27 100644
+index 6f023bd59..f8abf2754 100644
 --- a/ansible/roles/barbican/templates/barbican.conf.j2
 +++ b/ansible/roles/barbican/templates/barbican.conf.j2
 @@ -1,5 +1,6 @@
@@ -34,7 +35,7 @@ index 6f023bd..f8abf27 100644
  {% if service_name == "barbican-api" %}
  log_file = barbican-api.log
 diff --git a/ansible/roles/blazar/templates/blazar.conf.j2 b/ansible/roles/blazar/templates/blazar.conf.j2
-index 633a0a3..db6b068 100644
+index 633a0a3af..db6b0680d 100644
 --- a/ansible/roles/blazar/templates/blazar.conf.j2
 +++ b/ansible/roles/blazar/templates/blazar.conf.j2
 @@ -1,5 +1,6 @@
@@ -45,7 +46,7 @@ index 633a0a3..db6b068 100644
  transport_url = {{ rpc_transport_url }}
  host = {{ api_interface_address }}
 diff --git a/ansible/roles/heat/templates/heat.conf.j2 b/ansible/roles/heat/templates/heat.conf.j2
-index 3c6f7af..5c8b732 100644
+index 3c6f7af72..5c8b73229 100644
 --- a/ansible/roles/heat/templates/heat.conf.j2
 +++ b/ansible/roles/heat/templates/heat.conf.j2
 @@ -1,5 +1,6 @@
@@ -56,7 +57,7 @@ index 3c6f7af..5c8b732 100644
  log_dir = /var/log/kolla/heat
  log_file = $log_dir/{{ service_name }}.log
 diff --git a/ansible/roles/magnum/templates/magnum.conf.j2 b/ansible/roles/magnum/templates/magnum.conf.j2
-index 00667ad..b837607 100644
+index 00667ad5c..b837607ec 100644
 --- a/ansible/roles/magnum/templates/magnum.conf.j2
 +++ b/ansible/roles/magnum/templates/magnum.conf.j2
 @@ -1,5 +1,6 @@
@@ -67,7 +68,7 @@ index 00667ad..b837607 100644
  log_dir = /var/log/kolla/magnum
  log_file = /var/log/kolla/magnum/{{ service_name }}.log
 diff --git a/ansible/roles/mistral/templates/mistral.conf.j2 b/ansible/roles/mistral/templates/mistral.conf.j2
-index aeb2dab..8ad8402 100644
+index aeb2dab9d..8ad8402be 100644
 --- a/ansible/roles/mistral/templates/mistral.conf.j2
 +++ b/ansible/roles/mistral/templates/mistral.conf.j2
 @@ -1,5 +1,6 @@
@@ -78,7 +79,7 @@ index aeb2dab..8ad8402 100644
  log_dir = /var/log/kolla/mistral
  {% if service_name == 'mistral-api' %}
 diff --git a/ansible/roles/tacker/templates/tacker.conf.j2 b/ansible/roles/tacker/templates/tacker.conf.j2
-index de1d38a..144397a 100644
+index de1d38a72..144397a8b 100644
 --- a/ansible/roles/tacker/templates/tacker.conf.j2
 +++ b/ansible/roles/tacker/templates/tacker.conf.j2
 @@ -1,5 +1,6 @@
@@ -89,7 +90,7 @@ index de1d38a..144397a 100644
  
  transport_url = {{ rpc_transport_url }}
 diff --git a/ansible/roles/trove/templates/trove-guestagent.conf.j2 b/ansible/roles/trove/templates/trove-guestagent.conf.j2
-index c3333f6..3cf1b9b 100644
+index c3333f6c8..3cf1b9b0d 100644
 --- a/ansible/roles/trove/templates/trove-guestagent.conf.j2
 +++ b/ansible/roles/trove/templates/trove-guestagent.conf.j2
 @@ -6,6 +6,7 @@ control_exchange = trove
@@ -101,7 +102,7 @@ index c3333f6..3cf1b9b 100644
  [service_credentials]
  auth_url = {{ keystone_internal_url }}
 diff --git a/ansible/roles/trove/templates/trove.conf.j2 b/ansible/roles/trove/templates/trove.conf.j2
-index c3d7052..50549c8 100644
+index c3d7052f2..50549c857 100644
 --- a/ansible/roles/trove/templates/trove.conf.j2
 +++ b/ansible/roles/trove/templates/trove.conf.j2
 @@ -1,5 +1,6 @@
@@ -112,7 +113,7 @@ index c3d7052..50549c8 100644
  log_dir = /var/log/kolla/trove
  {% if service_name == "trove-api" %}
 diff --git a/ansible/roles/watcher/templates/watcher.conf.j2 b/ansible/roles/watcher/templates/watcher.conf.j2
-index 74ed796..bd4f997 100644
+index 74ed796d6..bd4f997cc 100644
 --- a/ansible/roles/watcher/templates/watcher.conf.j2
 +++ b/ansible/roles/watcher/templates/watcher.conf.j2
 @@ -1,5 +1,6 @@
