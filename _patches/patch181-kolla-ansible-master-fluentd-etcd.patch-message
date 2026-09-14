@@ -15,4 +15,5 @@ demonstrate that the JSON parser generalises.
 Assisted-By: Claude Opus 5 (1M context, high effort) <noreply@anthropic.com>
 Co-Authored-By: Claude Opus 5 (1M context, high effort) <noreply@anthropic.com>
 
+Change-Id: I9bcd92bc3e8f30c2407df1096d8cdff54e967244
 Signed-off-by: Michael Still <mikal@stillhq.com>

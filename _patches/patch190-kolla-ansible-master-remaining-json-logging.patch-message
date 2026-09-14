@@ -16,4 +16,5 @@ This is the last batch.
 Assisted-By: Claude Opus 5 (1M context, high effort) <noreply@anthropic.com>
 Co-Authored-By: Claude Opus 5 (1M context, high effort) <noreply@anthropic.com>
 
+Change-Id: I3e14c0f01fa3af6581232d17c4d88e1a867cf506
 Signed-off-by: Michael Still <mikal@stillhq.com>

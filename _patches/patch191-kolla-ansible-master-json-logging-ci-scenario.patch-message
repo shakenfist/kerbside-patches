@@ -10,4 +10,5 @@ batches with services that actually emit oslo.log output. No new job
 is added, and a dedicated scenario would have cost six, three
 distributions and their upgrades, in both check and gate.
 
+Change-Id: I202444f2215f4dcc0b1ada3371cfeb27292cd772
 Signed-off-by: Michael Still <mikal@stillhq.com>

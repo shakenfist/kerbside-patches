@@ -9,4 +9,5 @@ No per service variable is added, for the reason given when Keystone
 was converted: every oslo.log service is tailed by a single Fluentd
 input with a single parser, so the format cannot vary between them.
 
+Change-Id: Iadbb097c884fe4f6659719828681161bc2b73e1c
 Signed-off-by: Michael Still <mikal@stillhq.com>

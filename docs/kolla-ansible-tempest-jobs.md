@@ -191,6 +191,27 @@ jobs without an extra entry.
 - `kolla-ansible/ORDER` (and the equivalent stable-branch ORDER files
   if we want kerbside CI on stable too) gains the new patch.
 
+## Fluentd must collect every log the service writes
+
+`tests/check-logs.sh` runs at the end of every scenario job and calls
+`check_fluentd_missing_logs()`, which walks every `*.log` under
+`/var/log/kolla/` and fails the job unless `fluentd.log` contains a
+matching `following tail of <file>` line. A service whose logs no
+fluentd input covers therefore fails its own scenario job on every
+run, with `no match for <file>` in `fluentd-error.txt`. The house fix
+is to collect the log, not to add a skip to `check-logs.sh`.
+
+Kerbside needs two inputs, not one, because it writes two log
+formats. `15-kerbside.conf.j2` tails `kerbside/*.log` with a JSON
+parser for Kerbside's own structured output, and excludes
+`*-uwsgi.log`; a second source in the same template tails
+`kerbside/*-uwsgi.log` with the uWSGI regexp from
+`13-uwsgi.conf.j2`. The generic uWSGI input cannot cover it: it
+iterates `fluentd_enabled_input_openstack_services`, and adding
+kerbside to that list would also make `00-global.conf.j2` tail
+`kerbside/*.log` through the oslo.log parser, double-shipping the
+JSON logs and mis-parsing them. Each source needs its own `pos_file`.
+
 ## Open questions for the implementer
 
 - Do we want `voting: false` initially? The masakari, kvm, and other
