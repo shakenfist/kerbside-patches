@@ -2,4 +2,5 @@ Convert the storage services to JSON logging.
 
 Cinder and Manila now honour openstack_logging_json.
 
+Change-Id: I8d9036bc819ec0b45d2dc1b489138fb07890c8be
 Signed-off-by: Michael Still <mikal@stillhq.com>
