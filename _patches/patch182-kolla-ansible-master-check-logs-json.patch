@@ -18,7 +18,7 @@ Date:   Thu Sep 17 18:51:45 2026 +1000
     Assisted-By: Claude Opus 5 (1M context, high effort) <noreply@anthropic.com>
     Co-Authored-By: Claude Opus 5 (1M context, high effort) <noreply@anthropic.com>
     
-    Depends-On: https://review.opendev.org/c/openstack/kolla-ansible/+/1005370
+    Depends-On: https://review.opendev.org/c/openstack/kolla-ansible/+/1005458
     Change-Id: Id69511ea84bd9d4cb005c39da471fc2d576686ac
     Signed-off-by: Michael Still <mikal@stillhq.com>
 
