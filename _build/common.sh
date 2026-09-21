@@ -57,6 +57,9 @@ test_patch=""
 # Should we rewrite the patch file to match what was applied?
 update_patches="false"
 
+# Should we skip validating the Depends-On footers against review.opendev.org?
+skip_depends_on_check="false"
+
 # Should we use the CI environment's OCI registry to avoid rebuilding images?
 use_ci_patches="false"
 use_ci_registry="false"
@@ -223,6 +226,12 @@ while [[ ${found_arg} -gt 0 ]]; do
         --update-patches)
             export update_patches="true"
             echo "Will update patches to match what was applied."
+            shift
+            found_arg=1
+            ;;
+        --skip-depends-on-check)
+            export skip_depends_on_check="true"
+            echo "Will skip Depends-On validation."
             shift
             found_arg=1
             ;;

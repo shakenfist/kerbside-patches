@@ -135,6 +135,14 @@ is `name[missing]` -- every task needs a `name:`. Adding one changes the
 hunk's new-side count, so recount afterwards. Verify with
 `./_build/test-apply.sh --skip-tests kolla-ansible`.
 
+A patch's commit message is embedded in the patch itself; `<patch>-message` is
+generated from it and must not be edited on its own. If you change a
+`Depends-On` footer, change it in the patch and regenerate or delete the
+`-message` file. `tools/check-depends-on.py` enforces that, and checks the
+link against Gerrit (exists, right project, not abandoned); pre-commit runs its
+offline half and `test-apply.sh` runs all of it. See
+[docs/patch-editing.md](docs/patch-editing.md).
+
 ## Pre-Push Linting for OpenStack Gerrit
 
 The `gerrit-pre-push-lint` tool checks for common issues that reviewers typically

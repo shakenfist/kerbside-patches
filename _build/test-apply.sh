@@ -22,6 +22,18 @@ if [ ${update_patches} == "true" ]; then
     extra="${extra} --update-patches"
 fi
 
+# Validate the Depends-On footers before doing anything expensive. This is a
+# property of the patches alone, so it does not need a source tree, and a bad
+# link is worth hearing about before a clone and a tox run rather than after.
+# It lives here rather than in apply-patches-and-test.sh so that building
+# images (assemble-source.sh) never depends on review.opendev.org being up.
+if [ "${skip_depends_on_check}" == "true" ]; then
+    banner "Skipping Depends-On validation."
+else
+    banner "Validating Depends-On footers"
+    ./tools/check-depends-on.py ${@}
+fi
+
 for project in ${@}; do
     ./_build/apply-patches-and-test.sh ${extra} ${project}
 done

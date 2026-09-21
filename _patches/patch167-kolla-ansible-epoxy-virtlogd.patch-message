@@ -39,4 +39,7 @@ is absent, so an incomplete upgrade (new code, stale image) is
 caught before the container is reconfigured.
 
 Partial-Bug: 2155214
+Change-Id: I136b1ffa00346a9d097dd3f16e8e93ce8672bcc9
 Signed-off-by: Michael Still <mikal@stillhq.com>
+(cherry picked from commit 4244e6a91767a4706e59145f6841adbeeac048bb)
+(cherry picked from commit a1c47d236f006bf2fc0fa6bb447a5c99e7251d11)

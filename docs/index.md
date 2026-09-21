@@ -15,8 +15,9 @@ and tracks the health of the pipelines involved.
   `_build/` and `tools/`, including the automated rebase and lint-fix
   tooling, Gerrit helpers, and pre-commit hooks.
 - [Editing patch files by hand](patch-editing.md) — the anatomy of a
-  hunk header, the `recount-patch.py` tool that keeps them correct, and
-  why a too-small count is more dangerous than a too-large one.
+  hunk header, the `recount-patch.py` tool that keeps them correct, why
+  a too-small count is more dangerous than a too-large one, and the
+  `check-depends-on.py` validation of `Depends-On` footers.
 - [CI data collection and reporting](ci-data.md) — the container layer
   data time series and the upstream OpenDev CI reliability reports.
 - [Security scanning](security-scanning.md) — the gitleaks credential
