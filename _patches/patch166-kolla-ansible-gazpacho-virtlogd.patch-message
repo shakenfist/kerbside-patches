@@ -43,3 +43,5 @@ Partial-Bug: 2155214
 Depends-On: https://review.opendev.org/c/openstack/kolla/+/993065
 Change-Id: Ia543939b17cd06714695dff8ef8bd29bc3f8175e
 Signed-off-by: Michael Still <mikal@stillhq.com>
+(cherry picked from commit 4244e6a91767a4706e59145f6841adbeeac048bb)
+(cherry picked from commit a1c47d236f006bf2fc0fa6bb447a5c99e7251d11)

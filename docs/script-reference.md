@@ -25,6 +25,9 @@ directories. This page documents each script and its purpose.
 | `test-patches-for-ci.sh [projects...]` | CI-friendly patch testing that outputs JSON results. Tests all projects if none specified. Used by automated rebase workflows. |
 | `extract-patch-failures.py` | Parses JSON output from `test-patches-for-ci.sh` into human-readable failure details. |
 | `../tools/recount-patch.py [--in-place\|--check] <patch...>` | Recomputes the `@@` hunk headers in a patch from its body, for when a patch in `_patches/` has been hand edited. See [patch-editing.md](patch-editing.md). |
+| `../tools/check-depends-on.py [--offline] [targets...]` | Validates the `Depends-On` footers in `_patches/`: the URL is a review.opendev.org change, the change exists, is in the project the URL names, and has not been abandoned. Targets are patch files or project directories (whose `ORDER` and `depends_on` chain are expanded); with none, every patch in `_patches/`. `--offline` skips the Gerrit lookups. Run by `test-apply.sh` and, in `--offline` form, by pre-commit. See [patch-editing.md](patch-editing.md). |
+| `../tools/test-check-depends-on.py` | Test suite for `check-depends-on.py`, run against a stubbed Gerrit so it needs no network. |
+| `../tools/patch_message.py` | The commit message embedded in a patch file. Shared by `extract-commit-message` and `check-depends-on.py` so the two cannot disagree about what a patch's message says. |
 | `../tools/test-recount-patch.py` | Test suite for `recount-patch.py`, using git itself as the oracle: it generates canonical patches, damages them, and requires the recounted result to match git's output or apply cleanly. |
 
 ### Automated Rebase Scripts
@@ -136,6 +139,7 @@ The configured hooks include:
 | `actionlint` | Lints GitHub Actions workflow files for syntax errors, invalid expressions, and other issues. Custom runner labels are configured in `.github/actionlint.yaml`. |
 | `shellcheck` | Static analysis tool for shell scripts. Checks scripts in `_build/` and `tools/` directories for common issues. Configuration is in `.shellcheckrc`. |
 | `recount-patch` | Checks that every `@@` hunk header in `_patches/` matches its body. A too-large count makes git reject the patch; a too-small one makes git silently truncate the hunk and apply the wrong content. |
+| `check-depends-on` | Runs the offline half of `check-depends-on.py`: every `Depends-On` value is a review.opendev.org change URL, and a committed `<patch>-message` still matches the message in its patch. The Gerrit-backed checks (does the change exist, is it abandoned) need the network, so they run in `test-apply.sh` instead. |
 | `skillsaw` | Lints the agent context in this repository -- `CLAUDE.md`, `AGENTS.md` and the skills under `.claude/` -- for malformed skills, smuggled unicode and pasted credentials. The pin is kept current by renovate's pre-commit manager. |
 
 ### Git Hooks and Utilities

@@ -34,9 +34,12 @@ summary and an index into it.
 
 1. Create `_patches/patchNNN-description.patch`
 2. Add it to the appropriate project's `ORDER` file
-3. Optionally create a `.patch-message` file for commit
-   message override
-4. Use `_build/get-next-patch-number.py` to find the next
+3. `.patch-message` is generated from the patch, not
+   authored: edit the message inside the patch and
+   regenerate with `tools/extract-commit-message`
+4. Validate any `Depends-On` footer with
+   `tools/check-depends-on.py`
+5. Use `_build/get-next-patch-number.py` to find the next
    available number (checks both files and open PRs)
 
 ### Modifying Build Pipeline

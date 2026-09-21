@@ -1,6 +1,6 @@
-commit 57f69c143e51642546a2aea46b39c5b1bc0f4a34
+commit 7ee9e1460d51b917db8b53cdde4ed6624e9b475e
 Author: Michael Still <mikal@stillhq.com>
-Date:   Thu Sep 17 18:51:45 2026 +1000
+Date:   Mon Sep 21 17:00:07 2026 +1000
 
     Detect log levels in JSON formatted logs.
     
@@ -18,7 +18,7 @@ Date:   Thu Sep 17 18:51:45 2026 +1000
     Assisted-By: Claude Opus 5 (1M context, high effort) <noreply@anthropic.com>
     Co-Authored-By: Claude Opus 5 (1M context, high effort) <noreply@anthropic.com>
     
-    Depends-On: https://review.opendev.org/c/openstack/kolla-ansible/+/1005370
+    Depends-On: https://review.opendev.org/c/openstack/kolla-ansible/+/1005458
     Change-Id: Id69511ea84bd9d4cb005c39da471fc2d576686ac
     Signed-off-by: Michael Still <mikal@stillhq.com>
 

@@ -41,3 +41,19 @@ repos:
         entry: tools/recount-patch.py --check
         language: system
         files: ^_patches/.*\.patch$
+
+  # A patch's Depends-On footer points at a change on review.opendev.org.
+  # Nothing in the build reads it, so a wrong link stays invisible until a
+  # gate job behaves oddly. Only the offline checks run here -- the URL is
+  # well formed, and a committed <patch>-message has not drifted away from
+  # the patch it was generated from, which is how one copy of a footer ends
+  # up fixed and the other stale. _build/test-apply.sh runs the same tool
+  # without --offline, which additionally asks Gerrit whether the change
+  # exists, is in the project named, and has not been abandoned.
+  - repo: local
+    hooks:
+      - id: check-depends-on
+        name: Depends-On footers are well formed
+        entry: tools/check-depends-on.py --offline
+        language: system
+        files: ^_patches/.*\.patch(-message)?$

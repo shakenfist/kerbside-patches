@@ -3,7 +3,8 @@
 The patches in `_patches/` are the source artifact for this repository, so
 they get edited directly rather than being regenerated from a working tree.
 That means keeping each `@@` hunk header in step with the body you just
-changed, which is the fiddly part.
+changed, which is the fiddly part, and keeping the commit message embedded in
+the patch correct, because nothing in the build reads it.
 
 ## The hunk header
 
@@ -45,6 +46,78 @@ before it reaches CI. `tools/test-recount-patch.py` is the test suite; it
 builds throwaway git repositories, has git generate canonical patches, damages
 them, and requires the recounted result either to match git's own output byte
 for byte or to apply cleanly.
+
+## Depends-On footers
+
+A patch's commit message may carry a `Depends-On:` footer pointing at a change
+on review.opendev.org that has to land first:
+
+```
+Depends-On: https://review.opendev.org/c/openstack/kolla-ansible/+/1005458
+```
+
+Nothing in the build reads it. It is there for Zuul, when the patch is pushed
+upstream, and for whoever reads the patch next -- which means a wrong link is
+invisible here. It only surfaces later as a gate job that waits on the wrong
+thing, or a reviewer following the link somewhere unrelated.
+
+`tools/check-depends-on.py` validates them:
+
+```bash
+# Every patch, including the Gerrit lookups
+tools/check-depends-on.py
+
+# Just the patches one project applies, and the projects it depends on
+tools/check-depends-on.py kolla-ansible
+
+# No network (this is what pre-commit runs)
+tools/check-depends-on.py --offline _patches/patch182-*.patch
+```
+
+`_build/test-apply.sh` runs it over the projects it is about to test, before
+cloning anything, so a bad link fails in seconds rather than after a tox run.
+`--skip-depends-on-check` turns that off.
+
+The check that earns its keep is **abandoned**. Abandoning a change and
+re-uploading it -- the normal response to a change that has gone stale -- keeps
+the subject but issues a new change number *and* a new Change-Id, so a link
+copied before the re-upload still resolves, still looks right, and can never be
+satisfied. The tool reports the status and then finds the open change with the
+same subject in the same project, which is almost always the one the footer
+meant:
+
+```
+_patches/patch182-kolla-ansible-master-check-logs-json.patch:17: Depends-On
+https://review.opendev.org/c/openstack/kolla-ansible/+/1005370 is ABANDONED
+    "Collect etcd logs with Fluentd." was abandoned, so this dependency can
+    never be satisfied.
+    The open change with that subject is 1005458:
+        https://review.opendev.org/c/openstack/kolla-ansible/+/1005458
+```
+
+It also rejects a value that is not a change URL (Zuul deprecated the bare
+Change-Id form), a URL whose project is not the change's real project, a change
+number that does not exist, and a patch depending on its own change.
+
+## The two copies of a commit message
+
+A patch's commit message lives in the patch itself, indented four spaces
+between the header and the first `diff --git`. `tools/extract-commit-message`
+writes it out to `<patch>-message` at apply time, because `git commit --file`
+needs a file. Many of those generated files are also committed.
+
+That makes two copies of every footer, and they drift: fixing a `Depends-On` in
+the patch and forgetting the `-message` beside it leaves a stale link in the
+file a human is most likely to read. The offline half of `check-depends-on.py`
+compares them, so a committed `-message` has to match the patch it came from.
+Regenerate it, or delete it -- the build recreates it either way:
+
+```bash
+python3 tools/extract-commit-message _patches/patchNNN-whatever.patch
+```
+
+Both tools parse the message through `tools/patch_message.py`, so they cannot
+disagree about where the message starts and ends.
 
 ## Why getting this wrong is worse than it looks
 
