@@ -1,6 +1,6 @@
-commit 6fcfdd53925cda6fac78ef784c11d9b0a8eef60d
+commit c58f0713fee9988658adf0df32a0a17583410b6d
 Author: Michael Still <mikal@stillhq.com>
-Date:   Thu Sep 17 18:51:46 2026 +1000
+Date:   Mon Sep 21 17:00:07 2026 +1000
 
     Convert the compute services to JSON logging.
     
@@ -35,7 +35,7 @@ index 9de6cfc2d..225b6afd9 100644
  transport_url = {{ rpc_transport_url }}
  
 diff --git a/ansible/roles/ironic/templates/ironic.conf.j2 b/ansible/roles/ironic/templates/ironic.conf.j2
-index a808fba26..4d9528ea3 100644
+index 1073c1750..ea886b5f4 100644
 --- a/ansible/roles/ironic/templates/ironic.conf.j2
 +++ b/ansible/roles/ironic/templates/ironic.conf.j2
 @@ -3,6 +3,7 @@
