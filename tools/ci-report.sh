@@ -64,6 +64,27 @@
 #                      nearly always hit and the plain scenario jobs never,
 #                      so the CSV's job_name column is where the answer is
 #
+#   mariadb-collation
+#                    - a database migration aborting with MariaDB error 1267,
+#                      "Illegal mix of collations". Newer MariaDB resolves a
+#                      bare CHARACTER SET utf8mb3 (no COLLATE) to
+#                      utf8mb3_uca1400_ai_ci rather than utf8mb3_general_ci,
+#                      and the two do not compare, so a JOIN between a table
+#                      that named a charset and one that did not now aborts.
+#                      The flip is MDEV-25829, which landed in MariaDB
+#                      11.5.1 by giving character_set_collations a non-empty
+#                      default; on 2026-09-21 trixie (11.8.6) hit this while
+#                      noble and rocky (11.4.13) did not. Pinning
+#                      collation-server does not help, because a table naming
+#                      a charset takes the server's charset-default mapping
+#                      instead; character-set-collations='' is the documented
+#                      way back. Magnum's
+#                      c04e925e65c2_nodegroups_v2 is the first casualty and
+#                      fails its jobs outright, but the target string names no
+#                      project on purpose: any service whose migration chain
+#                      straddles the change produces it, so the CSV's
+#                      job_name column is where the blast radius shows up
+#
 # Note on the fluentd-missing-logs denominator: fluentd-error.txt is only
 # published by builds that already failed this check, so on its own it would
 # chart a constant 100% hit rate. The second log suffix, fluentd/fluentd.txt,
@@ -87,7 +108,7 @@ report="$1"
 if [ -z "${report}" ]; then
     echo "Usage: $0 <report>|all" >&2
     echo "Reports: libvirt-limit mariadb-ist wsrep-sync-fatal ovs-create-tap scheduler-unhealthy" >&2
-    echo "         fluentd-missing-logs haproxy-layer7-timeout" >&2
+    echo "         fluentd-missing-logs haproxy-layer7-timeout mariadb-collation" >&2
     exit 1
 fi
 
@@ -179,6 +200,18 @@ run_report() {
             chart_title='Control plane API stalls (haproxy Layer7 health check timeouts) on master CI'
             fix_merged=''
             ;;
+        mariadb-collation)
+            target='Illegal mix of collations'
+            projects='openstack/kolla openstack/kolla-ansible'
+            # No job filter and no project in the target string: which
+            # services the collation change breaks is the question.
+            job_filter=''
+            suffixes='logs/ansible/deploy logs/ansible/upgrade'
+            basename='kolla_mariadb_collation_errors'
+            chart='kolla_mariadb_collation_chart.png'
+            chart_title='Database migrations aborting on MariaDB collation mismatch on master CI'
+            fix_merged=''
+            ;;
         *)
             echo "Unknown report: ${name}" >&2
             exit 1
@@ -215,7 +248,7 @@ run_report() {
 
 if [ "${report}" = "all" ]; then
     for name in libvirt-limit mariadb-ist wsrep-sync-fatal ovs-create-tap scheduler-unhealthy \
-                fluentd-missing-logs haproxy-layer7-timeout; do
+                fluentd-missing-logs haproxy-layer7-timeout mariadb-collation; do
         run_report "${name}"
     done
 else
