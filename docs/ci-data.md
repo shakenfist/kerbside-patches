@@ -214,6 +214,47 @@ lives in `tools/ci-report.sh` and currently covers:
   builds passed despite stalling, so a hit is a strong but not
   perfect predictor of failure -- treat the CSV's `result` column as
   part of the signal rather than assuming every hit is a job loss.
+- `mariadb-collation` -- how often a database migration aborts with
+  MariaDB error 1267, `Illegal mix of collations`. Newer MariaDB
+  resolves a bare `CHARACTER SET utf8mb3` (no `COLLATE`) to
+  `utf8mb3_uca1400_ai_ci` rather than the historical
+  `utf8mb3_general_ci`, and the two do not compare, so a JOIN between a
+  table that named a charset and one that did not now aborts. The
+  flip is [MDEV-25829](https://jira.mariadb.org/browse/MDEV-25829),
+  which landed in MariaDB 11.5.1: it did not change the compiled-in
+  defaults but gave the `character_set_collations` variable (added in
+  11.2) a non-empty default mapping every Unicode charset to its
+  uca1400 collation. CI brackets that exactly -- on 2026-09-21
+  `debian-trixie` (MariaDB 11.8.6) hit this while `ubuntu-noble` and
+  `rocky-10` (both 11.4.13) did not -- so exposure tracks the MariaDB
+  version rather than the distro as such. Note that Kolla's own
+  `galera.cnf` already pins `collation-server = utf8_general_ci`, which
+  does not help: a table that names a charset takes the server's
+  charset-default mapping and never consults the database default. The
+  documented way back is `character-set-collations=''`.
+
+  Magnum is the first casualty, because its migration chain straddles
+  the two styles -- `bay`/`cluster` was created in 2015 with
+  `mysql_DEFAULT_CHARSET='UTF8'` and no collation, while `nodegroup`
+  was added in 2019 naming no charset at all. `c04e925e65c2_nodegroups_v2`
+  then runs `UPDATE nodegroup INNER JOIN cluster ON
+  nodegroup.cluster_id=cluster.uuid`, which fails outright and takes
+  the whole `kolla-ansible deploy` with it --
+  `kolla-ansible-debian-trixie-magnum` failed 18 of its last 20 builds
+  when this report was added on 2026-09-22, and Zuul's retention shows
+  it red as far back as it goes (2026-07-25).
+
+  That deterministic breakage is not itself the interesting part, and
+  the chart will sit flat while it lasts. The report exists because the
+  target string names no project: magnum's chain is simply old enough
+  to straddle the change first, and any other service whose chain does
+  the same will produce the identical error. The `job_name` column is
+  therefore the point of the report -- it is what tells you whether
+  this stays one broken service or spreads as MariaDB rolls forward.
+  The suffixes are the ansible run logs rather than a service log
+  because the traceback is emitted by the bootstrap container and
+  captured by the failing ansible task, not written under
+  `/var/log/kolla`. Set `fix_merged` once a fix lands upstream.
 
 Each report is a target string plus the log file(s) to scan for it; the
 shared scan/aggregate/chart engine is `tools/count_ci_log_errors.py`
