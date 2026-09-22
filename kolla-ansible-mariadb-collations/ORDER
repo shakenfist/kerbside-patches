@@ -1,0 +1,2 @@
+../_patches/patch193-kolla-ansible-master-mariadb-collation-pin.patch
+../_patches/patch194-kolla-ansible-master-mariadb-collation-precheck.patch

@@ -1,0 +1,11 @@
+repo: https://opendev.org/openstack/magnum
+source_branch: master
+destination_branch: mariadb-collations
+shallow_clone: false
+directory: magnum
+release: master-magnum-mariadb-collations
+depends_on: ''
+source_sha: 998c576136fbbcc867f34af82d96ef66359b41d7
+previous_source_sha: 998c576136fbbcc867f34af82d96ef66359b41d7
+skip_rebase: true
+skip_claude: true

@@ -1,0 +1,79 @@
+commit 093eb887d0556256ec74384d8bf546784a2a5f4a
+Author: Michael Still <mikal@stillhq.com>
+Date:   Tue Sep 22 19:35:31 2026 +1000
+
+    Declare a character set on three tables.
+    
+    nodegroup, federation and magnum_service are created without a character
+    set, while magnum's other ten tables and models.table_args() both ask for
+    UTF8. Declare it on all three, so the schema no longer depends on how the
+    server resolves a default that some tables state and others do not.
+    
+    From MariaDB 11.5 a bare CHARACTER SET stopped resolving to the same
+    collation as the database default (MDEV-25829). nodegroup then lands on
+    utf8mb3_general_ci and cluster on utf8mb3_uca1400_ai_ci, and the join
+    between them in nodegroups_v2 aborts every new deployment.
+    
+    Prompt: Michael asked what a Magnum-side fix for the MariaDB collation
+    failure would look like, given Magnum is the only service Kolla-Ansible
+    CI sees it in, and asked for it as a patch in a new magnum patch stream
+    so it can go upstream alongside the Kolla-Ansible changes.
+    
+    Assisted-By: Claude Opus 5 (1M context, high effort) <noreply@anthropic.com>
+    Co-Authored-By: Claude Opus 5 (1M context, high effort) <noreply@anthropic.com>
+    
+    Change-Id: I4487a21d4a9da3f759b883eba1bd710db89cabe9
+    Signed-off-by: Michael Still <mikal@stillhq.com>
+
+diff --git a/magnum/db/sqlalchemy/alembic/versions/27ad304554e2_adding_magnum_service_functionality.py b/magnum/db/sqlalchemy/alembic/versions/27ad304554e2_adding_magnum_service_functionality.py
+index b142464..3deaecc 100644
+--- a/magnum/db/sqlalchemy/alembic/versions/27ad304554e2_adding_magnum_service_functionality.py
++++ b/magnum/db/sqlalchemy/alembic/versions/27ad304554e2_adding_magnum_service_functionality.py
+@@ -49,5 +49,6 @@ def upgrade():
+                   nullable=True),
+         sa.PrimaryKeyConstraint('id'),
+         sa.UniqueConstraint('host', 'binary',
+-                            name='uniq_magnum_service0host0binary')
++                            name='uniq_magnum_service0host0binary'),
++        mysql_DEFAULT_CHARSET='UTF8'
+     )
+diff --git a/magnum/db/sqlalchemy/alembic/versions/9a1539f1cd2c_add_federation_table.py b/magnum/db/sqlalchemy/alembic/versions/9a1539f1cd2c_add_federation_table.py
+index 187eff0..8d09a21 100644
+--- a/magnum/db/sqlalchemy/alembic/versions/9a1539f1cd2c_add_federation_table.py
++++ b/magnum/db/sqlalchemy/alembic/versions/9a1539f1cd2c_add_federation_table.py
+@@ -43,5 +43,6 @@ def upgrade():
+         sa.Column('status_reason', sa.Text(), nullable=True),
+         sa.Column('properties', models.JSONEncodedList(), nullable=True),
+         sa.PrimaryKeyConstraint('id'),
+-        sa.UniqueConstraint('uuid', name='uniq_federation0uuid')
++        sa.UniqueConstraint('uuid', name='uniq_federation0uuid'),
++        mysql_DEFAULT_CHARSET='UTF8'
+     )
+diff --git a/magnum/db/sqlalchemy/alembic/versions/ac92cbae311c_add_nodegoup_table.py b/magnum/db/sqlalchemy/alembic/versions/ac92cbae311c_add_nodegoup_table.py
+index cb9c3b3..1c3a5e4 100644
+--- a/magnum/db/sqlalchemy/alembic/versions/ac92cbae311c_add_nodegoup_table.py
++++ b/magnum/db/sqlalchemy/alembic/versions/ac92cbae311c_add_nodegoup_table.py
+@@ -60,4 +60,5 @@ def upgrade():
+         sa.UniqueConstraint('uuid', name='uniq_nodegroup0uuid'),
+         sa.UniqueConstraint('cluster_id', 'name',
+                             name='uniq_nodegroup0cluster_id0name'),
++        mysql_DEFAULT_CHARSET='UTF8'
+     )
+diff --git a/releasenotes/notes/mariadb-table-charset-caf1940283bc5fec.yaml b/releasenotes/notes/mariadb-table-charset-caf1940283bc5fec.yaml
+new file mode 100644
+index 0000000..6d9a471
+--- /dev/null
++++ b/releasenotes/notes/mariadb-table-charset-caf1940283bc5fec.yaml
+@@ -0,0 +1,12 @@
++---
++fixes:
++  - |
++    The ``nodegroup``, ``federation`` and ``magnum_service`` tables are now
++    created with the same ``UTF8`` character set as magnum's other tables.
++    From MariaDB 11.5 a table that declares a character set and a table that
++    declares none no longer receive the same collation, so a new deployment
++    failed in the ``nodegroups_v2`` migration with ``Illegal mix of
++    collations (utf8mb3_general_ci,IMPLICIT) and
++    (utf8mb3_uca1400_ai_ci,IMPLICIT) for operation '='``. Existing
++    deployments are unaffected, because the migrations that create these
++    tables have already run for them.

@@ -1,0 +1,93 @@
+commit b80cdb68b54f1b88eade51236a2f6929ff324d31
+Author: Michael Still <mikal@stillhq.com>
+Date:   Tue Sep 22 16:07:34 2026 +1000
+
+    Warn on databases with mixed utf8mb3 collations.
+    
+    A database whose tables were created either side of the MariaDB 11.5
+    change to character_set_collations (MDEV-25829) holds columns in both
+    utf8mb3_general_ci and utf8mb3_uca1400_ai_ci. Nothing fails until a
+    migration joins one to the other, so the state stays invisible.
+    
+    Report it from the MariaDB prechecks, which already know whether
+    MariaDB is deployed. The check inspects columns rather than table
+    defaults because columns are what a join compares, and it warns rather
+    than failing since the condition does not break the current deploy.
+    
+    Prompt: Michael asked for the config fix and precheck we designed for
+    the MariaDB collation split to be generated as patches, on a new
+    worktree, so we can put them up for upstream review and see what
+    reviewers say. This change is the precheck half.
+    
+    Assisted-By: Claude Opus 5 (1M context, high effort) <noreply@anthropic.com>
+    Co-Authored-By: Claude Opus 5 (1M context, high effort) <noreply@anthropic.com>
+    
+    Change-Id: I2e81532ece9116238ee44555b1fb8ebae5360c70
+    Signed-off-by: Michael Still <mikal@stillhq.com>
+
+diff --git a/ansible/roles/mariadb/tasks/precheck.yml b/ansible/roles/mariadb/tasks/precheck.yml
+index 205b0fd..a1a121b 100644
+--- a/ansible/roles/mariadb/tasks/precheck.yml
++++ b/ansible/roles/mariadb/tasks/precheck.yml
+@@ -55,3 +55,43 @@
+     state: stopped
+   when:
+     - container_facts.containers['mariadb'] is not defined
++
++- name: Check for databases with mixed utf8mb3 collations
++  when:
++    - container_facts.containers['mariadb'] is defined
++  block:
++    - name: Look for databases with mixed utf8mb3 collations
++      become: true
++      kolla_toolbox:
++        container_engine: "{{ kolla_container_engine }}"
++        module_name: mysql_query
++        module_args:
++          ca_cert: "{{ openstack_cacert if database_enable_tls_backend | bool else omit }}"
++          login_db: "mysql"
++          login_host: "{{ api_interface_address }}"
++          login_port: "{{ mariadb_port }}"
++          login_user: "{{ database_user }}"
++          login_password: "{{ database_password }}"
++          query: >-
++            SELECT TABLE_SCHEMA FROM information_schema.COLUMNS
++            WHERE COLLATION_NAME LIKE 'utf8mb3%'
++            AND TABLE_SCHEMA NOT IN ('mysql', 'information_schema', 'performance_schema', 'sys')
++            GROUP BY TABLE_SCHEMA
++            HAVING SUM(COLLATION_NAME LIKE '%uca1400%') > 0
++            AND SUM(COLLATION_NAME LIKE '%general_ci%') > 0
++      check_mode: false
++      changed_when: false
++      register: mariadb_collation_check
++
++    - name: Warn about databases with mixed utf8mb3 collations
++      ansible.builtin.debug:
++        msg: >-
++          These databases contain both utf8mb3_general_ci and
++          utf8mb3_uca1400_ai_ci columns:
++          {{ mariadb_collation_check.query_result[0] | map(attribute='TABLE_SCHEMA') | join(', ') }}.
++          They were created either side of the MariaDB 11.5 change to
++          character_set_collations (MDEV-25829). Any migration that joins a
++          column of one collation to a column of the other will fail with
++          "Illegal mix of collations".
++      when:
++        - mariadb_collation_check.query_result[0] | length > 0
+diff --git a/releasenotes/notes/mariadb-mixed-collation-precheck-4bb39745eb0b4fbd.yaml b/releasenotes/notes/mariadb-mixed-collation-precheck-4bb39745eb0b4fbd.yaml
+new file mode 100644
+index 0000000..1784eb0
+--- /dev/null
++++ b/releasenotes/notes/mariadb-mixed-collation-precheck-4bb39745eb0b4fbd.yaml
+@@ -0,0 +1,12 @@
++---
++features:
++  - |
++    The MariaDB prechecks now report any database holding both
++    ``utf8mb3_general_ci`` and ``utf8mb3_uca1400_ai_ci`` columns. A database
++    reaches that state when some of its tables were created before MariaDB
++    11.5 changed ``character_set_collations`` (MDEV-25829) and some after, and
++    it stays harmless until a migration joins a column of one collation to a
++    column of the other, at which point that migration fails with ``Illegal
++    mix of collations``. The precheck only runs where MariaDB is already
++    deployed, and warns rather than failing, because the condition does not
++    break the deployment it is detected in.
