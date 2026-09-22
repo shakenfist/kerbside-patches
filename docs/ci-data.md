@@ -251,7 +251,13 @@ lives in `tools/ci-report.sh` and currently covers:
   them was created under the new MariaDB; a database created under an
   older MariaDB and later served by a newer one has no CI coverage at
   all. Our patch193 pins the mapping in `galera.cnf` and patch194 adds a
-  MariaDB precheck warning when a database already holds both collations.
+  MariaDB precheck warning when a database already holds both collations,
+  both carried in the `kolla-ansible-mariadb-collations` stream. patch195
+  in `magnum-mariadb-collations` is the change that actually unbreaks the
+  job: `nodegroup`, `federation` and `magnum_service` are created without
+  a character set while magnum's other ten tables and its
+  `models.table_args()` both ask for `UTF8`, so declaring it on those
+  three makes every magnum table resolve the same way.
 
   Magnum is the first casualty, because its migration chain straddles
   the two styles -- `bay`/`cluster` was created in 2015 with
