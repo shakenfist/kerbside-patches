@@ -250,10 +250,14 @@ lives in `tools/ci-report.sh` and currently covers:
   jobs run the same trixie containers on both sides, so every table in
   them was created under the new MariaDB; a database created under an
   older MariaDB and later served by a newer one has no CI coverage at
-  all. Our patch193 pins the mapping in `galera.cnf` and patch194 adds a
-  MariaDB precheck warning when a database already holds both collations,
-  both carried in the `kolla-ansible-mariadb-collations` stream. patch195
-  in `magnum-mariadb-collations` is the change that actually unbreaks the
+  all. Our patch193 pins the mapping in `galera.cnf` and patch194 warns
+  from `kolla-ansible check` when a database already holds both
+  collations -- the MariaDB prechecks cannot do it, because they run
+  before any schema exists on a fresh deploy and against the
+  pre-upgrade schema otherwise, and the mixture is created by the
+  service migrations partway through the run. Both are carried in the
+  `kolla-ansible-mariadb-collations` stream. patch195 in
+  `magnum-mariadb-collations` is the change that actually unbreaks the
   job: `nodegroup`, `federation` and `magnum_service` are created without
   a character set while magnum's other ten tables and its
   `models.table_args()` both ask for `UTF8`, so declaring it on those
