@@ -232,6 +232,26 @@ lives in `tools/ci-report.sh` and currently covers:
   does not help: a table that names a charset takes the server's
   charset-default mapping and never consults the database default. The
   documented way back is `character-set-collations=''`.
+  A 30 day scan on 2026-09-22 found 82 hits across 12,953 builds, all of
+  them in `kolla-ansible-debian-trixie-magnum`, all job failures, and all
+  with exactly six matches -- a deterministic signature rather than a
+  flake, and magnum is the only service whose migration chain straddles
+  the two declaration styles. `rocky-10-magnum` and `ubuntu-noble-magnum`
+  ran the same migrations 166 times on 11.4.13 with no hits, but they
+  fail for unrelated reasons, so trixie-magnum turning green is not a
+  usable signal that a fix worked. Why only trixie sees a newer MariaDB
+  is itself a Kolla bug: `kolla/template/repos.yaml` pins the MariaDB
+  11.4 repository for all three distros, but its Debian entry can only
+  offer `bookworm` builds ("11.4 does not have trixie builds yet"), so
+  the trixie image resolves to Debian's own MariaDB 11.8 instead. That
+  makes trixie an accidental preview rather than an outlier -- rocky and
+  noble get the same exposure as soon as that pin moves past 11.5. The
+  scan also cannot see the more serious case, because Kolla's upgrade
+  jobs run the same trixie containers on both sides, so every table in
+  them was created under the new MariaDB; a database created under an
+  older MariaDB and later served by a newer one has no CI coverage at
+  all. Our patch193 pins the mapping in `galera.cnf` and patch194 adds a
+  MariaDB precheck warning when a database already holds both collations.
 
   Magnum is the first casualty, because its migration chain straddles
   the two styles -- `bay`/`cluster` was created in 2015 with
