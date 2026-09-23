@@ -1,6 +1,6 @@
-commit 6f65c775b2cd9605ae9b0ad7fd3eacbd6565d9cb
+commit a338013420d009a865bb3e9356023309ded60bce
 Author: Michael Still <mikal@stillhq.com>
-Date:   Mon Sep 21 16:56:00 2026 +1000
+Date:   Wed Sep 23 20:37:29 2026 +1000
 
     Deploy Kerbside with Kolla-Ansible.
     
@@ -47,7 +47,7 @@ index decf2682b..0956ff88a 100644
    hosts: localhost
 diff --git a/ansible/group_vars/all/kerbside.yml b/ansible/group_vars/all/kerbside.yml
 new file mode 100644
-index 000000000..d62d2a3d5
+index 000000000..d82a96475
 --- /dev/null
 +++ b/ansible/group_vars/all/kerbside.yml
 @@ -0,0 +1,18 @@
@@ -70,7 +70,7 @@ index 000000000..d62d2a3d5
 +kerbside_safety_upgrade: false
 +kerbside_enable_tls_backend: true
 diff --git a/ansible/inventory/all-in-one b/ansible/inventory/all-in-one
-index 543371a4a..8baef8c5f 100644
+index 543371a4a..512e29596 100644
 --- a/ansible/inventory/all-in-one
 +++ b/ansible/inventory/all-in-one
 @@ -27,6 +27,7 @@ network
@@ -96,7 +96,7 @@ index 543371a4a..8baef8c5f 100644
 +[vdiproxy:children]
 +control
 diff --git a/ansible/inventory/multinode b/ansible/inventory/multinode
-index d7db4653d..5d7e1cb99 100644
+index d7db4653d..84d14574a 100644
 --- a/ansible/inventory/multinode
 +++ b/ansible/inventory/multinode
 @@ -38,6 +38,7 @@ network
@@ -130,7 +130,7 @@ index d7db4653d..5d7e1cb99 100644
 +[vdiproxy:children]
 +control
 diff --git a/ansible/nova.yml b/ansible/nova.yml
-index 4f24f6e1c..2ec04b969 100644
+index 4f24f6e1c..51c813487 100644
 --- a/ansible/nova.yml
 +++ b/ansible/nova.yml
 @@ -20,6 +20,9 @@
@@ -212,7 +212,7 @@ index 156a5c7fd..835079a36 100644
  certificates_libvirt_output_dir: "{{ node_custom_config }}/nova/nova-libvirt"
 diff --git a/ansible/roles/certificates/tasks/generate-kerbside.yml b/ansible/roles/certificates/tasks/generate-kerbside.yml
 new file mode 100644
-index 000000000..0d18fccac
+index 000000000..f33ce37c9
 --- /dev/null
 +++ b/ansible/roles/certificates/tasks/generate-kerbside.yml
 @@ -0,0 +1,65 @@
@@ -387,7 +387,7 @@ index 000000000..4409af80d
 +</source>
 diff --git a/ansible/roles/kerbside/defaults/main.yml b/ansible/roles/kerbside/defaults/main.yml
 new file mode 100644
-index 000000000..12f7be414
+index 000000000..8281ed5fe
 --- /dev/null
 +++ b/ansible/roles/kerbside/defaults/main.yml
 @@ -0,0 +1,192 @@
@@ -1011,7 +1011,7 @@ index 000000000..7fa7afefb
 +  ansible.builtin.include_tasks: "{{ kolla_action }}.yml"
 diff --git a/ansible/roles/kerbside/tasks/precheck.yml b/ansible/roles/kerbside/tasks/precheck.yml
 new file mode 100644
-index 000000000..83a671327
+index 000000000..14d009ad7
 --- /dev/null
 +++ b/ansible/roles/kerbside/tasks/precheck.yml
 @@ -0,0 +1,93 @@
@@ -1236,7 +1236,7 @@ index 000000000..304ef982f
 +</VirtualHost>
 diff --git a/ansible/roles/kerbside/templates/kerbside.ini.j2 b/ansible/roles/kerbside/templates/kerbside.ini.j2
 new file mode 100644
-index 000000000..0cd2c4443
+index 000000000..147106f1e
 --- /dev/null
 +++ b/ansible/roles/kerbside/templates/kerbside.ini.j2
 @@ -0,0 +1,31 @@
@@ -1464,7 +1464,7 @@ index 000000000..3952637bb
 +}
 diff --git a/ansible/roles/kerbside/templates/kerbside_sources.yaml.j2 b/ansible/roles/kerbside/templates/kerbside_sources.yaml.j2
 new file mode 100644
-index 000000000..42faa93c8
+index 000000000..dea1f77dd
 --- /dev/null
 +++ b/ansible/roles/kerbside/templates/kerbside_sources.yaml.j2
 @@ -0,0 +1,20 @@

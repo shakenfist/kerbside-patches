@@ -1,6 +1,6 @@
-commit 87971e66c698741d03c3e3f063f1265105745145
+commit 6d89d6aee5cb5ce59067347aae3095568b25e073
 Author: Michael Still <mikal@stillhq.com>
-Date:   Mon Sep 21 17:00:08 2026 +1000
+Date:   Wed Sep 23 20:44:49 2026 +1000
 
     Convert the storage services to JSON logging.
     

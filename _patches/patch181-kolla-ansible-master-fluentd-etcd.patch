@@ -1,6 +1,6 @@
-commit 4d4a1fe5645b4efd14e9bc5b17be03dd4c92ad9a
+commit 32066a932b0d9a542fa53f3c6084645ee8e517a3
 Author: Michael Still <mikal@stillhq.com>
-Date:   Mon Sep 21 16:56:01 2026 +1000
+Date:   Wed Sep 23 20:37:30 2026 +1000
 
     Collect etcd logs with Fluentd.
     
