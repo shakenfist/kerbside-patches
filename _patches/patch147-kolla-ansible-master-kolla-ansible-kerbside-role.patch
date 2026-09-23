@@ -1014,7 +1014,7 @@ new file mode 100644
 index 000000000..14d009ad7
 --- /dev/null
 +++ b/ansible/roles/kerbside/tasks/precheck.yml
-@@ -0,0 +1,93 @@
+@@ -0,0 +1,102 @@
 +---
 +- name: Run service precheck
 +  ansible.builtin.import_role:
@@ -1036,6 +1036,15 @@ index 000000000..14d009ad7
 +  when:
 +    - enable_kerbside | bool
 +    - groups['kerbside_proxy'] | length == 0
++
++- name: Ensure Nova is configured for spice-direct consoles
++  ansible.builtin.fail:
++    msg: >-
++      Kerbside proxies Nova spice-direct consoles, which requires
++      enable_nova to be true and nova_console to be "spice".
++  when:
++    - enable_kerbside | bool
++    - not enable_nova | bool or nova_console != 'spice'
 +
 +- name: Get API container facts
 +  become: true
@@ -1638,7 +1647,7 @@ new file mode 100644
 index 000000000..90e10f0a9
 --- /dev/null
 +++ b/doc/source/reference/compute/kerbside-guide.rst
-@@ -0,0 +1,52 @@
+@@ -0,0 +1,53 @@
 +.. _kerbside-guide:
 +
 +==========================
@@ -1660,7 +1669,8 @@ index 000000000..90e10f0a9
 +Kolla Ansible deploys the Kerbside REST API (``kerbside_api``) and SPICE
 +proxy (``kerbside_proxy``) containers when ``enable_kerbside`` is set in
 +``/etc/kolla/globals.yml``. Kerbside proxies Nova SPICE consoles, so
-+``nova_console`` must also be set to ``spice``:
++``nova_console`` must also be set to ``spice``. The Kerbside prechecks fail
++if it is not:
 +
 +.. code-block:: yaml
 +
