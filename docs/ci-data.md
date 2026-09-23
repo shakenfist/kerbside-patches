@@ -263,6 +263,16 @@ lives in `tools/ci-report.sh` and currently covers:
   `models.table_args()` both ask for `UTF8`, so declaring it on those
   three makes every magnum table resolve the same way.
 
+  Our own functional tests carry a reproduction of this. The master
+  all-in-one and multinode jobs deploy trixie containers, so
+  `etc/globals-master.yml` sets `enable_magnum: true` and
+  `tools/bootstrap-kolla-ansible` writes
+  `/etc/kolla/config/galera.cnf` with `character-set-collations = ''`.
+  That is patch193's effect delivered through kolla-ansible's
+  supported `node_custom_config` merge rather than through the patch
+  stream, which keeps the kerbside series about kerbside. Removing
+  that file is how to reproduce the upstream failure on demand.
+
   Magnum is the first casualty, because its migration chain straddles
   the two styles -- `bay`/`cluster` was created in 2015 with
   `mysql_DEFAULT_CHARSET='UTF8'` and no collation, while `nodegroup`
