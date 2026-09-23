@@ -14,6 +14,7 @@ Date:   Mon Sep 21 17:00:08 2026 +1000
     is added, and a dedicated scenario would have cost six, three
     distributions and their upgrades, in both check and gate.
     
+    Depends-On: https://review.opendev.org/c/openstack/kolla-ansible/+/1005458
     Change-Id: I202444f2215f4dcc0b1ada3371cfeb27292cd772
     Signed-off-by: Michael Still <mikal@stillhq.com>
 

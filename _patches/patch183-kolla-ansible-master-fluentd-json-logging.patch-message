@@ -23,5 +23,6 @@ service in Kolla-Ansible log JSON using the parser added for Kerbside.
 Assisted-By: Claude Opus 5 (1M context, high effort) <noreply@anthropic.com>
 Co-Authored-By: Claude Opus 5 (1M context, high effort) <noreply@anthropic.com>
 
+Depends-On: https://review.opendev.org/c/openstack/kolla-ansible/+/1005458
 Change-Id: I8cd211f991c66d00875f0c47cba97d8ae065d45e
 Signed-off-by: Michael Still <mikal@stillhq.com>

@@ -13,6 +13,7 @@ Date:   Mon Sep 21 17:00:07 2026 +1000
     was converted: every oslo.log service is tailed by a single Fluentd
     input with a single parser, so the format cannot vary between them.
     
+    Depends-On: https://review.opendev.org/c/openstack/kolla-ansible/+/1005458
     Change-Id: Iadbb097c884fe4f6659719828681161bc2b73e1c
     Signed-off-by: Michael Still <mikal@stillhq.com>
 

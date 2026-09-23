@@ -7,6 +7,7 @@ Date:   Mon Sep 21 17:00:08 2026 +1000
     Ceilometer, Aodh, Gnocchi and CloudKitty now honour
     openstack_logging_json.
     
+    Depends-On: https://review.opendev.org/c/openstack/kolla-ansible/+/1005458
     Change-Id: Ib82882b8aef7fc9b2ca44db7e1f6e9eac539789f
     Signed-off-by: Michael Still <mikal@stillhq.com>
 

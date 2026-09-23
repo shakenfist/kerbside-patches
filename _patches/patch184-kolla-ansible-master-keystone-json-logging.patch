@@ -7,6 +7,7 @@ Date:   Mon Sep 21 17:00:07 2026 +1000
     This is the first service to honour openstack_logging_json, so the
     demonstration is kept deliberately minimal.
     
+    Depends-On: https://review.opendev.org/c/openstack/kolla-ansible/+/1005458
     Change-Id: I08eb215f664ec7627e60eaf234695f9454e0daca
     Signed-off-by: Michael Still <mikal@stillhq.com>
 

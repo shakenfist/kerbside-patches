@@ -2,5 +2,6 @@ Convert the storage services to JSON logging.
 
 Cinder and Manila now honour openstack_logging_json.
 
+Depends-On: https://review.opendev.org/c/openstack/kolla-ansible/+/1005458
 Change-Id: I8d9036bc819ec0b45d2dc1b489138fb07890c8be
 Signed-off-by: Michael Still <mikal@stillhq.com>

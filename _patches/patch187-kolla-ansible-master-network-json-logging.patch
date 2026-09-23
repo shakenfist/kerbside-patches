@@ -6,6 +6,7 @@ Date:   Mon Sep 21 17:00:07 2026 +1000
     
     Neutron, Octavia and Designate now honour openstack_logging_json.
     
+    Depends-On: https://review.opendev.org/c/openstack/kolla-ansible/+/1005458
     Change-Id: I994da1469296312de61ab7a5a3899666a028aa7e
     Signed-off-by: Michael Still <mikal@stillhq.com>
 

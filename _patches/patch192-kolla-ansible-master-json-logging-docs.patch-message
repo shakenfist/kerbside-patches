@@ -19,5 +19,6 @@ thing a reviewer would ask for.
 Assisted-By: Claude Opus 5 (1M context, high effort) <noreply@anthropic.com>
 Co-Authored-By: Claude Opus 5 (1M context, high effort) <noreply@anthropic.com>
 
+Depends-On: https://review.opendev.org/c/openstack/kolla-ansible/+/1005458
 Change-Id: Id80c6ca50bc44bac4df799ee075dff8a4ec7bdc5
 Signed-off-by: Michael Still <mikal@stillhq.com>

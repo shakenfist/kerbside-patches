@@ -15,5 +15,6 @@ batches by project rather than landing as thirty separate commits.
 Assisted-By: Claude Opus 5 (1M context, high effort) <noreply@anthropic.com>
 Co-Authored-By: Claude Opus 5 (1M context, high effort) <noreply@anthropic.com>
 
+Depends-On: https://review.opendev.org/c/openstack/kolla-ansible/+/1005458
 Change-Id: Idcb690f157a8954eb79ebf758cf1418fb52cdcfd
 Signed-off-by: Michael Still <mikal@stillhq.com>
