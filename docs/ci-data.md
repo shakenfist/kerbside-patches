@@ -273,6 +273,20 @@ lives in `tools/ci-report.sh` and currently covers:
   stream, which keeps the kerbside series about kerbside. Removing
   that file is how to reproduce the upstream failure on demand.
 
+  Two runs of that job pair establish the fix. Without the galera.cnf
+  override the three debian-container all-in-ones and the multinode job
+  all abort in `c04e925e65c2_nodegroups_v2` with error 1267, while the
+  ubuntu-container job passes on MariaDB 11.4 as a control; with it,
+  the same commits produce no 1267 at all and magnum bootstraps to
+  completion on 11.8. Enabling magnum also exposed a second, unrelated
+  break: `magnum-cluster-api` still imports `pkg_resources`, which
+  setuptools 82 removed, so `magnum_conductor` aborts on startup on the
+  debian and rocky images. patch196 in `kolla-magnum-setuptools-pin`
+  pins setuptools below 82 until the `importlib.resources` migration in
+  https://github.com/vexxhost/magnum-cluster-api/pull/925 merges, which
+  is the same shape as the pin Kolla carried for horizon and then
+  reverted.
+
   Magnum is the first casualty, because its migration chain straddles
   the two styles -- `bay`/`cluster` was created in 2015 with
   `mysql_DEFAULT_CHARSET='UTF8'` and no collation, while `nodegroup`
