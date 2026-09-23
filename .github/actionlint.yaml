@@ -5,7 +5,6 @@ self-hosted-runner:
   # Custom labels used by our self-hosted runners
   labels:
     - vm
-    - debian-12
     - debian-13
     - rocky-9
     - xl
