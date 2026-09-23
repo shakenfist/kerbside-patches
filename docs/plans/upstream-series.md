@@ -41,7 +41,7 @@ is the first phase and is urgent.
 
 | Phase | What | Status |
 |-------|------|--------|
-| 1 | Import the series and rigs into `upstream/` | Not started |
+| 1 | Import the series and rigs into `upstream/` | In progress |
 | 2 | Keep them applying: apply and rebase-check tooling | Not started |
 | 3 | Build and measure in CI | Not started |
 | 4 | Submission path for the kernel patch | Not started |

@@ -1,0 +1,8 @@
+# See ../README.md for what these keys mean and why this file is not
+# named to match the OpenStack tooling's `./<project>/config.yaml`
+# discovery (find . -maxdepth 2 -name config.yaml).
+repo: https://gitlab.com/qemu-project/qemu.git
+branch: master
+base_sha: 30e8a06b64aa58a3990ba39cb5d09531e7d265e0
+current_series: v2
+disposition: carry

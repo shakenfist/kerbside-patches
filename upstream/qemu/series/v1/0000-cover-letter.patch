@@ -1,0 +1,35 @@
+From 9b3def9485062673088011ca6d9d7146eda15d5d Mon Sep 17 00:00:00 2001
+From: Michael Still <mikal@stillhq.com>
+Date: Wed, 23 Sep 2026 18:56:30 +1000
+Subject: [PATCH 0/3] ui/spice: make non-GL damage handling stream-friendly
+
+RFC / prototype. The non-GL spice display unions all damage into one
+box, slices it into 32 pixel columns, and only pushes it on the 30ms
+refresh timer. With streaming-video=filter a guest playing a 480x360
+video at 30 fps (virtio-vga, Linux guest) makes spice-server 0.15.2
+start 18-19 separate 32x360 streams while ~4900-6700 small lossless
+column draws keep flowing; over 28s the display channel carried
+21-29 MB. With this series it is one 480x360 stream plus 45 draws,
+6.7 MB. Damage-to-QXL-command latency (qemu trace) drops from
+p50 15ms / p95 29ms to p50 1-2ms / p95 15ms with patch 3.
+
+Patch 1: track up to 16 disjoint damage rects instead of one box.
+Patch 2: diff only to trim/split each rect, send one DRAW_COPY per box.
+Patch 3: push damage on a paced (16ms) timer instead of the refresh.
+
+Not yet done: tests, a knob for the pacing interval (or reuse of
+max-refresh-rate), measurement with VGA / Windows guests.
+
+Michael Still (3):
+  ui/spice: track a bounded list of damage rectangles
+  ui/spice: send each damaged region as one DRAW_COPY
+  ui/spice: push damage promptly instead of on the refresh timer
+
+ hw/display/qxl.c           |   2 +-
+ include/ui/spice-display.h |  18 ++-
+ ui/spice-display.c         | 234 +++++++++++++++++++++++++++----------
+ 3 files changed, 190 insertions(+), 64 deletions(-)
+
+-- 
+2.47.3
+

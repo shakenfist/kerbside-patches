@@ -1,0 +1,496 @@
+From c2c5ab70cf9ce5b97119a8391897529e3893a88d Mon Sep 17 00:00:00 2001
+From: Michael Still <mikal@stillhq.com>
+Date: Wed, 23 Sep 2026 21:58:46 +1000
+Subject: [PATCH v2 4/4] ui/spice: also split damage on unchanged columns
+
+The mirror diff splits damage where at least 32 rows did not change,
+but changes side by side in the same rows still end up in one box.
+When the guest reports more damage than what changed, that box spans
+everything in between: with a video and a clock on the same rows of a
+Linux virtio-gpu guest that flushes the whole plane, every clock tick
+turns the 480x360 video draw into a 639x360 one, which the spice
+server has to send outside the video stream.
+
+Split each box where at least 32 whole columns did not change, and
+diff each remaining part again, as it may cover fewer rows. Finding the
+columns costs one pass over the box, which stops as soon as no gap is
+left: for a box that changed everywhere, such as a video, after its
+first row.
+
+With the clock beside the video in a 1280x800 guest, streaming-video
+=filter, the display channel carries 5.0 MB instead of 6.5 MB over
+28 seconds, the clock is sent as its own small draws, and the p95
+damage to command latency drops from 12ms to 1.2ms. Without
+streaming, 639x360 draws are no longer sent. The cost is a column
+scan of each box that has a gap; for two single pixel wide changes
+640 columns apart on every row of a 1920x1080 frame, the diff takes
+0.7ms instead of 0.2ms, still less than the draws it avoids.
+
+Prompt: Consider splitting damage on horizontal gaps too, so that side
+by side changes in the same rows are not merged into one box, and only
+implement it if it is cheap and measurably useful.
+
+Co-Authored-By: Claude Opus 5.5 (1M context, low effort) <noreply@anthropic.com>
+---
+ include/ui/spice-damage.h      |   9 +-
+ tests/unit/test-spice-damage.c | 148 +++++++++++++++++++++++++++++----
+ ui/spice-damage.c              | 146 +++++++++++++++++++++++++++++---
+ ui/spice-display.c             |  17 ++--
+ 4 files changed, 284 insertions(+), 36 deletions(-)
+
+diff --git a/include/ui/spice-damage.h b/include/ui/spice-damage.h
+index e52f83b6dd..dde6f34398 100644
+--- a/include/ui/spice-damage.h
++++ b/include/ui/spice-damage.h
+@@ -58,9 +58,10 @@ typedef void (*SimpleSpiceRectFunc)(void *opaque, const SimpleSpiceRect *r);
+ /*
+  * Compare the pixels inside @rect of two images with the same geometry,
+  * @a and @b, and call @func for each box of changed pixels. Each box is
+- * the bounding box of the changes in a band of rows; a new band starts
+- * when at least @split_rows unchanged rows separate two changes. Nothing
+- * is reported if the images are identical inside @rect.
++ * the bounding box of a group of changes: a new group starts where at
++ * least @split_rows unchanged rows, or at least @split_cols unchanged
++ * columns, separate two changes (@split_cols <= 0 disables splitting on
++ * columns). Nothing is reported if the images are identical in @rect.
+  *
+  * @a and @b point at pixel (0, 0) of their image; @bpp is the number of
+  * bytes per pixel and @a_stride and @b_stride the bytes per row.
+@@ -68,7 +69,7 @@ typedef void (*SimpleSpiceRectFunc)(void *opaque, const SimpleSpiceRect *r);
+ void simple_spice_damage_diff(const SimpleSpiceRect *rect, int bpp,
+                               const uint8_t *a, size_t a_stride,
+                               const uint8_t *b, size_t b_stride,
+-                              int split_rows,
++                              int split_rows, int split_cols,
+                               SimpleSpiceRectFunc func, void *opaque);
+ 
+ #endif /* UI_SPICE_DAMAGE_H */
+diff --git a/tests/unit/test-spice-damage.c b/tests/unit/test-spice-damage.c
+index 46a168e3f6..c0a86837b1 100644
+--- a/tests/unit/test-spice-damage.c
++++ b/tests/unit/test-spice-damage.c
+@@ -205,12 +205,19 @@ static void collect(void *opaque, const SimpleSpiceRect *r)
+     boxes->box[boxes->num++] = *r;
+ }
+ 
++static void diff_split(const SimpleSpiceRect *rect, int bpp,
++                       const uint8_t *a, const uint8_t *b,
++                       int split_rows, int split_cols, Boxes *out)
++{
++    out->num = 0;
++    simple_spice_damage_diff(rect, bpp, a, W * bpp, b, W * bpp,
++                             split_rows, split_cols, collect, out);
++}
++
+ static void diff(const SimpleSpiceRect *rect, int bpp,
+                  const uint8_t *a, const uint8_t *b, int split, Boxes *out)
+ {
+-    out->num = 0;
+-    simple_spice_damage_diff(rect, bpp, a, W * bpp, b, W * bpp, split,
+-                             collect, out);
++    diff_split(rect, bpp, a, b, split, 0, out);
+ }
+ 
+ static void set_pixel(uint8_t *buf, int bpp, int x, int y)
+@@ -307,23 +314,74 @@ static void test_diff_clip(void)
+  * Straightforward per-pixel implementation of the same contract, to
+  * check the optimised one against.
+  */
+-static void diff_reference(const SimpleSpiceRect *rect, int bpp,
+-                           const uint8_t *a, const uint8_t *b, int split,
+-                           Boxes *out)
++static bool pixel_changed(int bpp, const uint8_t *a, const uint8_t *b,
++                          int x, int y)
++{
++    size_t off = (y * W + x) * bpp;
++
++    return memcmp(a + off, b + off, bpp) != 0;
++}
++
++static void ref_rect(const SimpleSpiceRect *rect, int bpp,
++                     const uint8_t *a, const uint8_t *b,
++                     int split_rows, int split_cols, Boxes *out);
++
++static void ref_box(const SimpleSpiceRect *box, int bpp,
++                    const uint8_t *a, const uint8_t *b,
++                    int split_rows, int split_cols, Boxes *out)
++{
++    int x, y, gap = 0, start = -1, end = -1;
++    bool split = false;
++
++    if (split_cols > 0) {
++        for (x = box->left; x < box->right; x++) {
++            bool changed = false;
++
++            for (y = box->top; y < box->bottom && !changed; y++) {
++                changed = pixel_changed(bpp, a, b, x, y);
++            }
++            if (!changed) {
++                gap++;
++                continue;
++            }
++            if (start != -1 && gap >= split_cols) {
++                split = true;
++                ref_rect(&(SimpleSpiceRect) {
++                    .top = box->top, .left = start,
++                    .bottom = box->bottom, .right = end,
++                }, bpp, a, b, split_rows, split_cols, out);
++                start = -1;
++            }
++            if (start == -1) {
++                start = x;
++            }
++            end = x + 1;
++            gap = 0;
++        }
++    }
++    if (!split) {
++        collect(out, box);
++        return;
++    }
++    ref_rect(&(SimpleSpiceRect) {
++        .top = box->top, .left = start, .bottom = box->bottom, .right = end,
++    }, bpp, a, b, split_rows, split_cols, out);
++}
++
++static void ref_rect(const SimpleSpiceRect *rect, int bpp,
++                     const uint8_t *a, const uint8_t *b,
++                     int split_rows, int split_cols, Boxes *out)
+ {
+     SimpleSpiceRect box = { .top = -1 };
+     int x, y;
+ 
+-    out->num = 0;
+     for (y = rect->top; y < rect->bottom; y++) {
+         for (x = rect->left; x < rect->right; x++) {
+-            size_t off = (y * W + x) * bpp;
+-
+-            if (memcmp(a + off, b + off, bpp) == 0) {
++            if (!pixel_changed(bpp, a, b, x, y)) {
+                 continue;
+             }
+-            if (box.top != -1 && y - box.bottom >= split) {
+-                collect(out, &box);
++            if (box.top != -1 && y - box.bottom >= split_rows) {
++                ref_box(&box, bpp, a, b, split_rows, split_cols, out);
+                 box.top = -1;
+             }
+             if (box.top == -1) {
+@@ -337,10 +395,68 @@ static void diff_reference(const SimpleSpiceRect *rect, int bpp,
+         }
+     }
+     if (box.top != -1) {
+-        collect(out, &box);
++        ref_box(&box, bpp, a, b, split_rows, split_cols, out);
+     }
+ }
+ 
++static void diff_reference(const SimpleSpiceRect *rect, int bpp,
++                           const uint8_t *a, const uint8_t *b,
++                           int split_rows, int split_cols, Boxes *out)
++{
++    out->num = 0;
++    ref_rect(rect, bpp, a, b, split_rows, split_cols, out);
++}
++
++static void test_diff_columns(void)
++{
++    const int bpp = 4;
++    g_autofree uint8_t *a = g_malloc0(W * H * bpp);
++    g_autofree uint8_t *b = g_malloc0(W * H * bpp);
++    SimpleSpiceRect all = { .left = 0, .top = 0, .right = W, .bottom = H };
++    Boxes boxes;
++    int x, y;
++
++    /* A "video" at 10..110 x 20..120 and a "clock" beside it. */
++    for (y = 20; y < 120; y++) {
++        for (x = 10; x < 110; x++) {
++            set_pixel(a, bpp, x, y);
++        }
++    }
++    for (y = 50; y < 60; y++) {
++        for (x = 200; x < 240; x++) {
++            set_pixel(a, bpp, x, y);
++        }
++    }
++
++    /* Rows only: one box around both. */
++    diff_split(&all, bpp, a, b, 32, 0, &boxes);
++    g_assert_cmpint(boxes.num, ==, 1);
++    g_assert_true(rect_eq(&boxes.box[0], 10, 20, 240, 120));
++
++    /* With columns: each keeps its own box, trimmed vertically too. */
++    diff_split(&all, bpp, a, b, 32, 32, &boxes);
++    g_assert_cmpint(boxes.num, ==, 2);
++    g_assert_true(rect_eq(&boxes.box[0], 10, 20, 110, 120));
++    g_assert_true(rect_eq(&boxes.box[1], 200, 50, 240, 60));
++
++    /* A gap narrower than split_cols does not split. */
++    diff_split(&all, bpp, a, b, 32, 91, &boxes);
++    g_assert_cmpint(boxes.num, ==, 1);
++    diff_split(&all, bpp, a, b, 32, 90, &boxes);
++    g_assert_cmpint(boxes.num, ==, 2);
++
++    /*
++     * Splitting on columns can expose a split on rows: the clock sits in
++     * the rows of a second change further right, which is far below it.
++     */
++    set_pixel(a, bpp, 220, 150);
++    diff_split(&all, bpp, a, b, 32, 32, &boxes);
++    g_assert_cmpint(boxes.num, ==, 3);
++    g_assert_true(rect_eq(&boxes.box[0], 10, 20, 110, 120));
++    g_assert_true(rect_eq(&boxes.box[1], 200, 50, 240, 60));
++    g_assert_true(rect_eq(&boxes.box[2], 220, 150, 221, 151));
++}
++
+ static void test_diff_random(void)
+ {
+     GRand *rand = g_rand_new_with_seed(2);
+@@ -350,6 +466,7 @@ static void test_diff_random(void)
+     for (iter = 0; iter < 500; iter++) {
+         int bpp = g_rand_int_range(rand, 1, 5);
+         int split = g_rand_int_range(rand, 1, 40);
++        int split_cols = g_rand_int_range(rand, -1, 40);
+         g_autofree uint8_t *a = g_malloc0(W * H * bpp);
+         g_autofree uint8_t *b = g_malloc0(W * H * bpp);
+         SimpleSpiceRect rect;
+@@ -364,8 +481,8 @@ static void test_diff_random(void)
+             a[g_rand_int_range(rand, 0, W * H * bpp)] ^= 1;
+         }
+ 
+-        diff(&rect, bpp, a, b, split, &got);
+-        diff_reference(&rect, bpp, a, b, split, &want);
++        diff_split(&rect, bpp, a, b, split, split_cols, &got);
++        diff_reference(&rect, bpp, a, b, split, split_cols, &want);
+         g_assert_cmpint(got.num, ==, want.num);
+         for (i = 0; i < got.num; i++) {
+             g_assert_true(rect_eq(&got.box[i], want.box[i].left,
+@@ -390,6 +507,7 @@ int main(int argc, char **argv)
+     g_test_add_func("/spice-damage/add/random", test_add_random);
+     g_test_add_func("/spice-damage/diff/basic", test_diff_basic);
+     g_test_add_func("/spice-damage/diff/clip", test_diff_clip);
++    g_test_add_func("/spice-damage/diff/columns", test_diff_columns);
+     g_test_add_func("/spice-damage/diff/random", test_diff_random);
+ 
+     return g_test_run();
+diff --git a/ui/spice-damage.c b/ui/spice-damage.c
+index 651ab74139..126677b67b 100644
+--- a/ui/spice-damage.c
++++ b/ui/spice-damage.c
+@@ -137,13 +137,118 @@ static size_t last_diff_end(const uint8_t *a, const uint8_t *b, size_t len)
+     return hi;
+ }
+ 
+-void simple_spice_damage_diff(const SimpleSpiceRect *rect, int bpp,
+-                              const uint8_t *a, size_t a_stride,
+-                              const uint8_t *b, size_t b_stride,
+-                              int split_rows,
+-                              SimpleSpiceRectFunc func, void *opaque)
++typedef struct DiffState {
++    int bpp;
++    const uint8_t *a;
++    const uint8_t *b;
++    size_t a_stride;
++    size_t b_stride;
++    int split_rows;
++    int split_cols;
++    SimpleSpiceRectFunc func;
++    void *opaque;
++} DiffState;
++
++static void diff_rect(const DiffState *s, const SimpleSpiceRect *rect);
++
++/* True if @col has a run of at least @n zeroes. */
++static bool has_gap(const uint8_t *col, int w, int n)
++{
++    int x, run = 0;
++
++    for (x = 0; x < w; x++) {
++        run = col[x] ? 0 : run + 1;
++        if (run >= n) {
++            return true;
++        }
++    }
++    return false;
++}
++
++/*
++ * Report @box, the bounding box of the changes in a band of rows, after
++ * splitting it where at least split_cols whole columns did not change:
++ * side by side changes, such as a video and a clock on the same rows,
++ * would otherwise be reported as one box spanning both.
++ */
++static void emit_box(const DiffState *s, const SimpleSpiceRect *box)
++{
++    int w = box->right - box->left;
++    g_autofree uint8_t *col = NULL;
++    int x, y, start, end, run;
++
++    /* Too narrow to hold a gap between two changes. */
++    if (s->split_cols <= 0 || w < s->split_cols + 2) {
++        s->func(s->opaque, box);
++        return;
++    }
++
++    col = g_malloc0(w);
++    for (y = box->top; y < box->bottom; y++) {
++        const uint8_t *ra = s->a + y * s->a_stride + (size_t)box->left * s->bpp;
++        const uint8_t *rb = s->b + y * s->b_stride + (size_t)box->left * s->bpp;
++
++        if (s->bpp == 4) {
++            for (x = 0; x < w; x++) {
++                uint32_t pa, pb;
++
++                memcpy(&pa, ra + x * 4, 4);
++                memcpy(&pb, rb + x * 4, 4);
++                col[x] |= pa != pb;
++            }
++        } else {
++            for (x = 0; x < w; x++) {
++                col[x] |= memcmp(ra + x * s->bpp, rb + x * s->bpp, s->bpp) != 0;
++            }
++        }
++        /* Stop early once no gap is left, e.g. when everything changed. */
++        if ((y - box->top) % 16 == 0 && !has_gap(col, w, s->split_cols)) {
++            s->func(s->opaque, box);
++            return;
++        }
++    }
++
++    if (!has_gap(col, w, s->split_cols)) {
++        s->func(s->opaque, box);
++        return;
++    }
++
++    /*
++     * The outermost columns of @box always changed, so the gap is inside
++     * it. Diff each run of changed columns again on its own: it may cover
++     * fewer rows than the whole band.
++     */
++    x = 0;
++    while (x < w) {
++        while (x < w && !col[x]) {
++            x++;
++        }
++        if (x == w) {
++            break;
++        }
++        start = x;
++        end = x + 1;
++        for (run = 0; x < w && run < s->split_cols; x++) {
++            if (col[x]) {
++                end = x + 1;
++                run = 0;
++            } else {
++                run++;
++            }
++        }
++        diff_rect(s, &(SimpleSpiceRect) {
++            .top = box->top,
++            .left = box->left + start,
++            .bottom = box->bottom,
++            .right = box->left + end,
++        });
++    }
++}
++
++static void diff_rect(const DiffState *s, const SimpleSpiceRect *rect)
+ {
+     SimpleSpiceRect box = { .top = -1 };
++    int bpp = s->bpp;
+     size_t len = (size_t)(rect->right - rect->left) * bpp;
+     size_t lw, mw, rw, off;
+     bool changed;
+@@ -154,12 +259,12 @@ void simple_spice_damage_diff(const SimpleSpiceRect *rect, int bpp,
+     }
+ 
+     for (y = rect->top; y < rect->bottom; y++) {
+-        const uint8_t *ra = a + y * a_stride + (size_t)rect->left * bpp;
+-        const uint8_t *rb = b + y * b_stride + (size_t)rect->left * bpp;
++        const uint8_t *ra = s->a + y * s->a_stride + (size_t)rect->left * bpp;
++        const uint8_t *rb = s->b + y * s->b_stride + (size_t)rect->left * bpp;
+ 
+-        if (box.top != -1 && y - box.bottom >= split_rows) {
++        if (box.top != -1 && y - box.bottom >= s->split_rows) {
+             /* Nothing further down can join this box any more. */
+-            func(opaque, &box);
++            emit_box(s, &box);
+             box.top = -1;
+         }
+ 
+@@ -205,6 +310,27 @@ void simple_spice_damage_diff(const SimpleSpiceRect *rect, int bpp,
+     }
+ 
+     if (box.top != -1) {
+-        func(opaque, &box);
++        emit_box(s, &box);
+     }
+ }
++
++void simple_spice_damage_diff(const SimpleSpiceRect *rect, int bpp,
++                              const uint8_t *a, size_t a_stride,
++                              const uint8_t *b, size_t b_stride,
++                              int split_rows, int split_cols,
++                              SimpleSpiceRectFunc func, void *opaque)
++{
++    DiffState s = {
++        .bpp = bpp,
++        .a = a,
++        .b = b,
++        .a_stride = a_stride,
++        .b_stride = b_stride,
++        .split_rows = split_rows,
++        .split_cols = split_cols,
++        .func = func,
++        .opaque = opaque,
++    };
++
++    diff_rect(&s, rect);
++}
+diff --git a/ui/spice-display.c b/ui/spice-display.c
+index 903ffca6fe..c42332015f 100644
+--- a/ui/spice-display.c
++++ b/ui/spice-display.c
+@@ -192,12 +192,13 @@ static void qemu_spice_create_one_update(SimpleSpiceDisplay *ssd,
+ }
+ 
+ /*
+- * Unchanged rows that split damage into separate updates. Guests often
+- * report much more damage than what changed (Linux virtio-gpu flushes
+- * the whole plane, VGA reports whole scanlines); this keeps vertically
+- * separated changes, such as a video and a clock, apart.
++ * Unchanged rows or columns that split damage into separate updates.
++ * Guests often report much more damage than what changed (Linux
++ * virtio-gpu flushes the whole plane, VGA reports whole scanlines);
++ * this keeps separate changes, such as a video and a clock, apart.
+  */
+ #define SPICE_DISPLAY_SPLIT_ROWS 32
++#define SPICE_DISPLAY_SPLIT_COLS 32
+ 
+ static void qemu_spice_create_box_update(void *opaque,
+                                          const SimpleSpiceRect *box)
+@@ -215,9 +216,10 @@ static void qemu_spice_create_box_update(void *opaque,
+ 
+ /*
+  * Turn damage into updates. The mirror diff shrinks each damage
+- * rectangle to the bounding box of the pixels that actually changed,
+- * splits it where SPICE_DISPLAY_SPLIT_ROWS rows did not change, and
+- * drops it if nothing did.
++ * rectangle to the bounding boxes of the pixels that actually changed,
++ * splitting it where SPICE_DISPLAY_SPLIT_ROWS rows or
++ * SPICE_DISPLAY_SPLIT_COLS columns did not change, and drops it if
++ * nothing did.
+  *
+  * Each resulting box is sent as a single DRAW_COPY rather than sliced
+  * into columns: the spice server's video stream detection looks for a
+@@ -236,6 +238,7 @@ static void qemu_spice_create_update(SimpleSpiceDisplay *ssd)
+                                  guest, surface_stride(ssd->ds),
+                                  mirror, pixman_image_get_stride(ssd->mirror),
+                                  SPICE_DISPLAY_SPLIT_ROWS,
++                                 SPICE_DISPLAY_SPLIT_COLS,
+                                  qemu_spice_create_box_update, ssd);
+     }
+     simple_spice_damage_clear(&ssd->dirty);
+-- 
+2.47.3
+

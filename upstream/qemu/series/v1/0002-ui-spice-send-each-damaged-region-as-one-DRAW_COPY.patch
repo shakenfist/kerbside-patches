@@ -1,0 +1,188 @@
+From 7015bbcc4b44f18ae21284a8b553db58cb4296e9 Mon Sep 17 00:00:00 2001
+From: Michael Still <mikal@stillhq.com>
+Date: Wed, 23 Sep 2026 18:23:27 +1000
+Subject: [PATCH 2/3] ui/spice: send each damaged region as one DRAW_COPY
+
+qemu_spice_create_update() diffs the damaged area against the mirror
+surface in 32 pixel wide columns and emits one QXL_DRAW_COPY per run of
+changed rows in each column. A 480x360 region that changes every frame
+thus reaches the spice server as fifteen or more 32 pixel wide draws per
+refresh, and more when rows inside a column happen not to change.
+
+That works against the spice server's video stream detection. With
+streaming-video=filter a 32x360 column passes the minimum area check on
+its own, so the server starts one stream per column (each a 32 pixel
+wide video), while the columns whose runs are broken by unchanged rows
+never stream at all and keep being sent as lossless images.
+
+Use the mirror diff only to shrink each damage rectangle to the bounding
+box of the pixels that changed, splitting it where at least
+SPICE_DISPLAY_SPLIT_ROWS rows are unchanged and skipping it if nothing
+changed, and send each resulting box as a single DRAW_COPY. Damage that
+repeats every frame then produces a steady sequence of identically sized
+draws, which the server turns into one stream covering the whole region.
+The row split matters because guests often report far more damage than
+changed: Linux virtio-gpu flushes the whole plane on every update, and
+VGA reports whole scanlines.
+
+The diff still costs one memcmp per damaged row; the extra per-pixel
+scans only run for the columns outside the box found so far.
+---
+ ui/spice-display.c | 128 ++++++++++++++++++++++++++-------------------
+ 1 file changed, 75 insertions(+), 53 deletions(-)
+
+diff --git a/ui/spice-display.c b/ui/spice-display.c
+index 708e5a58aa..e680aa9937 100644
+--- a/ui/spice-display.c
++++ b/ui/spice-display.c
+@@ -191,64 +191,86 @@ static void qemu_spice_create_one_update(SimpleSpiceDisplay *ssd,
+     QTAILQ_INSERT_TAIL(&ssd->updates, update, next);
+ }
+ 
+-static void qemu_spice_create_rect_updates(SimpleSpiceDisplay *ssd,
+-                                           const QXLRect *dirty)
++/*
++ * Rows of unchanged pixels that split a damage rectangle into two
++ * separate updates. Guests often report damage much larger than what
++ * changed (virtio-gpu guests commonly flush the whole plane, VGA reports
++ * whole scanlines); this keeps vertically separated changes, such as a
++ * video and a clock, from being merged into one large update.
++ */
++#define SPICE_DISPLAY_SPLIT_ROWS 32
++
++static void qemu_spice_emit_box(SimpleSpiceDisplay *ssd, int top, int bottom,
++                                int left, int right)
++{
++    QXLRect update = {
++        .top    = top,
++        .bottom = bottom,
++        .left   = left,
++        .right  = right,
++    };
++
++    qemu_spice_create_one_update(ssd, &update);
++}
++
++/*
++ * Turn one damage rectangle into updates. The mirror diff is used to
++ * shrink the rectangle to the bounding box of the pixels that actually
++ * changed, split where there are at least SPICE_DISPLAY_SPLIT_ROWS
++ * unchanged rows, and to skip it entirely if nothing changed.
++ *
++ * Each resulting box is sent as a single DRAW_COPY rather than sliced
++ * into columns: the spice server's video stream detection looks for a
++ * run of same-sized DRAW_COPYs at the same position, and a guest that
++ * changes the same region every frame should produce exactly that.
++ */
++static void qemu_spice_create_rect_update(SimpleSpiceDisplay *ssd,
++                                          const QXLRect *rect)
+ {
+-    static const int blksize = 32;
+-    int blocks = DIV_ROUND_UP(surface_width(ssd->ds), blksize);
+-    g_autofree int *dirty_top = NULL;
+-    int y, yoff1, yoff2, x, xoff, blk, bw;
+     int bpp = surface_bytes_per_pixel(ssd->ds);
+-    uint8_t *guest, *mirror;
+-
+-    dirty_top = g_new(int, blocks);
+-    for (blk = 0; blk < blocks; blk++) {
+-        dirty_top[blk] = -1;
+-    }
+-
+-    guest = surface_data(ssd->ds);
+-    mirror = (void *)pixman_image_get_data(ssd->mirror);
+-    for (y = dirty->top; y < dirty->bottom; y++) {
+-        yoff1 = y * surface_stride(ssd->ds);
+-        yoff2 = y * pixman_image_get_stride(ssd->mirror);
+-        for (x = dirty->left; x < dirty->right; x += blksize) {
+-            xoff = x * bpp;
+-            blk = x / blksize;
+-            bw = MIN(blksize, dirty->right - x);
+-            if (memcmp(guest + yoff1 + xoff,
+-                       mirror + yoff2 + xoff,
+-                       bw * bpp) == 0) {
+-                if (dirty_top[blk] != -1) {
+-                    QXLRect update = {
+-                        .top    = dirty_top[blk],
+-                        .bottom = y,
+-                        .left   = x,
+-                        .right  = x + bw,
+-                    };
+-                    qemu_spice_create_one_update(ssd, &update);
+-                    dirty_top[blk] = -1;
+-                }
+-            } else {
+-                if (dirty_top[blk] == -1) {
+-                    dirty_top[blk] = y;
+-                }
++    int gstride = surface_stride(ssd->ds);
++    int mstride = pixman_image_get_stride(ssd->mirror);
++    uint8_t *guest = surface_data(ssd->ds);
++    uint8_t *mirror = (void *)pixman_image_get_data(ssd->mirror);
++    int top = -1, bottom = -1, left = rect->right, right = rect->left;
++    int x, y;
++
++    for (y = rect->top; y < rect->bottom; y++) {
++        uint8_t *g = guest + y * gstride;
++        uint8_t *m = mirror + y * mstride;
++
++        if (memcmp(g + rect->left * bpp, m + rect->left * bpp,
++                   (rect->right - rect->left) * bpp) == 0) {
++            continue;
++        }
++        if (top != -1 && y - bottom >= SPICE_DISPLAY_SPLIT_ROWS) {
++            qemu_spice_emit_box(ssd, top, bottom, left, right);
++            top = -1;
++            left = rect->right;
++            right = rect->left;
++        }
++        if (top == -1) {
++            top = y;
++        }
++        bottom = y + 1;
++
++        /* Only the columns outside [left, right) can widen the box. */
++        for (x = rect->left; x < left; x++) {
++            if (memcmp(g + x * bpp, m + x * bpp, bpp) != 0) {
++                left = x;
++                break;
++            }
++        }
++        for (x = rect->right - 1; x >= right; x--) {
++            if (memcmp(g + x * bpp, m + x * bpp, bpp) != 0) {
++                right = x + 1;
++                break;
+             }
+         }
+     }
+ 
+-    for (x = dirty->left; x < dirty->right; x += blksize) {
+-        blk = x / blksize;
+-        bw = MIN(blksize, dirty->right - x);
+-        if (dirty_top[blk] != -1) {
+-            QXLRect update = {
+-                .top    = dirty_top[blk],
+-                .bottom = dirty->bottom,
+-                .left   = x,
+-                .right  = x + bw,
+-            };
+-            qemu_spice_create_one_update(ssd, &update);
+-            dirty_top[blk] = -1;
+-        }
++    if (top != -1) {
++        qemu_spice_emit_box(ssd, top, bottom, left, right);
+     }
+ }
+ 
+@@ -257,7 +279,7 @@ static void qemu_spice_create_update(SimpleSpiceDisplay *ssd)
+     int i;
+ 
+     for (i = 0; i < ssd->num_dirty; i++) {
+-        qemu_spice_create_rect_updates(ssd, &ssd->dirty[i]);
++        qemu_spice_create_rect_update(ssd, &ssd->dirty[i]);
+     }
+     qemu_spice_display_clear_dirty(ssd);
+ }
+-- 
+2.47.3
+

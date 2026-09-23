@@ -1,0 +1,25 @@
+# See ../README.md for what these keys mean and why this file is not
+# named to match the OpenStack tooling's `./<project>/config.yaml`
+# discovery (find . -maxdepth 2 -name config.yaml).
+repo: https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git
+# The series is developed and tested against drm-misc-next, not
+# torvalds/linux directly; drm-misc-next is where DRM core patches
+# like this one are expected to be submitted.
+branch: https://gitlab.freedesktop.org/drm/misc/kernel.git#drm-misc-next
+base_sha: 2302669bb4b52d581cc2589b90b3af7bb3783a28
+current_series: v1
+disposition: submit
+# Other trees/branches the patch was confirmed to apply to cleanly,
+# each with the base SHA it was tested against (see ../README.md's
+# verification section for how). Not used for anything but recording
+# where else it is known-good.
+also_applies_to:
+  - ref: master
+    repo: https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git
+    base_sha: c537e12daeecaecdcd322c56a5f70659d2de7bde
+  - ref: drm-misc-fixes
+    repo: https://gitlab.freedesktop.org/drm/misc/kernel.git
+    base_sha: 72b782097e534ab48152dd25aaba40dda5f25f9e
+  - ref: v6.12.101
+    repo: https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git
+    base_sha: 0afbc63c0f3f35ebf104b5a0b5af3284539b3d58

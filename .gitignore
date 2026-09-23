@@ -3,3 +3,19 @@
 # its own .git, and is regenerated from scratch on every build.
 src/
 __pycache__/
+
+# upstream/<project>/rig/ scratch: local checkouts, builds and raw run
+# output the rig scripts create when actually run (see upstream/README.md
+# and each project's README.md). Curated summary tables live in
+# upstream/<project>/results/ instead, and are tracked normally.
+upstream/*/rig/qemu/
+upstream/*/rig/ryll/
+upstream/*/rig/linux/
+upstream/*/rig/build-*/
+upstream/*/rig/results/
+upstream/*/rig/*/.build/
+upstream/*/rig/guest/vmlinuz
+upstream/*/rig/guest/initrd*.gz
+upstream/*/rig/bench/bench
+upstream/*/rig/sysroot/sysroot/
+upstream/*/rig/*.ko
