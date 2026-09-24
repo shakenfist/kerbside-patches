@@ -29,9 +29,32 @@ With streaming off, bytes drop from 79 to 65 MB (full) and 73 to 65 MB
                       9872 draws, 43 32x360 streams, 36.7 MB
                   ->    90 draws, 2 480x360 streams, 10.4 MB
 
-No regressions seen: bytes with streaming off are equal or lower
-everywhere, qemu CPU is equal or lower. Patch 3 does not apply to qxl
-(which has its own listener) or gl=on. Windows guests were not tested.
+No regressions seen on these measures: bytes with streaming off are
+equal or lower everywhere, qemu CPU is equal or lower. Patch 3 does not
+apply to qxl (which has its own listener) or gl=on. Windows guests were
+not tested.
+
+**A latency regression on slow links, found 2026-09-24.** The measures
+above are bytes and CPU on an unshaped link. kerbside's shaped-link
+re-baseline (kerbside `docs/performance/streaming-rebaseline.md`) put
+the series behind a 80 ms / 10 Mbit link and measured
+keypress-to-draw latency:
+
+| streaming-video | Content | Stock qemu p50 | v2 p50 |
+|---|---|---|---|
+| all | streamable, steady state | 195 ms | 191 ms |
+| all | first presses, before a stream forms | about 200 ms | about 1 s, up to 6 s |
+| filter | not streamable (pure noise) | 2140 ms | 7970 ms |
+
+spice-server's ACK window counts messages, not bytes. v2 sends each
+damaged region whole, here a 640x480 bitmap of about 1.2 MB, where
+stock qemu sends 32-pixel columns of about 60 KB, so the backlog the
+window allows is roughly twenty times larger in bytes. Whenever a
+region goes out as a bitmap rather than a stream (before stream
+detection's 20 frames, or for content `filter` will not stream), v2 is
+much slower on a slow link. A v3 should cap the bytes per drawable,
+for example by splitting large damage into bands, while keeping the
+single stream geometry.
 
 ## Diff cost, 1920x1080x32, per update (us)
 
