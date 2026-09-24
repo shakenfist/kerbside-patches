@@ -1,0 +1,124 @@
+From c2c5ab70cf9ce5b97119a8391897529e3893a88d Mon Sep 17 00:00:00 2001
+From: Michael Still <mikal@stillhq.com>
+Date: Wed, 23 Sep 2026 21:59:30 +1000
+Subject: [PATCH v2 0/4] ui/spice: make non-GL damage handling stream friendly
+
+Without gl=on, the simple spice display unions all damage into one
+box, diffs it against a mirror in 32 pixel wide columns, sends one
+QXL_DRAW_COPY per changed column run, and only pushes on the 30ms GUI
+refresh timer. That starves spice-server's video stream detection: a
+guest playing a 480x360 video at 30 fps makes spice-server 0.15.2 start
+18-19 separate 32x360 H.264 streams, while thousands of small lossless
+column draws keep flowing.
+
+This series:
+
+ 1. tracks up to 16 disjoint damage rectangles instead of one union,
+    in a small spice independent helper with unit tests;
+ 2. uses the mirror diff only to trim each rectangle to the changed
+    pixels (splitting on 32+ unchanged rows) and sends each result as
+    one DRAW_COPY;
+ 3. pushes damage from a timer as soon as it arrives, paced by the
+    existing max-refresh-rate option (default 30), instead of waiting
+    for the refresh timer;
+ 4. also splits on 32+ unchanged columns, so side by side changes in
+    the same rows stay apart.
+
+Context that matters when reviewing:
+
+ - spice-server caps video streams at MAX_FPS 30, so pacing by
+   max-refresh-rate (default 30) costs no stream frames by default and
+   keeps one knob with one meaning; max-refresh-rate already paces the
+   gl=on path. Users who want lower latency for faster guests can raise
+   it. No new option is added; qemu-options.hx is updated.
+ - qemu defaults streaming-video to off (ui/spice-core.c, when the
+   option is not given), so the stream benefits need
+   streaming-video=filter or all. Patches 1-3 still reduce draws, bytes
+   and latency with streaming off.
+ - Linux virtio-gpu guests from 6.8 on report full plane damage for
+   dumb buffers (ignore_damage_clips sticks once set), so qemu sees
+   whole-screen damage on every flush. The row/column diff trims that
+   back to what changed; a separate kernel fix is being prepared. VGA
+   reports whole scanlines, which the same diff trims.
+ - The SPICE section in MAINTAINERS is orphaned; ui/ is Graphics.
+
+Method: a static Linux 6.12 guest (no userspace) that paints a text
+like background, animates a 480x360 plasma at 30 fps and ticks a clock
+once a second, flushing with DIRTYFB (virtio-gpu) or writing straight
+to vesafb (VGA, qxl-vga). A headless spice client (ryll) connects for
+28 s per run and logs every display message; qemu traces give damage
+to QXL command latency. spice-server 0.15.2, H.264 via gstreamer, host
+Ryzen 7 8845HS. Latency uses the default max-refresh-rate=30 (p95
+0.1-0.4ms with 60). "full" is the stock guest driver (full plane damage),
+"clips" a driver that honours damage clips.
+
+virtio-vga, streaming-video=filter:
+
+  run            draws  streams     MB    p50/p95 latency (ms)
+  base, full      6643  18 32x360  26.9   15.2 / 28.6
+  series, full      45   1 480x360  5.0    0.2 /  1.8
+  base, clips     4937  19 32x360  19.4   14.3 / 28.0
+  series, clips     45   1 480x360  5.0    0.1 /  1.4
+
+With streaming off, bytes drop from 79 to 65 MB (full) and 73 to 65 MB
+(clips). With the clock beside the video (same rows), patch 4 turns
+6.5 MB into 5.0 MB and p95 latency 12ms into 1.2ms.
+
+Other devices, streaming-video=filter, base -> series:
+
+  VGA (std-vga):     24709 draws, no stream, 81 MB
+                  ->   830 draws, 1 480x360 stream, 35 MB
+  qxl-vga, VGA mode: 24662 draws, no stream, 81 MB
+                  ->   813 draws, 1 480x360 stream, 34 MB
+  virtio-vga,max_outputs=2, video on both heads:
+                      9872 draws, 43 32x360 streams, 36.7 MB
+                  ->    90 draws, 2 480x360 streams, 10.4 MB
+
+No regressions seen: bytes with streaming off are equal or lower
+everywhere, qemu CPU is equal or lower. Patch 3 does not apply to qxl
+(which has its own listener) or gl=on. Windows guests were not tested.
+
+Diff cost, 1920x1080x32, per update (us), column diff -> this series:
+everything changed 315 -> 9, nothing changed 237 -> 195, 480x360
+video 241 -> 210, one pixel column 233 -> 185, one pixel per row at
+random x 259 -> 385, two pixel columns 640 apart 242 -> 708 (patch 4
+column scan). The last two send one or two large boxes rather than
+many 32 pixel columns.
+
+v2:
+ - damage list moved to ui/spice-damage.c with unit tests (meson test
+   test-spice-damage), merges touching rectangles, and on overflow
+   merges the pair that grows least instead of collapsing everything
+ - diff rewritten to bisect with memcmp() and scan only outside the
+   current box; v1's per-pixel edge scan cost up to 1.1ms per frame
+ - pacing uses max-refresh-rate, and the pacing clock only advances
+   when damage is actually pushed (v1 advanced it on every refresh,
+   which delayed pushes; p95 latency 15ms -> 1-2ms)
+ - new patch 4, column split
+ - tested with VGA, qxl-vga and two heads
+
+
+Michael Still (4):
+  ui/spice: track a bounded list of damage rectangles
+  ui/spice: send each damaged region as one DRAW_COPY
+  ui/spice: push damage promptly, paced by max-refresh-rate
+  ui/spice: also split damage on unchanged columns
+
+ MAINTAINERS                    |   2 +
+ hw/display/qxl.c               |   2 +-
+ include/ui/spice-damage.h      |  75 +++++
+ include/ui/spice-display.h     |   5 +-
+ qemu-options.hx                |   2 +
+ tests/unit/meson.build         |   6 +
+ tests/unit/test-spice-damage.c | 514 +++++++++++++++++++++++++++++++++
+ ui/meson.build                 |   1 +
+ ui/spice-damage.c              | 336 +++++++++++++++++++++
+ ui/spice-display.c             | 174 ++++++-----
+ 10 files changed, 1043 insertions(+), 74 deletions(-)
+ create mode 100644 include/ui/spice-damage.h
+ create mode 100644 tests/unit/test-spice-damage.c
+ create mode 100644 ui/spice-damage.c
+
+-- 
+2.47.3
+

@@ -1,0 +1,142 @@
+From 9b3def9485062673088011ca6d9d7146eda15d5d Mon Sep 17 00:00:00 2001
+From: Michael Still <mikal@stillhq.com>
+Date: Wed, 23 Sep 2026 18:23:56 +1000
+Subject: [PATCH 3/3] ui/spice: push damage promptly instead of on the refresh
+ timer
+
+For the non-GL spice display, damage reported through dpy_gfx_update()
+only reaches the spice server on the next display refresh, which runs
+every GUI_REFRESH_INTERVAL_DEFAULT (30ms). Devices that report damage
+as it happens, such as virtio-gpu on RESOURCE_FLUSH, therefore see up
+to 30ms of added latency, and a guest rendering at 60 fps is sampled
+at about 33 fps.
+
+Arm a timer when damage arrives so that it is converted to QXL
+commands and the spice worker is woken straight away, but no more than
+once every SPICE_DISPLAY_MIN_UPDATE_INTERVAL_MS (16ms). The refresh
+timer path is unchanged, so devices that only report damage from
+hw_update (VGA) behave as before.
+---
+ include/ui/spice-display.h |  8 +++++++
+ ui/spice-display.c         | 46 +++++++++++++++++++++++++++++++++++---
+ 2 files changed, 51 insertions(+), 3 deletions(-)
+
+diff --git a/include/ui/spice-display.h b/include/ui/spice-display.h
+index 2465ebe0b6..42e2d0611e 100644
+--- a/include/ui/spice-display.h
++++ b/include/ui/spice-display.h
+@@ -84,6 +84,12 @@ QXLCookie *qxl_cookie_new(int type, uint64_t io);
+  */
+ #define SPICE_DISPLAY_MAX_DIRTY_RECTS 16
+ 
++/*
++ * Minimum interval between two batches of updates pushed to the spice
++ * server outside the display refresh timer, i.e. a ~60 fps cap.
++ */
++#define SPICE_DISPLAY_MIN_UPDATE_INTERVAL_MS 16
++
+ typedef struct SimpleSpiceDisplay SimpleSpiceDisplay;
+ typedef struct SimpleSpiceUpdate SimpleSpiceUpdate;
+ typedef struct SimpleSpiceCursor SimpleSpiceCursor;
+@@ -103,6 +109,8 @@ struct SimpleSpiceDisplay {
+     QXLRect dirty[SPICE_DISPLAY_MAX_DIRTY_RECTS];
+     int num_dirty;
+     int notify;
++    QEMUTimer *update_timer;
++    int64_t last_update_ms;
+ 
+     /*
+      * All struct members below this comment can be accessed from
+diff --git a/ui/spice-display.c b/ui/spice-display.c
+index e680aa9937..bf38ff31fe 100644
+--- a/ui/spice-display.c
++++ b/ui/spice-display.c
+@@ -458,6 +458,18 @@ void qemu_spice_display_update(SimpleSpiceDisplay *ssd,
+         ssd->notify++;
+     }
+     qemu_spice_add_dirty(ssd, &update_area);
++
++    /*
++     * Push the damage to the spice server promptly instead of waiting
++     * for the next display refresh (30ms by default), but no more often
++     * than every SPICE_DISPLAY_MIN_UPDATE_INTERVAL_MS.
++     */
++    if (ssd->update_timer && !timer_pending(ssd->update_timer)) {
++        timer_mod(ssd->update_timer,
++                  MAX(qemu_clock_get_ms(QEMU_CLOCK_REALTIME),
++                      ssd->last_update_ms +
++                      SPICE_DISPLAY_MIN_UPDATE_INTERVAL_MS));
++    }
+ }
+ 
+ void qemu_spice_display_switch(SimpleSpiceDisplay *ssd,
+@@ -559,10 +571,8 @@ void qemu_spice_cursor_refresh_bh(void *opaque)
+     }
+ }
+ 
+-void qemu_spice_display_refresh(SimpleSpiceDisplay *ssd)
++static void qemu_spice_display_flush(SimpleSpiceDisplay *ssd)
+ {
+-    qemu_console_hw_update(ssd->dcl.con);
+-
+     WITH_QEMU_LOCK_GUARD(&ssd->lock) {
+         if (QTAILQ_EMPTY(&ssd->updates) && ssd->ds) {
+             qemu_spice_create_update(ssd);
+@@ -573,10 +583,35 @@ void qemu_spice_display_refresh(SimpleSpiceDisplay *ssd)
+     trace_qemu_spice_display_refresh(ssd->qxl.id, ssd->notify);
+     if (ssd->notify) {
+         ssd->notify = 0;
++        ssd->last_update_ms = qemu_clock_get_ms(QEMU_CLOCK_REALTIME);
+         qemu_spice_wakeup(ssd);
+     }
+ }
+ 
++void qemu_spice_display_refresh(SimpleSpiceDisplay *ssd)
++{
++    qemu_console_hw_update(ssd->dcl.con);
++    qemu_spice_display_flush(ssd);
++}
++
++static void qemu_spice_update_timer_cb(void *opaque)
++{
++    SimpleSpiceDisplay *ssd = opaque;
++
++    qemu_spice_display_flush(ssd);
++
++    /*
++     * If the server has not consumed the previous batch yet the damage
++     * is still pending; try again after another interval rather than
++     * leaving it to the refresh timer.
++     */
++    if (ssd->num_dirty) {
++        timer_mod(ssd->update_timer,
++                  qemu_clock_get_ms(QEMU_CLOCK_REALTIME) +
++                  SPICE_DISPLAY_MIN_UPDATE_INTERVAL_MS);
++    }
++}
++
+ /* spice display interface callbacks */
+ 
+ static void interface_attached_worker(QXLInstance *sin)
+@@ -1475,6 +1510,10 @@ static void qemu_spice_display_init_one(QemuConsole *con)
+         ssd->have_scanout = false;
+     }
+ #endif
++    if (!spice_opengl) {
++        ssd->update_timer = timer_new_ms(QEMU_CLOCK_REALTIME,
++                                         qemu_spice_update_timer_cb, ssd);
++    }
+     ssd->qxl.base.sif = &dpy_interface.base;
+     qemu_spice_add_display_interface(&ssd->qxl, con);
+ 
+@@ -1529,6 +1568,7 @@ void qemu_spice_display_cleanup(void)
+         g_clear_pointer(&ssd->surface, pixman_image_unref);
+         g_clear_pointer(&ssd->mirror, pixman_image_unref);
+         g_clear_pointer(&ssd->buf, g_free);
++        g_clear_pointer(&ssd->update_timer, timer_free);
+ #ifdef HAVE_SPICE_GL
+         g_clear_pointer(&ssd->gl_unblock_bh, qemu_bh_delete);
+         g_clear_pointer(&ssd->gl_unblock_timer, timer_free);
+-- 
+2.47.3
+

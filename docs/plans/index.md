@@ -22,3 +22,4 @@ and the summary of what happened live in the plan.
 | Date | Plan | Intent | Status |
 |------|------|--------|--------|
 | 2026-09-11 | [JSON logging for oslo.log services](oslo-json-logging.md) | Switch every oslo.log-based Kolla-Ansible service to structured JSON logging behind one global variable, reusing the fluentd JSON parser Kerbside introduced | In progress |
+| 2026-09-24 | [Non-OpenStack upstream series (qemu, Linux)](upstream-series.md) | Keep patch series against upstreams outside OpenStack, starting with kerbside's SPICE qemu damage-path series (carried downstream) and a DRM `ignore_damage_clips` kernel fix (to submit), under an `upstream/` tree the OpenStack tooling cannot see, with their measurement rigs, rebase checks and a mail submission path | In progress |

@@ -1,0 +1,2 @@
+"Marc-André Lureau" <marcandre.lureau@redhat.com> (odd fixer:Graphics)
+qemu-devel@nongnu.org (open list:All patches CC here)

@@ -1,0 +1,604 @@
+From b6598b9e976d13f2ab0aaf9324eeb051765f90f2 Mon Sep 17 00:00:00 2001
+From: Michael Still <mikal@stillhq.com>
+Date: Wed, 23 Sep 2026 21:34:48 +1000
+Subject: [PATCH v2 1/4] ui/spice: track a bounded list of damage rectangles
+
+The simple spice display keeps the damage reported between two updates
+as a single QXLRect, the union of everything reported. Two small,
+distant changes, such as a video and a clock in opposite corners of
+the screen, therefore become one rectangle spanning most of the
+screen, and everything inside it gets diffed and, in part, resent.
+
+Track up to SIMPLE_SPICE_DAMAGE_MAX_RECTS (16) rectangles instead.
+A new rectangle that overlaps or touches existing damage is merged
+with it into their bounding box, so the list stays disjoint; when the
+list is full, the new rectangle is merged with the entry whose
+bounding box grows the least.
+
+The list lives in a small helper, ui/spice-damage.c, that does not
+depend on spice or pixman, so that it can be unit tested on its own.
+The column diff that turns damage into QXL draws is unchanged, it now
+just runs once per rectangle.
+
+Prompt: Harden the spice damage prototype toward upstream: make the
+damage list logic unit testable under meson test, keep each patch
+checkpatch clean and bisectable, and write qemu style commit messages.
+
+Co-Authored-By: Claude Opus 5.5 (1M context, low effort) <noreply@anthropic.com>
+---
+ MAINTAINERS                    |   2 +
+ hw/display/qxl.c               |   2 +-
+ include/ui/spice-damage.h      |  56 +++++++++
+ include/ui/spice-display.h     |   3 +-
+ tests/unit/meson.build         |   6 +
+ tests/unit/test-spice-damage.c | 204 +++++++++++++++++++++++++++++++++
+ ui/meson.build                 |   1 +
+ ui/spice-damage.c              |  88 ++++++++++++++
+ ui/spice-display.c             |  43 ++++---
+ 9 files changed, 381 insertions(+), 24 deletions(-)
+ create mode 100644 include/ui/spice-damage.h
+ create mode 100644 tests/unit/test-spice-damage.c
+ create mode 100644 ui/spice-damage.c
+
+diff --git a/MAINTAINERS b/MAINTAINERS
+index 2ecfd7159d..b1ea80c6ec 100644
+--- a/MAINTAINERS
++++ b/MAINTAINERS
+@@ -3399,7 +3399,9 @@ SPICE
+ S: Orphan
+ F: include/ui/qemu-spice.h
+ F: include/ui/spice-display.h
++F: include/ui/spice-damage.h
+ F: ui/spice-*.c
++F: tests/unit/test-spice-damage.c
+ F: audio/spiceaudio.c
+ F: hw/display/qxl*
+ F: qapi/ui.json
+diff --git a/hw/display/qxl.c b/hw/display/qxl.c
+index 74258afa58..b52d0414f6 100644
+--- a/hw/display/qxl.c
++++ b/hw/display/qxl.c
+@@ -1207,7 +1207,7 @@ static void qxl_reset_state(PCIQXLDevice *d)
+     init_qxl_ram(d);
+     d->num_free_res = 0;
+     d->last_release = NULL;
+-    memset(&d->ssd.dirty, 0, sizeof(d->ssd.dirty));
++    simple_spice_damage_clear(&d->ssd.dirty);
+     qxl_update_irq(d);
+ }
+ 
+diff --git a/include/ui/spice-damage.h b/include/ui/spice-damage.h
+new file mode 100644
+index 0000000000..5550de06a9
+--- /dev/null
++++ b/include/ui/spice-damage.h
+@@ -0,0 +1,56 @@
++/*
++ * Damage tracking helpers for the simple spice display
++ *
++ * SPDX-License-Identifier: GPL-2.0-or-later
++ */
++
++#ifndef UI_SPICE_DAMAGE_H
++#define UI_SPICE_DAMAGE_H
++
++/*
++ * A rectangle in pixels, with exclusive right and bottom edges; the
++ * same layout as QXLRect but without the dependency on spice headers.
++ */
++typedef struct SimpleSpiceRect {
++    int top;
++    int left;
++    int bottom;
++    int right;
++} SimpleSpiceRect;
++
++/*
++ * Maximum number of damage rectangles tracked between two updates.
++ * Beyond that, rectangles are merged into their neighbours.
++ */
++#define SIMPLE_SPICE_DAMAGE_MAX_RECTS 16
++
++/*
++ * A bounded list of pairwise disjoint (neither overlapping nor
++ * touching) damage rectangles.
++ */
++typedef struct SimpleSpiceDamage {
++    SimpleSpiceRect rects[SIMPLE_SPICE_DAMAGE_MAX_RECTS];
++    int num_rects;
++} SimpleSpiceDamage;
++
++static inline void simple_spice_damage_clear(SimpleSpiceDamage *damage)
++{
++    damage->num_rects = 0;
++}
++
++static inline bool simple_spice_damage_is_empty(const SimpleSpiceDamage *d)
++{
++    return d->num_rects == 0;
++}
++
++/*
++ * Add the rectangle at (@x, @y) of size @w x @h to @damage. Empty
++ * rectangles are ignored. A rectangle that overlaps or touches existing
++ * damage is merged with it into their bounding box. When the list is
++ * full, the new rectangle is merged with the existing one whose bounding
++ * box grows the least.
++ */
++void simple_spice_damage_add(SimpleSpiceDamage *damage,
++                             int x, int y, int w, int h);
++
++#endif /* UI_SPICE_DAMAGE_H */
+diff --git a/include/ui/spice-display.h b/include/ui/spice-display.h
+index a382553fa8..2b873131c3 100644
+--- a/include/ui/spice-display.h
++++ b/include/ui/spice-display.h
+@@ -26,6 +26,7 @@
+ #include "qemu/thread.h"
+ #include "ui/qemu-pixman.h"
+ #include "ui/console.h"
++#include "ui/spice-damage.h"
+ 
+ #if defined(CONFIG_OPENGL) && defined(CONFIG_GBM)
+ #  define HAVE_SPICE_GL 1
+@@ -94,7 +95,7 @@ struct SimpleSpiceDisplay {
+     pixman_image_t *mirror;
+     int32_t num_surfaces;
+ 
+-    QXLRect dirty;
++    SimpleSpiceDamage dirty;
+     int notify;
+ 
+     /*
+diff --git a/tests/unit/meson.build b/tests/unit/meson.build
+index 5ba6b1a230..1b1e12dd10 100644
+--- a/tests/unit/meson.build
++++ b/tests/unit/meson.build
+@@ -165,6 +165,12 @@ if have_system
+     }
+   endif
+   tests += {'test-qdev': [qom, hwcore]}
++
++  if spice.found()
++    tests += {
++      'test-spice-damage': [meson.project_source_root() / 'ui/spice-damage.c'],
++    }
++  endif
+ endif
+ 
+ if have_ga and host_os == 'linux'
+diff --git a/tests/unit/test-spice-damage.c b/tests/unit/test-spice-damage.c
+new file mode 100644
+index 0000000000..276d354872
+--- /dev/null
++++ b/tests/unit/test-spice-damage.c
+@@ -0,0 +1,204 @@
++/*
++ * Unit tests for the simple spice display damage helpers
++ *
++ * SPDX-License-Identifier: GPL-2.0-or-later
++ */
++
++#include "qemu/osdep.h"
++#include "ui/spice-damage.h"
++
++static bool rect_eq(const SimpleSpiceRect *r,
++                    int left, int top, int right, int bottom)
++{
++    return r->left == left && r->top == top &&
++           r->right == right && r->bottom == bottom;
++}
++
++static bool rect_contains(const SimpleSpiceRect *outer,
++                          const SimpleSpiceRect *inner)
++{
++    return outer->left <= inner->left && outer->top <= inner->top &&
++           outer->right >= inner->right && outer->bottom >= inner->bottom;
++}
++
++static bool rect_adjacent(const SimpleSpiceRect *a, const SimpleSpiceRect *b)
++{
++    return a->left <= b->right && b->left <= a->right &&
++           a->top <= b->bottom && b->top <= a->bottom;
++}
++
++static void test_add_empty(void)
++{
++    SimpleSpiceDamage d;
++
++    simple_spice_damage_clear(&d);
++    g_assert_true(simple_spice_damage_is_empty(&d));
++    simple_spice_damage_add(&d, 10, 10, 0, 5);
++    simple_spice_damage_add(&d, 10, 10, 5, 0);
++    simple_spice_damage_add(&d, 10, 10, -1, 5);
++    g_assert_true(simple_spice_damage_is_empty(&d));
++}
++
++static void test_add_disjoint(void)
++{
++    SimpleSpiceDamage d;
++
++    simple_spice_damage_clear(&d);
++    simple_spice_damage_add(&d, 0, 0, 10, 10);
++    simple_spice_damage_add(&d, 100, 100, 10, 10);
++    g_assert_cmpint(d.num_rects, ==, 2);
++    g_assert_true(rect_eq(&d.rects[0], 0, 0, 10, 10));
++    g_assert_true(rect_eq(&d.rects[1], 100, 100, 110, 110));
++
++    simple_spice_damage_clear(&d);
++    g_assert_true(simple_spice_damage_is_empty(&d));
++}
++
++static void test_add_overlap(void)
++{
++    SimpleSpiceDamage d;
++
++    simple_spice_damage_clear(&d);
++    simple_spice_damage_add(&d, 0, 0, 10, 10);
++    simple_spice_damage_add(&d, 5, 5, 10, 10);
++    g_assert_cmpint(d.num_rects, ==, 1);
++    g_assert_true(rect_eq(&d.rects[0], 0, 0, 15, 15));
++
++    /* Contained damage changes nothing. */
++    simple_spice_damage_add(&d, 2, 2, 3, 3);
++    g_assert_cmpint(d.num_rects, ==, 1);
++    g_assert_true(rect_eq(&d.rects[0], 0, 0, 15, 15));
++}
++
++static void test_add_touching(void)
++{
++    SimpleSpiceDamage d;
++
++    /* Scanline bands reported one after the other end up as one. */
++    simple_spice_damage_clear(&d);
++    simple_spice_damage_add(&d, 0, 0, 640, 10);
++    simple_spice_damage_add(&d, 0, 10, 640, 10);
++    g_assert_cmpint(d.num_rects, ==, 1);
++    g_assert_true(rect_eq(&d.rects[0], 0, 0, 640, 20));
++}
++
++static void test_add_bridge(void)
++{
++    SimpleSpiceDamage d;
++
++    /* A rectangle joining two others absorbs both. */
++    simple_spice_damage_clear(&d);
++    simple_spice_damage_add(&d, 0, 0, 10, 10);
++    simple_spice_damage_add(&d, 50, 0, 10, 10);
++    simple_spice_damage_add(&d, 200, 200, 10, 10);
++    g_assert_cmpint(d.num_rects, ==, 3);
++    simple_spice_damage_add(&d, 5, 5, 50, 1);
++    g_assert_cmpint(d.num_rects, ==, 2);
++    g_assert_true(rect_eq(&d.rects[0], 200, 200, 210, 210) ||
++                  rect_eq(&d.rects[1], 200, 200, 210, 210));
++    g_assert_true(rect_eq(&d.rects[0], 0, 0, 60, 10) ||
++                  rect_eq(&d.rects[1], 0, 0, 60, 10));
++}
++
++static void test_add_cascade(void)
++{
++    SimpleSpiceDamage d;
++
++    /*
++     * The union of the new rectangle and the first one it meets reaches
++     * a rectangle that the new one alone does not touch.
++     */
++    simple_spice_damage_clear(&d);
++    simple_spice_damage_add(&d, 100, 0, 10, 100);   /* tall, at x 100 */
++    simple_spice_damage_add(&d, 0, 90, 10, 10);     /* bottom left */
++    g_assert_cmpint(d.num_rects, ==, 2);
++    simple_spice_damage_add(&d, 105, 0, 1, 1);      /* inside the tall one */
++    g_assert_cmpint(d.num_rects, ==, 2);
++    simple_spice_damage_add(&d, 5, 0, 1, 1);        /* top left */
++    g_assert_cmpint(d.num_rects, ==, 3);
++    /* Joins top left and tall; the union then covers bottom left too. */
++    simple_spice_damage_add(&d, 6, 0, 94, 1);
++    g_assert_cmpint(d.num_rects, ==, 1);
++    g_assert_true(rect_eq(&d.rects[0], 0, 0, 110, 100));
++}
++
++static void test_add_overflow(void)
++{
++    SimpleSpiceDamage d;
++    int i;
++
++    /* A row of small rectangles, 100 pixels apart. */
++    simple_spice_damage_clear(&d);
++    for (i = 0; i < SIMPLE_SPICE_DAMAGE_MAX_RECTS; i++) {
++        simple_spice_damage_add(&d, i * 100, 0, 10, 10);
++    }
++    g_assert_cmpint(d.num_rects, ==, SIMPLE_SPICE_DAMAGE_MAX_RECTS);
++
++    /* One more, closest to the first: only that pair merges. */
++    simple_spice_damage_add(&d, 20, 0, 10, 10);
++    g_assert_cmpint(d.num_rects, ==, SIMPLE_SPICE_DAMAGE_MAX_RECTS);
++    for (i = 0; i < d.num_rects; i++) {
++        if (d.rects[i].left == 0) {
++            g_assert_true(rect_eq(&d.rects[i], 0, 0, 30, 10));
++        } else {
++            g_assert_cmpint(d.rects[i].right - d.rects[i].left, ==, 10);
++        }
++    }
++}
++
++static void test_add_random(void)
++{
++    SimpleSpiceDamage d;
++    SimpleSpiceRect added[256];
++    GRand *rand = g_rand_new_with_seed(1);
++    int iter, n, i, j;
++
++    for (iter = 0; iter < 200; iter++) {
++        simple_spice_damage_clear(&d);
++        for (n = 0; n < ARRAY_SIZE(added); n++) {
++            int x = g_rand_int_range(rand, 0, 1920);
++            int y = g_rand_int_range(rand, 0, 1080);
++            int w = g_rand_int_range(rand, 1, 64);
++            int h = g_rand_int_range(rand, 1, 64);
++
++            added[n] = (SimpleSpiceRect) {
++                .left = x, .top = y, .right = x + w, .bottom = y + h,
++            };
++            simple_spice_damage_add(&d, x, y, w, h);
++
++            g_assert_cmpint(d.num_rects, >=, 1);
++            g_assert_cmpint(d.num_rects, <=, SIMPLE_SPICE_DAMAGE_MAX_RECTS);
++            for (i = 0; i < d.num_rects; i++) {
++                for (j = i + 1; j < d.num_rects; j++) {
++                    g_assert_false(rect_adjacent(&d.rects[i], &d.rects[j]));
++                }
++            }
++        }
++        /* Nothing that was added is lost. */
++        for (n = 0; n < ARRAY_SIZE(added); n++) {
++            for (i = 0; i < d.num_rects; i++) {
++                if (rect_contains(&d.rects[i], &added[n])) {
++                    break;
++                }
++            }
++            g_assert_cmpint(i, <, d.num_rects);
++        }
++    }
++    g_rand_free(rand);
++}
++
++int main(int argc, char **argv)
++{
++    g_test_init(&argc, &argv, NULL);
++
++    g_test_add_func("/spice-damage/add/empty", test_add_empty);
++    g_test_add_func("/spice-damage/add/disjoint", test_add_disjoint);
++    g_test_add_func("/spice-damage/add/overlap", test_add_overlap);
++    g_test_add_func("/spice-damage/add/touching", test_add_touching);
++    g_test_add_func("/spice-damage/add/bridge", test_add_bridge);
++    g_test_add_func("/spice-damage/add/cascade", test_add_cascade);
++    g_test_add_func("/spice-damage/add/overflow", test_add_overflow);
++    g_test_add_func("/spice-damage/add/random", test_add_random);
++
++    return g_test_run();
++}
+diff --git a/ui/meson.build b/ui/meson.build
+index d345f6c70d..08796f696e 100644
+--- a/ui/meson.build
++++ b/ui/meson.build
+@@ -177,6 +177,7 @@ if spice.found()
+   spice_core_ss = ss.source_set()
+   spice_core_ss.add(spice, pixman, files(
+     'spice-core.c',
++    'spice-damage.c',
+     'spice-input.c',
+     'spice-display.c'
+   ))
+diff --git a/ui/spice-damage.c b/ui/spice-damage.c
+new file mode 100644
+index 0000000000..c30be4e266
+--- /dev/null
++++ b/ui/spice-damage.c
+@@ -0,0 +1,88 @@
++/*
++ * Damage tracking helpers for the simple spice display
++ *
++ * SPDX-License-Identifier: GPL-2.0-or-later
++ */
++
++#include "qemu/osdep.h"
++#include "ui/spice-damage.h"
++
++/* True if @a and @b overlap or share an edge. */
++static bool rect_adjacent(const SimpleSpiceRect *a, const SimpleSpiceRect *b)
++{
++    return a->left <= b->right && b->left <= a->right &&
++           a->top <= b->bottom && b->top <= a->bottom;
++}
++
++static void rect_union(SimpleSpiceRect *dest, const SimpleSpiceRect *r)
++{
++    dest->top = MIN(dest->top, r->top);
++    dest->left = MIN(dest->left, r->left);
++    dest->bottom = MAX(dest->bottom, r->bottom);
++    dest->right = MAX(dest->right, r->right);
++}
++
++static int64_t rect_area(const SimpleSpiceRect *r)
++{
++    return (int64_t)(r->right - r->left) * (r->bottom - r->top);
++}
++
++/* Remove rects[@i], keeping the list compact. */
++static void damage_remove(SimpleSpiceDamage *damage, int i)
++{
++    damage->rects[i] = damage->rects[--damage->num_rects];
++}
++
++void simple_spice_damage_add(SimpleSpiceDamage *damage,
++                             int x, int y, int w, int h)
++{
++    SimpleSpiceRect merged = {
++        .top = y,
++        .left = x,
++        .bottom = y + h,
++        .right = x + w,
++    };
++    int i, best;
++    int64_t growth, best_growth;
++
++    if (w <= 0 || h <= 0) {
++        return;
++    }
++
++    for (;;) {
++        /* Absorb everything the new rectangle overlaps or touches. */
++        for (i = 0; i < damage->num_rects; i++) {
++            if (rect_adjacent(&damage->rects[i], &merged)) {
++                rect_union(&merged, &damage->rects[i]);
++                damage_remove(damage, i);
++                /* The union may now reach rectangles already checked. */
++                i = -1;
++            }
++        }
++
++        if (damage->num_rects < SIMPLE_SPICE_DAMAGE_MAX_RECTS) {
++            damage->rects[damage->num_rects++] = merged;
++            return;
++        }
++
++        /*
++         * The list is full: merge with the rectangle whose bounding box
++         * with the new one grows the least, then check the result for
++         * overlaps again.
++         */
++        best = 0;
++        best_growth = INT64_MAX;
++        for (i = 0; i < damage->num_rects; i++) {
++            SimpleSpiceRect u = merged;
++
++            rect_union(&u, &damage->rects[i]);
++            growth = rect_area(&u) - rect_area(&damage->rects[i]);
++            if (growth < best_growth) {
++                best = i;
++                best_growth = growth;
++            }
++        }
++        rect_union(&merged, &damage->rects[best]);
++        damage_remove(damage, best);
++    }
++}
+diff --git a/ui/spice-display.c b/ui/spice-display.c
+index 75c7df7bb5..c10886d791 100644
+--- a/ui/spice-display.c
++++ b/ui/spice-display.c
+@@ -191,7 +191,8 @@ static void qemu_spice_create_one_update(SimpleSpiceDisplay *ssd,
+     QTAILQ_INSERT_TAIL(&ssd->updates, update, next);
+ }
+ 
+-static void qemu_spice_create_update(SimpleSpiceDisplay *ssd)
++static void qemu_spice_create_rect_update(SimpleSpiceDisplay *ssd,
++                                          const SimpleSpiceRect *dirty)
+ {
+     static const int blksize = 32;
+     int blocks = DIV_ROUND_UP(surface_width(ssd->ds), blksize);
+@@ -200,10 +201,6 @@ static void qemu_spice_create_update(SimpleSpiceDisplay *ssd)
+     int bpp = surface_bytes_per_pixel(ssd->ds);
+     uint8_t *guest, *mirror;
+ 
+-    if (qemu_spice_rect_is_empty(&ssd->dirty)) {
+-        return;
+-    };
+-
+     dirty_top = g_new(int, blocks);
+     for (blk = 0; blk < blocks; blk++) {
+         dirty_top[blk] = -1;
+@@ -211,13 +208,13 @@ static void qemu_spice_create_update(SimpleSpiceDisplay *ssd)
+ 
+     guest = surface_data(ssd->ds);
+     mirror = (void *)pixman_image_get_data(ssd->mirror);
+-    for (y = ssd->dirty.top; y < ssd->dirty.bottom; y++) {
++    for (y = dirty->top; y < dirty->bottom; y++) {
+         yoff1 = y * surface_stride(ssd->ds);
+         yoff2 = y * pixman_image_get_stride(ssd->mirror);
+-        for (x = ssd->dirty.left; x < ssd->dirty.right; x += blksize) {
++        for (x = dirty->left; x < dirty->right; x += blksize) {
+             xoff = x * bpp;
+             blk = x / blksize;
+-            bw = MIN(blksize, ssd->dirty.right - x);
++            bw = MIN(blksize, dirty->right - x);
+             if (memcmp(guest + yoff1 + xoff,
+                        mirror + yoff2 + xoff,
+                        bw * bpp) == 0) {
+@@ -239,13 +236,13 @@ static void qemu_spice_create_update(SimpleSpiceDisplay *ssd)
+         }
+     }
+ 
+-    for (x = ssd->dirty.left; x < ssd->dirty.right; x += blksize) {
++    for (x = dirty->left; x < dirty->right; x += blksize) {
+         blk = x / blksize;
+-        bw = MIN(blksize, ssd->dirty.right - x);
++        bw = MIN(blksize, dirty->right - x);
+         if (dirty_top[blk] != -1) {
+             QXLRect update = {
+                 .top    = dirty_top[blk],
+-                .bottom = ssd->dirty.bottom,
++                .bottom = dirty->bottom,
+                 .left   = x,
+                 .right  = x + bw,
+             };
+@@ -253,8 +250,16 @@ static void qemu_spice_create_update(SimpleSpiceDisplay *ssd)
+             dirty_top[blk] = -1;
+         }
+     }
++}
++
++static void qemu_spice_create_update(SimpleSpiceDisplay *ssd)
++{
++    int i;
+ 
+-    memset(&ssd->dirty, 0, sizeof(ssd->dirty));
++    for (i = 0; i < ssd->dirty.num_rects; i++) {
++        qemu_spice_create_rect_update(ssd, &ssd->dirty.rects[i]);
++    }
++    simple_spice_damage_clear(&ssd->dirty);
+ }
+ 
+ static SimpleSpiceCursor*
+@@ -376,18 +381,12 @@ void qemu_spice_display_init_common(SimpleSpiceDisplay *ssd)
+ void qemu_spice_display_update(SimpleSpiceDisplay *ssd,
+                                int x, int y, int w, int h)
+ {
+-    QXLRect update_area;
+-
+     trace_qemu_spice_display_update(ssd->qxl.id, x, y, w, h);
+-    update_area.left = x,
+-    update_area.right = x + w;
+-    update_area.top = y;
+-    update_area.bottom = y + h;
+ 
+-    if (qemu_spice_rect_is_empty(&ssd->dirty)) {
++    if (simple_spice_damage_is_empty(&ssd->dirty)) {
+         ssd->notify++;
+     }
+-    qemu_spice_rect_union(&ssd->dirty, &update_area);
++    simple_spice_damage_add(&ssd->dirty, x, y, w, h);
+ }
+ 
+ void qemu_spice_display_switch(SimpleSpiceDisplay *ssd,
+@@ -422,7 +421,7 @@ void qemu_spice_display_switch(SimpleSpiceDisplay *ssd,
+                                      surface_height(surface),
+                                      false);
+ 
+-    memset(&ssd->dirty, 0, sizeof(ssd->dirty));
++    simple_spice_damage_clear(&ssd->dirty);
+     if (ssd->surface) {
+         pixman_image_unref(ssd->surface);
+         ssd->surface = NULL;
+@@ -448,7 +447,7 @@ void qemu_spice_display_switch(SimpleSpiceDisplay *ssd,
+         qemu_spice_create_host_primary(ssd);
+     }
+ 
+-    memset(&ssd->dirty, 0, sizeof(ssd->dirty));
++    simple_spice_damage_clear(&ssd->dirty);
+     ssd->notify++;
+ 
+     qemu_mutex_lock(&ssd->lock);
+-- 
+2.47.3
+

@@ -1,0 +1,101 @@
+From 305cb0b8436ae331d568a58d3456290205f581e6 Mon Sep 17 00:00:00 2001
+From: Michael Still <mikal@stillhq.com>
+Date: Wed, 23 Sep 2026 21:33:51 +1000
+Subject: [PATCH] drm/atomic-state-helper: Clear ignore_damage_clips on plane
+ state duplication
+
+__drm_atomic_helper_plane_duplicate_state() copies the current plane
+state and then clears the fields that only describe a single commit,
+such as fb_damage_clips and color_mgmt_changed. ignore_damage_clips was
+added as a per-commit hint alongside fb_damage_clips, but is not
+cleared, so once a driver sets it the flag is inherited by every later
+state of that plane.
+
+vmwgfx, and virtio-gpu in stable kernels, only ever set the flag to
+true, and only when the framebuffer attached to the plane changes.
+After the first framebuffer change, which on most systems is the
+initial modeset, all subsequent commits therefore ignore the damage
+clips and drm_atomic_helper_damage_iter_init() reports the full plane
+as damaged, even when the framebuffer has not changed since.
+
+On virtio-gpu this turns every DRM_IOCTL_MODE_DIRTYFB on a dumb buffer
+into a full-plane transfer and RESOURCE_FLUSH. With a 1280x800 dumb
+buffer and a client that marks a 480x360 region dirty each frame, QEMU
+receives a 1280x800 flush for every frame instead of a 480x360 one.
+
+Clear the flag when duplicating the state, as is done for the other
+per-commit fields, so that it only applies to the commit in whose
+atomic_check it was set. All current users set it from atomic_check
+on each commit where it should apply, so none rely on it persisting.
+Document this in the kernel-doc for the field.
+
+virtio-gpu in drm-misc-next already assigns the flag unconditionally
+on every atomic_check, but vmwgfx does not, and fixing this in the
+helper also covers stable kernels and future users of the flag.
+
+Fixes: 35ed38d58257 ("drm: Allow drivers to indicate the damage helpers to ignore damage clips")
+Cc: stable@vger.kernel.org # v6.8+
+Assisted-by: LLM
+---
+Notes:
+
+Based on drm-misc-next (2302669bb4b5). It also applies cleanly to
+v7.3-rc4+ mainline and to v6.12.101.
+
+Tested on virtio-gpu with a Debian 6.12.101 guest kernel whose
+virtgpu_plane.c still sets the flag only on fb change: rebuilding
+drm_kms_helper.ko with this change and leaving virtio-gpu.ko stock,
+a static test program drawing into a 1280x800 dumb buffer and calling
+DRM_IOCTL_MODE_DIRTYFB on a 480x360 region at 30 fps (plus an 80x28
+region once a second) gives these QEMU virtio_gpu_cmd_res_flush traces
+over ~12 seconds:
+
+  unpatched: 380 flushes, all 1280x800+0+0
+  patched:   381 flushes, 362 x 480x360+437+241, 13 x 80x28+24+740,
+             5 x 1280x800+0+0 (modeset and initial full dirty),
+             1 x 8x16
+
+vmwgfx was only build-tested.
+
+drm-misc-next already has commit a9cc9905ddb7 ("drm/virtio: Recalculate
+ignore_damage_clips on every update"), which fixes this for virtio-gpu
+alone. It has no Fixes: or stable tag and depends on 730f8554f35c, so
+stable kernels still carry the sticky flag; this patch fixes it for
+every driver, and is a single line for stable. An alternative would be
+the same "flag = condition" change in vmwgfx_kms.c, but that leaves the
+next user of the flag open to the same mistake.
+
+ drivers/gpu/drm/drm_atomic_state_helper.c | 1 +
+ include/drm/drm_plane.h                   | 4 ++++
+ 2 files changed, 5 insertions(+)
+
+diff --git a/drivers/gpu/drm/drm_atomic_state_helper.c b/drivers/gpu/drm/drm_atomic_state_helper.c
+index 406157a3660f..fa92eb93cc60 100644
+--- a/drivers/gpu/drm/drm_atomic_state_helper.c
++++ b/drivers/gpu/drm/drm_atomic_state_helper.c
+@@ -330,6 +330,7 @@ void __drm_atomic_helper_plane_duplicate_state(struct drm_plane *plane,
+ 	state->fence = NULL;
+ 	state->commit = NULL;
+ 	state->fb_damage_clips = NULL;
++	state->ignore_damage_clips = false;
+ 	state->color_mgmt_changed = false;
+ }
+ EXPORT_SYMBOL(__drm_atomic_helper_plane_duplicate_state);
+diff --git a/include/drm/drm_plane.h b/include/drm/drm_plane.h
+index 410d7b02b77a..431535dc108c 100644
+--- a/include/drm/drm_plane.h
++++ b/include/drm/drm_plane.h
+@@ -203,6 +203,10 @@ struct drm_plane_state {
+ 	 *
+ 	 * Set by drivers to indicate the drm_atomic_helper_damage_iter_init()
+ 	 * helper that the @fb_damage_clips blob property should be ignored.
++	 * Like @fb_damage_clips, this only applies to the commit it is set
++	 * in: __drm_atomic_helper_plane_duplicate_state() clears it, so
++	 * drivers must set it again in each &drm_plane_helper_funcs.atomic_check
++	 * where damage clips should be ignored.
+ 	 *
+ 	 * See :ref:`damage_tracking_properties` for more information.
+ 	 */
+-- 
+2.47.3
+
