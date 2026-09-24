@@ -99,6 +99,25 @@
 #                      blast radius by job and to confirm the switch to the
 #                      OVN agent extension fixes it
 #
+#   galaxy-install   - kolla-ansible install-deps giving up on fetching
+#                      collections from galaxy.ansible.com. The job fails
+#                      before deploying anything, so a hit is pure
+#                      infrastructure noise, and every kolla-ansible job
+#                      (voting ones included) is exposed. Background is
+#                      under 1% of builds (read timeouts, TLS handshake
+#                      timeouts, and ansible-galaxy crashing with KeyError
+#                      'results' on a truncated API response); from 2026-09-21 connection resets pushed
+#                      it to 7-20% a day, in bursts separated by clean
+#                      stretches of several hours. Every hit from
+#                      2026-09-21 to 2026-09-24 (879 of them) ran on
+#                      vexxhost-ca-ymq-1 and none on the other nine
+#                      providers, so it is that region's path to Galaxy.
+#                      The scanner does not record provider; see
+#                      docs/ci-data.md for how that was established.
+#                      Kayobe installs its
+#                      collections differently and never logs this string,
+#                      hence the job filter
+#
 # Note on the fluentd-missing-logs denominator: fluentd-error.txt is only
 # published by builds that already failed this check, so on its own it would
 # chart a constant 100% hit rate. The second log suffix, fluentd/fluentd.txt,
@@ -128,7 +147,7 @@ report="$1"
 if [ -z "${report}" ]; then
     echo "Usage: $0 <report>|all" >&2
     echo "Reports: libvirt-limit mariadb-ist wsrep-sync-fatal ovs-create-tap scheduler-unhealthy" >&2
-    echo "         fluentd-missing-logs haproxy-layer7-timeout mariadb-collation ovn-metadata-agent-missing" >&2
+    echo "         fluentd-missing-logs haproxy-layer7-timeout mariadb-collation ovn-metadata-agent-missing galaxy-install" >&2
     exit 1
 fi
 
@@ -244,6 +263,16 @@ run_report() {
             chart_title='neutron-ovn-metadata-agent removed upstream but still deployed on master CI'
             fix_merged=''
             ;;
+        galaxy-install)
+            target='Failed to install Ansible collections'
+            projects='openstack/kolla openstack/kolla-ansible'
+            job_filter='^kolla-ansible-'
+            suffixes='job-output.txt'
+            basename='kolla_galaxy_install_errors'
+            chart='kolla_galaxy_install_chart.png'
+            chart_title='Ansible Galaxy collection install failures on master CI'
+            fix_merged=''
+            ;;
         *)
             echo "Unknown report: ${name}" >&2
             exit 1
@@ -280,7 +309,8 @@ run_report() {
 
 if [ "${report}" = "all" ]; then
     for name in libvirt-limit mariadb-ist wsrep-sync-fatal ovs-create-tap scheduler-unhealthy \
-                fluentd-missing-logs haproxy-layer7-timeout mariadb-collation ovn-metadata-agent-missing; do
+                fluentd-missing-logs haproxy-layer7-timeout mariadb-collation ovn-metadata-agent-missing \
+                galaxy-install; do
         run_report "${name}"
     done
 else

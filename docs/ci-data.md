@@ -357,6 +357,32 @@ lives in `tools/ci-report.sh` and currently covers:
   so the report also names `container_logs/ovn_controller.txt` as a
   denominator. That keeps fixed builds visible as misses instead of
   dropping out of the report altogether.
+- `galaxy-install` -- how often `kolla-ansible install-deps` gives up
+  fetching collections from galaxy.ansible.com (`Failed to install
+  Ansible collections`). The job dies before deploying anything, so a
+  hit is pure infrastructure noise, and every kolla-ansible job,
+  voting ones included, is exposed. The background rate is under 1% of
+  builds: read timeouts, TLS handshake timeouts, and ansible-galaxy
+  crashing with `KeyError: 'results'` on a truncated API response. From
+  about 03:00 UTC on 2026-09-21 connection resets pushed it to 7-20% of
+  builds a day, arriving in bursts separated by clean stretches of
+  several hours, so a few quiet hours are not evidence of recovery.
+
+  The failures are confined to one provider. Of 3,366 kolla and
+  kolla-ansible builds from 2026-09-21 to 2026-09-24, all 879 hits ran
+  on `vexxhost-ca-ymq-1` (48% of that provider's builds), and none of
+  the 1,526 builds on the nine other providers failed this way. The
+  pre-outage background is the same shape: 36 of 37 hits from
+  2026-09-15 to 2026-09-20 were on vexxhost. The problem is the network
+  path from that region to Galaxy, not Galaxy itself, so it belongs
+  with OpenDev infra (or in a collection mirror or install-deps retry
+  in kolla-ansible CI), not in any change under test. The scanner does
+  not record provider, so this breakdown came from a one-off pass over
+  each build's `zuul-info/inventory.yaml`.
+
+  The job filter excludes kayobe, which installs its collections
+  differently: none of 789 failed kayobe builds over the same period
+  contained the string.
 
 Each report is a target string plus the log file(s) to scan for it; the
 shared scan/aggregate/chart engine is `tools/count_ci_log_errors.py`
