@@ -1,4 +1,4 @@
-commit 3e059ff1a0c72c9713ec82cb7b7eb7feb5bd3e00
+commit 1acf714e874dab4596c3f723c13e4e43af6580b0
 Author: Michael Still <mikal@stillhq.com>
 Date:   Thu Sep 24 06:10:46 2026 +1000
 
@@ -29,7 +29,7 @@ Date:   Thu Sep 24 06:10:46 2026 +1000
     Signed-off-by: Michael Still <mikal@stillhq.com>
 
 diff --git a/kolla/docker/magnum/magnum-base/Dockerfile.j2 b/kolla/docker/magnum/magnum-base/Dockerfile.j2
-index ef070f88f..eeac470b0 100644
+index ef070f88f..5450f1279 100644
 --- a/kolla/docker/magnum/magnum-base/Dockerfile.j2
 +++ b/kolla/docker/magnum/magnum-base/Dockerfile.j2
 @@ -13,9 +13,14 @@ LABEL maintainer="{{ maintainer }}" name="{{ image_name }}"
@@ -44,7 +44,7 @@ index ef070f88f..eeac470b0 100644
      '/magnum[osprofiler]',
 -    'magnum-cluster-api'
 +    'magnum-cluster-api',
-+    'setuptools<82'
++    '"setuptools<82"'
  ] %}
  
  COPY extend_start.sh /usr/local/bin/kolla_extend_start
