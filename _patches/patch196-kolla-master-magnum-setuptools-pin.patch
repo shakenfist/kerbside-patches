@@ -1,6 +1,6 @@
-commit 1acf714e874dab4596c3f723c13e4e43af6580b0
+commit e53254b0c2dede0d1a6f63dd19434b7c544170e0
 Author: Michael Still <mikal@stillhq.com>
-Date:   Thu Sep 24 06:10:46 2026 +1000
+Date:   Fri Sep 25 05:43:38 2026 +1000
 
     magnum: pin setuptools <82.
     
@@ -17,10 +17,8 @@ Date:   Thu Sep 24 06:10:46 2026 +1000
     [1] https://setuptools.pypa.io/en/stable/history.html#v82-0-0
     [2] https://github.com/vexxhost/magnum-cluster-api/pull/925
     
-    Prompt: Our CI enabled magnum to demonstrate a MariaDB collation fix,
-    and once the collation failure was out of the way magnum_conductor
-    crashed on every image except Ubuntu. Asked what the proper fix was
-    and whether it was reasonable to carry a patch for it.
+    Prompt: Michael asked about unblocking Magnum CI while waiting for the
+    upstream patches to merge.
     
     Assisted-By: Claude Code
     Co-Authored-By: Claude Opus 5 (1M context, high effort) <noreply@anthropic.com>

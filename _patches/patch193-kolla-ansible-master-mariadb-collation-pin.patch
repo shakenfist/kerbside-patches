@@ -1,13 +1,13 @@
-commit 3ad0f610e3a834a975f6a47b177abf344e6f69bd
+commit 29af1f95cdc2a64626e097277bcb1bc3d9838427
 Author: Michael Still <mikal@stillhq.com>
-Date:   Tue Sep 22 16:05:34 2026 +1000
+Date:   Fri Sep 25 05:43:56 2026 +1000
 
     Pin MariaDB character_set_collations to pre-11.5.
     
-    MDEV-25829 changed which collation a bare CHARACTER SET resolves to in
-    MariaDB 11.5, so a table declaring only a character set no longer
-    matches one declaring neither. OpenStack migrations use both forms, so
-    a later migration joining them fails with "Illegal mix of collations".
+    MariaDB 11.5 changed which collation a bare CHARACTER SET resolves to,
+    so a table declaring only a character set no longer matches one
+    declaring neither. OpenStack migrations use both forms, so later
+    migration joining them fails with "Illegal mix of collations".
     
     Pinning the mapping makes the two forms agree again, which fixes the
     whole class rather than each migration that joins across it. Setting
@@ -26,7 +26,7 @@ Date:   Tue Sep 22 16:05:34 2026 +1000
     Signed-off-by: Michael Still <mikal@stillhq.com>
 
 diff --git a/ansible/roles/mariadb/templates/galera.cnf.j2 b/ansible/roles/mariadb/templates/galera.cnf.j2
-index eede804..f4dd019 100644
+index eede80450..f4dd01966 100644
 --- a/ansible/roles/mariadb/templates/galera.cnf.j2
 +++ b/ansible/roles/mariadb/templates/galera.cnf.j2
 @@ -26,6 +26,9 @@ innodb_autoinc_lock_mode=2
@@ -41,7 +41,7 @@ index eede804..f4dd019 100644
  
 diff --git a/releasenotes/notes/mariadb-character-set-collations-aebe0ca616957d2a.yaml b/releasenotes/notes/mariadb-character-set-collations-aebe0ca616957d2a.yaml
 new file mode 100644
-index 0000000..f79a275
+index 000000000..f79a27539
 --- /dev/null
 +++ b/releasenotes/notes/mariadb-character-set-collations-aebe0ca616957d2a.yaml
 @@ -0,0 +1,13 @@
