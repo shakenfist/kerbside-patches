@@ -112,8 +112,7 @@
 #                      2026-09-21 to 2026-09-24 (879 of them) ran on
 #                      vexxhost-ca-ymq-1 and none on the other nine
 #                      providers, so it is that region's path to Galaxy.
-#                      The scanner does not record provider; see
-#                      docs/ci-data.md for how that was established.
+#                      The CSV's provider column tracks that split.
 #                      Kayobe installs its
 #                      collections differently and never logs this string,
 #                      hence the job filter

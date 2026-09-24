@@ -376,9 +376,8 @@ lives in `tools/ci-report.sh` and currently covers:
   2026-09-15 to 2026-09-20 were on vexxhost. The problem is the network
   path from that region to Galaxy, not Galaxy itself, so it belongs
   with OpenDev infra (or in a collection mirror or install-deps retry
-  in kolla-ansible CI), not in any change under test. The scanner does
-  not record provider, so this breakdown came from a one-off pass over
-  each build's `zuul-info/inventory.yaml`.
+  in kolla-ansible CI), not in any change under test. The CSV's
+  `provider` column (see below) is where to watch that split.
 
   The job filter excludes kayobe, which installs its collections
   differently: none of 789 failed kayobe builds over the same period
@@ -406,6 +405,17 @@ the hit rate becomes a real per-build failure rate. Use the same trick
 for any future signature that is only published on failure, or whose
 log file stops being published once the fix lands
 (`ovn-metadata-agent-missing`).
+
+Every row also records the nodepool `provider` the build's nodes ran on
+(for example `vexxhost-ca-ymq-1-main`), read from the build's
+`zuul-info/inventory.yaml`, and each run's summary prints builds and
+hits per provider. Some failures belong to one cloud's network rather
+than to anything under test -- `galaxy-install` is entirely
+`vexxhost-ca-ymq-1` -- and the provider column is how to tell. The
+inventory is only fetched for builds that published a matching log
+file. Rows recorded before the column existed have it empty: the
+scanner adds the column to older CSVs on its next run, but their builds
+are already checkpointed and are not refetched.
 
 State lives in `data/ci-reporting/` (per-report CSVs, their
 checkpoints, and the charts) and is committed to the repository. Runs
