@@ -124,6 +124,24 @@ if [ "${use_ci_registry}" != "true" ]; then
 fi
 echo
 
+# Kolla pins the MariaDB 11.4 repo, but the Debian entry in repos.yaml only
+# offers bookworm builds, so trixie images get Debian's own 11.8 instead. From
+# 11.5 a table naming only a CHARACTER SET resolves through
+# character_set_collations to utf8mb3_uca1400_ai_ci, while a table naming
+# neither still takes the database default of utf8mb3_general_ci, and a
+# migration joining the two aborts with "Illegal mix of collations". Magnum is
+# the service that does both. This is the same fix as patch193, applied here
+# through the supported node_custom_config path so that the kerbside patch
+# stream stays about kerbside.
+echo -e "${H2}Pin MariaDB character_set_collations to pre-11.5${Color_Off}"
+mkdir -p /etc/kolla/config
+cat > /etc/kolla/config/galera.cnf <<'GALERA_EOF'
+[mysqld]
+character-set-collations = ''
+GALERA_EOF
+cat /etc/kolla/config/galera.cnf
+echo
+
 sed -i "s/127.0.0.1 kolla.local kolla//" /etc/hosts
 sed -i "s/127.0.0.1 localhost.localdomain localhost//" /etc/hosts
 sed -i "s/::1 kolla.local kolla//" /etc/hosts

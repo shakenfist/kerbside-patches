@@ -81,12 +81,6 @@ jobs:
           path: kerbside-patches
           fetch-depth: 0
 
-      - name: Checkout actions
-        uses: actions/checkout@v7
-        with:
-          path: actions
-          fetch-depth: 0
-
       - name: Install dependencies on local runner
         run: |
           . $GITHUB_ENV
@@ -170,12 +164,6 @@ jobs:
         uses: actions/checkout@v7
         with:
           path: kerbside-patches
-          fetch-depth: 0
-
-      - name: Checkout actions
-        uses: actions/checkout@v7
-        with:
-          path: actions
           fetch-depth: 0
 
       - name: Install dependencies on local runner
@@ -273,7 +261,7 @@ jobs:
           build_regexp="${build_regexp}|glance|grafana|hacluster"
           build_regexp="${build_regexp}|haproxy|horizon|httpd|iscsid"
           build_regexp="${build_regexp}|keepalived|kerbside|keystone"
-          build_regexp="${build_regexp}|kolla|mariadb|memcached"
+          build_regexp="${build_regexp}|kolla|magnum|mariadb|memcached"
           build_regexp="${build_regexp}|multipathd|neutron|nova"
           build_regexp="${build_regexp}|openstack|openvswitch|placement"
           build_regexp="${build_regexp}|prometheus|proxysql|rabbitmq"

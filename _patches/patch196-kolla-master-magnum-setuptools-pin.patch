@@ -1,0 +1,50 @@
+commit 1acf714e874dab4596c3f723c13e4e43af6580b0
+Author: Michael Still <mikal@stillhq.com>
+Date:   Thu Sep 24 06:10:46 2026 +1000
+
+    magnum: pin setuptools <82.
+    
+    setuptools 82 removed pkg_resources [1], but magnum-cluster-api still
+    imports it to find the charts and manifests it ships. magnum-conductor
+    loads that driver at startup, so the container aborts with
+    ModuleNotFoundError and never reaches a running state.
+    
+    Debian Trixie and Rocky Linux 10 images are affected, Ubuntu Noble is
+    not. The real fix is in magnum-cluster-api, which needs to move to
+    importlib.resources [2]; pin setuptools until that merges, then revert
+    as was done for horizon in Iced7662f7e58b9f094306e9a6c4f1b5a79f48b17.
+    
+    [1] https://setuptools.pypa.io/en/stable/history.html#v82-0-0
+    [2] https://github.com/vexxhost/magnum-cluster-api/pull/925
+    
+    Prompt: Our CI enabled magnum to demonstrate a MariaDB collation fix,
+    and once the collation failure was out of the way magnum_conductor
+    crashed on every image except Ubuntu. Asked what the proper fix was
+    and whether it was reasonable to carry a patch for it.
+    
+    Assisted-By: Claude Code
+    Co-Authored-By: Claude Opus 5 (1M context, high effort) <noreply@anthropic.com>
+    
+    Change-Id: I9f6fe3c6d0686903fda8d6015b5b806439cfc9a7
+    Signed-off-by: Michael Still <mikal@stillhq.com>
+
+diff --git a/kolla/docker/magnum/magnum-base/Dockerfile.j2 b/kolla/docker/magnum/magnum-base/Dockerfile.j2
+index ef070f88f..5450f1279 100644
+--- a/kolla/docker/magnum/magnum-base/Dockerfile.j2
++++ b/kolla/docker/magnum/magnum-base/Dockerfile.j2
+@@ -13,9 +13,14 @@ LABEL maintainer="{{ maintainer }}" name="{{ image_name }}"
+ 
+ ADD magnum-base-archive /magnum-base-source
+ 
++# NOTE(mikal): magnum-cluster-api imports pkg_resources, which setuptools
++# 82 removed [1]. Pin setuptools until the importlib.resources migration
++# in https://github.com/vexxhost/magnum-cluster-api/pull/925 merges.
++# [1] https://setuptools.pypa.io/en/stable/history.html#v82-0-0
+ {% set magnum_base_pip_packages = [
+     '/magnum[osprofiler]',
+-    'magnum-cluster-api'
++    'magnum-cluster-api',
++    '"setuptools<82"'
+ ] %}
+ 
+ COPY extend_start.sh /usr/local/bin/kolla_extend_start

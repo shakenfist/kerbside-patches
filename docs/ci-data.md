@@ -250,14 +250,42 @@ lives in `tools/ci-report.sh` and currently covers:
   jobs run the same trixie containers on both sides, so every table in
   them was created under the new MariaDB; a database created under an
   older MariaDB and later served by a newer one has no CI coverage at
-  all. Our patch193 pins the mapping in `galera.cnf` and patch194 adds a
-  MariaDB precheck warning when a database already holds both collations,
-  both carried in the `kolla-ansible-mariadb-collations` stream. patch195
-  in `magnum-mariadb-collations` is the change that actually unbreaks the
+  all. Our patch193 pins the mapping in `galera.cnf` and patch194 warns
+  from `kolla-ansible check` when a database already holds both
+  collations -- the MariaDB prechecks cannot do it, because they run
+  before any schema exists on a fresh deploy and against the
+  pre-upgrade schema otherwise, and the mixture is created by the
+  service migrations partway through the run. Both are carried in the
+  `kolla-ansible-mariadb-collations` stream. patch195 in
+  `magnum-mariadb-collations` is the change that actually unbreaks the
   job: `nodegroup`, `federation` and `magnum_service` are created without
   a character set while magnum's other ten tables and its
   `models.table_args()` both ask for `UTF8`, so declaring it on those
   three makes every magnum table resolve the same way.
+
+  Our own functional tests carry a reproduction of this. The master
+  all-in-one and multinode jobs deploy trixie containers, so
+  `etc/globals-master.yml` sets `enable_magnum: true` and
+  `tools/bootstrap-kolla-ansible` writes
+  `/etc/kolla/config/galera.cnf` with `character-set-collations = ''`.
+  That is patch193's effect delivered through kolla-ansible's
+  supported `node_custom_config` merge rather than through the patch
+  stream, which keeps the kerbside series about kerbside. Removing
+  that file is how to reproduce the upstream failure on demand.
+
+  Two runs of that job pair establish the fix. Without the galera.cnf
+  override the three debian-container all-in-ones and the multinode job
+  all abort in `c04e925e65c2_nodegroups_v2` with error 1267, while the
+  ubuntu-container job passes on MariaDB 11.4 as a control; with it,
+  the same commits produce no 1267 at all and magnum bootstraps to
+  completion on 11.8. Enabling magnum also exposed a second, unrelated
+  break: `magnum-cluster-api` still imports `pkg_resources`, which
+  setuptools 82 removed, so `magnum_conductor` aborts on startup on the
+  debian and rocky images. patch196 in `kolla-magnum-setuptools-pin`
+  pins setuptools below 82 until the `importlib.resources` migration in
+  https://github.com/vexxhost/magnum-cluster-api/pull/925 merges, which
+  is the same shape as the pin Kolla carried for horizon and then
+  reverted.
 
   Magnum is the first casualty, because its migration chain straddles
   the two styles -- `bay`/`cluster` was created in 2015 with
