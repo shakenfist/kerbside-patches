@@ -1,0 +1,8 @@
+CI: fix the cells scenario file trigger.
+
+Commit 6b3724a59 rewrote the cells scenario trigger as
+^docker/docker/proxysql/, which matches nothing, so no Kolla change
+has run the cells jobs since. Point it at kolla/docker/proxysql/.
+
+Change-Id: I87260e71aba77731355794aa2f2c1370c11cd2ee
+Signed-off-by: Michael Still <mikal@stillhq.com>

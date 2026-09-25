@@ -1,11 +1,11 @@
-commit b2f3cfe3d251e51c9dc8d49985c326106c89afde
+commit 2e3ff4547e4cedd2471687cf121adfab73ed2c65
 Author: Michael Still <mikal@stillhq.com>
-Date:   Wed Sep 23 07:21:07 2026 +1000
+Date:   Fri Sep 25 05:43:57 2026 +1000
 
     Report databases with mixed utf8mb3 collations.
     
     A database whose tables were created either side of the MariaDB 11.5
-    change to character_set_collations (MDEV-25829) holds columns in both
+    change to character_set_collations holds columns in both
     utf8mb3_general_ci and utf8mb3_uca1400_ai_ci. Nothing fails until a
     migration joins one to the other, so the state stays invisible.
     
@@ -25,7 +25,7 @@ Date:   Wed Sep 23 07:21:07 2026 +1000
     Signed-off-by: Michael Still <mikal@stillhq.com>
 
 diff --git a/ansible/roles/mariadb/tasks/check.yml b/ansible/roles/mariadb/tasks/check.yml
-index b763344..052d227 100644
+index b7633440b..052d22702 100644
 --- a/ansible/roles/mariadb/tasks/check.yml
 +++ b/ansible/roles/mariadb/tasks/check.yml
 @@ -45,3 +45,38 @@
@@ -69,7 +69,7 @@ index b763344..052d227 100644
 +    - mariadb_collation_check.query_result[0] | length > 0
 diff --git a/releasenotes/notes/mariadb-mixed-collation-check-4bb39745eb0b4fbd.yaml b/releasenotes/notes/mariadb-mixed-collation-check-4bb39745eb0b4fbd.yaml
 new file mode 100644
-index 0000000..6c94c32
+index 000000000..6c94c3230
 --- /dev/null
 +++ b/releasenotes/notes/mariadb-mixed-collation-check-4bb39745eb0b4fbd.yaml
 @@ -0,0 +1,11 @@
