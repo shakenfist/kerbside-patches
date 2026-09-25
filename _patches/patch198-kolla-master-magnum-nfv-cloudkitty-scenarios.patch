@@ -1,0 +1,93 @@
+commit e31b151e57c4e573a4a008069b5f1d23573eb260
+Author: Michael Still <mikal@stillhq.com>
+Date:   Fri Sep 25 20:01:00 2026 +1000
+
+    CI: run the magnum, NFV and CloudKitty scenarios.
+    
+    Kolla builds the designate, magnum, trove, tacker, mistral, barbican
+    and cloudkitty images, but no job a Kolla change triggers deploys them,
+    so a change that breaks them at runtime passes check. Add templates
+    running the matching Kolla-Ansible scenarios when those images change.
+    
+    The Kolla-Ansible jobs are already non-voting, so this adds coverage
+    without adding gate risk.
+    
+    Prompt: Michael noticed a reviewer believed magnum images were not
+    built in Kolla CI, and asked which images Kolla-Ansible deploys that
+    Kolla's own CI never exercises. These are the images that no Kolla
+    scenario deploys.
+    
+    Assisted-By: Claude Code
+    Co-Authored-By: Claude Opus 5.5 (1M context) <noreply@anthropic.com>
+    
+    Change-Id: I1ef5bf13c5a3f1085eb0e07e9ff5f81cb8a25d58
+    Signed-off-by: Michael Still <mikal@stillhq.com>
+
+diff --git a/zuul.d/project.yaml b/zuul.d/project.yaml
+index 782a5c640..8ee21b78f 100644
+--- a/zuul.d/project.yaml
++++ b/zuul.d/project.yaml
+@@ -13,10 +13,13 @@
+       - kolla-scenario-bifrost
+       - kolla-scenario-cells
+       - kolla-scenario-cephadm
++      - kolla-scenario-cloudkitty
+       - kolla-scenario-ironic
+       - kolla-scenario-lets-encrypt
++      - kolla-scenario-magnum
+       - kolla-scenario-mariadb
+       - kolla-scenario-masakari
++      - kolla-scenario-nfv
+       - kolla-scenario-octavia
+       - kolla-scenario-ovn
+       - kolla-scenario-prometheus-opensearch
+diff --git a/zuul.d/scenarios/cloudkitty.yaml b/zuul.d/scenarios/cloudkitty.yaml
+new file mode 100644
+index 000000000..628eaaeea
+--- /dev/null
++++ b/zuul.d/scenarios/cloudkitty.yaml
+@@ -0,0 +1,11 @@
++---
++- project-template:
++    name: kolla-scenario-cloudkitty
++    description: |
++      Runs Kolla-Ansible CloudKitty scenario jobs on particular Kolla changes.
++    check:
++      jobs:
++        - kolla-ansible-debian-trixie-cloudkitty: &files
++            files: ^kolla/docker/(base|cloudkitty|openstack-base)/
++        - kolla-ansible-rocky-10-cloudkitty: *files
++        - kolla-ansible-ubuntu-noble-cloudkitty: *files
+diff --git a/zuul.d/scenarios/magnum.yaml b/zuul.d/scenarios/magnum.yaml
+new file mode 100644
+index 000000000..c52b9e36c
+--- /dev/null
++++ b/zuul.d/scenarios/magnum.yaml
+@@ -0,0 +1,11 @@
++---
++- project-template:
++    name: kolla-scenario-magnum
++    description: |
++      Runs Kolla-Ansible Magnum scenario jobs on particular Kolla changes.
++    check:
++      jobs:
++        - kolla-ansible-debian-trixie-magnum: &files
++            files: ^kolla/docker/(base|designate|magnum|openstack-base|trove)/
++        - kolla-ansible-rocky-10-magnum: *files
++        - kolla-ansible-ubuntu-noble-magnum: *files
+diff --git a/zuul.d/scenarios/nfv.yaml b/zuul.d/scenarios/nfv.yaml
+new file mode 100644
+index 000000000..7e507f57f
+--- /dev/null
++++ b/zuul.d/scenarios/nfv.yaml
+@@ -0,0 +1,10 @@
++---
++- project-template:
++    name: kolla-scenario-nfv
++    description: |
++      Runs Kolla-Ansible NFV scenario jobs on particular Kolla changes.
++    check:
++      jobs:
++        - kolla-ansible-debian-trixie-nfv: &files
++            files: ^kolla/docker/(aodh|barbican|base|mistral|openstack-base|tacker|valkey)/
++        - kolla-ansible-ubuntu-noble-nfv: *files
