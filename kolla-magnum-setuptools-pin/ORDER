@@ -1,1 +1,3 @@
 ../_patches/patch196-kolla-master-magnum-setuptools-pin.patch
+../_patches/patch197-kolla-master-cells-scenario-trigger.patch
+../_patches/patch198-kolla-master-magnum-nfv-cloudkitty-scenarios.patch

@@ -1,6 +1,6 @@
-commit f14110086f63bbdd98803cdf65bac89eeb449cfd
+commit 8a5aa1346076ac6bb5fa2829914bc9afd03ec2a4
 Author: Michael Still <mikal@stillhq.com>
-Date:   Wed Sep 23 20:37:30 2026 +1000
+Date:   Fri Sep 25 10:38:17 2026 +1000
 
     Add kerbside CI scenario jobs.
     
