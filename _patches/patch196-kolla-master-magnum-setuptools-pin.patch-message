@@ -1,0 +1,23 @@
+magnum: pin setuptools <82.
+
+setuptools 82 removed pkg_resources [1], but magnum-cluster-api still
+imports it to find the charts and manifests it ships. magnum-conductor
+loads that driver at startup, so the container aborts with
+ModuleNotFoundError and never reaches a running state.
+
+Debian Trixie and Rocky Linux 10 images are affected, Ubuntu Noble is
+not. The real fix is in magnum-cluster-api, which needs to move to
+importlib.resources [2]; pin setuptools until that merges, then revert
+as was done for horizon in Iced7662f7e58b9f094306e9a6c4f1b5a79f48b17.
+
+[1] https://setuptools.pypa.io/en/stable/history.html#v82-0-0
+[2] https://github.com/vexxhost/magnum-cluster-api/pull/925
+
+Prompt: Michael asked about unblocking Magnum CI while waiting for the
+upstream patches to merge.
+
+Assisted-By: Claude Code
+Co-Authored-By: Claude Opus 5 (1M context, high effort) <noreply@anthropic.com>
+
+Change-Id: I9f6fe3c6d0686903fda8d6015b5b806439cfc9a7
+Signed-off-by: Michael Still <mikal@stillhq.com>

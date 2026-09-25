@@ -1,6 +1,6 @@
-commit e31b151e57c4e573a4a008069b5f1d23573eb260
+commit 80fef920651764578935e8d202be55e9126789b2
 Author: Michael Still <mikal@stillhq.com>
-Date:   Fri Sep 25 20:01:00 2026 +1000
+Date:   Fri Sep 25 20:10:12 2026 +1000
 
     CI: run the magnum, NFV and CloudKitty scenarios.
     

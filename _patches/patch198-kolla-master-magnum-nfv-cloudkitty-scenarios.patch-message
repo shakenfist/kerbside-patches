@@ -1,0 +1,19 @@
+CI: run the magnum, NFV and CloudKitty scenarios.
+
+Kolla builds the designate, magnum, trove, tacker, mistral, barbican
+and cloudkitty images, but no job a Kolla change triggers deploys them,
+so a change that breaks them at runtime passes check. Add templates
+running the matching Kolla-Ansible scenarios when those images change.
+
+The Kolla-Ansible jobs are already non-voting, so this adds coverage
+without adding gate risk.
+
+Prompt: Michael asked which images Kolla-Ansible deploys that Kolla's
+own CI never exercises. These are the images that no Kolla scenario
+deploys.
+
+Assisted-By: Claude Code
+Co-Authored-By: Claude Opus 5.5 (1M context) <noreply@anthropic.com>
+
+Change-Id: I1ef5bf13c5a3f1085eb0e07e9ff5f81cb8a25d58
+Signed-off-by: Michael Still <mikal@stillhq.com>
