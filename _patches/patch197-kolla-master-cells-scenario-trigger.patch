@@ -1,0 +1,25 @@
+commit 72ccb779466f9e2df95f9bb386777588c6dfec72
+Author: Michael Still <mikal@stillhq.com>
+Date:   Fri Sep 25 20:10:12 2026 +1000
+
+    CI: fix the cells scenario file trigger.
+    
+    Commit 6b3724a59 rewrote the cells scenario trigger as
+    ^docker/docker/proxysql/, which matches nothing, so no Kolla change
+    has run the cells jobs since. Point it at kolla/docker/proxysql/.
+    
+    Change-Id: I87260e71aba77731355794aa2f2c1370c11cd2ee
+    Signed-off-by: Michael Still <mikal@stillhq.com>
+
+diff --git a/zuul.d/scenarios/cells.yaml b/zuul.d/scenarios/cells.yaml
+index ed0ad5f7a..79b040ca3 100644
+--- a/zuul.d/scenarios/cells.yaml
++++ b/zuul.d/scenarios/cells.yaml
+@@ -6,6 +6,6 @@
+     check:
+       jobs:
+         - kolla-ansible-debian-trixie-cells: &files
+-            files: ^docker/docker/proxysql/
++            files: ^kolla/docker/proxysql/
+         - kolla-ansible-rocky-10-cells: *files
+         - kolla-ansible-ubuntu-noble-cells: *files
