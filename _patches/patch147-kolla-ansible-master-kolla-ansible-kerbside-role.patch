@@ -1,6 +1,6 @@
-commit a338013420d009a865bb3e9356023309ded60bce
+commit 84b38383d62928018f796ab3a1bf3adf73c2dbbb
 Author: Michael Still <mikal@stillhq.com>
-Date:   Wed Sep 23 20:37:29 2026 +1000
+Date:   Fri Sep 25 10:38:17 2026 +1000
 
     Deploy Kerbside with Kolla-Ansible.
     
@@ -1011,7 +1011,7 @@ index 000000000..7fa7afefb
 +  ansible.builtin.include_tasks: "{{ kolla_action }}.yml"
 diff --git a/ansible/roles/kerbside/tasks/precheck.yml b/ansible/roles/kerbside/tasks/precheck.yml
 new file mode 100644
-index 000000000..14d009ad7
+index 000000000..fed9715e7
 --- /dev/null
 +++ b/ansible/roles/kerbside/tasks/precheck.yml
 @@ -0,0 +1,102 @@
@@ -1644,7 +1644,7 @@ index b13bd2ec9..1185ccc97 100644
     nova-cells-guide
 diff --git a/doc/source/reference/compute/kerbside-guide.rst b/doc/source/reference/compute/kerbside-guide.rst
 new file mode 100644
-index 000000000..90e10f0a9
+index 000000000..7b7e036e4
 --- /dev/null
 +++ b/doc/source/reference/compute/kerbside-guide.rst
 @@ -0,0 +1,53 @@
