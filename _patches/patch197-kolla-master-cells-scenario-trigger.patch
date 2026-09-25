@@ -8,13 +8,6 @@ Date:   Fri Sep 25 20:00:39 2026 +1000
     ^docker/docker/proxysql/, which matches nothing, so no Kolla change
     has run the cells jobs since. Point it at kolla/docker/proxysql/.
     
-    Prompt: Michael noticed a reviewer believed magnum images were not
-    built in Kolla CI, and asked which Kolla-Ansible scenarios Kolla never
-    exercises. Auditing the scenario triggers turned up this typo.
-    
-    Assisted-By: Claude Code
-    Co-Authored-By: Claude Opus 5.5 (1M context) <noreply@anthropic.com>
-    
     Change-Id: I87260e71aba77731355794aa2f2c1370c11cd2ee
     Signed-off-by: Michael Still <mikal@stillhq.com>
 

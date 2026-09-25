@@ -12,10 +12,9 @@ Date:   Fri Sep 25 20:01:00 2026 +1000
     The Kolla-Ansible jobs are already non-voting, so this adds coverage
     without adding gate risk.
     
-    Prompt: Michael noticed a reviewer believed magnum images were not
-    built in Kolla CI, and asked which images Kolla-Ansible deploys that
-    Kolla's own CI never exercises. These are the images that no Kolla
-    scenario deploys.
+    Prompt: Michael asked which images Kolla-Ansible deploys that Kolla's
+    own CI never exercises. These are the images that no Kolla scenario
+    deploys.
     
     Assisted-By: Claude Code
     Co-Authored-By: Claude Opus 5.5 (1M context) <noreply@anthropic.com>
