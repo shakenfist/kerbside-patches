@@ -96,6 +96,22 @@ result is append-only and well formed with
 `tools/verify-data-merge.py`, and pushes the merge back to the PR
 branch. Record order within a file does not matter because
 `tools/summarize_layers.py` sorts records by their embedded datestamp.
+`tools/heal-data-prs.sh --dry-run` shows what the healer would do.
+
+GitHub's conflict detection ignores merge drivers, so committing
+`.gitattributes` is not enough on its own: the merge has to be redone and
+pushed, which is the healer's job. It only touches bot-authored data PRs.
+A human PR whose branch was cut from (or cherry-picked) a data commit that
+has since merged separately conflicts in the same files, but a union merge
+there would duplicate the records. If develop already holds every record
+the branch adds, take develop's side instead:
+
+```bash
+git merge origin/develop           # conflicts in data/**.jsonl
+git checkout --theirs -- data/
+git add data/
+git diff --cached origin/develop -- data/   # expect no output
+```
 
 Both the layer data job and `tools/ci-report-propose-pr.sh` create their
 pull request through `tools/create-data-pr.sh` rather than calling `gh pr

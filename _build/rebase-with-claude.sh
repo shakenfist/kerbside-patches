@@ -270,7 +270,7 @@ cat >> "${output_dir}/claude-prompt.txt" << 'PROMPT_EOF'
 
 ## Your Task
 
-1. Read CLAUDE.md to understand how patches work in this repo
+1. Read AGENTS.md to understand how patches work in this repo
 2. Read the shared patch analysis above to determine the fix strategy
 3. Read the failing patch file from _patches/
 4. Examine the upstream source code in src/ to understand what changed
@@ -278,7 +278,7 @@ cat >> "${output_dir}/claude-prompt.txt" << 'PROMPT_EOF'
 
    **If strategy is "modify_in_place":**
    - Update the patch file directly so it applies cleanly
-   - Follow the guidelines in CLAUDE.md about editing diff headers
+   - Follow docs/patch-editing.md about editing diff headers
 
    **If strategy is "create_copy":**
    - Create a NEW patch file with the suggested_name from the analysis

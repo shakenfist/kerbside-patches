@@ -84,6 +84,10 @@ _build/assemble-source.sh master
 ./buildall.sh --build-targets "2024.1"
 ```
 
+Without overrides, the defaults in `_build/common.sh` apply: targets
+`2023.1 2023.2 2024.1 master`, distro `debian`, and images `nova-compute
+nova-libvirt nova-api kerbside`.
+
 At the end you should see output like this:
 
 ```
@@ -132,6 +136,11 @@ might want to use a venv for this:
 cd src/kolla-ansible
 sudo python3 setup.py develop
 ```
+
+The `globals.yml` at the top of this repository is the one the CI test
+deployments use; the settings that matter for Kerbside are
+`kolla_base_distro: "debian"`, `nova_console: "spice"` and
+`enable_kerbside: "yes"`.
 
 You'll need a `globals.yml` in `/etc/kolla`, but that's site specific so
 I don't want to include much detail here. Refer to the Kolla-Ansible

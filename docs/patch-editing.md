@@ -173,6 +173,28 @@ repository's corpus (175/175 round-tripping unchanged against
 `recountdiff`'s 164/175, mostly the ambiguity above) and because it keeps
 CI free of an apt dependency.
 
+## Release-specific copies
+
+The same patch is often listed in several `ORDER` files, for example
+`kolla-ansible`, `kolla-ansible-2024.1` and `kolla-ansible-2025.1`.
+`_build/find-patch-usage.py <patch>` lists them. When a patch fails in
+one release, there are two ways to fix it:
+
+* **Modify in place** when the patch is used by only one project, or
+  every project using it needs the same change.
+* **Create a copy** when only one release needs different content.
+  Give the copy the next free number (`_build/get-next-patch-number.py`,
+  which also checks open PRs), name it for the release's codename, point
+  the failing project's `ORDER` file at it, and leave the original alone
+  for the other releases.
+
+Copies are named `patch{number:03d}-{project}-{codename}-{description}.patch`,
+for example `patch118-kolla-ansible-epoxy-compressed-zstd.patch`. The
+codenames come from `_build/release-names.yaml` (2025.1 is `epoxy`,
+2026.1 is `gazpacho`, and `master` stays `master`).
+`_build/analyze-shared-patches.py <results.json>` makes this decision
+for a set of failures from `test-patches-for-ci.sh`, and suggests names.
+
 ## Linter issues
 
 Kolla-Ansible runs `tox -elinters`, which includes ansible-lint. The common
