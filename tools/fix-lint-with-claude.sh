@@ -361,7 +361,7 @@ Break long lines. In YAML, use > or | for multiline strings.
 
 ## Your Task
 
-1. Read CLAUDE.md to understand this repository's patch system
+1. Read AGENTS.md to understand this repository's patch system
 2. For each lint error, identify which patch file in _patches/
    creates the offending line (use the ORDER files above to narrow
    down which patches are relevant)

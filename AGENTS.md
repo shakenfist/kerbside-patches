@@ -10,11 +10,16 @@ components (Nova, Kolla, Kolla-Ansible) to enable native
 SPICE console functionality. It also contains container image
 build infrastructure for Kolla-Ansible deployments.
 
+These patches are for proof-of-concept and development use. Debian is
+the only tested container OS: RHEL and Rocky dropped SPICE support.
+(Rocky is still a CI *runner* OS; it is the images that are Debian.)
+
 ## Where the documentation lives
 
 | Question | Document |
 |----------|----------|
 | How is it put together? | [ARCHITECTURE.md](ARCHITECTURE.md) |
+| How do I hand-edit a patch file? | [docs/patch-editing.md](docs/patch-editing.md) |
 | How do I build patched container images? | [docs/building.md](docs/building.md) |
 | What does each helper script do? | [docs/script-reference.md](docs/script-reference.md) |
 | How does CI data collection work? | [docs/ci-data.md](docs/ci-data.md) |
@@ -41,6 +46,17 @@ summary and an index into it.
    `tools/check-depends-on.py`
 5. Use `_build/get-next-patch-number.py` to find the next
    available number (checks both files and open PRs)
+6. After editing a patch by hand, recount its `@@` headers with
+   `tools/recount-patch.py --in-place` -- never by hand. A header
+   that is too small makes git silently truncate the hunk rather
+   than fail. Adding a `name:` to an Ansible task (ansible-lint's
+   usual `name[missing]`) changes the count too.
+
+A patch in `_patches/` can be listed by several `ORDER` files (one
+per release). When only one release needs a change, copy the patch
+rather than editing the shared one; see
+[docs/patch-editing.md](docs/patch-editing.md#release-specific-copies)
+for the naming convention.
 
 ### Modifying Build Pipeline
 

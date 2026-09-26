@@ -21,8 +21,8 @@ directories. This page documents each script and its purpose.
 | Script | Description |
 |--------|-------------|
 | `apply-patches-and-test.sh <project>` | Applies patches from a project's ORDER file and optionally runs test suites (`tox -epy3`, `tox -epep8`, etc.). |
-| `test-apply.sh [--skip-tests] <project>` | Wrapper for `apply-patches-and-test.sh`. Use `--skip-tests` for fast patch-only testing without running test suites. |
-| `test-patches-for-ci.sh [projects...]` | CI-friendly patch testing that outputs JSON results. Tests all projects if none specified. Used by automated rebase workflows. |
+| `test-apply.sh [--skip-tests\|--defer-tests] [--test-patch NAME] <project>` | Wrapper for `apply-patches-and-test.sh`. `--skip-tests` only checks that the patches apply (fast); `--defer-tests` runs the test suites once, after every patch is applied; `--test-patch NAME` runs tests only for patches whose name contains `NAME`, which is the quick way to reproduce one patch's CI failure. The suites are `tox -epy3` and `tox -epep8`, plus `tox -efunctional` for Nova and `tox -elinters` for Kolla-Ansible. |
+| `test-patches-for-ci.sh [projects...]` | CI-friendly patch testing that outputs JSON results: `success`, `projects_tested`, and a `failures` list of `{project, patch, error}`. Tests all projects if none specified. Used by automated rebase workflows. |
 | `extract-patch-failures.py` | Parses JSON output from `test-patches-for-ci.sh` into human-readable failure details. |
 | `../tools/recount-patch.py [--in-place\|--check] <patch...>` | Recomputes the `@@` hunk headers in a patch from its body, for when a patch in `_patches/` has been hand edited. See [patch-editing.md](patch-editing.md). |
 | `../tools/check-depends-on.py [--offline] [targets...]` | Validates the `Depends-On` footers in `_patches/`: the URL is a review.opendev.org change, the change exists, is in the project the URL names, and has not been abandoned. Targets are patch files or project directories (whose `ORDER` and `depends_on` chain are expanded); with none, every patch in `_patches/`. `--offline` skips the Gerrit lookups. Run by `test-apply.sh` and, in `--offline` form, by pre-commit. See [patch-editing.md](patch-editing.md). |
@@ -34,12 +34,17 @@ directories. This page documents each script and its purpose.
 
 | Script | Description |
 |--------|-------------|
-| `rebase-with-claude.sh [options] [projects...]` | Unified rebase helper for both CI and CLI use. Tests patches, analyzes failures, and invokes Claude Code to auto-fix. Options: `--bump-shas` (update to HEAD), `--step-forward N` (advance N commits from current), `--no-claude`, `--interactive`, `--ci`. |
+| `rebase-with-claude.sh [options] [projects...]` | Unified rebase helper for both CI and CLI use. Tests patches, analyzes failures, and invokes Claude Code to auto-fix. Options: `--bump-shas` (update to HEAD), `--step-forward N` (advance N commits from current), `--no-claude`, `--interactive`, `--ci`, `--max-turns N` (default 50), `--output-dir DIR`. |
 | `bump-source-shas.sh [N]` | Updates `source_sha` in all project `config.yaml` files. With a positional arg N, sets to the Nth most recent upstream commit (default: 1 = HEAD). With `--forward N`, steps forward N commits from the current SHA. With `--changelog <path>`, writes a per-project summary of new upstream commits (short hashes + oneline messages) to the specified file. |
 | `analyze-shared-patches.py <results.json>` | Analyzes failing patches to determine fix strategy (`modify_in_place` vs `create_copy`) based on whether patches are shared across releases. |
 | `find-patch-usage.py <patch-file>` | Finds all ORDER files that reference a given patch. Returns JSON with list of projects using the patch. |
 | `get-next-patch-number.py` | Returns the next available patch number by checking both existing files in `_patches/` and open GitHub PRs. |
 | `release-names.yaml` | Maps OpenStack numeric release versions to codenames (e.g., `2025.1` → `epoxy`). |
+
+The Claude-assisted scripts run in CI on a runner labelled `claude-code`,
+which needs the Claude Code CLI installed and authenticated (`claude
+login`) for the user that runs jobs. The daily rebase workflow creates its
+PRs and issues with the `DAILY_REBASE_TOKEN` secret.
 
 ### Setup and Configuration Scripts
 
@@ -140,7 +145,7 @@ The configured hooks include:
 | `shellcheck` | Static analysis tool for shell scripts. Checks scripts in `_build/` and `tools/` directories for common issues. Configuration is in `.shellcheckrc`. |
 | `recount-patch` | Checks that every `@@` hunk header in `_patches/` matches its body. A too-large count makes git reject the patch; a too-small one makes git silently truncate the hunk and apply the wrong content. |
 | `check-depends-on` | Runs the offline half of `check-depends-on.py`: every `Depends-On` value is a review.opendev.org change URL, and a committed `<patch>-message` still matches the message in its patch. The Gerrit-backed checks (does the change exist, is it abandoned) need the network, so they run in `test-apply.sh` instead. |
-| `skillsaw` | Lints the agent context in this repository -- `CLAUDE.md`, `AGENTS.md` and the skills under `.claude/` -- for malformed skills, smuggled unicode and pasted credentials. The pin is kept current by renovate's pre-commit manager. |
+| `skillsaw` | Lints the agent context in this repository -- `AGENTS.md` and the skills under `.claude/` -- for malformed skills, smuggled unicode and pasted credentials. The pin is kept current by renovate's pre-commit manager. |
 
 ### Git Hooks and Utilities
 
