@@ -5,7 +5,7 @@ shallow_clone: false
 directory: kolla
 release: master-kolla-magnum-setuptools-pin
 depends_on: ''
-source_sha: cd36091e3b20a33df27cae4130085b75c3f9dcab
+source_sha: 90d3a8d8abce2214019c05be0080f34b17980900
 previous_source_sha: cd36091e3b20a33df27cae4130085b75c3f9dcab
 skip_rebase: true
 skip_claude: true
