@@ -23,7 +23,7 @@ Date:   Fri Sep 25 10:38:17 2026 +1000
     
     Prompt: Michael asked for assistance with implementing the keystone
     account for kerbside, updating to the new configuration file format,
-    and updating role docs.
+    updating role docs, and resolving Nova on the internal interface.
     
     Change-Id: I73a7a0b521085fd4023b08ab6f8a137d53a8712a
     Depends-On: https://review.opendev.org/c/openstack/kolla/+/975495
@@ -390,7 +390,7 @@ new file mode 100644
 index 000000000..8281ed5fe
 --- /dev/null
 +++ b/ansible/roles/kerbside/defaults/main.yml
-@@ -0,0 +1,192 @@
+@@ -0,0 +1,197 @@
 +---
 +kerbside_services:
 +  kerbside_api:
@@ -556,6 +556,11 @@ index 000000000..8281ed5fe
 +    role: "admin"
 +
 +openstack_kerbside_auth: "{{ openstack_auth }}"
++
++# The Keystone catalogue interface Kerbside finds Nova on when validating
++# console tokens. Kerbside is a control plane service, so this is internal
++# like the rest of the control plane's service to service traffic.
++kerbside_nova_interface: "internal"
 +
 +####################
 +# Kolla
@@ -1476,12 +1481,13 @@ new file mode 100644
 index 000000000..dea1f77dd
 --- /dev/null
 +++ b/ansible/roles/kerbside/templates/kerbside_sources.yaml.j2
-@@ -0,0 +1,20 @@
+@@ -0,0 +1,21 @@
 +---
 +- source: {{ openstack_region_name }}
 +  type: openstack
 +  url: {{ keystone_internal_url }}
 +  verify: {{ openstack_cacert if openstack_cacert else true }}
++  interface: {{ kerbside_nova_interface }}
 +  username: {{ kerbside_keystone_user }}
 +  password: {{ kerbside_keystone_password }}
 +  project_name: service
@@ -1647,7 +1653,7 @@ new file mode 100644
 index 000000000..7b7e036e4
 --- /dev/null
 +++ b/doc/source/reference/compute/kerbside-guide.rst
-@@ -0,0 +1,53 @@
+@@ -0,0 +1,54 @@
 +.. _kerbside-guide:
 +
 +==========================
@@ -1679,7 +1685,8 @@ index 000000000..7b7e036e4
 +
 +A dedicated Keystone user (``kerbside`` by default, named by
 +``kerbside_keystone_user``) is registered during deployment. Kerbside uses
-+this user to look up console details via the Nova API.
++this user to look up console details via the Nova API, which it reaches on
++the internal endpoint unless ``kerbside_nova_interface`` says otherwise.
 +
 +Connecting to consoles
 +~~~~~~~~~~~~~~~~~~~~~~
