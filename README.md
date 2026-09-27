@@ -1,29 +1,48 @@
 # Kerbside upstream patches
 
-In order to provide native SPICE console functionality in OpenStack, a series
-of patches against OpenStack are required. This repository maintains those
-patches.
+Kerbside is a SPICE protocol proxy which gives cloud users native SPICE
+consoles -- high resolution, multi-monitor, USB passthrough and audio --
+instead of HTML5-transcoded ones. Making that work in OpenStack needed changes
+to OpenStack itself, not just a proxy beside it. This repository is where
+Kerbside's contributions to those projects are developed, carried as patches
+while they are in review, and tested together until they land upstream. As
+Kerbside needs changes in other projects, they will be tracked here too.
 
-The majority of the patches are against Nova, although there are a fair few
-against Kolla and Kolla-Ansible as my preferred deployment system too. Any
-other OpenStack deployment system wishing to include Kerbside would need to make
-similar modifications to their code.
+The centrepiece is Nova's `spice-direct` console type. I proposed it to Nova
+from the Kerbside work, and it was refined and landed with the Nova team
+through the [2025.1 specification][spec], shipping in Epoxy. It is
+deliberately general -- any protocol-aware proxy could answer it -- but
+Kerbside is the proxy it was designed alongside.
 
-The remainder of the patches are ancillary changes -- support for new Nova API
-microversions in clients, things which helped me debug along the way, and that
-sort of thing.
+The contributions tracked here fall into three groups:
+
+- **Nova**: `spice-direct` itself, which has landed, and follow-on work such
+  as extra specs for the sound model and USB redirection.
+- **Clients**: `spice-direct` support in openstacksdk and
+  python-openstackclient, and other support for new Nova API microversions.
+- **Deployment**: Kolla and Kolla-Ansible changes which deploy Kerbside as a
+  component of the cloud. The Kolla image build has merged; the Kolla-Ansible
+  deployment is in review under the [`spice-direct-consoles`][topic] topic.
+  Any other deployment system wishing to include Kerbside would need similar
+  changes.
+
+The rest are ancillary changes -- things which helped me debug along the way,
+and that sort of thing.
 
 These patches last successfully applied via CI on 26 September 2026. When this occurs,
 the SHAs the patches were applied to for each project are recorded in the
 relevant config.yaml file, and will be used for patch applications until
 updated.
 
-# Not for production use
+# Status
 
-These patches were developed while building the Kerbside proof of concept. While
-the core API patches have now landed in Nova, there is no client or deployer
-support yet, and Kerbside itself needs to be updated to match what landed in
-Nova. Reach out if you want more details.
+The core Nova API has landed, and Kerbside's `/nova-console.vv` endpoint
+implements the `spice-direct` token exchange against it. Kerbside's own CI
+exercises that exchange on every merge against an all-in-one Kolla-Ansible
+deployment built from this repository. Kerbside as a whole is still
+experimental, and the patches here are carried against upstream branches while
+they are in review, so treat them as a way to try Kerbside rather than a
+production deployment path. Reach out if you want more details.
 
 # Kolla container operating system
 
@@ -53,9 +72,8 @@ _build/assemble-source.sh master
 ./buildall.sh --build-targets "master"
 ```
 
-Supported releases are 2024.1, 2024.2 and master, although the patches against
-2024.1 and 2024.2 have been dropped, so those targets now build essentially
-upstream containers.
+Supported releases are Nova 2025.1 (Epoxy) onwards, the first release with the
+`spice-direct` console type.
 
 See [Building patched container images][building] for Rocky host setup, the
 image registry and Kolla-Ansible deployment steps, and the `debsecan`
@@ -100,6 +118,8 @@ which Claude will use automatically when a task matches:
 - `rebase-patch` -- rebase a patch onto a newer upstream SHA when it stops
   applying.
 
+[spec]: https://specs.openstack.org/openstack/nova-specs/specs/2025.1/implemented/libvirt-spice-direct-consoles.html
+[topic]: https://review.opendev.org/q/topic:spice-direct-consoles
 [docs]: https://github.com/shakenfist/kerbside-patches/tree/develop/docs
 [building]: https://github.com/shakenfist/kerbside-patches/blob/develop/docs/building.md
 [scripts]: https://github.com/shakenfist/kerbside-patches/blob/develop/docs/script-reference.md
