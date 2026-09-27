@@ -19,7 +19,7 @@ itself, and haproxy simply acts as a layer four load balancer.
 
 Prompt: Michael asked for assistance with implementing the keystone
 account for kerbside, updating to the new configuration file format,
-and updating role docs.
+updating role docs, and resolving Nova on the internal interface.
 
 Change-Id: I73a7a0b521085fd4023b08ab6f8a137d53a8712a
 Depends-On: https://review.opendev.org/c/openstack/kolla/+/975495
