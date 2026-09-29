@@ -1,6 +1,6 @@
-commit 093eb887d0556256ec74384d8bf546784a2a5f4a
+commit ee516165ef16005b8f10bf7eefd52e4a9ca2bf4f
 Author: Michael Still <mikal@stillhq.com>
-Date:   Tue Sep 22 19:35:31 2026 +1000
+Date:   Tue Sep 29 18:27:48 2026 +1000
 
     Declare a character set on three tables.
     
@@ -26,7 +26,7 @@ Date:   Tue Sep 22 19:35:31 2026 +1000
     Signed-off-by: Michael Still <mikal@stillhq.com>
 
 diff --git a/magnum/db/sqlalchemy/alembic/versions/27ad304554e2_adding_magnum_service_functionality.py b/magnum/db/sqlalchemy/alembic/versions/27ad304554e2_adding_magnum_service_functionality.py
-index b142464..3deaecc 100644
+index b1424643..3deaecca 100644
 --- a/magnum/db/sqlalchemy/alembic/versions/27ad304554e2_adding_magnum_service_functionality.py
 +++ b/magnum/db/sqlalchemy/alembic/versions/27ad304554e2_adding_magnum_service_functionality.py
 @@ -49,5 +49,6 @@ def upgrade():
@@ -38,7 +38,7 @@ index b142464..3deaecc 100644
 +        mysql_DEFAULT_CHARSET='UTF8'
      )
 diff --git a/magnum/db/sqlalchemy/alembic/versions/9a1539f1cd2c_add_federation_table.py b/magnum/db/sqlalchemy/alembic/versions/9a1539f1cd2c_add_federation_table.py
-index 187eff0..8d09a21 100644
+index 187eff04..8d09a210 100644
 --- a/magnum/db/sqlalchemy/alembic/versions/9a1539f1cd2c_add_federation_table.py
 +++ b/magnum/db/sqlalchemy/alembic/versions/9a1539f1cd2c_add_federation_table.py
 @@ -43,5 +43,6 @@ def upgrade():
@@ -50,7 +50,7 @@ index 187eff0..8d09a21 100644
 +        mysql_DEFAULT_CHARSET='UTF8'
      )
 diff --git a/magnum/db/sqlalchemy/alembic/versions/ac92cbae311c_add_nodegoup_table.py b/magnum/db/sqlalchemy/alembic/versions/ac92cbae311c_add_nodegoup_table.py
-index cb9c3b3..1c3a5e4 100644
+index cb9c3b36..1c3a5e48 100644
 --- a/magnum/db/sqlalchemy/alembic/versions/ac92cbae311c_add_nodegoup_table.py
 +++ b/magnum/db/sqlalchemy/alembic/versions/ac92cbae311c_add_nodegoup_table.py
 @@ -60,4 +60,5 @@ def upgrade():
@@ -61,7 +61,7 @@ index cb9c3b3..1c3a5e4 100644
      )
 diff --git a/releasenotes/notes/mariadb-table-charset-caf1940283bc5fec.yaml b/releasenotes/notes/mariadb-table-charset-caf1940283bc5fec.yaml
 new file mode 100644
-index 0000000..6d9a471
+index 00000000..6d9a4711
 --- /dev/null
 +++ b/releasenotes/notes/mariadb-table-charset-caf1940283bc5fec.yaml
 @@ -0,0 +1,12 @@
