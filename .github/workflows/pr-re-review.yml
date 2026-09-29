@@ -259,13 +259,17 @@ jobs:
           done
 
           if [ "${merged}" = "true" ]; then
-            echo "ref=refs/pull/${PR_NUMBER}/merge" >> $GITHUB_OUTPUT
-            echo "merged=true" >> $GITHUB_OUTPUT
+            {
+              echo "ref=refs/pull/${PR_NUMBER}/merge"
+              echo "merged=true"
+            } >> "${GITHUB_OUTPUT}"
             echo "Reviewing the merge of ${head_sha} into the base"
           else
-            echo "ref=refs/pull/${PR_NUMBER}/head" >> $GITHUB_OUTPUT
-            echo "merged=false" >> $GITHUB_OUTPUT
-            echo "reason=${reason}" >> $GITHUB_OUTPUT
+            {
+              echo "ref=refs/pull/${PR_NUMBER}/head"
+              echo "merged=false"
+              echo "reason=${reason}"
+            } >> "${GITHUB_OUTPUT}"
             echo "Falling back to the pull request head ${head_sha}"
           fi
 
