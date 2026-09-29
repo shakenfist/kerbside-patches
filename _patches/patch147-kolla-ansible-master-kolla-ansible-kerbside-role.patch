@@ -1,6 +1,6 @@
-commit 84b38383d62928018f796ab3a1bf3adf73c2dbbb
+commit de5ab8b264ef8b2d7ce47ed0642d2cf012b871aa
 Author: Michael Still <mikal@stillhq.com>
-Date:   Fri Sep 25 10:38:17 2026 +1000
+Date:   Tue Sep 29 18:26:45 2026 +1000
 
     Deploy Kerbside with Kolla-Ansible.
     
@@ -387,7 +387,7 @@ index 000000000..4409af80d
 +</source>
 diff --git a/ansible/roles/kerbside/defaults/main.yml b/ansible/roles/kerbside/defaults/main.yml
 new file mode 100644
-index 000000000..8281ed5fe
+index 000000000..68ab4724a
 --- /dev/null
 +++ b/ansible/roles/kerbside/defaults/main.yml
 @@ -0,0 +1,197 @@
@@ -1478,7 +1478,7 @@ index 000000000..3952637bb
 +}
 diff --git a/ansible/roles/kerbside/templates/kerbside_sources.yaml.j2 b/ansible/roles/kerbside/templates/kerbside_sources.yaml.j2
 new file mode 100644
-index 000000000..dea1f77dd
+index 000000000..524831bfa
 --- /dev/null
 +++ b/ansible/roles/kerbside/templates/kerbside_sources.yaml.j2
 @@ -0,0 +1,21 @@
@@ -1650,7 +1650,7 @@ index b13bd2ec9..1185ccc97 100644
     nova-cells-guide
 diff --git a/doc/source/reference/compute/kerbside-guide.rst b/doc/source/reference/compute/kerbside-guide.rst
 new file mode 100644
-index 000000000..7b7e036e4
+index 000000000..4ea9ada40
 --- /dev/null
 +++ b/doc/source/reference/compute/kerbside-guide.rst
 @@ -0,0 +1,54 @@

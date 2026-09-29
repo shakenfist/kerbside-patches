@@ -1,0 +1,21 @@
+Report databases with mixed utf8mb3 collations.
+
+A database whose tables were created either side of the MariaDB 11.5
+change to character_set_collations holds columns in both
+utf8mb3_general_ci and utf8mb3_uca1400_ai_ci. Nothing fails until a
+migration joins one to the other, so the state stays invisible.
+
+Report it from the MariaDB check, the only pass that runs after the
+service migrations which create the mixture. The query inspects columns
+rather than table defaults because columns are what a join compares, and
+it warns rather than failing since the deployment itself still works.
+
+Prompt: Michael pointed out that the precheck this started as runs
+before any schema exists, so it could never see the mixture it looked
+for. This moves the same query to the post-deployment check.
+
+Assisted-By: Claude Opus 5 (1M context, high effort) <noreply@anthropic.com>
+Co-Authored-By: Claude Opus 5 (1M context, high effort) <noreply@anthropic.com>
+
+Change-Id: I2e81532ece9116238ee44555b1fb8ebae5360c70
+Signed-off-by: Michael Still <mikal@stillhq.com>
