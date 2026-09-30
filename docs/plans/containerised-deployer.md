@@ -357,7 +357,7 @@ against `develop`.
 
 | Phase | Status | Merged |
 |-------|--------|--------|
-| 0. A CI entry for the prototype | In progress | |
+| 0. A CI entry for the prototype | Complete | #1796 (`725cf1e8a`), #1799; shakenfist/actions#121 (`7eaa1e534`) |
 | 1. Deployer image | Not started | |
 | 2. Launcher | Not started | |
 | 3. The localhost connection | Not started | |
@@ -555,6 +555,29 @@ Exit criteria:
   actions merge is green, or is red for a reason visible on its
   previous run too. Its link is recorded.
 * `functional-tests.yml` calls `@main` again.
+
+#### Outcome
+
+Completed on 2026-10-01. The prototype entry ran green on #1796,
+with its marker assertion passing. Every other entry was green
+too, once one multinode job had been re-run: its deploy had
+passed, and it then stalled in an ssh inventory step until the
+120-minute timeout.
+
+Kerbside's first complete `functional-tests` run on `develop` after
+shakenfist/actions#121 merged was green, including its deploy
+through the changed action:
+https://github.com/shakenfist/kerbside/actions/runs/36768693908.
+
+One slip, worth remembering for the next cross-repository change.
+#1796 and actions#121 were merged in the same minute, before the
+commit restoring `@main` had reached #1796. Merging actions#121
+deleted its branch, so `develop` briefly called an action ref that
+no longer existed, and every `test_installs` job would have failed
+to start. #1799 restored `@main`. Next time, merge the action
+first, then push the restore to the dependent pull request, and
+merge that only once the restored run is green. The pull request
+checklist said this, but nothing enforced it.
 
 ### Phase 1: Deployer image
 
