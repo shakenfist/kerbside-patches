@@ -357,7 +357,7 @@ against `develop`.
 
 | Phase | Status | Merged |
 |-------|--------|--------|
-| 0. A CI entry for the prototype | Not started | |
+| 0. A CI entry for the prototype | In progress | |
 | 1. Deployer image | Not started | |
 | 2. Launcher | Not started | |
 | 3. The localhost connection | Not started | |

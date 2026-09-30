@@ -93,6 +93,11 @@ debsecan_fail_on_fixable="false"
 # If we are building a cloud, what inventory should we use?
 topology="all-in-one"
 
+# How kolla-ansible is run: "venv" (from /srv/kolla-ansible/venv) or
+# "launcher" (from the containerised deployer, see
+# docs/plans/containerised-deployer.md).
+deployer="venv"
+
 # Ensure we have a git commit sha
 if [ -z ${CI_COMMIT_SHORT_SHA} ]; then
     export CI_COMMIT_SHORT_SHA=$(git rev-parse --short HEAD)
@@ -211,6 +216,20 @@ while [[ ${found_arg} -gt 0 ]]; do
             shift; shift
             found_arg=1
 	        ;;
+        --deployer)
+            case "$2" in
+                venv|launcher)
+                    export deployer="$2"
+                    ;;
+                *)
+                    echo "Invalid --deployer '$2', must be 'venv' or 'launcher'."
+                    exit 1
+                    ;;
+            esac
+            echo "Set deployer to ${deployer}."
+            shift; shift
+            found_arg=1
+            ;;
        --topology)
             export topology="$2"
             echo "Set topology to ${topology}."
