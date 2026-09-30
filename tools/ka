@@ -1,4 +1,26 @@
 #!/bin/bash
+# Run kolla-ansible via whichever deployer bootstrap-kolla-ansible recorded.
+# KA_DEPLOYER_MARKER and KA_VENV exist so this can be tested.
 
-. /srv/kolla-ansible/venv/bin/activate
-kolla-ansible $*
+marker=${KA_DEPLOYER_MARKER:-/srv/kolla-ansible/deployer}
+venv=${KA_VENV:-/srv/kolla-ansible/venv}
+
+deployer=venv
+if [ -e "${marker}" ]; then
+    deployer=$(cat "${marker}")
+fi
+
+case "${deployer}" in
+    venv)
+        ;;
+    launcher)
+        echo "deployer: launcher (not yet implemented, using venv)" >&2
+        ;;
+    *)
+        echo "Unknown deployer '${deployer}' in ${marker}" >&2
+        exit 1
+        ;;
+esac
+
+. "${venv}/bin/activate"
+exec kolla-ansible "$@"
