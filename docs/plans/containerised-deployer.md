@@ -139,7 +139,7 @@ that is ours is committed directly where it lives.
 | Bootstrap changes to the collection, only if Phase 4 falls back from shape (d) | openstack/ansible-collection-kolla | Patches, in the project directory Phase 1 adds |
 | The launcher | Undecided upstream (Decision 8) | New code in this repository, under `deployer/launcher/` |
 | Hash, `kolla-build.conf.in` source, digest read-back, CI entries | This repository | Direct commits under `_build/`, `etc/`, `.github/` |
-| The `deployer` input to the deploy action | shakenfist/actions | Direct pull requests there, landed first |
+| The `deployer` input to the deploy action | shakenfist/actions | One direct pull request there, in Phase 0 only |
 
 **The upstream-bound patches go in the main `kolla/` and
 `kolla-ansible/` `ORDER` files, not only in a series directory.**
@@ -381,7 +381,8 @@ Phase 7 makes it continuously true rather than true once.
 ### Phase 0: A CI entry for the prototype
 
 Planning effort: high. It changes `shakenfist/actions`, which
-kerbside's CI shares.
+kerbside's CI shares, and it fixes where every later phase plugs
+in.
 
 Add a new `test_installs` entry to `functional-tests.yml` that
 becomes the prototype install, rather than converting an existing
@@ -390,17 +391,6 @@ The new entry is `master-h-debian13-c-debian13-aio` with the
 deployer switched and nothing else changed, so the existing entry
 of that name is its control and a failure in one but not the
 other is attributable.
-
-Add a `deployer` input (`venv` or `launcher`, default `venv`) to
-`shakenfist/actions/deploy-kolla-ansible`, so kerbside's CI and
-every existing entry are unaffected. The new entry passes
-`launcher`, which at this phase still runs the venv path: the
-input is plumbing that each later phase fills in as it lands.
-
-The entry is non-voting until Phase 7. Before adding it, check
-whether branch protection or the merge queue lists required
-checks by job name, because a new required check would block
-every daily rebase pull request until the prototype works.
 
 One entry, not two. The host OS is where this plan's risk lies:
 the launcher installs the distribution's engine (`docker.io` on
@@ -412,14 +402,159 @@ nested-cloud load on every pull request without finding anything
 the first would not. A Rocky 10 host entry is added in the first
 commit of Phase 3.
 
+#### What the deploy path looks like today
+
+Read while planning this phase (`shakenfist/actions` at `64e0e7e`,
+this repository at `57c9496d3`), because the first draft of this
+section put the switch in the wrong place:
+
+* `shakenfist/actions/deploy-kolla-ansible` is a composite action
+  that does nothing itself. Every step is an SSH to the target
+  running a script from *this* repository: one call to
+  `tools/bootstrap-kolla-ansible`, then six calls to `tools/ka`
+  (`prechecks`, `pull`, `deploy`, `validate-config`, `check`,
+  `reconfigure`), then `tools/install-openstack-clients` and
+  `tools/postinstall-kolla-ansible`.
+* `tools/ka` is `. /srv/kolla-ansible/venv/bin/activate;
+  kolla-ansible $*`. It is the natural single dispatch point, but it
+  is not yet the only one: `tools/postinstall-kolla-ansible` runs
+  `kolla-ansible post-deploy` from the venv directly, and
+  `tools/bootstrap-kolla-ansible` runs `install-deps`,
+  `certificates` and `bootstrap-servers` the same way.
+* The venv also supplies the OpenStack clients:
+  `tools/install-openstack-clients` links them out of
+  `/srv/kolla-ansible/venv/bin` into `/usr/local/bin`. A launcher
+  deployment still needs somewhere for them to live. That is Phase
+  2's problem, not this one, but it is why "launcher mode" can not
+  simply mean "no venv".
+* Argument parsing is shared in `_build/common.sh`, and it rejects
+  unknown flags. An action that always passed a new flag would
+  break every caller running an older checkout of this repository.
+* Kerbside's CI (`shakenfist/kerbside`, `functional-tests.yml`)
+  runs `tools/bootstrap-kolla-ansible` itself, then calls the
+  action with `skip_bootstrap: 'true'`. Both repositories call the
+  action as `@main`, so a change merged there is live for both
+  immediately.
+* `develop` here has no branch protection and no rulesets
+  (`gh api repos/shakenfist/kerbside-patches/branches/develop`
+  reports `protected: false`; the rulesets list is empty), and
+  nothing in `.github/` or `tools/` merges pull requests
+  automatically. So no required check can be blocked by a new job
+  name, and "non-voting" means only that a red prototype job does
+  not turn the workflow run red. This answers what the first draft
+  had as step 0a.
+
+#### Design
+
+**The switch lives in this repository, not in the action.** The
+first draft had the action's `deployer` input grow a code path per
+phase. Because the action only calls scripts from this repository,
+it is enough for the action to pass the choice to bootstrap once.
+Bootstrap records it, and `tools/ka` reads it on every later call.
+Every later phase then changes `tools/` here, in the same pull
+request as the code it tests, and `shakenfist/actions` is changed
+exactly once, in this phase. That also keeps kerbside's CI off
+the prototype's critical path for the rest of the plan.
+
+Concretely:
+
+* `_build/common.sh` gains `--deployer venv|launcher`, default
+  `venv`, and rejects any other value.
+* `tools/bootstrap-kolla-ansible` writes the value to
+  `/srv/kolla-ansible/deployer`. This marker is private to our CI
+  tooling. It is deliberately not the `<configdir>/deployer.conf`
+  of Open question 1, whose format belongs to the launcher and
+  should not be fixed early by a CI shim.
+* `tools/ka` reads the marker. If it is absent it treats the value
+  as `venv`, which is what keeps kerbside's CI and every existing
+  entry unchanged. `venv` behaves as today. In this phase `launcher`
+  prints one line on stderr, `deployer: launcher (not yet
+  implemented, using venv)`, and then does the same. Any other value
+  is an error, not a fallback.
+* `tools/postinstall-kolla-ansible` calls `tools/ka post-deploy`
+  instead of `kolla-ansible post-deploy`, so every Kolla-Ansible
+  invocation after bootstrap goes through the one dispatch point.
+* Bootstrap's own `install-deps`, `certificates` and
+  `bootstrap-servers` stay on the venv with a comment saying so.
+  `bootstrap-servers` is what installs the container engine, so
+  routing it through a launcher that needs an engine is exactly
+  the chicken-and-egg problem Phase 4 exists to solve. In launcher
+  mode `install-deps` disappears altogether once the image carries
+  the collections (Phase 1).
+* `tools/ka` passes its arguments with `"$@"` rather than `$*`.
+  See "Bugs fixed during this work".
+
+**The action's input is passed through only when it is not the
+default.** The `deployer` input defaults to `venv`, and the
+bootstrap step adds `--deployer ${{ inputs.deployer }}` only when
+the value is not `venv`. It is ignored when `skip_bootstrap` is
+set: kerbside, the only such caller, bootstraps for itself and
+would pass the flag to its own bootstrap call if it ever wanted
+the prototype.
+
+**The entry is non-voting through a matrix key.** Add
+`'deployer': 'launcher'` and `'non_voting': 'true'` to the new
+entry, and `continue-on-error: ${{ matrix.test.non_voting ==
+'true' }}` to the `test_installs` job. A failing prototype job
+still shows red on the pull request, but the run's conclusion stays
+green. One side effect is accepted:
+`auto-retry-infra-failures.yml` only fires on a failed run, so an
+infrastructure flake that hits only the prototype job is not
+retried automatically. Phase 7 removes the key, and with it the
+side effect.
+
+**The prototype job asserts that it is the prototype.** A step
+that runs only when `matrix.test.deployer == 'launcher'`, straight
+after the deploy, fails unless `/srv/kolla-ansible/deployer` on the
+target reads `launcher`. Without it, a plumbing mistake that drops
+the input would leave a "prototype" job that quietly tests the venv
+path, and stays green while doing so. Phase 2 makes the assertion
+stronger, by also checking that the venv's `kolla-ansible` was never
+run.
+
+#### Landing order
+
+The flag is only sent when it is not the default, so neither
+repository depends on the other being merged first for existing
+callers. The order below is chosen so that each merge can be tested
+before it lands:
+
+1. **This repository, tools (0b).** Adds the flag, the marker and
+   the dispatch. Nothing passes `--deployer` yet, so every CI entry
+   exercises the default path, and a green run proves nothing
+   changed.
+2. **`shakenfist/actions` (0c).** Adds the input. For this pull
+   request's test run, 0d's branch temporarily points its `uses:`
+   at the actions branch (`shakenfist/actions/deploy-kolla-ansible@<branch>`),
+   so that the prototype entry runs green against the unmerged
+   action. Merge the actions pull request only after that.
+3. **This repository, CI entry (0d).** Points `uses:` back at
+   `@main` once the actions pull request has merged. It must not
+   merge while it still points at a branch.
+
+After step 2 merges, check the next kerbside `functional-tests`
+run on `develop` and record its link in this phase's `Merged`
+cell. Merging an actions change is the only moment in this plan
+when kerbside's CI can be broken by it.
+
 | Step | Effort | Model | Isolation | Brief for sub-agent |
 |------|--------|-------|-----------|---------------------|
-| 0a | medium | sonnet | none | Report which checks are required on `develop` (`gh api repos/shakenfist/kerbside-patches/branches/develop/protection` and the merge queue ruleset), so the new entry's name can be chosen not to collide. No changes. |
-| 0b | high | opus | worktree | In shakenfist/actions, add the `deployer` input to `deploy-kolla-ansible/action.yml`, defaulting to `venv`, with `launcher` currently taking the same path; land it there first. |
-| 0c | medium | sonnet | none | Add the `master-h-debian13-c-debian13-aio-launcher` entry to `test_installs` in `.github/workflows/functional-tests.yml`, copying `master-h-debian13-c-debian13-aio` and adding `'deployer': 'launcher'`, pass `matrix.test.deployer` (defaulting to `venv`) to the deploy action, and make that entry `continue-on-error`. |
+| 0a | -- | -- | -- | Done while planning: `develop` is unprotected and has no rulesets, so no check is required by name. See above. |
+| 0b | medium | sonnet | worktree | In this repository: add `--deployer` (values `venv`, `launcher`; default `venv`; anything else exits non-zero) to the argument parser in `_build/common.sh`, following the shape of `--topology`. In `tools/bootstrap-kolla-ansible`, write the value to `/srv/kolla-ansible/deployer` just after the venv is created, and add a comment on the `install-deps`, `certificates` and `bootstrap-servers` calls saying that they stay on the venv until Phase 4 of `docs/plans/containerised-deployer.md`. Rewrite `tools/ka` to read the marker (absent means `venv`), run the venv's `kolla-ansible "$@"` for `venv`, print `deployer: launcher (not yet implemented, using venv)` on stderr and then do the same for `launcher`, and exit non-zero naming the marker for any other value. Change `tools/postinstall-kolla-ansible` to call `./tools/ka post-deploy -i /etc/kolla/inventory`. All of it must be shellcheck-clean. Verify by running `tools/ka` against a scratch marker for each of the three cases, and by showing that `bash -n` passes on every file touched. |
+| 0c | medium | sonnet | worktree | In shakenfist/actions, add a `deployer` input to `deploy-kolla-ansible/action.yml` (description: "Which Kolla-Ansible deployer bootstrap installs: venv (default) or launcher, the containerised deployer prototype in kerbside-patches"; default `venv`). In the bootstrap step, append `--deployer ${{ inputs.deployer }}` only when the value is not `venv`, following the existing `container_distro` conditional. Change nothing else. Read that repository's AGENTS.md first and follow its conventions for the pull request. |
+| 0d | medium | sonnet | none | In `.github/workflows/functional-tests.yml`: copy the `master-h-debian13-c-debian13-aio` entry of `test_installs` to a new entry after it, named `master-h-debian13-c-debian13-aio-launcher`, described `master debian 13 images on debian 13 all-in-one with the containerised deployer`, and adding `'deployer': 'launcher'` and `'non_voting': 'true'`. Add `continue-on-error: ${{ matrix.test.non_voting == 'true' }}` to the job. Pass `deployer: ${{ matrix.test.deployer \|\| 'venv' }}` to the deploy step. Add a step after "Deploy Kolla-Ansible", conditional on `matrix.test.deployer == 'launcher'`, which ssh-es to the target in the same style as its neighbours and fails unless `cat /srv/kolla-ansible/deployer` prints `launcher`. For testing, point `uses:` at 0c's branch; the management session restores `@main` before merge. |
 
-Exit: the new entry runs green on a pull request here, the
-existing entries are unchanged, and kerbside's CI is unaffected.
+Exit criteria:
+
+* The prototype entry has run green on 0d's pull request. Its log
+  shows the `deployer: launcher` line from every `tools/ka` call,
+  and the assertion step passed.
+* Every other entry on the same run is green. If one is not, it
+  fails in the same way on a `develop` run without these changes.
+* The kerbside `functional-tests` run on `develop` after the
+  actions merge is green, or is red for a reason visible on its
+  previous run too. Its link is recorded.
+* `functional-tests.yml` calls `@main` again.
 
 ### Phase 1: Deployer image
 
@@ -518,7 +653,7 @@ way, as a non-root shared account. Files the run writes under
 |------|--------|-------|-----------|---------------------|
 | 2a | high | opus | none | Write `deployer/launcher/` as above, with unit tests for argument-to-mount translation covering relative paths, repeated `-i`, `-e @file` and `--configdir` given by environment variable. |
 | 2c | medium | sonnet | none | Add flake8 and the launcher's unit tests to `.pre-commit-config.yaml` (scoped to `deployer/`), and add the launcher to `ARCHITECTURE.md`'s directory structure and a short section saying this repository now holds one program alongside its patches, linking to the launcher's doc page. |
-| 2b | medium | sonnet | none | Add a `tools/ka`-equivalent entry point that runs through the launcher, and make the `launcher` value of the Phase 0 `deployer` input in shakenfist/actions use it for every step after bootstrap (bootstrap itself moves in Phase 4). |
+| 2b | medium | sonnet | none | Add a `tools/ka`-equivalent entry point that runs through the launcher, and make `tools/ka` dispatch to it when the Phase 0 marker reads `launcher`, for every call after bootstrap (bootstrap itself moves in Phase 4). Give the OpenStack clients that `tools/install-openstack-clients` links out of the venv a home that does not depend on the deployer. Strengthen the Phase 0 assertion step to fail if the venv's `kolla-ansible` ran. No change to shakenfist/actions. |
 
 ### Phase 3: The localhost connection
 
@@ -744,6 +879,12 @@ We will know this plan has succeeded when the following are true:
   unchanged patches, on the same day, reuses the previous build's
   hash. Not yet fixed; step 1d fixes it, because that step edits
   the same term.
+
+* **`tools/ka` re-splits its arguments.** It runs `kolla-ansible $*`,
+  so an argument containing a space, such as `-e 'foo=a b'`, reaches
+  Kolla-Ansible as two words. No current caller passes one, which is
+  why nothing has failed. Not yet fixed; step 0b rewrites the script
+  and uses `"$@"`.
 
 ### Back brief
 
