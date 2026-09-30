@@ -651,8 +651,7 @@ jobs:
               "cd /srv/shakenfist/kerbside-patches && tar xzf -"
 
       - name: Deploy Kolla-Ansible
-        # TODO(phase 0): restore @main once shakenfist/actions deployer-input merges.
-        uses: shakenfist/actions/deploy-kolla-ansible@deployer-input
+        uses: shakenfist/actions/deploy-kolla-ansible@main
         with:
           base_user: ${{ matrix.test.baseuser }}
           image_tag: ${{ steps.incoming.outputs.image_tag }}
