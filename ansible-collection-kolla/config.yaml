@@ -1,0 +1,9 @@
+repo: https://opendev.org/openstack/ansible-collection-kolla
+source_branch: master
+destination_branch: master-patches
+shallow_clone: false
+directory: ansible-collection-kolla
+release: master
+depends_on: ''
+source_sha: 11fa4c282fdde0dc60365c7890712325a226472d
+previous_source_sha: 11fa4c282fdde0dc60365c7890712325a226472d
