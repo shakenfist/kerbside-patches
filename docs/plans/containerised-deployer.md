@@ -33,7 +33,7 @@ fetched at run time. Nothing ties that virtualenv to the images it
 deploys.
 
 What that looks like, measured in this repository and at the
-pinned upstream (`kolla-ansible` `c8c7a0f6d`,
+pinned upstream on 2026-09-29 (`kolla-ansible` `c8c7a0f6d`,
 `ansible-collection-kolla` `11fa4c2`):
 
 * **Our own CI hand-builds the venv every run.**
@@ -178,7 +178,7 @@ Settled in review on 2026-09-29. Each one records why, so that a
 later reader can tell a decision from a default.
 
 1. **The deployer is a Kolla image**, defined by a
-   `docker/kolla-ansible/Dockerfile.j2` in Kolla and built by
+   `kolla/docker/kolla-ansible/Dockerfile.j2` in Kolla and built by
    `kolla-build` like every other image. Any other home would be
    confusing later. It also gets the same tag, registry, base
    distro and pipeline as the service images for free. The cost,
@@ -582,54 +582,334 @@ checklist said this, but nothing enforced it.
 ### Phase 1: Deployer image
 
 Planning effort: high. It sets the contract the launcher is
-written against.
+written against, and it changes how every image is tagged.
 
 Produce the Kolla image from Decision 1. It contains the patched
-Kolla-Ansible, an `ansible-core` inside its supported range, and
-every collection from `requirements.yml` and
-`requirements-core.yml`, installed at build time.
-`ansible-collection-kolla` is pinned to a commit recorded in the
-image, not a branch. Nothing is fetched from Galaxy or git when
-the image runs. The image's `nsenter` carries the file
-capabilities from Decision 6, and the image tolerates running as
-an arbitrary UID.
+Kolla-Ansible, an `ansible-core` inside Kolla-Ansible's supported
+range, and every collection from `requirements.yml` and
+`requirements-core.yml`, installed at build time. Nothing is
+fetched from Galaxy or git when the image runs. The image's
+`nsenter` carries the file capabilities from Decision 6, and the
+image tolerates running as an arbitrary UID. Its entrypoint is the
+real `kolla-ansible`, so `docker run <image> --help` works with no
+launcher at all.
 
-The image carries labels the launcher and the in-container
-prechecks will read: the Kolla-Ansible version and git SHA, the
-`ansible-collection-kolla` SHA, the OpenStack release, and a
-launcher protocol version (starting at `1`). Its entrypoint is the
-real `kolla-ansible`, so `docker run <image> --help` works with
-no launcher at all.
+**In scope:** the Kolla patch that defines the image; the
+`ansible-collection-kolla/` project directory and the build
+configuration that feed it patched, pinned sources; the image
+hash; and a local build that proves the exit criteria.
 
-Things this phase has to get right that are easy to miss:
+**Out of scope:**
+* anything that runs the image: `tools/ka` dispatch and the
+  launcher are Phase 2;
+* solving SSH for an arbitrary UID: recorded below, and left to
+  Phase 2, because the launcher decides which user runs the
+  container;
+* fixing occystrap if it strips file capabilities (step 1a): that
+  is a fix in another repository, and Phase 3 is the first phase
+  that needs the capability to survive a push.
 
-* `kolla-build` needs Kolla-Ansible as a source. Our build
-  already feeds patched trees from `src/` to `kolla-build`, so the
-  same mechanism should serve, but check it in
-  `_build/imagebuild.sh` rather than assuming.
-* The image must enter the CI image hash.
-  `_build/calculate-container-hash.sh` deliberately excludes
-  `kolla-ansible` from the `src` term, on the grounds that its
-  code does not change image content. Once there is a deployer
-  image, it does. See also "Bugs fixed during this work": the
-  `src` term currently hashes nothing at all.
-* `ansible-collection-kolla` is not yet a project this repository
-  patches. It may need to be if Phase 4 falls back from shape (d),
-  and it needs a pinned SHA either way, so this phase adds the
-  project directory (`config.yaml`, empty `ORDER`) even though it
-  carries no patches yet.
+#### What the survey found
+
+Surveyed on 2026-10-01 against kolla `42ca15b70`, kolla-ansible
+`beddefce7` and ansible-collection-kolla `11fa4c282`. The section
+this replaces was written before Phase 0 ran, and several of its
+claims were wrong. They have been corrected at their source in
+this commit: Decision 1's path, the Situation SHAs, and this
+section's own steps.
+
+*Kolla.*
+* Image definitions are under `kolla/docker/`, not `docker/`.
+  Kolla moved them, so the new image is
+  `kolla/docker/kolla-ansible/Dockerfile.j2`.
+* Nothing in Kolla contains Kolla-Ansible or the collection
+  today. The collection appears only as a source of Zuul roles
+  (`zuul.d/base.yaml:12`).
+* Sources are config groups. Defaults are in
+  `kolla/common/sources.yaml`, and an image takes `[<image>]` as
+  its own source, every `[<image>-plugin-*]` as a plugin, and
+  every `[<image>-additions-*]` as an addition
+  (`kolla/image/kolla_worker.py:792-820`).
+  * A `type = local` directory is tarred whole, `.git` included,
+    with its basename as the top level (`kolla/image/tasks.py:279-286`).
+  * A `type = git` source is cloned and checked out at its
+    `reference`, which can be a SHA (`tasks.py:250-276`).
+  * Plugins arrive in `plugins-archive`, under `plugins/`.
+    `mariadb-server/Dockerfile.j2:49-50` is the precedent for
+    using a plugin as a plain file source.
+* Kolla's pep8 runs `tools/validate-build-sources-overrides.py`
+  (`tox.ini:55`). It fails unless every `sources.yaml` entry also
+  has two companions:
+  * a `kolla_build_sources` mapping in
+    `roles/kolla-build-config/defaults/main.yml`;
+  * a `required-projects` entry in `zuul.d/base.yaml`, and for a
+    git source an `override-checkout` equal to its reference.
+
+  `_build/test-apply.sh --skip-tests kolla` does not run pep8.
+  `rebase-tests.yml` runs it in full.
+* The Jinja context (`kolla_worker.py:369-395`) gives templates
+  `openstack_release`, `kolla_version`, `image_name` and similar.
+  Kolla adds the OCI labels itself (`kolla_worker.py:768-785`).
+  Nothing exposes a *source's* git SHA to a template:
+  `tasks.py:262` computes it and only logs it.
+* `openstack_release` renders as `master` on master, not as a
+  release name (`kolla/common/config.py:39`).
+* `kolla-toolbox` is the nearest existing image, with its own
+  `/opt/ansible` venv, `ansible-core==2.21.*` and six collections.
+  It is a model rather than a parent. It carries RabbitMQ, Open
+  vSwitch and a different collection set, and our patch154
+  already changes it.
+* `openstack-base` provides `/var/lib/kolla/venv`, made with
+  `--system-site-packages` and already on `PATH`
+  (`openstack-base/Dockerfile.j2:196-208`). It also provides upper
+  constraints at `/requirements`, and a layer shared with every
+  service image.
+* Python is 3.13 on trixie and 3.12 on noble and Rocky 10. All of
+  them satisfy Kolla-Ansible's `requires-python >=3.12` and
+  ansible-core 2.21's own requirement.
+* `nsenter` is in all three bases (util-linux). `setcap` is not on
+  Debian or Ubuntu. The precedent for adding it is
+  `prometheus-blackbox-exporter/Dockerfile.j2:12-30`, which
+  installs `libcap2-bin` (deb) or `libcap` (rpm) and runs
+  `setcap cap_net_raw+ep`.
+* No parent image installs an SSH client on Debian or Ubuntu.
+
+*Kolla-Ansible at `beddefce7`.*
+* It requires `ansible-core>=2.20,<2.22` (`requirements.txt:14`).
+* `requirements.yml` is one git entry: the collection at
+  `version: master`.
+* `requirements-core.yml` lists seven Galaxy collections
+  (`ansible.netcommon<9`, `ansible.posix<3`, `ansible.utils<7`,
+  `community.crypto<4`, `community.general<14`,
+  `community.docker<6`, `containers.podman<2`). None of our patches
+  touch either file.
+* `install-deps` runs `ansible-galaxy collection install --force`
+  with no `-p` (`kolla_ansible/utils.py:96-127`). Collections
+  therefore land in `~/.ansible/collections`, which comes ahead of
+  `/usr/share/ansible/collections` on the search path. Left alone,
+  a user's home directory, or an `install-deps` run inside the
+  container, would shadow the collections baked into the image,
+  and lockstep would break without anyone noticing.
+* A non-editable install finds its playbooks under
+  `<prefix>/share/kolla-ansible`, by the last-`lib` heuristic at
+  `kolla_ansible/utils.py:67-93`. That is read from the code, not
+  tested, so the exit check tests it.
+* The collection's `galaxy.yml` declares no dependencies.
+  ansible-galaxy can install it from a local directory.
+
+*This repository.*
+* "Our build already feeds patched trees from `src/` to
+  `kolla-build`" was half true. The `type = local` mechanism exists
+  (`etc/kolla-build-master.conf.in:9-15`, with paths substituted
+  by `_build/imagebuild.sh:141-145`). But it feeds kerbside and
+  nova, and neither is patched here. The only patched tree a build
+  uses today is Kolla itself, installed as the build tool. The
+  mechanism serves; this is just its first use with a patched
+  tree.
+* `_build/assemble-source.sh:42-60` already honours a `FORCE` file,
+  so a project directory with an empty `ORDER` needs no change
+  there. That makes the old step 1c's "teach `assemble-source.sh`
+  to clone it" wrong.
+  * `_build/imagebuild.sh:27-46` does not honour `FORCE`. CI does
+    not notice, because it unpacks every source tarball first;
+    local builds would.
+  * An empty `ORDER` breaks none of the tooling. The survey
+    checked `apply-patches-and-test.sh`, the daily rebase,
+    `repush-openstack.sh`, the Depends-On check and pre-commit.
+* The daily `_build/bump-source-shas.sh` moves every project's
+  `source_sha`, whether or not `skip_rebase` is set. The
+  collection's pin will therefore follow master daily, like every
+  other project's. That is the "pinned commit, not a branch" the
+  original section asked for: the image records the SHA it was
+  built from, and the SHA changes only through a reviewed bump.
+* The image is built and pushed with no filter change. The
+  `build_images` regex (`functional-tests.yml:259-267`) contains
+  `kolla`, and Kolla matches with `re.search`, so `kolla-ansible`
+  and `openstack-base` both match.
+* The image hash is worse than the plan said.
+  `_build/calculate-container-hash.sh` is called with `kolla
+  kolla-2* nova nova-2* requirements requirements-2* etc src _build
+  tools` (`functional-tests.yml:246-249`). Four things follow:
+  * the `kolla-ansible` project directory is not passed at all;
+  * the patch term hashes `ORDER`-listed patch files but never
+    `config.yaml`, so a `source_sha` bump with unchanged patches
+    changes nothing;
+  * the `src` term hashes empty input (see "Bugs fixed");
+  * even with that fixed, it hashes only `*.py`, which would miss
+    every role, template and collection, since those are YAML.
+
+  `_build/build-containers.sh:166-197` skips the whole build when
+  any image with the tag already exists. A deployer image added
+  without a hash change could therefore be skipped on the day it
+  lands.
+* **New risk.** Our push path may strip file capabilities. The
+  occystrap proxy rewrites every layer
+  (`_build/build-containers.sh:53-55`), and `occystrap/tarformat.py`
+  chooses USTAR unless a name, size or uid needs PAX. It never
+  checks `pax_headers`, which is where
+  `SCHILY.xattr.security.capability` lives. Python's `tarfile`
+  silently drops the xattr when writing USTAR; this was checked on
+  2026-10-01 with a one-file archive. If the risk is real, it
+  already affects `prometheus-blackbox-exporter`'s `cap_net_raw`,
+  and step 1a checks exactly that.
+* Not this plan's, but seen: `ARCHITECTURE.md` lists
+  `kolla-2025.1/`, `kolla-ansible-2025.x/` and `nova-2025.1/`
+  directories that do not exist.
+
+#### Decisions
+
+1. **Parent image: `openstack-base`.** It already has a venv on
+   the right Python with upper constraints applied, so
+   Kolla-Ansible installs with Kolla's standard `install_pip`
+   macro, in the same way as every service. `kolla-toolbox` is
+   copied from, not built on. Its Galaxy retry loop is reused.
+
+2. **Sources.** Upstream, in `sources.yaml`:
+   * Kolla-Ansible is a `url` source pointing at the
+     tarballs.opendev.org branch tarball, like the OpenStack
+     services.
+   * The collection is a git plugin,
+     `kolla-ansible-plugin-ansible-collection-kolla`, at `master`,
+     because it has no tarball.
+
+   Both get their `kolla_build_sources` and Zuul `required-projects`
+   companions. Here, `etc/kolla-build-master.conf.in` overrides
+   both with `type = local` sections pointing at `src/`. Our image
+   is therefore built from the patched Kolla-Ansible and the pinned
+   collection, while upstream's definition stays the ordinary one.
+
+3. **Collections are baked into one fixed path, which is the only
+   path searched.** Both requirements files are installed with
+   `-p /usr/share/ansible/collections`. The collection is installed
+   from the plugin directory, not by its git URL, and with the
+   retry loop for Galaxy. The image sets
+   `ANSIBLE_COLLECTIONS_PATH=/usr/share/ansible/collections`. A
+   build-time `ansible-galaxy collection list --format json` is
+   saved into the image as evidence of what was installed.
+
+4. **Provenance goes in a file in the image, and labels carry only
+   what the launcher needs before running anything.** This is the
+   decision most likely to be argued with.
+   * The labels are static: the launcher protocol version (`kolla_ansible_launcher_protocol=1`),
+     `openstack_release` exactly as Kolla renders it (`master` on
+     master), and Kolla's own OCI labels.
+   * At build time, a `RUN` writes `/etc/kolla-ansible/deployer.json`.
+     It holds:
+     * Kolla-Ansible's version, from its installed metadata;
+     * the git SHA of each source tree, read from its `.git`, which
+       Kolla's local archive keeps, or `unknown` for a tarball
+       source;
+     * the collection list above.
+
+   Labels cannot be set from `RUN` output. The alternatives were:
+   * `build_args`, which work, but make every caller, upstream's
+     Zuul included, compute SHAs outside the build;
+   * a Kolla engine change to publish source SHAs as labels, which
+     is generally useful, but is a second, larger upstream change
+     riding on the first.
+
+   The launcher's start-up check (Phase 5) needs only the protocol
+   label. Everything else is for humans and for Phase 5's
+   in-container checks, which can read a file. If Phase 6 wants
+   source SHAs as labels after all, the engine change is a separate
+   patch that does not disturb this one.
+
+5. **Arbitrary UID.** The image sets `HOME` to a world-writable
+   `/var/lib/kolla-ansible` (sticky, mode 1777). Ansible's local
+   temporary directory and SSH control path then work for a UID
+   with no passwd entry. The image's default `USER` is the existing
+   `ansible` user (uid 42401). The image installs an SSH client
+   (`openssh-client` on deb, `openssh-clients` on rpm).
+
+   The remaining problem is deliberately left to Phase 2: OpenSSH
+   refuses to run for a UID with no passwd entry, and it reads
+   `~/.ssh` from that entry, not from `$HOME`. The fix depends on
+   whose UID the launcher passes and what it mounts.
+
+6. **`setcap` on `/usr/bin/nsenter` itself**, not on a copy.
+   `community.docker.nsenter` runs `nsenter` from `PATH`, so a
+   copy elsewhere would need configuration. This phase sets the
+   capabilities and checks them on the locally built image;
+   whether they survive our push is step 1a, and whether they
+   work is Phase 3.
+
+7. **The hash covers what is in the image.** The `src` term
+   becomes one line per repository under `src/`: its name and
+   `git rev-parse HEAD^{tree}`. That covers patched content,
+   `source_sha` bumps, and both of the new sources. `kolla-ansible`
+   and `ansible-collection-kolla` join the script's arguments, the
+   nonexistent `nova` and `requirements` globs leave them, and the
+   tag prefix moves from `v22` to `v23`, so that the first build
+   after this lands cannot reuse a set with no deployer in it. The
+   cost, accepted: a pull request that changes only Kolla-Ansible
+   patches now rebuilds every image. Before this change, a
+   Kolla-Ansible change never altered the image tag at all, and
+   that was wrong as soon as an image contained Kolla-Ansible.
+
+8. **`ansible-collection-kolla/` is a project directory with an
+   empty `ORDER` and a `FORCE` file.** Its `config.yaml` follows
+   `kolla-ansible/config.yaml` (`source_branch: master`,
+   `destination_branch: master-patches`, `release: master`, and
+   `source_sha` set to `11fa4c282fdde0dc60365c7890712325a226472d`).
+   `imagebuild.sh` learns to honour `FORCE`, as `assemble-source.sh`
+   already does.
+
+#### Risks
+
+* **Capabilities stripped on push** (step 1a). If confirmed,
+  Phase 1 can still finish, because its exit check is run on the
+  locally built image. File an occystrap issue, with the
+  blackbox-exporter evidence, as a prerequisite of Phase 3. The
+  management session checks that the issue exists before marking
+  this phase complete.
+* **Upstream pep8 rejects the source entries.** Mitigation: the
+  step 1b brief lists all three companions, and the management
+  session runs `_build/test-apply.sh kolla` without
+  `--skip-tests` before committing the patch.
+* **The non-editable data-files heuristic is wrong.** Mitigation:
+  the exit check runs `kolla-ansible --version`, and lists
+  `site.yml` from the installed share directory. If either fails,
+  set `KOLLA_ANSIBLE_DATA_FILES_PATH` in the image, which
+  Kolla-Ansible already honours first.
+* **The hash change rebuilds more often.** This is accepted in
+  Decision 7. Watch the first week of build times in the layer
+  data; if they are painful, the answer is a separate deployer
+  tag, not hashing less.
+* **The daily rebase rewrites the new kolla patch.** As with every
+  patch. The Dockerfile is a new file, so only the `sources.yaml`
+  and Zuul hunks can conflict.
 
 | Step | Effort | Model | Isolation | Brief for sub-agent |
 |------|--------|-------|-----------|---------------------|
-| 1a | high | opus | worktree | Read `_build/imagebuild.sh`, `_build/assemble-source.sh` and the kolla source-override mechanism at the pinned kolla SHA, and write up (in this plan) exactly how a Kolla image definition would receive the patched Kolla-Ansible tree and a pinned `ansible-collection-kolla`. No code; the output is the recipe 1b follows. |
-| 1b | high | opus | worktree | Add a kolla patch defining the `kolla-ansible` deployer image per 1a, list it in `kolla/ORDER`, recount hunks with `tools/recount-patch.py --in-place`, and prove `_build/test-apply.sh --skip-tests kolla`. |
-| 1c | medium | sonnet | none | Add an `ansible-collection-kolla/` project directory (`config.yaml` pinned to the SHA 1a chose, empty `ORDER`), mirroring an existing project directory, and teach `_build/assemble-source.sh` to clone it. |
-| 1d | medium | sonnet | none | Include the deployer image's inputs in `_build/calculate-container-hash.sh`, and fix the `src` hashing bug recorded below in the same change, since both edit the same term. |
+| 1a | low | sonnet | none | Read-only. Find the newest `prometheus-blackbox-exporter` image in the CI registry. Get the tag from the latest green `functional-tests.yml` run's `buildresult-master-debian-trixie` artifact `result.json`, `image_tag`. Get the registry and namespace from `_build/common.sh` and `etc/globals-master.yml`, and the token from the operator, since none is in the repository. Run `getcap` on its `blackbox_exporter` binary, via `docker run --rm --entrypoint getcap <image> <path>`, taking the path from the template. Then build the same template locally and run `getcap` on it, to show the capability exists before the push. Report both results, and read `occystrap/tarformat.py` and the filter path that `_build/build-containers.sh:53-55` uses, to say whether USTAR is what drops it. Commit subject: none; this is evidence for the plan. |
+| 1b | high | opus | worktree | Create `_patches/patchNNN-kolla-ansible-deployer-image.patch` against kolla at the `source_sha` in `kolla/config.yaml`, taking NNN from `_build/get-next-patch-number.py`. Add `kolla/docker/kolla-ansible/Dockerfile.j2` per Decisions 1 and 3-6 of Phase 1 in `docs/plans/containerised-deployer.md`: `FROM` `openstack-base`; packages through `macros.install_packages`, using `libcap2-bin` and `openssh-client` on deb and `libcap` and `openssh-clients` on rpm, following `prometheus-blackbox-exporter`; `ADD kolla-ansible-archive` and `ADD plugins-archive /`, then `install_pip` of the Kolla-Ansible tree with constraints; the Galaxy install of `requirements-core.yml` into `/usr/share/ansible/collections`, with kolla-toolbox's retry loop; the collection installed from the plugin directory (glob `*ansible-collection-kolla*`); the `deployer.json` provenance file and the `setcap` on `/usr/bin/nsenter`; `ENV` for `HOME` and `ANSIBLE_COLLECTIONS_PATH`; `ENTRYPOINT ["dumb-init", "--single-child", "--", "kolla-ansible"]`, `CMD ["--help"]` and `USER ansible`. Add the `sources.yaml` entries from Decision 2, with their `kolla_build_sources` and `zuul.d/base.yaml` companions, which `tools/validate-build-sources-overrides.py` demands, and a release note in Kolla's style. List the patch in `kolla/ORDER` only. Recount it with `tools/recount-patch.py --in-place`, regenerate the message file with `tools/extract-commit-message`, and prove it with `_build/test-apply.sh kolla`, with tests and not `--skip-tests`, so that pep8 runs. Commit subject: "Add a Kolla-Ansible deployer image to Kolla." |
+| 1c | medium | sonnet | none | Add `ansible-collection-kolla/`: a `config.yaml` modelled on `kolla-ansible/config.yaml`, with the values from Decision 8; an empty `ORDER`; and a `FORCE` file. Make `_build/imagebuild.sh:27-46` honour `FORCE` exactly as `_build/assemble-source.sh:49` does. Add `[kolla-ansible]` and `[kolla-ansible-plugin-ansible-collection-kolla]` `type = local` sections to `etc/kolla-build-master.conf.in`, using `TOPSRCDIR` like the existing two. Prove it with `_build/assemble-source.sh master`, showing `src/ansible-collection-kolla` at the pinned SHA, and with `_build/test-apply.sh --skip-tests ansible-collection-kolla`. Add the new project directory to `ARCHITECTURE.md`'s inventory, which changes the shape of the system. Commit subject: "Feed patched Kolla-Ansible and the collection to kolla-build." |
+| 1d | medium | sonnet | none | Implement Decision 7 in `_build/calculate-container-hash.sh` and `.github/workflows/functional-tests.yml`. The `src` term becomes a sorted list of `<dir> <git -C <dir> rev-parse HEAD^{tree}>` lines for every directory under `src/`, then hashed. Rewrite its comment, which claims Kolla-Ansible does not affect images. Fix the argument list, and change the tag prefix to `v23`. Also check `local-container-builds.yml` and any other caller of the script. Prove it on a scratch `src/`: two runs give the same hash, and the hash changes after a commit in one repository, and after a `source_sha` change. Commit subject: "Hash the content of every source tree into image tags." |
+| 1e | medium | sonnet | none | Build locally with `_build/build-containers.sh --build-targets master --distro debian --distro-version trixie --build-images "^(base\|openstack-base\|kolla-ansible)$" --image-tag local` (check the flags against `_build/common.sh`). Run the exit script below and report its full output. Commit nothing unless something fails and is fixed, in which case the fix goes back to the step that owns it. |
 
-Exit: an image built by our pipeline, runnable as
-`docker run --rm <image> --version`, with labels present and no
-network access needed at run time. Check the last point with
-`--network none`.
+Exit: the script below passes against the locally built image,
+1b's patch passes `_build/test-apply.sh kolla` with tests, and the
+functional tests on the phase's pull request are green with the
+new tag prefix. Step 1a's result is recorded here and, if the
+capability is stripped, an occystrap issue exists.
+
+```bash
+#!/bin/bash -e
+# Phase 1 exit check: run against the locally built deployer image.
+img=${1:?usage: $0 <image>}
+run() { docker run --rm --network none "$@"; }
+
+run "${img}" --version
+run --user 4242:4242 "${img}" --version
+run --entrypoint ansible-galaxy "${img}" collection list \
+    | grep -E 'openstack\.kolla|community\.docker|ansible\.posix'
+run --entrypoint sh "${img}" -c \
+    'ls "$(python3 -c "import sys; print(sys.prefix)")/share/kolla-ansible/ansible/site.yml"'
+run --entrypoint getcap "${img}" /usr/bin/nsenter | grep cap_sys_admin
+run --entrypoint cat "${img}" /etc/kolla-ansible/deployer.json
+docker inspect "${img}" --format '{{json .Config.Labels}}' | grep -q launcher
+echo "Phase 1 exit check passed."
+```
 
 ### Phase 2: Launcher
 
