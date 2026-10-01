@@ -24,7 +24,7 @@ repos:
   # smuggled unicode and pasted credentials. The rev is kept current by
   # renovate's pre-commit manager.
   - repo: https://github.com/stbenjam/skillsaw
-    rev: v0.20.0
+    rev: v0.21.0
     hooks:
       - id: skillsaw
 
