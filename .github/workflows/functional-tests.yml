@@ -244,9 +244,7 @@ jobs:
           cd kerbside-patches
 
           hash=$(./_build/calculate-container-hash.sh \
-              kolla kolla-2* \
-              nova nova-2* \
-              requirements requirements-2* \
+              kolla kolla-ansible ansible-collection-kolla \
               etc src _build tools )
           if [ -z "${hash}" ]; then
               echo "Container hash calculation failed, refusing to build" >&2

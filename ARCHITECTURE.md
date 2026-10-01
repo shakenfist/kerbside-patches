@@ -42,6 +42,7 @@ kerbside-patches/
         summarize_layers.py  # Layer data analysis
         find_images           # GitLab registry image finder
         gerrit-pre-push-lint  # Gerrit pre-push linter
+    ansible-collection-kolla/ # Kolla collection pin (no patches)
     kolla/                   # Kolla master patches
     kolla-2025.1/            # Kolla epoxy patches
     kolla-2025.2/            # Kolla flamingo patches

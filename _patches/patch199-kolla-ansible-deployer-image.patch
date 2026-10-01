@@ -1,0 +1,335 @@
+commit be3a8b75ce235c1de57e7fc483f44418c4b8c6f6
+Author: Michael Still <mikal@stillhq.com>
+Date:   Thu Oct 1 18:12:21 2026 +1000
+
+    Add a kolla-ansible deployer image.
+    
+    Kolla-Ansible is today installed onto the deploy host with pip, and
+    its Ansible collections are then fetched from Galaxy and git by
+    "kolla-ansible install-deps". The result depends on what those
+    sources serve on the day, on the host's Python, and on whatever is
+    already in the operator's ~/.ansible/collections, which is searched
+    before any system path. Two deploy hosts installed a day apart can
+    therefore run different code against the same cloud.
+    
+    This change adds a kolla-ansible image which packages the deployment
+    tool itself, in the same way as Kolla packages every service.
+    
+    * It is built on openstack-base, so Kolla-Ansible is installed into
+      the existing venv with upper constraints, like any other service.
+    * Kolla-Ansible comes from a new kolla-ansible source, which is the
+      usual tarballs.opendev.org branch tarball. The openstack.kolla
+      collection comes from a new git plugin,
+      kolla-ansible-plugin-ansible-collection-kolla, since that project
+      does not publish tarballs. Both have kolla_build_sources and
+      required-projects entries, so CI builds them from Zuul's checkouts
+      and Depends-On works.
+    * The collections in requirements-core.yml, and the openstack.kolla
+      collection from the plugin directory, are installed at build time
+      into /usr/share/ansible/collections, and ANSIBLE_COLLECTIONS_PATH
+      makes that the only path searched. Nothing is fetched when the
+      image runs, and nothing in a user's home directory can shadow what
+      the image was built with.
+    * The Kolla-Ansible version, the git commit of each source tree where
+      one is known, and the installed collections are recorded in
+      /etc/kolla-ansible/deployer.json. Labels cannot be computed from the
+      output of a build step, so the image carries only static labels:
+      kolla_ansible_launcher_protocol, which a wrapper script can check
+      before running the image, and openstack_release.
+    * nsenter is given cap_sys_admin, cap_sys_ptrace and cap_sys_chroot as
+      file capabilities, so that the community.docker.nsenter connection
+      plugin can reach the host from an unprivileged container user.
+    * HOME is a world writable, sticky /var/lib/kolla-ansible, so that
+      the image can run as an arbitrary UID, and an SSH client is
+      installed.
+    * The entrypoint is kolla-ansible itself, so that
+      "docker run kolla-ansible --help" works without any wrapper.
+    
+    Assisted-By: Claude Opus 5.5 (1M context, high effort) <noreply@anthropic.com>
+    Co-Authored-By: Claude Opus 5.5 (1M context, high effort) <noreply@anthropic.com>
+    
+    Change-Id: I7ab1d1649c6561fd2266fe055217c5a7fc38b52a
+    Signed-off-by: Michael Still <mikal@stillhq.com>
+
+diff --git a/kolla/common/sources.yaml b/kolla/common/sources.yaml
+index db892daa8..4b0466ab8 100644
+--- a/kolla/common/sources.yaml
++++ b/kolla/common/sources.yaml
+@@ -112,6 +112,13 @@ kerbside-base:
+   type: "git"
+   reference: "develop"
+   location: "https://github.com/shakenfist/kerbside"
++kolla-ansible:
++  type: "url"
++  location: "$tarballs_base/openstack/kolla-ansible/kolla-ansible-${openstack_branch}.tar.gz"
++kolla-ansible-plugin-ansible-collection-kolla:
++  type: "git"
++  reference: "master"
++  location: "https://opendev.org/openstack/ansible-collection-kolla"
+ kolla-toolbox:
+   type: "url"
+   location: "$tarballs_base/openstack/requirements/requirements-${openstack_branch}.tar.gz"
+diff --git a/kolla/docker/kolla-ansible/Dockerfile.j2 b/kolla/docker/kolla-ansible/Dockerfile.j2
+new file mode 100644
+index 000000000..ddf399019
+--- /dev/null
++++ b/kolla/docker/kolla-ansible/Dockerfile.j2
+@@ -0,0 +1,91 @@
++FROM {{ namespace }}/{{ image_prefix }}openstack-base:{{ tag }}
++{% block labels %}
++LABEL maintainer="{{ maintainer }}" name="{{ image_name }}" kolla_ansible_launcher_protocol="1" openstack_release="{{ openstack_release }}"
++{% endblock %}
++
++{% block kolla_ansible_header %}{% endblock %}
++
++{% import "macros.j2" as macros with context %}
++
++{# NOTE: Collections are installed into one fixed path, which is the only
++   path Ansible searches. Without this, a collection installed into the
++   user's ~/.ansible/collections (for example by "kolla-ansible
++   install-deps") would silently shadow the ones baked into the image. #}
++{% set kolla_ansible_collections_path = '/usr/share/ansible/collections' %}
++{% set kolla_ansible_home = '/var/lib/kolla-ansible' %}
++{% set kolla_ansible_share = '/var/lib/kolla/venv/share/kolla-ansible' %}
++
++{{ macros.kolla_enable_base_repos() }}
++
++{{ macros.configure_user(name='ansible', homedir=kolla_ansible_home) }}
++
++{% if base_package_type == 'rpm' %}
++    {% set kolla_ansible_packages = [
++        'libcap',
++        'openssh-clients'
++    ] %}
++{% elif base_package_type == 'deb' %}
++    {% set kolla_ansible_packages = [
++        'libcap2-bin',
++        'openssh-client'
++    ] %}
++{% endif %}
++
++{{ macros.install_packages(kolla_ansible_packages | customizable("packages")) }}
++
++ENV ANSIBLE_COLLECTIONS_PATH={{ kolla_ansible_collections_path }}
++
++{% block kolla_ansible_install %}
++ADD kolla-ansible-archive /kolla-ansible-source
++ADD plugins-archive /
++
++{% set kolla_ansible_pip_packages = [
++    '/kolla-ansible'
++] %}
++
++RUN ln -s kolla-ansible-source/* kolla-ansible \
++    && {{ macros.install_pip(kolla_ansible_pip_packages | customizable("pip_packages")) }}
++{% endblock %}
++
++{% block kolla_ansible_collections_install %}
++RUN fail=1; for i in $(seq 1 5); do if \
++ansible-galaxy collection install --timeout 120 -p {{ kolla_ansible_collections_path }} -r {{ kolla_ansible_share }}/requirements-core.yml \
++; then fail=0; break; fi; echo "Collection download failed, retrying"; sleep 5; done; \
++if [ "$fail" -eq 1 ]; then exit 1; fi \
++    && ansible-galaxy collection install -p {{ kolla_ansible_collections_path }} /plugins/*ansible-collection-kolla* \
++    && rm -rf /root/.ansible
++{% endblock %}
++
++COPY kolla_ansible_deployer_info.py /usr/local/bin/kolla_ansible_deployer_info
++
++RUN chmod 755 /usr/local/bin/kolla_ansible_deployer_info \
++    && mkdir -p /etc/kolla-ansible \
++    && kolla_ansible_deployer_info \
++        --source kolla-ansible=/kolla-ansible \
++        --source ansible-collection-kolla=$(ls -d /plugins/*ansible-collection-kolla* | head -n 1) \
++        --output /etc/kolla-ansible/deployer.json \
++    && chmod 644 /etc/kolla-ansible/deployer.json \
++    && rm -rf /root/.ansible \
++    && setcap cap_sys_admin,cap_sys_ptrace,cap_sys_chroot+ep "$(readlink -f /usr/bin/nsenter)" \
++    && chmod 1777 {{ kolla_ansible_home }}
++
++{{ macros.kolla_patch_sources() }}
++
++{% block kolla_ansible_footer %}{% endblock %}
++{% block footer %}{% endblock %}
++{{ macros.kolla_cleanup_repos() }}
++
++{# NOTE: HOME is world writable and sticky so that the image can be run as
++   an arbitrary UID with no passwd entry, as Ansible needs a writable home
++   for its local temporary directory and SSH control path. It is set last
++   so that nothing the build runs as root writes into it. #}
++ENV HOME={{ kolla_ansible_home }}
++
++{% if use_dumb_init %}
++ENTRYPOINT ["dumb-init", "--single-child", "--", "kolla-ansible"]
++{% else %}
++ENTRYPOINT ["kolla-ansible"]
++{% endif %}
++CMD ["--help"]
++
++USER ansible
+diff --git a/kolla/docker/kolla-ansible/kolla_ansible_deployer_info.py b/kolla/docker/kolla-ansible/kolla_ansible_deployer_info.py
+new file mode 100644
+index 000000000..1fe5ff700
+--- /dev/null
++++ b/kolla/docker/kolla-ansible/kolla_ansible_deployer_info.py
+@@ -0,0 +1,97 @@
++#!/usr/bin/env python3
++
++# Licensed under the Apache License, Version 2.0 (the "License");
++# you may not use this file except in compliance with the License.
++# You may obtain a copy of the License at
++#
++#     http://www.apache.org/licenses/LICENSE-2.0
++#
++# Unless required by applicable law or agreed to in writing, software
++# distributed under the License is distributed on an "AS IS" BASIS,
++# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++# See the License for the specific language governing permissions and
++# limitations under the License.
++
++"""Record what a kolla-ansible deployer image was built from.
++
++This runs once, at image build time, and writes a JSON document describing
++the Kolla-Ansible version, the git commit of each source tree the image was
++built from, and the Ansible collections installed into the image. Image
++labels cannot be set from the output of a build step, so this file is where
++that information lives.
++"""
++
++import argparse
++from importlib import metadata
++import json
++import os
++import subprocess  # nosec
++import sys
++
++UNKNOWN = 'unknown'
++
++
++def package_version(name):
++    try:
++        return metadata.version(name)
++    except metadata.PackageNotFoundError:
++        return UNKNOWN
++
++
++def git_sha(path):
++    """Return the commit a source tree was built from, if it is known.
++
++    Sources fetched as tarballs have no git metadata, so their commit is
++    reported as unknown rather than guessed.
++    """
++    if not os.path.exists(os.path.join(path, '.git')):
++        return UNKNOWN
++    try:
++        return subprocess.check_output(  # nosec
++            ['git', '-c', 'safe.directory=*', '-C', path,
++             'rev-parse', 'HEAD'],
++            text=True).strip()
++    except (OSError, subprocess.CalledProcessError):
++        return UNKNOWN
++
++
++def installed_collections():
++    output = subprocess.check_output(  # nosec
++        ['ansible-galaxy', 'collection', 'list', '--format', 'json'],
++        text=True)
++    return json.loads(output)
++
++
++def parse_source(value):
++    name, sep, path = value.partition('=')
++    if not sep or not name or not path:
++        raise argparse.ArgumentTypeError(
++            'Sources must be given as NAME=PATH, not %r' % value)
++    return name, path
++
++
++def main():
++    parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
++    parser.add_argument('--source', action='append', default=[],
++                        type=parse_source,
++                        help='A source tree, as NAME=PATH. May be repeated.')
++    parser.add_argument('--output', required=True,
++                        help='The file to write the JSON document to.')
++    args = parser.parse_args()
++
++    info = {
++        'kolla_ansible_version': package_version('kolla-ansible'),
++        'ansible_core_version': package_version('ansible-core'),
++        'sources': {name: {'path': path, 'git_sha': git_sha(path)}
++                    for name, path in args.source},
++        'collections': installed_collections(),
++    }
++
++    with open(args.output, 'w') as f:
++        json.dump(info, f, indent=2, sort_keys=True)
++        f.write('\n')
++    return 0
++
++
++if __name__ == '__main__':
++    sys.exit(main())
+diff --git a/releasenotes/notes/add-kolla-ansible-image-0746f6311029c37f.yaml b/releasenotes/notes/add-kolla-ansible-image-0746f6311029c37f.yaml
+new file mode 100644
+index 000000000..cd5604e84
+--- /dev/null
++++ b/releasenotes/notes/add-kolla-ansible-image-0746f6311029c37f.yaml
+@@ -0,0 +1,17 @@
++---
++features:
++  - |
++    Adds a ``kolla-ansible`` image, which packages Kolla-Ansible as a
++    deployment tool. The image contains Kolla-Ansible, a supported version
++    of ``ansible-core``, and every Ansible collection Kolla-Ansible needs,
++    all installed at build time into ``/usr/share/ansible/collections``,
++    so that nothing is fetched from Ansible Galaxy or git when the image
++    runs. Its entrypoint is ``kolla-ansible``, so
++    ``docker run kolla-ansible --help`` works without any wrapper.
++    The image records the Kolla-Ansible version, the git commit of each
++    source tree it was built from where known, and the installed
++    collections in ``/etc/kolla-ansible/deployer.json``. Kolla-Ansible is
++    taken from the ``kolla-ansible`` source and the ``openstack.kolla``
++    collection from the ``kolla-ansible-plugin-ansible-collection-kolla``
++    source, both of which can be overridden in ``kolla-build.conf`` to
++    build the image from local or patched trees.
+diff --git a/roles/kolla-build-config/defaults/main.yml b/roles/kolla-build-config/defaults/main.yml
+index ced1ac659..fd6b32d0d 100644
+--- a/roles/kolla-build-config/defaults/main.yml
++++ b/roles/kolla-build-config/defaults/main.yml
+@@ -12,6 +12,7 @@ kolla_build_config: {}
+ # Dict mapping project names to sections in kolla-build.conf.
+ kolla_build_sources:
+   gnocchixyz/gnocchi: gnocchi-base
++  openstack/ansible-collection-kolla: kolla-ansible-plugin-ansible-collection-kolla
+   openstack/aodh: aodh-base
+   openstack/barbican: barbican-base
+   openstack/bifrost: bifrost-base
+@@ -33,6 +34,7 @@ kolla_build_sources:
+   openstack/ironic-prometheus-exporter: ironic-conductor-plugin-prometheus-exporter
+   openstack/ironic-ui: horizon-plugin-ironic-ui
+   openstack/keystone: keystone-base
++  openstack/kolla-ansible: kolla-ansible
+   openstack/magnum: magnum-base
+   openstack/magnum-ui: horizon-plugin-magnum-ui
+   openstack/manila: manila-base
+diff --git a/zuul.d/base.yaml b/zuul.d/base.yaml
+index 21cc98371..fa7f15095 100644
+--- a/zuul.d/base.yaml
++++ b/zuul.d/base.yaml
+@@ -13,6 +13,8 @@
+     required-projects:
+       - name: gnocchixyz/gnocchi
+         override-checkout: 4.7.0
++      - name: openstack/ansible-collection-kolla
++        override-checkout: master
+       - openstack/aodh
+       - openstack/barbican
+       - openstack/bifrost
+@@ -34,6 +36,7 @@
+       - openstack/ironic-prometheus-exporter
+       - openstack/ironic-ui
+       - openstack/keystone
++      - openstack/kolla-ansible
+       - openstack/magnum
+       - openstack/magnum-ui
+       - openstack/manila
