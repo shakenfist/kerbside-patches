@@ -357,7 +357,7 @@ against `develop`.
 
 | Phase | Status | Merged |
 |-------|--------|--------|
-| 0. A CI entry for the prototype | Complete | #1796 (`725cf1e8a`), #1799; shakenfist/actions#121 (`7eaa1e534`) |
+| 0. A CI entry for the prototype | Complete | #1796 (`725cf1e8a`), #1799 (`190daeeca`); shakenfist/actions#121 (`7eaa1e534`) |
 | 1. Deployer image | Not started | |
 | 2. Launcher | Not started | |
 | 3. The localhost connection | Not started | |
