@@ -1111,12 +1111,14 @@ the `--init` requirement is gone (Decision 6).
    `passwd` file with two entries, `root` and the invoking user
    taken from `pwd.getpwuid()` (so LDAP and sssd users work), and a
    matching `group` file. Both are mounted read-only over
-   `/etc/passwd` and `/etc/group`. The user's entry keeps their real
-   home directory, and `<home>/.ssh` is mounted read-only at that
-   path when it exists, so OpenSSH finds its keys and configuration
-   where it always would. `HOME` stays as the image's
-   `/var/lib/kolla-ansible`, so Ansible's writes go somewhere
-   writable. This answers the problem Phase 1 left over: OpenSSH
+   `/etc/passwd` and `/etc/group`. The user's entry has the image's
+   home directory, `/var/lib/kolla-ansible`, not their own: on a
+   local connection Ansible expands `~` from the passwd entry, not
+   `$HOME`, so a real home directory sent `~/.ansible/tmp` somewhere
+   unwritable (found in step 2a). `<home>/.ssh` is mounted
+   read-only both at `/var/lib/kolla-ansible/.ssh`, where OpenSSH
+   looks, and at its own path, for configuration that names it
+   absolutely. This answers the problem Phase 1 left over: OpenSSH
    refuses a UID with no passwd entry, and it reads `~/.ssh` from
    the passwd entry, not from `$HOME`. Rejected:
    * mounting the host's whole `/etc/passwd`, which misses NSS users;
@@ -1271,7 +1273,7 @@ cfg=$(mktemp -d)
 cd "${cfg}"
 export KOLLA_CONFIG_PATH=${cfg}
 printf '[deployer]\nimage = %s\n' "${img}" > deployer.conf
-touch globals.yml
+echo '{}' > globals.yml  # Ansible rejects an empty vars file
 
 kolla-ansible --version
 kolla-ansible launcher show | grep -q kolla_ansible_launcher_protocol
@@ -1292,7 +1294,7 @@ cat > play.yml <<'PLAY'
   tasks:
     - copy:
         content: "{{ ansible_facts.user_id }}\n"
-        dest: "{{ node_config }}/whoami"
+        dest: "{{ CONFIG_DIR }}/whoami"  # group_vars do not load for -p
 PLAY
 kolla-ansible deploy -i inv -p play.yml > /dev/null
 test "$(stat -c %U whoami)" = "$(id -un)"
