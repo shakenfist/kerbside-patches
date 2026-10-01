@@ -358,7 +358,7 @@ against `develop`.
 | Phase | Status | Merged |
 |-------|--------|--------|
 | 0. A CI entry for the prototype | Complete | #1796 (`725cf1e8a`), #1799 (`190daeeca`); shakenfist/actions#121 (`7eaa1e534`) |
-| 1. Deployer image | Not started | |
+| 1. Deployer image | In progress | |
 | 2. Launcher | Not started | |
 | 3. The localhost connection | Not started | |
 | 4. Bootstrapping the deploy host | Not started | |
@@ -911,6 +911,36 @@ docker inspect "${img}" --format '{{json .Config.Labels}}' | grep -q launcher
 echo "Phase 1 exit check passed."
 ```
 
+**Step 1e result (2026-10-01): the exit check passed.**
+* Built locally for Debian trixie: base, openstack-base and the
+  deployer, about six minutes in all.
+* `kolla-ansible 22.1.0.dev266`, ansible-core 2.21.4 and nine
+  collections were installed. `nsenter` carries
+  `cap_sys_chroot,cap_sys_ptrace,cap_sys_admin=ep`.
+* `deployer.json` records real SHAs for both trees: the patched
+  Kolla-Ansible, and the collection at `11fa4c282`.
+* `ansible localhost -m ping` works as uid 4242.
+* The image is 1.68 GB, against 1.46 GB for openstack-base.
+* `build-containers.sh` has no local-only mode, because it always
+  pushes. The local route is `_build/assemble-source.sh --no-tarball
+  master`, then `_build/imagebuild.sh` with the same flags.
+
+**Step 1a result (2026-10-01): the capability is stripped.**
+* Running occystrap's real `normalize-timestamps` filter (develop
+  `0b810de`) over a layer whose member carries
+  `SCHILY.xattr.security.capability` produced the member with no
+  PAX headers at all.
+* The `exclude` filter uses the same format selection, and occystrap's
+  tar outputs hard-code USTAR.
+* Upstream's `prometheus-blackbox-exporter:master-debian-trixie` on
+  quay.io still has `cap_net_raw=ep`, so `kolla-build` output is
+  fine. The loss happens in our push path.
+* The CI-registry image itself was not checked: this host has no
+  credentials for `gitlab.home.stillhq.com:5050`.
+
+This is filed as shakenfist/occystrap#151, a prerequisite of
+Phase 3.
+
 ### Phase 2: Launcher
 
 Planning effort: high.
@@ -959,6 +989,11 @@ way, as a non-root shared account. Files the run writes under
 | 2b | medium | sonnet | none | Add a `tools/ka`-equivalent entry point that runs through the launcher, and make `tools/ka` dispatch to it when the Phase 0 marker reads `launcher`, for every call after bootstrap (bootstrap itself moves in Phase 4). Give the OpenStack clients that `tools/install-openstack-clients` links out of the venv a home that does not depend on the deployer. Strengthen the Phase 0 assertion step to fail if the venv's `kolla-ansible` ran. No change to shakenfist/actions. |
 
 ### Phase 3: The localhost connection
+
+Prerequisite: shakenfist/occystrap#151, fixed and released, since
+`build-containers.sh` installs occystrap unpinned from PyPI. Until
+then our push strips the capability on `nsenter` (Phase 1, step
+1a).
 
 Planning effort: high.
 
@@ -1092,6 +1127,12 @@ then voting.
 
 Planning effort: medium.
 
+Phase 1's patch199 does not apply to pristine Kolla. Its
+`sources.yaml` hunk has our downstream `kerbside-base` entry as
+context. Before a push, rebase it onto the upstream `source_sha`
+alone, and check its `zuul.d/base.yaml` `override-checkout: master`
+for the collection, which has to change when Kolla branches.
+
 Write `docs/containerised-deployer.md`: how to build and run the
 deployer, and what the prototype learned, including the cases
 that did not work. Add it to the index in `AGENTS.md` only if a
@@ -1180,8 +1221,8 @@ We will know this plan has succeeded when the following are true:
   tree. The date and the per-patch hashes still vary, so the
   practical effect is limited: an upstream `source_sha` bump with
   unchanged patches, on the same day, reuses the previous build's
-  hash. Not yet fixed; step 1d fixes it, because that step edits
-  the same term.
+  hash. Fixed in step 1d, which replaces the term with one line per
+  tree under `src/`: its name and the git tree id of its `HEAD`.
 
 * **`tools/ka` re-splits its arguments.** It runs `kolla-ansible $*`,
   so an argument containing a space, such as `-e 'foo=a b'`, reaches
