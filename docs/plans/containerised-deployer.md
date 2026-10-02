@@ -1218,15 +1218,24 @@ the `--init` requirement is gone (Decision 6).
 #### Risks
 
 * **`validate-config` needs `become` on the container's
-  `localhost`.** It writes `.err` files to `/var/log/kolla` there,
-  and the synthesised user has no sudoers entry in the image.
-  * If it writes only on failure, it never triggers.
-  * If it fails the step, the management session records it here as
-    a Phase 3 finding. Phase 3's `localhost` is the host, which makes
-    the problem moot, and the step is then marked non-fatal for the
-    launcher entry in this phase only.
-
-  Who checks: the management session, from the first CI run.
+  `localhost`.** It did, and this risk materialised on #1812's first
+  CI run. When keystone's validator reports anything, which it does
+  on every entry, `service-config-validate/tasks/validate.yml:32`
+  creates its output directory with `delegate_to: localhost` and
+  `become: true`, and the synthesised user has no sudo in the
+  container ("sudo: a password is required"). The mitigation planned
+  here, making the step non-fatal, was not available: the step is in
+  shakenfist/actions, which this plan changes only in Phase 0.
+  Resolved by step 2e instead, a Kolla-Ansible patch. Running the
+  container as root, or giving the user sudo inside it, would have
+  made a `--privileged --pid=host` container root on the host,
+  against top-level Decision 6. Every other task that runs on
+  `localhost` with `become` was surveyed at kolla-ansible `54aab14`.
+  The only ones are `post-deploy`'s openrc and `clouds.yaml`
+  templates, including Octavia's, and their `become` applies only
+  when `node_config` is not writable. So controller-side `become` is
+  rare upstream, and is a case for the proposal (Phase 8): a
+  containerised deployer cannot escalate on its own `localhost`.
 * **SSH to `127.0.0.1` as `debian` hits something the multinode
   path does not**, such as a missing `authorized_keys` entry on the
   deploy host itself. Mitigation: before the first push, step 2c
@@ -1250,9 +1259,11 @@ the `--init` requirement is gone (Decision 6).
 | 2b | medium | sonnet | none | Add to `.pre-commit-config.yaml`, scoped to `^deployer/`, flake8 from the upstream `pycqa/flake8` repository with `--max-line-length=120`, and a local hook running `python3 -m unittest discover -s deployer/launcher -t deployer/launcher`. Write `docs/deployer-launcher.md`: what the launcher is, how to install it, `deployer.conf`, `launcher pin` and `launcher show`, what it mounts and why, and what it refuses. Link it from `docs/index.md`. Add `deployer/launcher/` to `ARCHITECTURE.md`'s inventory, with a short paragraph saying this repository now holds one program alongside its patches, and why (top-level Decision 8), linking the doc page. Add one line to `AGENTS.md` saying that Python under `deployer/` is linted and tested by pre-commit, since that is a new convention. Commit subject: "Lint, test and document the deployer launcher." |
 | 2c | medium | sonnet | none | Wire the prototype CI entry to the launcher, per Decisions 1, 2, 5 and 9 of Phase 2. Add `etc/inventory-all-in-one-launcher-master`. In `tools/bootstrap-kolla-ansible`, when the deployer is `launcher`: pick that inventory for the all-in-one topology; after `bootstrap-servers`, create `/srv/kolla-ansible/launcher-venv`, `pip install` `deployer/launcher` into it, run `docker login` as `${SUDO_USER}` with the registry token on stdin, `chown -R "${SUDO_USER}:"` `/etc/kolla`, run `launcher pin` as that user for `<docker_registry>/<docker_namespace>/kolla-ansible:<image tag>`, taking the values that bootstrap already substitutes into `globals.yml`, and add `mounts = /srv/github` to `deployer.conf`. Check `ssh -i /srv/github/id_ci -o BatchMode=yes ${SUDO_USER}@127.0.0.1 true`, and fail with a clear message if it does not work. In `tools/ka`, replace the `launcher` stub with the `sudo -u` call of Decision 1, and append the deployer used to `/srv/kolla-ansible/ka.log` for both modes. Write `tools/check-deployer-launcher` per Decision 9, and replace the body of the "Assert the containerised deployer prototype was selected" step in `.github/workflows/functional-tests.yml` with an ssh that runs it, in the same style as the neighbouring steps. Everything must be shellcheck-clean, and the venv path must be unchanged when the marker is absent or reads `venv`. Commit subject: "Run the prototype CI entry through the launcher." |
 | 2d | medium | sonnet | none | Prove the launcher against the local `kolla/kolla-ansible:local` image before anything is pushed. Install it into a scratch venv, and run the exit script below as a non-root user. If `-p` does not replace `site.yml` for `deploy`, use whichever subcommand runs a given playbook, and say so. Report its full output. Commit nothing unless something fails and is fixed, in which case the fix goes back to the step that owns it. |
+| 2e | medium | sonnet | none | Added after #1812's first CI run (see Risks). Write `_patches/patch200-kolla-ansible-master-validate-config-become.patch`, listed in `kolla-ansible/ORDER`. It adds a `service_config_validate_output_become` role default, `true`, used as `become` on the role's two `localhost` output tasks, with a release note. In launcher mode, bootstrap sets it to `false` in `globals.yml` and points `service_config_validate_output_dir` at `/etc/kolla/config-validate`, which is mounted and owned by the launcher's user. Prove it with `_build/test-apply.sh --test-patch patch200 kolla-ansible`. Commit subject: "Let validate-config run without controller sudo." |
 
 Order: 2a, then 2b and 2c, which touch disjoint files, then 2d,
-then push. The management session reviews each step before its
+then push; 2e followed the first CI run. The management session
+reviews each step before its
 commit.
 
 Exit:

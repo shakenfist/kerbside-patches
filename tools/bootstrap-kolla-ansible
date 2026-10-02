@@ -140,6 +140,22 @@ if [ "${use_ci_registry}" != "true" ]; then
     sed -i '/^docker_registry_username:/d' /etc/kolla/globals.yml
     sed -i 's|^docker_namespace:.*|docker_namespace: "kolla"|' /etc/kolla/globals.yml
 fi
+
+if [ "${deployer}" == "launcher" ]; then
+    echo -e "${H2}Make validate-config work without controller-side sudo${Color_Off}"
+    # validate-config writes its output on the deploy host with become, but
+    # the launcher's container has no sudo for ${SUDO_USER} (Phase 2 of
+    # docs/plans/containerised-deployer.md). /etc/kolla is mounted into the
+    # container and chowned to ${SUDO_USER} below, so write there instead
+    # and the output lands on the host. Needs the
+    # service_config_validate_output_become variable from the
+    # kolla-ansible-master-validate-config-become patch.
+    cat >> /etc/kolla/globals.yml <<'EOG'
+
+service_config_validate_output_become: false
+service_config_validate_output_dir: "/etc/kolla/config-validate"
+EOG
+fi
 echo
 
 # Kolla pins the MariaDB 11.4 repo, but the Debian entry in repos.yaml only
