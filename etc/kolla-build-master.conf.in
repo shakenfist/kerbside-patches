@@ -13,3 +13,11 @@ location = TOPSRCDIR/kerbside
 [nova-base]
 type = local
 location = TOPSRCDIR/nova
+
+[kolla-ansible]
+type = local
+location = TOPSRCDIR/kolla-ansible
+
+[kolla-ansible-plugin-ansible-collection-kolla]
+type = local
+location = TOPSRCDIR/ansible-collection-kolla
