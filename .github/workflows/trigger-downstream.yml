@@ -21,4 +21,4 @@ jobs:
         run: |
           gh workflow run functional-tests.yml \
               --repo shakenfist/kerbside \
-              -f target='["kolla-ansible-master-debian-12"]'
+              -f target='["kolla-ansible-master-debian-13"]'
