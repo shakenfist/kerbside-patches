@@ -23,6 +23,14 @@ cd ${topsrcdir}
 ls -lrth
 echo
 
+if [ "${deployer}" == "launcher" ]; then
+    if [ -z "${SUDO_USER:-}" ] || [ "${SUDO_USER}" == "root" ]; then
+        echo "The launcher deployer needs an unprivileged user to run as, but SUDO_USER is '${SUDO_USER:-}'."
+        echo "Run this via sudo from a non-root account."
+        exit 1
+    fi
+fi
+
 echo -e "${H2}Make venv for '${ID}' distro${Color_Off}"
 if [ "${ID}" == "rocky" ]; then
     echo "Install missing Rocky dependencies."
@@ -87,13 +95,19 @@ echo -e "${H2}Bootstrap inventory for topology ${topology} running ${target_rele
 mkdir -p /etc/kolla
 cp -r etc/kolla /etc/
 cd "${topdir}"
-if [ ! -e etc/inventory-${topology}-${target_release} ]; then
-    echo "Looked for inventory etc/inventory-${topology}-${target_release}"
+inventory_name="inventory-${topology}-${target_release}"
+if [ "${deployer}" == "launcher" ] && [ "${topology}" == "all-in-one" ]; then
+    # Phase 2 stopgap, deleted in Phase 3: reach this host over SSH, because
+    # "local" would be the launcher's container.
+    inventory_name="inventory-${topology}-launcher-${target_release}"
+fi
+if [ ! -e "etc/${inventory_name}" ]; then
+    echo "Looked for inventory etc/${inventory_name}"
     echo "Inventory file missing!"
     exit 1
 fi
 
-cat etc/inventory-${topology}-${target_release} | \
+cat "etc/${inventory_name}" | \
         sed "s|USER|${SUDO_USER}|g" \
         > /etc/kolla/inventory
 echo
@@ -213,6 +227,21 @@ else
 fi
 echo
 
+if [ "${deployer}" == "launcher" ]; then
+    # The launcher inventory reaches this host over SSH as ${SUDO_USER}, and so
+    # do the certificates and bootstrap-servers calls below, so fail early and
+    # clearly if that does not work.
+    echo -e "${H2}Check ${SUDO_USER} can ssh to this host${Color_Off}"
+    if ! sudo -H -u "${SUDO_USER}" ssh -i /srv/github/id_ci -o BatchMode=yes \
+            -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
+            "${SUDO_USER}@127.0.0.1" true; then
+        echo "${SUDO_USER} cannot ssh to ${SUDO_USER}@127.0.0.1 with /srv/github/id_ci."
+        echo "The launcher inventory needs this, as the launcher's container reaches the host over SSH."
+        exit 1
+    fi
+    echo
+fi
+
 echo -e "${H2}Make certificates${Color_Off}"
 # Stays on the venv until Phase 4 of docs/plans/containerised-deployer.md.
 kolla-ansible certificates -i /etc/kolla/inventory
@@ -223,6 +252,47 @@ echo -e "${H2}Bootstrap servers${Color_Off}"
 # This installs the container engine the launcher will need.
 kolla-ansible bootstrap-servers -i /etc/kolla/inventory
 echo
+
+if [ "${deployer}" == "launcher" ]; then
+    echo -e "${H2}Install the launcher into its own venv${Color_Off}"
+    # Not --system-site-packages: the launcher refuses to run beside a
+    # kolla-ansible distribution, and the venv above holds the real one.
+    python3 -mvenv /srv/kolla-ansible/launcher-venv
+    /srv/kolla-ansible/launcher-venv/bin/pip install "${topdir}/deployer/launcher"
+    echo
+
+    # globals.yml was written (and rewritten for non-CI registries) above, so
+    # take the deployer image's location from it.
+    globals_value() {
+        sed -n "s/^$1: *\"\{0,1\}\([^\"]*\)\"\{0,1\} *\$/\1/p" /etc/kolla/globals.yml
+    }
+    registry=$(globals_value docker_registry)
+    namespace=$(globals_value docker_namespace)
+    registry_user=$(globals_value docker_registry_username)
+    deployer_image="${namespace}/kolla-ansible:${image_tag}"
+    if [ -n "${registry}" ]; then
+        deployer_image="${registry}/${deployer_image}"
+    fi
+
+    if [ -n "${registry_token}" ] && [ -n "${registry}" ]; then
+        echo -e "${H2}Log ${SUDO_USER} in to ${registry}${Color_Off}"
+        echo "${registry_token}" | sudo -H -u "${SUDO_USER}" docker login "${registry}" \
+            --username "${registry_user}" --password-stdin
+        echo
+    fi
+
+    # The launcher runs as ${SUDO_USER} and writes here, so bootstrap must be
+    # finished writing as root before this point.
+    echo -e "${H2}Give ${SUDO_USER} /etc/kolla and pin ${deployer_image}${Color_Off}"
+    # The inventory names the ssh key under /srv/github, which the launcher
+    # cannot see in its arguments. pin then adds the image, keeping this.
+    printf '[deployer]\nmounts = /srv/github\n' > /etc/kolla/deployer.conf
+    chown -R "${SUDO_USER}:" /etc/kolla
+    sudo -H -u "${SUDO_USER}" /srv/kolla-ansible/launcher-venv/bin/kolla-ansible \
+        launcher --configdir /etc/kolla pin "${deployer_image}"
+    cat /etc/kolla/deployer.conf
+    echo
+fi
 
 trap - EXIT
 

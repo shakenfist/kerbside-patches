@@ -1,0 +1,56 @@
+#!/bin/bash
+# Assert that a CI run really went through the containerised deployer
+# prototype (see docs/plans/containerised-deployer.md). Run on the target:
+#
+#   tools/check-deployer-launcher <expected owner of the openrc files>
+#
+# The CHECK_* variables exist so this can be tested.
+
+owner=${1:?usage: $0 <expected-owner>}
+marker=${CHECK_MARKER:-/srv/kolla-ansible/deployer}
+log=${CHECK_LOG:-/srv/kolla-ansible/ka.log}
+configdir=${CHECK_CONFIGDIR:-/etc/kolla}
+minimum=7
+
+failed=0
+fail() {
+    echo "FAIL: $*"
+    failed=1
+}
+
+# This is the number of tools/ka calls a deploy-kolla-ansible run makes:
+# prechecks, pull, deploy, validate-config, check, reconfigure, post-deploy.
+echo "Checking deployer marker ${marker}"
+found=$(cat "${marker}" 2> /dev/null)
+echo "  marker reads '${found}'"
+[ "${found}" == "launcher" ] || fail "expected deployer marker 'launcher'"
+
+echo "Checking call log ${log}"
+total=$(wc -l < "${log}" 2> /dev/null || echo 0)
+others=$(awk '$2 != "launcher"' "${log}" 2> /dev/null | wc -l)
+echo "  ${total} calls, ${others} not by the launcher (need at least ${minimum} calls)"
+if [ -r "${log}" ]; then
+    sed 's/^/    /' "${log}"
+fi
+[ "${others}" -eq 0 ] || fail "${others} calls in ${log} were not made by the launcher"
+[ "${total}" -ge "${minimum}" ] || fail "only ${total} calls in ${log}, expected at least ${minimum}"
+
+echo "Checking ${configdir}/deployer.conf"
+image=$(sed -n 's/^image *= *//p' "${configdir}/deployer.conf" 2> /dev/null)
+echo "  image = ${image}"
+case "${image}" in
+    *@sha256:*) ;;
+    *) fail "deployer.conf image is not pinned by digest" ;;
+esac
+
+for name in admin-openrc.sh clouds.yaml; do
+    echo "Checking ${configdir}/${name}"
+    actual=$(stat -c %U "${configdir}/${name}" 2> /dev/null)
+    echo "  owned by '${actual}', expected '${owner}'"
+    [ "${actual}" == "${owner}" ] || fail "${configdir}/${name} is missing or not owned by ${owner}"
+done
+
+if [ "${failed}" -ne 0 ]; then
+    exit 1
+fi
+echo "OK: the containerised deployer prototype ran this deploy."
