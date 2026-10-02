@@ -29,7 +29,7 @@ The contributions tracked here fall into three groups:
 The rest are ancillary changes -- things which helped me debug along the way,
 and that sort of thing.
 
-These patches last successfully applied via CI on 1 October 2026. When this occurs,
+These patches last successfully applied via CI on 2 October 2026. When this occurs,
 the SHAs the patches were applied to for each project are recorded in the
 relevant config.yaml file, and will be used for patch applications until
 updated.
