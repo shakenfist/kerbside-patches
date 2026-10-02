@@ -242,4 +242,3 @@
 {"cmd": "bc603292e11b", "command": "ADD kolla-ansible-archive /kolla-ansible-source # buildkit", "run_attempt": "1", "run_id": "36841853973"}
 {"cmd": "ef2dc01e2903", "command": "COPY kolla_ansible_deployer_info.py /usr/local/bin/kolla_ansible_deployer_info # buildkit", "run_attempt": "1", "run_id": "36841853973"}
 {"cmd": "6984b4ed389f", "command": "/bin/sh -c #(nop) ADD file:6c214fc3c3c22122c7eb68f7fb32783df308e60b1eaeb9baf7e4d0cc961d448d in / ", "run_attempt": "1", "run_id": "36931476479"}
-{"cmd": "6984b4ed389f", "command": "/bin/sh -c #(nop) ADD file:6c214fc3c3c22122c7eb68f7fb32783df308e60b1eaeb9baf7e4d0cc961d448d in / ", "run_attempt": "1", "run_id": "36940378260"}
