@@ -1,0 +1,4 @@
+# Left behind by pip install of this directory.
+build/
+*.egg-info/
+__pycache__/

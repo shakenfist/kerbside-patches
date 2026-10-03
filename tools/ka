@@ -1,9 +1,19 @@
 #!/bin/bash
-# Run kolla-ansible via whichever deployer bootstrap-kolla-ansible recorded.
-# KA_DEPLOYER_MARKER and KA_VENV exist so this can be tested.
+# Run kolla-ansible via whichever deployer bootstrap-kolla-ansible recorded,
+# and log one line per call to ka.log so that CI can count which deployer ran.
+# The KA_* variables exist so this can be tested:
+#   KA_DEPLOYER_MARKER  the file bootstrap-kolla-ansible wrote the deployer to
+#   KA_VENV             the venv used by the venv deployer
+#   KA_LAUNCHER         the launcher's kolla-ansible, used by the launcher deployer
+#   KA_LOG              the call log
+#   KA_RUN_AS           the user the launcher runs as (default ${SUDO_USER})
+#   KA_NO_SUDO          if non-empty, run the launcher directly, without sudo
 
 marker=${KA_DEPLOYER_MARKER:-/srv/kolla-ansible/deployer}
 venv=${KA_VENV:-/srv/kolla-ansible/venv}
+launcher=${KA_LAUNCHER:-/srv/kolla-ansible/launcher-venv/bin/kolla-ansible}
+log=${KA_LOG:-/srv/kolla-ansible/ka.log}
+run_as=${KA_RUN_AS:-${SUDO_USER:-}}
 
 deployer=venv
 if [ -e "${marker}" ]; then
@@ -11,16 +21,34 @@ if [ -e "${marker}" ]; then
 fi
 
 case "${deployer}" in
-    venv)
-        ;;
-    launcher)
-        echo "deployer: launcher (not yet implemented, using venv)" >&2
+    venv|launcher)
         ;;
     *)
         echo "Unknown deployer '${deployer}' in ${marker}" >&2
         exit 1
         ;;
 esac
+
+if [ "${deployer}" == "launcher" ] && [ -z "${KA_NO_SUDO:-}" ]; then
+    if [ -z "${run_as}" ] || [ "${run_as}" == "root" ]; then
+        echo "The launcher deployer must run as an unprivileged user, but SUDO_USER is '${run_as}'." >&2
+        echo "Run this via sudo from a non-root account." >&2
+        exit 1
+    fi
+fi
+
+# This must happen before the exec below. Failing to log is not fatal to the
+# call, but check-deployer-launcher will notice the missing line.
+if ! echo "$(date -u +%Y-%m-%dT%H:%M:%SZ) ${deployer} ${1:-}" >> "${log}"; then
+    echo "Warning: could not append to ${log}" >&2
+fi
+
+if [ "${deployer}" == "launcher" ]; then
+    if [ -n "${KA_NO_SUDO:-}" ]; then
+        exec "${launcher}" "$@"
+    fi
+    exec sudo -H -u "${run_as}" "${launcher}" "$@"
+fi
 
 . "${venv}/bin/activate"
 exec kolla-ansible "$@"

@@ -1,0 +1,15 @@
+Ignore deployer.conf in check-config.sh.
+
+deployer.conf is the configuration file of a containerised deployer
+launcher, a prototype which runs kolla-ansible from a container. It
+lives in the deploy host's configuration directory beside globals.yml
+and is owned by the deploy user rather than being written by
+kolla-ansible for a service.
+
+Like the other deploy host files already excluded here, such as
+globals.yml, passwords.yml and kolla-build.conf, it is not service
+configuration, so skip it when checking file permissions and
+ownership.
+
+Change-Id: I2f6a9d4c7e1b30586a9b0c1d2e3f4051627384a5
+Signed-off-by: Michael Still <mikal@stillhq.com>

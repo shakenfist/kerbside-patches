@@ -1,0 +1,71 @@
+commit 807bb7ba1afa1b93364eba61ca7aad05de38ced1
+Author: Michael Still <mikal@stillhq.com>
+Date:   Sat Oct 3 06:05:27 2026 +1000
+
+    Allow validate-config to skip become on localhost.
+    
+    The service-config-validate role writes the oslo-config-validator
+    output on the deploy host using become. Where the deploy host user
+    cannot escalate, such as inside a containerised deployer, the play
+    fails with "sudo: a password is required" before it can report any
+    configuration errors.
+    
+    Add service_config_validate_output_become, defaulting to true so
+    behaviour is unchanged, and use it for the two tasks delegated to
+    localhost. It is set once in the role defaults, so the per-service
+    config_validate.yml files need no changes.
+    
+    Change-Id: I7b3e5a9c2d4f60812a3b4c5d6e7f8091a2b3c4d5
+    Signed-off-by: Michael Still <mikal@stillhq.com>
+
+diff --git a/ansible/roles/service-config-validate/defaults/main.yml b/ansible/roles/service-config-validate/defaults/main.yml
+index 933689f8b..2685a03a3 100644
+--- a/ansible/roles/service-config-validate/defaults/main.yml
++++ b/ansible/roles/service-config-validate/defaults/main.yml
+@@ -3,4 +3,8 @@
+ 
+ # Dict of services.
+ service_config_validate_output_dir: "/var/log/kolla/config-validate"
++# Whether to escalate privileges when writing the validator output on the
++# deploy host (localhost). Set to false if the deploy user cannot escalate,
++# for example inside a container, and output_dir is writable without it.
++service_config_validate_output_become: true
+ service_config_validate_services: {}
+diff --git a/ansible/roles/service-config-validate/tasks/validate.yml b/ansible/roles/service-config-validate/tasks/validate.yml
+index 2481d5ae8..2c5c3d624 100644
+--- a/ansible/roles/service-config-validate/tasks/validate.yml
++++ b/ansible/roles/service-config-validate/tasks/validate.yml
+@@ -30,7 +30,7 @@
+   changed_when: false
+ 
+ - name: "Ensure log directory exists for {{ service.container_name }}"
+-  become: true
++  become: "{{ service_config_validate_output_become }}"
+   ansible.builtin.file:
+     path: "{{ output_dir }}"
+     state: directory
+@@ -41,7 +41,7 @@
+   delegate_to: localhost
+ 
+ - name: "Log configuration errors for {{ service.container_name }}"
+-  become: true
++  become: "{{ service_config_validate_output_become }}"
+   ansible.builtin.copy:
+     content: "{{ inner_item.stderr }}"
+     dest: "{{ output_dir }}/{{ inner_item.inner_item.config | basename }}.err"
+diff --git a/releasenotes/notes/config-validate-output-become-5c1d7e2a9b4f8036.yaml b/releasenotes/notes/config-validate-output-become-5c1d7e2a9b4f8036.yaml
+new file mode 100644
+index 000000000..04710b800
+--- /dev/null
++++ b/releasenotes/notes/config-validate-output-become-5c1d7e2a9b4f8036.yaml
+@@ -0,0 +1,10 @@
++---
++features:
++  - |
++    Adds ``service_config_validate_output_become``, which controls whether
++    ``kolla-ansible validate-config`` escalates privileges when writing the
++    validator output on the deploy host. It defaults to ``true``, which keeps
++    the existing behaviour. Setting it to ``false``, together with a
++    ``service_config_validate_output_dir`` that the deploy user can write to,
++    allows ``validate-config`` to run where that user cannot escalate, such as
++    a containerised deployer.
