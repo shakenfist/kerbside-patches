@@ -10,3 +10,4 @@
 ../_patches/patch178-kolla-ansible-master-disable-ovs-create-tap.patch
 ../_patches/patch181-kolla-ansible-master-fluentd-etcd.patch
 ../_patches/patch200-kolla-ansible-master-validate-config-become.patch
+../_patches/patch201-kolla-ansible-master-check-config-deployer-conf.patch
