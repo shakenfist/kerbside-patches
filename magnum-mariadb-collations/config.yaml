@@ -5,8 +5,8 @@ shallow_clone: false
 directory: magnum
 release: master-magnum-mariadb-collations
 depends_on: ''
-source_sha: ac62a50fb78b7d144f34cbcb0cf1944e6d36953b
-previous_source_sha: f902fbb59f79f5ea8e4ef4e2b7547226bc2e2451
+source_sha: 5fca26c307be637ffc3da38a17731c6afb37053b
+previous_source_sha: ac62a50fb78b7d144f34cbcb0cf1944e6d36953b
 skip_rebase: true
 skip_claude: true
 repush: true
