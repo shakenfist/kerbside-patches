@@ -29,6 +29,9 @@ and tracks the health of the pipelines involved.
   the kerbside proxy inside a deployed Kolla-Ansible environment.
 - [Gerrit API notes](gerrit-api.md) — querying review.opendev.org over
   SSH and REST, with examples for batch-fetching reviews.
+- [The deployer launcher](deployer-launcher.md) — a prototype that
+  runs Kolla-Ansible from a container image: installing it,
+  `deployer.conf`, what it mounts, and what it refuses.
 - [Plans](plans/index.md) — the planning documents for work in
   flight here and upstream, oldest first, with a one-line status for
   each.

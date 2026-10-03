@@ -57,3 +57,22 @@ repos:
         entry: tools/check-depends-on.py --offline
         language: system
         files: ^_patches/.*\.patch(-message)?$
+
+  # The launcher under deployer/ is Python, and the only Python this
+  # repository lints. It is also unit tested here: the tests need no
+  # container engine.
+  - repo: https://github.com/pycqa/flake8
+    rev: 7.4.1
+    hooks:
+      - id: flake8
+        files: ^deployer/
+        args: ['--max-line-length=120']
+
+  - repo: local
+    hooks:
+      - id: deployer-launcher-tests
+        name: deployer launcher unit tests
+        entry: python3 -m unittest discover -s deployer/launcher -t deployer/launcher
+        language: system
+        pass_filenames: false
+        files: ^deployer/

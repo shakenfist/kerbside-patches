@@ -665,15 +665,10 @@ jobs:
         if: matrix.test.deployer == 'launcher'
         run: |
           . $GITHUB_ENV
-          marker=$(ssh -i /srv/github/id_ci -o StrictHostKeyChecking=no \
+          ssh -i /srv/github/id_ci -o StrictHostKeyChecking=no \
               -o UserKnownHostsFile=/dev/null \
               ${{ matrix.test.baseuser }}@10.0.2.2 \
-              'cat /srv/kolla-ansible/deployer')
-          echo "Deployer marker: ${marker}"
-          if [ "${marker}" != "launcher" ]; then
-            echo "Expected deployer marker 'launcher', got '${marker}'"
-            exit 1
-          fi
+              'cd /srv/shakenfist/kerbside-patches; ./tools/check-deployer-launcher ${{ matrix.test.baseuser }}'
 
       # Post-deploy sanity scripts that Zuul runs against the
       # kolla-ansible source tree. These are cheap (seconds) and catch

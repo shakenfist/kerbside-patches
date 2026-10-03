@@ -33,6 +33,9 @@ the only tested container OS: RHEL and Rocky dropped SPICE support.
 documentation belongs in `docs/`; this file and `ARCHITECTURE.md` are a
 summary and an index into it.
 
+Python under `deployer/` is linted (flake8, 120 columns) and unit
+tested by pre-commit; there is no other Python linting here.
+
 ## Key Patterns
 
 ### Adding a New Patch

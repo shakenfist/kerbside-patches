@@ -358,8 +358,8 @@ against `develop`.
 | Phase | Status | Merged |
 |-------|--------|--------|
 | 0. A CI entry for the prototype | Complete | #1796 (`725cf1e8a`), #1799 (`190daeeca`); shakenfist/actions#121 (`7eaa1e534`) |
-| 1. Deployer image | In progress | |
-| 2. Launcher | Not started | |
+| 1. Deployer image | Complete | #1803 (`507fbea62`) |
+| 2. Launcher | In progress | |
 | 3. The localhost connection | Not started | |
 | 4. Bootstrapping the deploy host | Not started | |
 | 5. Version safeguards | Not started | |
@@ -943,50 +943,380 @@ Phase 3.
 
 ### Phase 2: Launcher
 
-Planning effort: high.
+Planning effort: high. It fixes the launcher's command line and
+`deployer.conf`, which every later phase builds on, and it is the
+first phase in which the prototype CI entry stops running the venv.
 
-Write `kolla-ansible-launcher` (Decision 4) in this repository
-under `deployer/launcher/`, with its own `pyproject.toml`
-(Decision 8).
+Write `kolla-ansible-launcher` (Decision 4) in this repository,
+under `deployer/launcher/`, with its own `pyproject.toml` (Decision
+8). Then make the prototype CI entry run every Kolla-Ansible call
+after bootstrap through the launcher, as the unprivileged `debian`
+account rather than root.
 
-It must:
+**In scope:** the launcher, its unit tests and its lint; its
+documentation page; `tools/ka` dispatch; the bootstrap and
+inventory changes the prototype entry needs to run through it; and
+a stronger CI assertion.
 
-* Refuse to run if the `kolla-ansible` distribution is installed
-  in the same environment, and say why.
-* Read `deployer.conf` for the image digest (Open question 1), and
-  provide a subcommand that resolves a tag to a digest and writes
-  the file.
-* Detect `docker` or `podman` on `PATH`, preferring whichever
-  `deployer.conf` names and otherwise whichever is present, and
-  fail clearly when neither is.
-* Mount at the same path: the config directory, every path-valued
-  argument (`--configdir`, `--passwords`, each `-i`, each
-  `--vault-password-file`, each `-e @file`), and the current
-  working directory, so that relative paths resolve. Parse these
-  from the argument list; `kolla_ansible/ansible.py` is the
-  authority on which arguments are paths.
-* Forward `ANSIBLE_*`, `KOLLA_*` and `SSH_AUTH_SOCK` (mounting the
-  socket), allocate a TTY only when stdin is one, run with `--init`
-  so that Ctrl-C reaches `ansible-playbook`, and return the
-  container's exit code unchanged.
-* Always run with `--network host`, `--rm`, and `--user` set to
-  the invoking UID and GID. Add `--privileged --pid=host` by
-  default for nsenter (Decision 5), with a `deployer.conf` switch
-  to drop them when the deploy host is not a target.
-* Check the image's launcher protocol label and refuse a version
-  it does not speak.
+**Out of scope:**
+* `localhost` over `community.docker.nsenter`. That is Phase 3. Until
+  then the prototype entry reaches its own host over SSH (Decision
+  2), which is a stopgap.
+* Moving `kolla-genpwd`, `certificates` and `bootstrap-servers` off
+  the venv. That is Phase 4.
+* A home for the OpenStack clients outside the venv. The venv still
+  exists in this phase, so nothing needs it yet; moved to Phase 4,
+  which removes the venv.
+* Podman in CI. The launcher supports it, and unit tests cover the
+  command it builds, but the first podman host is Phase 3's Rocky 10
+  entry.
+* The multinode inventories' `[deployment] localhost` line, which
+  would also run inside the container. No launcher entry is
+  multinode.
 
-Exit: `kolla-ansible prechecks`, `deploy` and `post-deploy` run
-through the launcher against a remote host bootstrapped the old
-way, as a non-root shared account. Files the run writes under
-`/etc/kolla` (`passwords.yml` from `genpwd`, `admin-openrc.sh`,
-`clouds.yaml`) are owned by that account.
+#### What the survey found
+
+Surveyed on 2026-10-02 against this repository at `13f4f34fc` and
+kolla-ansible `54aab1476`. None of the eleven patches in
+`kolla-ansible/ORDER` touch `kolla_ansible/` or `post-deploy.yml`.
+The section this replaces was written before Phases 0 and 1 ran.
+Its false claims are corrected below, and at their source in this
+commit: the Phase 4 section now carries the OpenStack clients, and
+the `--init` requirement is gone (Decision 6).
+
+*The prototype entry cannot run through a container as it stands.*
+* Its inventory, `etc/inventory-all-in-one-master:3-22`, puts
+  `kolla ansible_connection=local` in every group. Inside a
+  container, `local` is the container. So the original exit,
+  "against a remote host bootstrapped the old way", has no remote
+  host to run against: the CI entry is an all-in-one.
+* Every CI node already accepts `/srv/github/id_ci` for the base
+  user, including the deploy host itself
+  (`ansible/kerbside-single-node.yml:7-8`). The key is on the
+  deploy host, owned by `debian` (shakenfist/actions
+  `setup-kerbside-environment`, action.yml:118-123). The multinode
+  inventories already use it (`etc/inventory-multinode-master:2-6`).
+* `tools/ka` runs as root. The action ssh-es in as `debian` and runs
+  `sudo ./tools/ka ...`, so `SUDO_USER=debian`. The original exit
+  asked for "a non-root shared account", so CI has to drop to
+  `debian` itself.
+* `debian` is already in the `docker` group
+  (`_build/install-build-dependencies.sh:103`). Docker is installed
+  and running before bootstrap.
+* Nothing on the target runs `docker login`. Kolla-Ansible passes
+  registry credentials per pull, so the deployer image has no
+  credentials to be pulled with. The token reaches bootstrap as
+  `registry_token` (`tools/bootstrap-kolla-ansible:206-210`).
+* The deployer image is pushed as
+  `gitlab.home.stillhq.com:5050/openstack/kolla-images/kolla-ansible:<image tag>`,
+  beside the service images (`etc/globals-master.yml:100-106`).
+
+*Kolla-Ansible's command line.*
+* Path-valued options, all in `kolla_ansible/ansible.py`:
+  * `-i/--inventory`, repeatable, a file or a directory (:61,
+    :167-180). The default is under the config directory (:149).
+  * `-e/--extra-vars`, repeatable; `@file` is any path (:53, :261).
+  * `-p/--playbook`, repeatable (:95).
+  * `--vault-password-file` and `--vault-pass-file`, repeatable
+    (:110).
+  * `--vault-id`, whose value may be `label@path` (:102).
+  * `--configdir`, defaulting to `$KOLLA_CONFIG_PATH` or `/etc/kolla`
+    (:23-25, :129). It implies `globals.yml`, `passwords.yml` and
+    `globals.d/`.
+  * `--passwords` (:137). It is only checked for readability (:191),
+    and `build_args` always uses `<configdir>/passwords.yml`. That is
+    an upstream bug, and not ours to fix here.
+  * cliff's global `--log-file`.
+
+  Every path is made absolute against the current directory. The
+  parser is argparse, so `-iX`, `--inventory=X` and `-e@f` all
+  parse, and so do unambiguous long-option prefixes.
+* **`genpwd` is not a subcommand.** `kolla-genpwd`, `kolla-mergepwd`,
+  `kolla-readpwd` and `kolla-writepwd` are separate console scripts
+  (`pyproject.toml:33-37`). A launcher that provides only
+  `kolla-ansible` cannot generate passwords, and the success
+  criteria need it to.
+* `install-deps` installs into `~/.ansible/collections`
+  (`utils.py:96-127`). In the image that path is not searched (Phase
+  1, Decision 3), so running it there is a confusing no-op.
+* Several commands write on the controller, all under the
+  configuration directory:
+  * `post-deploy` writes `clouds.yaml` and the `*-openrc*.sh` files,
+    mode 0600, owned by `ansible_facts.user_uid`. It uses `become`
+    only when the directory is not writable (`post-deploy.yml:6-13`).
+  * `certificates` and `octavia-certificates` write under `certificates/`
+    and `node_custom_config`.
+  * hacluster's bootstrap writes authkeys there too.
+
+  Two writes are not under the configuration directory, and both
+  are on `localhost`, which is the container:
+  * `validate-config` uses `become` to write `.err` files to
+    `/var/log/kolla/config-validate`;
+  * `mariadb-recovery` writes to `/tmp`.
+* No `ansible.cfg` ships with Kolla-Ansible, and the CLI reads no
+  `ANSIBLE_*` variables itself. They reach `ansible-playbook` through
+  the environment, which is why they must be forwarded.
+
+*This repository.*
+* `tools/postinstall-kolla-ansible` already calls `./tools/ka
+  post-deploy` (Phase 0). The OpenStack clients are linked out of the
+  venv by `tools/install-openstack-clients`, on the target and also
+  on the CI runner (`functional-tests.yml:874-890`).
+* There is no Python tooling: no `pyproject.toml`, `tox.ini` or
+  flake8 configuration. Pre-commit runs actionlint, shellcheck,
+  skillsaw and the two patch checks.
+  `tools/test-recount-patch.py` and `tools/test-check-depends-on.py`
+  exist, but nothing runs them. That is recorded here and not fixed.
+* The local `kolla/kolla-ansible:local` image from Phase 1 step 1e
+  is still on the build host, so the launcher can be exercised
+  end to end without CI.
+
+#### Decisions
+
+1. **The launcher installs into its own venv, and CI drops to
+   `debian` to run it.** Bootstrap creates
+   `/srv/kolla-ansible/launcher-venv` and installs
+   `deployer/launcher` into it. The venv that bootstrap still needs
+   holds the real `kolla-ansible`, and Decision 4 forbids the two in
+   one environment. In launcher mode, `tools/ka` runs `sudo -u
+   "${SUDO_USER}" /srv/kolla-ansible/launcher-venv/bin/kolla-ansible
+   "$@"`, after bootstrap has `chown -R`'d `/etc/kolla` to that
+   user. Running it as root would have been easier and would have
+   tested nothing that Phase 3 depends on: the identity of the
+   unprivileged user, ownership of what the run writes, and SSH as a
+   user who is not root.
+
+2. **Until Phase 3, the prototype entry reaches its own host over
+   SSH.** A new `etc/inventory-all-in-one-launcher-master` matches
+   the all-in-one inventory except in its connection. `kolla` keeps
+   its inventory name, so every host variable is unchanged, but its
+   connection is `ansible_host=127.0.0.1 ansible_user=USER
+   ansible_ssh_private_key_file=/srv/github/id_ci`, with the
+   multinode file's `ansible_ssh_extra_args` plus
+   `-o UserKnownHostsFile=/dev/null`. Bootstrap uses it when the
+   deployer is `launcher` and the topology is all-in-one. **This is
+   the decision most likely to be argued with.** Phase 0 promised
+   the prototype entry would differ from its control only in the
+   deployer, and for this one phase it also differs in the
+   connection. The alternative was to wait for Phase 3's nsenter
+   before the entry ran the launcher at all. That would leave
+   Phase 2 untested in CI, and would make Phase 3 land a new program
+   and a new connection plugin together, which is the attribution
+   problem in a worse form. The top-level Decision 5 rejected SSH to
+   `127.0.0.1` as the design, and this is not that: Phase 3 deletes
+   the file.
+
+3. **Identity inside the container is synthesised from the host.**
+   The launcher runs with `--user <uid>:<gid>`. It writes a
+   `passwd` file with two entries, `root` and the invoking user
+   taken from `pwd.getpwuid()` (so LDAP and sssd users work), and a
+   matching `group` file. Both are mounted read-only over
+   `/etc/passwd` and `/etc/group`. The user's entry has the image's
+   home directory, `/var/lib/kolla-ansible`, not their own: on a
+   local connection Ansible expands `~` from the passwd entry, not
+   `$HOME`, so a real home directory sent `~/.ansible/tmp` somewhere
+   unwritable (found in step 2a). `<home>/.ssh` is mounted
+   read-only both at `/var/lib/kolla-ansible/.ssh`, where OpenSSH
+   looks, and at its own path, for configuration that names it
+   absolutely. This answers the problem Phase 1 left over: OpenSSH
+   refuses a UID with no passwd entry, and it reads `~/.ssh` from
+   the passwd entry, not from `$HOME`. Rejected:
+   * mounting the host's whole `/etc/passwd`, which misses NSS users;
+   * a writable `/etc/passwd` in the image, which is the OpenShift
+     pattern and would need a patch199 change;
+   * `nss_wrapper`, which would need `LD_PRELOAD` in the image.
+
+   The files are rewritten on every run under
+   `${XDG_RUNTIME_DIR:-~/.cache}/kolla-ansible-launcher/`, because the
+   launcher `exec`s the engine and cannot clean up afterwards.
+
+4. **Mounts are directories, at the same path, read-write.** Every
+   path argument is mounted at the same path. That covers the
+   options listed in the survey, `KOLLA_CONFIG_PATH`, the current
+   working directory, and the `SSH_AUTH_SOCK` socket.
+   * For a file the launcher mounts its parent directory, and for a
+     directory the directory itself. Ansible loads `group_vars/` and
+     `host_vars/` from beside an inventory file, and `@file` vars
+     commonly include their neighbours.
+   * A mount under another mount is dropped.
+   * Arguments are matched in their separate, `=` and attached forms.
+     Abbreviated long options are not recognised. They pass through
+     unchanged, and fail in the container with a "file not found"
+     that names the path, which is a clear enough failure for a
+     prototype.
+   * Paths the launcher cannot see in the arguments (an inventory's
+     `ansible_ssh_private_key_file`, a role's lookup of a host file)
+     are listed in `deployer.conf` as `mounts`. In CI that is
+     `/srv/github`. This gap is a real finding for the upstream
+     proposal, not a CI detail: the launcher cannot know every path
+     an inventory names.
+
+5. **`deployer.conf` and the `launcher` subcommand.** The file is
+   `<configdir>/deployer.conf`, in INI format, with one `[deployer]`
+   section:
+   * `image`: a digest reference, and required;
+   * `engine`: `docker` or `podman`; optional, defaulting to
+     whichever is on `PATH`, preferring docker;
+   * `host_namespaces`: a boolean, default true, controlling
+     `--privileged --pid=host`;
+   * `mounts`: a whitespace-separated list.
+
+   `kolla-ansible launcher pin <image:tag>` pulls the image, resolves
+   it to a digest from `RepoDigests`, and writes `image`, keeping any
+   other keys. `kolla-ansible launcher show` prints the configuration
+   and the image's labels. `launcher` is the only word the launcher
+   takes over in Kolla-Ansible's subcommand namespace.
+
+   The launcher does not log in to registries. That is the operator's
+   job, as it is for any image. In CI, bootstrap runs `docker login`
+   as `debian` with the registry token.
+
+6. **What the container is run with:** `--rm`, `-i`, `-t` only when
+   stdin is a TTY, `--network host`, `--user`, the mounts,
+   `--workdir` set to the current directory, and the
+   `host_namespaces` flags. It also forwards `ANSIBLE_*`, `KOLLA_*`
+   and `SSH_AUTH_SOCK`.
+   * **There is no `--init`.** The image's entrypoint is already
+     `dumb-init --single-child` (Phase 1), so `--init` would only put
+     tini above it. The master plan's original requirement is
+     withdrawn.
+   * The launcher `exec`s the engine, so the exit status and signals
+     are the container's own.
+
+7. **The launcher refuses three things before it runs anything:**
+   * the `kolla-ansible` distribution installed beside it
+     (`importlib.metadata`);
+   * an image whose `kolla_ansible_launcher_protocol` label it does
+     not speak, which today means anything but `1`;
+   * `install-deps`, because the collections are in the image. It
+     says so, rather than running the confusing no-op the survey
+     describes.
+
+8. **The password tools come with it.** The package also installs
+   `kolla-genpwd`, `kolla-mergepwd`, `kolla-readpwd` and
+   `kolla-writepwd`. Each runs the same image with
+   `--entrypoint dumb-init` and `--single-child -- <tool>`, and has
+   its own path arguments translated. Without them, the success
+   criterion of a cloud built "using only `pip install` of the
+   launcher" fails at the first step. CI keeps using the venv's
+   `kolla-genpwd` until Phase 4, so these are covered by unit tests
+   and by step 2d, not by CI.
+
+9. **The CI assertion counts launcher calls.** `tools/ka` appends one
+   line per call, naming the deployer it used, to
+   `/srv/kolla-ansible/ka.log`. A new `tools/check-deployer-launcher`
+   is run on the target in place of the inline step. It checks:
+   * the marker;
+   * that every `ka.log` line says `launcher`, and there are at least
+     seven of them;
+   * that `deployer.conf` names an `@sha256:` image;
+   * that `admin-openrc.sh` and `clouds.yaml` are owned by `debian`.
+
+   This replaces Phase 0's step body, which is longer than the
+   repository's limit for inline workflow scripts.
+
+#### Risks
+
+* **`validate-config` needs `become` on the container's
+  `localhost`.** It did, and this risk materialised on #1812's first
+  CI run. When keystone's validator reports anything, which it does
+  on every entry, `service-config-validate/tasks/validate.yml:32`
+  creates its output directory with `delegate_to: localhost` and
+  `become: true`, and the synthesised user has no sudo in the
+  container ("sudo: a password is required"). The mitigation planned
+  here, making the step non-fatal, was not available: the step is in
+  shakenfist/actions, which this plan changes only in Phase 0.
+  Resolved by step 2e instead, a Kolla-Ansible patch. Running the
+  container as root, or giving the user sudo inside it, would have
+  made a `--privileged --pid=host` container root on the host,
+  against top-level Decision 6. Every other task that runs on
+  `localhost` with `become` was surveyed at kolla-ansible `54aab14`.
+  The only ones are `post-deploy`'s openrc and `clouds.yaml`
+  templates, including Octavia's, and their `become` applies only
+  when `node_config` is not writable. So controller-side `become` is
+  rare upstream, and is a case for the proposal (Phase 8): a
+  containerised deployer cannot escalate on its own `localhost`.
+* **SSH to `127.0.0.1` as `debian` hits something the multinode
+  path does not**, such as a missing `authorized_keys` entry on the
+  deploy host itself. Mitigation: before the first push, step 2c
+  confirms that `ssh -i /srv/github/id_ci debian@127.0.0.1 true`
+  works on a CI node, from the bootstrap log of a debug run, or
+  makes bootstrap check it with a clear error.
+* **`chown -R /etc/kolla` hides an ownership bug that root used to
+  mask**, for example a later root-run step writing there. The
+  assertion's ownership check catches the files that matter, and
+  the step order means bootstrap is done writing before the chown.
+* **Unit tests pass, but the real engine rejects the command
+  line.** Step 2d runs the launcher against the real local image, as
+  a non-root user, before anything is pushed.
+* **The rebuild cost from Phase 1 Decision 7.** Nothing in this phase
+  changes a hashed directory except `tools/` and `etc/`, and those
+  already change the hash, so this phase adds no new rebuild cost.
 
 | Step | Effort | Model | Isolation | Brief for sub-agent |
 |------|--------|-------|-----------|---------------------|
-| 2a | high | opus | none | Write `deployer/launcher/` as above, with unit tests for argument-to-mount translation covering relative paths, repeated `-i`, `-e @file` and `--configdir` given by environment variable. |
-| 2c | medium | sonnet | none | Add flake8 and the launcher's unit tests to `.pre-commit-config.yaml` (scoped to `deployer/`), and add the launcher to `ARCHITECTURE.md`'s directory structure and a short section saying this repository now holds one program alongside its patches, linking to the launcher's doc page. |
-| 2b | medium | sonnet | none | Add a `tools/ka`-equivalent entry point that runs through the launcher, and make `tools/ka` dispatch to it when the Phase 0 marker reads `launcher`, for every call after bootstrap (bootstrap itself moves in Phase 4). Give the OpenStack clients that `tools/install-openstack-clients` links out of the venv a home that does not depend on the deployer. Strengthen the Phase 0 assertion step to fail if the venv's `kolla-ansible` ran. No change to shakenfist/actions. |
+| 2a | high | opus | none | Write `deployer/launcher/`: `pyproject.toml` (setuptools, distribution `kolla-ansible-launcher`, `requires-python >=3.9`, no dependencies, console scripts `kolla-ansible` and the four `kolla-*pwd` tools of Decision 8) and a package `kolla_ansible_launcher` that implements Decisions 3-8 of Phase 2 in `docs/plans/containerised-deployer.md`. Read that phase's survey first: the path-bearing options and their line numbers in kolla-ansible `kolla_ansible/ansible.py` are listed there, and the password tools' options are in `kolla_ansible/cmd/{genpwd,mergepwd,readpwd,writepwd}.py` at the `source_sha` in `kolla-ansible/config.yaml` (clone it to the scratchpad to read them). Standard library only; single quotes; 120 columns. Separate argument-to-mount translation and command construction from execution, so both can be tested without an engine. Write `unittest` tests (no pytest) under `deployer/launcher/tests/` covering: relative paths against a given cwd; repeated `-i` in separate, `=` and attached forms; `-e @file` and `-e@file`, with `-e key=value` left alone; `--vault-id label@path`; `--configdir` from `KOLLA_CONFIG_PATH`; nested mounts deduplicated; `deployer.conf` parsing and `pin` keeping other keys; the passwd and group synthesis; the refusals of Decision 7; and the full docker and podman command lines for one realistic invocation. Commit subject: "Add a launcher for containerised Kolla-Ansible." |
+| 2b | medium | sonnet | none | Add to `.pre-commit-config.yaml`, scoped to `^deployer/`, flake8 from the upstream `pycqa/flake8` repository with `--max-line-length=120`, and a local hook running `python3 -m unittest discover -s deployer/launcher -t deployer/launcher`. Write `docs/deployer-launcher.md`: what the launcher is, how to install it, `deployer.conf`, `launcher pin` and `launcher show`, what it mounts and why, and what it refuses. Link it from `docs/index.md`. Add `deployer/launcher/` to `ARCHITECTURE.md`'s inventory, with a short paragraph saying this repository now holds one program alongside its patches, and why (top-level Decision 8), linking the doc page. Add one line to `AGENTS.md` saying that Python under `deployer/` is linted and tested by pre-commit, since that is a new convention. Commit subject: "Lint, test and document the deployer launcher." |
+| 2c | medium | sonnet | none | Wire the prototype CI entry to the launcher, per Decisions 1, 2, 5 and 9 of Phase 2. Add `etc/inventory-all-in-one-launcher-master`. In `tools/bootstrap-kolla-ansible`, when the deployer is `launcher`: pick that inventory for the all-in-one topology; after `bootstrap-servers`, create `/srv/kolla-ansible/launcher-venv`, `pip install` `deployer/launcher` into it, run `docker login` as `${SUDO_USER}` with the registry token on stdin, `chown -R "${SUDO_USER}:"` `/etc/kolla`, run `launcher pin` as that user for `<docker_registry>/<docker_namespace>/kolla-ansible:<image tag>`, taking the values that bootstrap already substitutes into `globals.yml`, and add `mounts = /srv/github` to `deployer.conf`. Check `ssh -i /srv/github/id_ci -o BatchMode=yes ${SUDO_USER}@127.0.0.1 true`, and fail with a clear message if it does not work. In `tools/ka`, replace the `launcher` stub with the `sudo -u` call of Decision 1, and append the deployer used to `/srv/kolla-ansible/ka.log` for both modes. Write `tools/check-deployer-launcher` per Decision 9, and replace the body of the "Assert the containerised deployer prototype was selected" step in `.github/workflows/functional-tests.yml` with an ssh that runs it, in the same style as the neighbouring steps. Everything must be shellcheck-clean, and the venv path must be unchanged when the marker is absent or reads `venv`. Commit subject: "Run the prototype CI entry through the launcher." |
+| 2d | medium | sonnet | none | Prove the launcher against the local `kolla/kolla-ansible:local` image before anything is pushed. Install it into a scratch venv, and run the exit script below as a non-root user. If `-p` does not replace `site.yml` for `deploy`, use whichever subcommand runs a given playbook, and say so. Report its full output. Commit nothing unless something fails and is fixed, in which case the fix goes back to the step that owns it. |
+| 2e | medium | sonnet | none | Added after #1812's first CI run (see Risks). Write `_patches/patch200-kolla-ansible-master-validate-config-become.patch`, listed in `kolla-ansible/ORDER`. It adds a `service_config_validate_output_become` role default, `true`, used as `become` on the role's two `localhost` output tasks, with a release note. In launcher mode, bootstrap sets it to `false` in `globals.yml` and points `service_config_validate_output_dir` at `/etc/kolla/config-validate`, which is mounted and owned by the launcher's user. Prove it with `_build/test-apply.sh --test-patch patch200 kolla-ansible`. Commit subject: "Let validate-config run without controller sudo." |
+| 2f | low | sonnet | none | Added after #1812's second CI run, which deployed fully through the launcher and then failed in upstream's `tests/check-config.sh`. That script requires every file under `/etc/kolla` to be `root:root` with mode 600, 660 or 770, except a list of deploy-host files (`globals.yml`, `passwords.yml`, `kolla-build.conf` and so on), and `deployer.conf` is a new deploy-host file. Write `_patches/patch201-kolla-ansible-master-check-config-deployer-conf.patch`, listed in `kolla-ansible/ORDER`, adding it to that list. Upstream would need the same line if it adopted the launcher. Commit subject: "Ignore deployer.conf in check-config.sh." |
+
+Order: 2a, then 2b and 2c, which touch disjoint files, then 2d,
+then push. 2e and 2f followed CI runs. The management session
+reviews each step before its commit.
+
+Exit:
+* The script below passes locally.
+* `pre-commit run --all-files` runs the launcher's tests and
+  flake8, and passes.
+* On the phase's pull request, the prototype entry is green, and
+  `tools/check-deployer-launcher` has passed in it.
+* Every other entry is green, or fails in the same way on a
+  `develop` run without these changes.
+
+```bash
+#!/bin/bash -e
+# Phase 2 exit check. Run as a non-root user in the docker group, with
+# the launcher's venv on PATH and no kolla-ansible distribution in it.
+img=${1:?usage: $0 <image>}
+cfg=$(mktemp -d)
+cd "${cfg}"
+export KOLLA_CONFIG_PATH=${cfg}
+printf '[deployer]\nimage = %s\n' "${img}" > deployer.conf
+echo '{}' > globals.yml  # Ansible rejects an empty vars file
+
+kolla-ansible --version
+kolla-ansible launcher show | grep -q kolla_ansible_launcher_protocol
+
+# The password tools, with a path argument the launcher must mount.
+docker run --rm --entrypoint cat "${img}" \
+    /var/lib/kolla/venv/share/kolla-ansible/etc_examples/kolla/passwords.yml \
+    > passwords.yml
+kolla-genpwd -p passwords.yml
+grep -q '^keystone_admin_password: .' passwords.yml
+
+# A relative inventory and playbook, and a write into the config
+# directory from the container, which must come back owned by us.
+printf '[all]\nlocalhost ansible_connection=local\n' > inv
+cat > play.yml <<'PLAY'
+- hosts: localhost
+  gather_facts: true
+  tasks:
+    - copy:
+        content: "{{ ansible_facts.user_id }}\n"
+        dest: "{{ CONFIG_DIR }}/whoami"  # group_vars do not load for -p
+PLAY
+kolla-ansible deploy -i inv -p play.yml > /dev/null
+test "$(stat -c %U whoami)" = "$(id -un)"
+test "$(cat whoami)" = "$(id -un)"
+
+if kolla-ansible install-deps > /dev/null 2>&1; then
+    echo 'install-deps was not refused'
+    exit 1
+fi
+echo "Phase 2 exit check passed."
+```
 
 ### Phase 3: The localhost connection
 
@@ -1044,7 +1374,12 @@ a chroot in a private mount namespace. Record in this plan:
 * what the chroot had to have set up by hand that a container
   runtime would have done for us.
 
-Fall back to (a) or (b) only if (d) fails, and record why. Also
+Fall back to (a) or (b) only if (d) fails, and record why. Bootstrap
+here is also where the venv finally goes, so this phase gives the
+OpenStack clients that `tools/install-openstack-clients` links out
+of it a home of their own, on the target and on the CI runner
+(`functional-tests.yml:874-890`). That was Phase 2's until its
+survey found the venv still in place there. Also
 cover the case where the deploy host is not a target, so that only
 the first step applies and nothing needs special-casing.
 

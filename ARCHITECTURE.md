@@ -37,6 +37,8 @@ kerbside-patches/
         patchNNN-desc.patch  # Patch files
         patchNNN-desc.patch-message  # Optional commit messages
     data/                    # Per-image layer time series from CI
+    deployer/
+        launcher/            # kolla-ansible-launcher (Python, prototype)
     docs/                    # Additional documentation
     tools/                   # Utility scripts
         summarize_layers.py  # Layer data analysis
@@ -54,6 +56,16 @@ kerbside-patches/
     README.md.tmpl           # README template (edit this)
     README.md                # Generated README (do not edit)
 ```
+
+## The Deployer Launcher
+
+This repository now holds one program alongside its patches:
+`deployer/launcher/`, a standard-library Python tool that runs
+Kolla-Ansible from a container image. It is here because it is young
+and there is no upstream file to patch (Decision 8 of
+[the plan](docs/plans/containerised-deployer.md)). Whether it moves
+upstream is a Phase 8 question. See
+[docs/deployer-launcher.md](docs/deployer-launcher.md).
 
 ## Patch System
 

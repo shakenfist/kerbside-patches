@@ -1,0 +1,25 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "kolla-ansible-launcher"
+version = "0.1.0"
+description = "Run Kolla-Ansible from a containerised deployer image"
+requires-python = ">=3.9"
+dependencies = []
+classifiers = [
+    "License :: OSI Approved :: Apache Software License",
+    "Operating System :: POSIX :: Linux",
+    "Programming Language :: Python :: 3",
+]
+
+[project.scripts]
+kolla-ansible = "kolla_ansible_launcher.cli:main_kolla_ansible"
+kolla-genpwd = "kolla_ansible_launcher.cli:main_genpwd"
+kolla-mergepwd = "kolla_ansible_launcher.cli:main_mergepwd"
+kolla-readpwd = "kolla_ansible_launcher.cli:main_readpwd"
+kolla-writepwd = "kolla_ansible_launcher.cli:main_writepwd"
+
+[tool.setuptools]
+packages = ["kolla_ansible_launcher"]
