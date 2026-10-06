@@ -4,10 +4,12 @@ Nothing here runs anything: the functions take everything they need as
 arguments, so the whole command line can be tested without an engine.
 
 The container is run with --rm, -i, -t only when stdin is a terminal,
---network host, --user, the mounts, --workdir set to the current directory,
---privileged --pid=host unless host_namespaces is off, and the ANSIBLE_*,
-KOLLA_* and SSH_AUTH_SOCK variables forwarded by name. There is no --init: the
-image's entrypoint is already dumb-init --single-child.
+--network host, --user, --group-add for each supplementary group (not with
+rootless podman, whose --userns=keep-id already keeps them), the mounts,
+--workdir set to the current directory, --privileged --pid=host unless
+host_namespaces is off, and the ANSIBLE_*, KOLLA_* and SSH_AUTH_SOCK variables
+forwarded by name. There is no --init: the image's entrypoint is already
+dumb-init --single-child.
 """
 
 import os
@@ -80,12 +82,16 @@ def identity_mounts(passwd_path, group_path):
     return [Mount(passwd_path, '/etc/passwd', readonly=True), Mount(group_path, '/etc/group', readonly=True)]
 
 
-def build(engine, image, tool, argv, mounts, uid, gid, cwd, env_names, tty, host_namespaces, rootless=False):
+def build(engine, image, tool, argv, mounts, uid, gid, groups, cwd, env_names, tty, host_namespaces, rootless=False):
     """Return the engine command line, as a list, for running tool in image.
 
     rootless is for a non-root user running podman, which needs
     --userns=keep-id for the container's UID to be the user's on the host;
-    without it, files the run writes would belong to a subordinate UID.
+    without it, files the run writes would belong to a subordinate UID. That
+    also keeps the user's supplementary groups, so --group-add is for every
+    other case: through nsenter the container's identity is what host tasks
+    run as, and sudo %group rules need the groups. groups is the user's
+    supplementary GIDs, as from os.getgroups(); the primary GID is dropped.
     """
     command = [engine, 'run', '--rm', '-i']
     if tty:
@@ -93,6 +99,9 @@ def build(engine, image, tool, argv, mounts, uid, gid, cwd, env_names, tty, host
     command += ['--network', 'host', '--user', '%d:%d' % (uid, gid)]
     if engine == 'podman' and rootless:
         command.append('--userns=keep-id')
+    else:
+        for extra in sorted(set(groups) - {gid}):
+            command += ['--group-add', str(extra)]
     if host_namespaces:
         command += ['--privileged', '--pid', 'host']
     for m in mounts:

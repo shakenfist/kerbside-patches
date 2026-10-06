@@ -49,7 +49,7 @@ def _warn(tool, messages):
         print('%s: warning: %s' % (tool, message), file=sys.stderr)
 
 
-def plan(tool, argv, environ, cwd, config, engine, user, group, state_dir, tty, uid, gid, euid):
+def plan(tool, argv, environ, cwd, config, engine, user, group, state_dir, tty, uid, gid, groups, euid):
     """Return the engine command line for one run, writing the identity files.
 
     Everything this needs is passed in, so tests can call it with no engine
@@ -59,7 +59,7 @@ def plan(tool, argv, environ, cwd, config, engine, user, group, state_dir, tty, 
     configdir = os.path.dirname(config.path)
     mounts = command_mod.identity_mounts(passwd_path, group_path)
     mounts += command_mod.collect_mounts(tool, argv, cwd, environ, configdir, user.pw_dir, config.mounts)
-    return command_mod.build(engine, config.image, tool, argv, mounts, uid, gid, cwd,
+    return command_mod.build(engine, config.image, tool, argv, mounts, uid, gid, groups, cwd,
                              command_mod.forwarded_env(environ), tty, config.host_namespaces,
                              rootless=euid != 0)
 
@@ -85,7 +85,8 @@ def run(tool, argv, environ=None, cwd=None, runner=subprocess.run, execvp=os.exe
         uid, gid = os.getuid(), os.getgid()
         user, group = identity.lookup(uid, gid)
         command = plan(tool, argv, environ, cwd, config, engine, user, group,
-                       identity.state_dir(environ, user.pw_dir), sys.stdin.isatty(), uid, gid, os.geteuid())
+                       identity.state_dir(environ, user.pw_dir), sys.stdin.isatty(), uid, gid, os.getgroups(),
+                       os.geteuid())
     except LauncherError as e:
         print('%s: error: %s' % (tool, e), file=sys.stderr)
         return 1

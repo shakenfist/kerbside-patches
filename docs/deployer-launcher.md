@@ -141,7 +141,11 @@ container. That is why `~/.ssh` is mounted at both places.
   `host_namespaces` is false.
 * `-t` only when stdin is a terminal.
 * With podman as a non-root user, `--userns=keep-id`, so files the
-  run writes belong to you.
+  run writes belong to you. That also keeps your supplementary groups.
+* With docker, or podman as root, `--group-add <gid>` for each of your
+  supplementary groups (sorted, without your primary group), so host
+  `sudo` rules that name a group still match tasks run through
+  `nsenter`.
 
 The launcher then replaces itself with the engine, so the exit status
 and signals are the container's.
