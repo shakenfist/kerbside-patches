@@ -12,6 +12,7 @@ otherwise still hold the metadata address in each namespace.
 
 Closes-Bug: #2161114
 Related-Bug: #2152164
+Depends-On: https://review.opendev.org/c/openstack/kolla/+/1009128
 Change-Id: I63368713b18ecb0864842e14b9f44a88cf2cf778
 Co-Authored-By: Michal Nasiadka <mnasiadka@gmail.com>
 Co-Authored-By: Michael Still <mikal@stillhq.com>
