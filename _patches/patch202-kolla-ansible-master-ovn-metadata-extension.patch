@@ -21,7 +21,6 @@ Date:   Fri Jul 17 17:13:15 2026 +0200
     Co-Authored-By: Michal Nasiadka <mnasiadka@gmail.com>
     Co-Authored-By: Michael Still <mikal@stillhq.com>
     Assisted-By: Claude Opus 5.5 (1M context, low effort) <noreply@anthropic.com>
-    Signed-off-by: Michal Arbet <michal.arbet@ultimum.io>
     Signed-off-by: Michael Still <mikal@stillhq.com>
 
 diff --git a/ansible/group_vars/all/neutron.yml b/ansible/group_vars/all/neutron.yml
