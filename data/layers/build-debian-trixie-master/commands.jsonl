@@ -240,3 +240,4 @@
 {"cmd": "506c605a4a40", "command": "RUN /bin/sh -c ln -s kolla-ansible-source/* kolla-ansible     && python3 -m pip --no-cache-dir install --upgrade -c /requirements/upper-constraints.txt /kolla-ansible # buildkit", "run_attempt": "1", "run_id": "36841853973"}
 {"cmd": "bc603292e11b", "command": "ADD kolla-ansible-archive /kolla-ansible-source # buildkit", "run_attempt": "1", "run_id": "36841853973"}
 {"cmd": "ef2dc01e2903", "command": "COPY kolla_ansible_deployer_info.py /usr/local/bin/kolla_ansible_deployer_info # buildkit", "run_attempt": "1", "run_id": "36841853973"}
+{"cmd": "260fe1df9cc1", "command": "# debian.sh --arch 'amd64' out/ 'trixie' '@1791158400'", "run_attempt": "1", "run_id": "37421929264"}
