@@ -1,6 +1,6 @@
-commit f6085e625d2ce806014a46fdba9615d38177df32
+commit 93acd69663e6dffd66f32df68448c43063c954ca
 Author: Michael Still <mikal@stillhq.com>
-Date:   Tue Sep 29 18:27:16 2026 +1000
+Date:   Tue Oct 6 17:01:37 2026 +1100
 
     Detect log levels in JSON formatted logs.
     

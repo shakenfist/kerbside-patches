@@ -1,6 +1,6 @@
-commit c20fda80e1ec9652b823360ef241636deb7f12d4
+commit 06d58cb1881c4e5da6e7b64a8f9ca1d92c4c9b97
 Author: Michael Still <mikal@stillhq.com>
-Date:   Tue Sep 29 18:27:17 2026 +1000
+Date:   Tue Oct 6 17:01:38 2026 +1100
 
     Let Keystone log JSON.
     
@@ -11,7 +11,7 @@ Date:   Tue Sep 29 18:27:17 2026 +1000
     Signed-off-by: Michael Still <mikal@stillhq.com>
 
 diff --git a/ansible/roles/keystone/templates/keystone.conf.j2 b/ansible/roles/keystone/templates/keystone.conf.j2
-index e13d9436d..f11a08f3a 100644
+index 27149e008..ab3452e7c 100644
 --- a/ansible/roles/keystone/templates/keystone.conf.j2
 +++ b/ansible/roles/keystone/templates/keystone.conf.j2
 @@ -1,5 +1,6 @@
