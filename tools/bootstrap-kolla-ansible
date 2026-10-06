@@ -96,16 +96,22 @@ mkdir -p /etc/kolla
 cp -r etc/kolla /etc/
 cd "${topdir}"
 inventory_name="inventory-${topology}-${target_release}"
+launcher_inventory_name=""
 if [ "${deployer}" == "launcher" ] && [ "${topology}" == "all-in-one" ]; then
-    # Phase 2 stopgap, deleted in Phase 3: reach this host over SSH, because
-    # "local" would be the launcher's container.
-    inventory_name="inventory-${topology}-launcher-${target_release}"
+    # The launcher reaches this host through community.docker.nsenter, because
+    # "local" would be the launcher's container. It is installed below, once
+    # the venv calls in this script are done: they run here as root, where
+    # "local" is right, and as root they would create the launcher
+    # inventory's ansible_remote_tmp where ${SUDO_USER} cannot use it.
+    launcher_inventory_name="inventory-${topology}-launcher-${target_release}"
 fi
-if [ ! -e "etc/${inventory_name}" ]; then
-    echo "Looked for inventory etc/${inventory_name}"
-    echo "Inventory file missing!"
-    exit 1
-fi
+for name in "${inventory_name}" ${launcher_inventory_name}; do
+    if [ ! -e "etc/${name}" ]; then
+        echo "Looked for inventory etc/${name}"
+        echo "Inventory file missing!"
+        exit 1
+    fi
+done
 
 cat "etc/${inventory_name}" | \
         sed "s|USER|${SUDO_USER}|g" \
@@ -243,21 +249,6 @@ else
 fi
 echo
 
-if [ "${deployer}" == "launcher" ]; then
-    # The launcher inventory reaches this host over SSH as ${SUDO_USER}, and so
-    # do the certificates and bootstrap-servers calls below, so fail early and
-    # clearly if that does not work.
-    echo -e "${H2}Check ${SUDO_USER} can ssh to this host${Color_Off}"
-    if ! sudo -H -u "${SUDO_USER}" ssh -i /srv/github/id_ci -o BatchMode=yes \
-            -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
-            "${SUDO_USER}@127.0.0.1" true; then
-        echo "${SUDO_USER} cannot ssh to ${SUDO_USER}@127.0.0.1 with /srv/github/id_ci."
-        echo "The launcher inventory needs this, as the launcher's container reaches the host over SSH."
-        exit 1
-    fi
-    echo
-fi
-
 echo -e "${H2}Make certificates${Color_Off}"
 # Stays on the venv until Phase 4 of docs/plans/containerised-deployer.md.
 kolla-ansible certificates -i /etc/kolla/inventory
@@ -300,9 +291,12 @@ if [ "${deployer}" == "launcher" ]; then
     # The launcher runs as ${SUDO_USER} and writes here, so bootstrap must be
     # finished writing as root before this point.
     echo -e "${H2}Give ${SUDO_USER} /etc/kolla and pin ${deployer_image}${Color_Off}"
-    # The inventory names the ssh key under /srv/github, which the launcher
-    # cannot see in its arguments. pin then adds the image, keeping this.
-    printf '[deployer]\nmounts = /srv/github\n' > /etc/kolla/deployer.conf
+    if [ -n "${launcher_inventory_name}" ]; then
+        sed "s|USER|${SUDO_USER}|g" "${topdir}/etc/${launcher_inventory_name}" \
+            > /etc/kolla/inventory
+    fi
+    # pin adds the image to this otherwise empty section.
+    printf '[deployer]\n' > /etc/kolla/deployer.conf
     chown -R "${SUDO_USER}:" /etc/kolla
     sudo -H -u "${SUDO_USER}" /srv/kolla-ansible/launcher-venv/bin/kolla-ansible \
         launcher --configdir /etc/kolla pin "${deployer_image}"
