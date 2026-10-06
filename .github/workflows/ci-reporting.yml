@@ -35,6 +35,7 @@ on:
           - fluentd-missing-logs
           - haproxy-layer7-timeout
           - mariadb-collation
+          - ovn-metadata-agent-missing
           - all
 
 jobs:

@@ -85,12 +85,32 @@
 #                      straddles the change produces it, so the CSV's
 #                      job_name column is where the blast radius shows up
 #
+#   ovn-metadata-agent-missing
+#                    - the neutron_ovn_metadata_agent container exiting at
+#                      start because its command no longer exists. Neutron
+#                      removed the standalone OVN metadata agent and its
+#                      neutron-ovn-metadata-agent console script (neutron
+#                      change 998787, merged 2026-09-30) in favour of the metadata
+#                      extension of neutron-ovn-agent, but Kolla-Ansible still
+#                      deploys the old container, so every ML2/OVN deploy
+#                      against master images stalls until the restart handler
+#                      times out on an unhealthy container. Deterministic
+#                      rather than a flake; the report exists to show the
+#                      blast radius by job and to confirm the switch to the
+#                      OVN agent extension fixes it
+#
 # Note on the fluentd-missing-logs denominator: fluentd-error.txt is only
 # published by builds that already failed this check, so on its own it would
 # chart a constant 100% hit rate. The second log suffix, fluentd/fluentd.txt,
 # is the denominator -- it is published by exactly the builds where
 # check-logs.sh's fluentd section runs, and can never contain the target
 # string, so those builds are recorded as misses.
+#
+# ovn-metadata-agent-missing uses the same trick for the opposite reason: its
+# signature file is published by every ML2/OVN build today, but stops being
+# published once Kolla-Ansible no longer deploys the standalone agent, so a
+# fixed build would simply vanish from the report. ovn_controller.txt is
+# published by every ML2/OVN build before and after that switch.
 #
 # State (the CSV, its checkpoint, and the chart) lives in data/ci-reporting/
 # and is committed to this repository, so each run only fetches logs for
@@ -108,7 +128,7 @@ report="$1"
 if [ -z "${report}" ]; then
     echo "Usage: $0 <report>|all" >&2
     echo "Reports: libvirt-limit mariadb-ist wsrep-sync-fatal ovs-create-tap scheduler-unhealthy" >&2
-    echo "         fluentd-missing-logs haproxy-layer7-timeout mariadb-collation" >&2
+    echo "         fluentd-missing-logs haproxy-layer7-timeout mariadb-collation ovn-metadata-agent-missing" >&2
     exit 1
 fi
 
@@ -212,6 +232,18 @@ run_report() {
             chart_title='Database migrations aborting on MariaDB collation mismatch on master CI'
             fix_merged=''
             ;;
+        ovn-metadata-agent-missing)
+            target='exec: neutron-ovn-metadata-agent: not found'
+            projects='openstack/kolla openstack/kolla-ansible'
+            job_filter=''
+            # ovn_controller.txt is the denominator (see the note at the top
+            # of this file).
+            suffixes='container_logs/neutron_ovn_metadata_agent.txt container_logs/ovn_controller.txt'
+            basename='kolla_ovn_metadata_agent_missing_errors'
+            chart='kolla_ovn_metadata_agent_missing_chart.png'
+            chart_title='neutron-ovn-metadata-agent removed upstream but still deployed on master CI'
+            fix_merged=''
+            ;;
         *)
             echo "Unknown report: ${name}" >&2
             exit 1
@@ -248,7 +280,7 @@ run_report() {
 
 if [ "${report}" = "all" ]; then
     for name in libvirt-limit mariadb-ist wsrep-sync-fatal ovs-create-tap scheduler-unhealthy \
-                fluentd-missing-logs haproxy-layer7-timeout mariadb-collation; do
+                fluentd-missing-logs haproxy-layer7-timeout mariadb-collation ovn-metadata-agent-missing; do
         run_report "${name}"
     done
 else
