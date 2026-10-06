@@ -1,6 +1,6 @@
-commit 1852545e3fa63c9bccce7480ecd35ab7c1b76326
+commit 1c769cc55eef3b96785c4a7220536a37c51ba3b4
 Author: Michael Still <mikal@stillhq.com>
-Date:   Tue Sep 29 18:26:46 2026 +1000
+Date:   Tue Oct 6 17:00:53 2026 +1100
 
     Add kerbside CI scenario jobs.
     
@@ -50,7 +50,7 @@ Date:   Tue Sep 29 18:26:46 2026 +1000
     Signed-off-by: Michael Still <mikal@stillhq.com>
 
 diff --git a/tests/run.yml b/tests/run.yml
-index e21890b17..0472af348 100644
+index bfabb8301..11cf4d5c9 100644
 --- a/tests/run.yml
 +++ b/tests/run.yml
 @@ -30,7 +30,7 @@
@@ -61,12 +61,12 @@ index e21890b17..0472af348 100644
 +        openstack_core_tested: "{{ scenario in ['core', 'cephadm', 'cells', 'kerbside', 'ovn', 'lets-encrypt', 'container-engine-migration'] }}"
          dashboard_enabled: "{{ openstack_core_enabled }}"
          upper_constraints_file: "{{ ansible_env.HOME }}/src/opendev.org/openstack/requirements/upper-constraints.txt"
-         docker_image_tag_suffix: "{{ '-aarch64' if ansible_architecture == 'aarch64' else '' }}"
+         previous_release_requirements_src_dir: "{{ ansible_env.HOME }}/src/previous-release-requirements"
 diff --git a/tests/templates/globals-default.j2 b/tests/templates/globals-default.j2
-index 90256e6b4..ed8c92136 100644
+index fa4a659e4..758997a38 100644
 --- a/tests/templates/globals-default.j2
 +++ b/tests/templates/globals-default.j2
-@@ -128,6 +128,12 @@ enable_masakari: "yes"
+@@ -124,6 +124,12 @@ enable_masakari: "yes"
  enable_valkey: "yes"
  {% endif %}
  
@@ -80,7 +80,7 @@ index 90256e6b4..ed8c92136 100644
  enable_cells: "yes"
  enable_proxysql: "yes"
 diff --git a/tests/templates/inventory.j2 b/tests/templates/inventory.j2
-index c6abc787b..413684771 100644
+index bc8a0366f..209ff9db2 100644
 --- a/tests/templates/inventory.j2
 +++ b/tests/templates/inventory.j2
 @@ -51,6 +51,11 @@ control
@@ -111,7 +111,7 @@ index c6abc787b..413684771 100644
  
  [collectd:children]
  compute
-@@ -707,3 +714,10 @@ skyline
+@@ -701,3 +708,10 @@ skyline
  
  [skyline-console:children]
  skyline

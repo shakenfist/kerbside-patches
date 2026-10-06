@@ -41,7 +41,7 @@ for project in ${projects}; do
         git log --oneline | head -$(( ${number_of_patches} + 2 ))
         echo
 
-        echo "Proceed?"
+	echo "Proceed (y to go, anything else to skip)?"
         read -r proceed
         if [ "${proceed}" == "y" ]; then
             git review
