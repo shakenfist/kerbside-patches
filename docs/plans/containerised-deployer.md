@@ -359,7 +359,7 @@ against `develop`.
 |-------|--------|--------|
 | 0. A CI entry for the prototype | Complete | #1796 (`725cf1e8a`), #1799 (`190daeeca`); shakenfist/actions#121 (`7eaa1e534`) |
 | 1. Deployer image | Complete | #1803 (`507fbea62`) |
-| 2. Launcher | In progress | |
+| 2. Launcher | Complete | #1812 (`b97361853`) |
 | 3. The localhost connection | Not started | |
 | 4. Bootstrapping the deploy host | Not started | |
 | 5. Version safeguards | Not started | |
