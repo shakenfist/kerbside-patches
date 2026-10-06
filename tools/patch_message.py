@@ -58,6 +58,22 @@ def extract(path):
     return '\n'.join(cleaned)
 
 
+def author(path):
+    """Return the Author header of the patch at *path*, or None if it has none.
+
+    The value is in the `Name <email>` form that `git commit --author` takes.
+    Committing with it keeps a patch carried from someone else's review
+    attributed to them when we push an update to that review.
+    """
+    with open(path, 'r') as f:
+        while line := f.readline():
+            if len(line.rstrip()) == 0:
+                break
+            if line.startswith('Author: '):
+                return line[len('Author: '):].strip()
+    return None
+
+
 def subject(message):
     """Return the subject line of a commit message."""
     return message.split('\n', 1)[0].strip()

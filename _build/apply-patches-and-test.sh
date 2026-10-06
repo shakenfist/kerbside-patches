@@ -11,6 +11,21 @@ fi
 
 banner ${project}
 
+# Commit an applied patch with the message extracted from it, as the author
+# its header records. A patch carried from someone else's review has to stay
+# attributed to them when it is pushed back to that review as a new patchset.
+commit_patch() {
+    local patchfile="${1}"
+    local author
+    local args=(-s -a --file "${patchfile}-message")
+
+    author=$(python3 "${topdir}/tools/extract-commit-author.py" "${patchfile}")
+    if [ -n "${author}" ]; then
+        args+=(--author "${author}")
+    fi
+    git commit "${args[@]}"
+}
+
 repo=$(yq -r .repo ${project}/config.yaml)
 source_branch=$(yq -r .source_branch ${project}/config.yaml)
 source_sha=$(yq -r .source_sha ${project}/config.yaml)
@@ -157,7 +172,7 @@ if [ -e ${project}/PREPATCH ]; then
         echo -e "${H3}Extracting commit message from ${topdir}/${project}/${patch}${Color_Off}"
         python3 ${topdir}/tools/extract-commit-message ${topdir}/${project}/${patch}
 
-        git commit -s -a --file ${topdir}/${project}/${patch}-message
+        commit_patch "${topdir}/${project}/${patch}"
         echo
 
         if [ "${update_patches}" == "true" ]; then
@@ -205,7 +220,7 @@ do
     echo -e "${H3}Extracting commit message from ${topdir}/${project}/${patch}${Color_Off}"
     python3 ${topdir}/tools/extract-commit-message ${topdir}/${project}/${patch}
 
-    git commit -s -a --file ${topdir}/${project}/${patch}-message
+    commit_patch "${topdir}/${project}/${patch}"
     echo
 
     # Determine whether to run tests for this patch
@@ -261,7 +276,7 @@ if [ ${use_ci_patches} == "true" ]; then
             echo -e "${H3}Extracting commit message from ${topdir}/${project}/${patch}${Color_Off}"
             python3 ${topdir}/tools/extract-commit-message ${topdir}/${project}/${patch}
 
-            git commit -s -a --file ${topdir}/${project}/${patch}-message
+            commit_patch "${topdir}/${project}/${patch}"
             echo
 
             # Determine whether to run tests for this patch
