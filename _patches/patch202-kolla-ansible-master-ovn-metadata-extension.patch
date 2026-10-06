@@ -1,0 +1,492 @@
+commit 44ac44b8d20a04e97445a2d3ddb695aa5281912c
+Author: Michal Arbet <michal.arbet@ultimum.io>
+Date:   Fri Jul 17 17:13:15 2026 +0200
+
+    Replace OVN metadata agent with OVN agent extension
+    
+    Neutron removed the standalone neutron-ovn-metadata-agent in change
+    I5cca341d80e41a820d63085766c91e3917026f83, so its container no longer
+    starts on master. Serve metadata from the metadata extension of
+    neutron-ovn-agent instead, and remove the old container on upgrade.
+    
+    The agent wrapper environment moves to neutron-ovn-agent, so HAProxy
+    keeps running in separate containers when neutron_agents_wrappers is
+    set. Those of the old agent are removed on upgrade, as they would
+    otherwise still hold the metadata address in each namespace.
+    
+    Closes-Bug: #2161114
+    Related-Bug: #2152164
+    Change-Id: I63368713b18ecb0864842e14b9f44a88cf2cf778
+    Co-Authored-By: Michal Nasiadka <mnasiadka@gmail.com>
+    Co-Authored-By: Michael Still <mikal@stillhq.com>
+    Assisted-By: Claude Opus 5.5 (1M context, low effort) <noreply@anthropic.com>
+    Signed-off-by: Michal Arbet <michal.arbet@ultimum.io>
+    Signed-off-by: Michael Still <mikal@stillhq.com>
+
+diff --git a/ansible/group_vars/all/neutron.yml b/ansible/group_vars/all/neutron.yml
+index e77957784..a723eb9f4 100644
+--- a/ansible/group_vars/all/neutron.yml
++++ b/ansible/group_vars/all/neutron.yml
+@@ -17,7 +17,7 @@ enable_neutron_taas: false
+ enable_neutron_trunk: false
+ enable_neutron_metering: false
+ enable_neutron_port_forwarding: false
+-neutron_enable_ovn_agent: false
++neutron_enable_ovn_agent: "{{ neutron_plugin_agent == 'ovn' }}"
+ 
+ neutron_keystone_user: "neutron"
+ 
+diff --git a/ansible/inventory/all-in-one b/ansible/inventory/all-in-one
+index 543371a4a..98607c2ee 100644
+--- a/ansible/inventory/all-in-one
++++ b/ansible/inventory/all-in-one
+@@ -251,10 +251,6 @@ network
+ [neutron-ovn-maintenance-worker:children]
+ control
+ 
+-[neutron-ovn-metadata-agent:children]
+-compute
+-network
+-
+ # Cinder
+ [cinder-api:children]
+ cinder
+diff --git a/ansible/inventory/multinode b/ansible/inventory/multinode
+index d7db4653d..a0dd8d640 100644
+--- a/ansible/inventory/multinode
++++ b/ansible/inventory/multinode
+@@ -266,10 +266,6 @@ network
+ [neutron-ovn-maintenance-worker:children]
+ control
+ 
+-[neutron-ovn-metadata-agent:children]
+-compute
+-network
+-
+ [neutron-ovn-vpn-agent:children]
+ neutron
+ 
+diff --git a/ansible/roles/neutron/defaults/main.yml b/ansible/roles/neutron/defaults/main.yml
+index 93ec57321..bb7ea233c 100644
+--- a/ansible/roles/neutron/defaults/main.yml
++++ b/ansible/roles/neutron/defaults/main.yml
+@@ -153,21 +153,6 @@ neutron_services:
+     volumes: "{{ neutron_metadata_agent_default_volumes + neutron_metadata_agent_extra_volumes }}"
+     dimensions: "{{ neutron_metadata_agent_dimensions }}"
+     healthcheck: "{{ neutron_metadata_agent_healthcheck }}"
+-  neutron-ovn-metadata-agent:
+-    cgroupns_mode: "{{ 'host' if neutron_agents_wrappers | bool else 'private' }}"
+-    container_name: "neutron_ovn_metadata_agent"
+-    image: "{{ neutron_ovn_metadata_agent_image_full }}"
+-    privileged: true
+-    enabled: "{{ neutron_plugin_agent == 'ovn' }}"
+-    host_in_groups: "{{ inventory_hostname in groups['neutron-ovn-metadata-agent'] }}"
+-    volumes: "{{ neutron_ovn_metadata_agent_default_volumes + neutron_ovn_metadata_agent_extra_volumes }}"
+-    dimensions: "{{ neutron_ovn_metadata_agent_dimensions }}"
+-    healthcheck: "{{ neutron_ovn_metadata_agent_healthcheck }}"
+-    pid_mode: "{{ 'host' if neutron_agents_wrappers | bool else '' }}"
+-    environment:
+-      KOLLA_IMAGE: "{{ neutron_ovn_metadata_agent_image_full }}"
+-      KOLLA_NAME: "neutron_ovn_metadata_agent"
+-      KOLLA_NEUTRON_WRAPPERS: "{{ 'true' if neutron_agents_wrappers | bool else 'false' }}"
+   neutron-bgp-dragent:
+     container_name: "neutron_bgp_dragent"
+     image: "{{ neutron_bgp_dragent_image_full }}"
+@@ -206,6 +191,13 @@ neutron_services:
+     volumes: "{{ neutron_ovn_agent_default_volumes + neutron_ovn_agent_extra_volumes }}"
+     dimensions: "{{ neutron_ovn_agent_dimensions }}"
+     healthcheck: "{{ neutron_ovn_agent_healthcheck }}"
++    privileged: true
++    cgroupns_mode: "{{ 'host' if neutron_agents_wrappers | bool else 'private' }}"
++    pid_mode: "{{ 'host' if neutron_agents_wrappers | bool else '' }}"
++    environment:
++      KOLLA_IMAGE: "{{ neutron_ovn_agent_image_full }}"
++      KOLLA_NAME: "neutron_ovn_agent"
++      KOLLA_NEUTRON_WRAPPERS: "{{ 'true' if neutron_agents_wrappers | bool else 'false' }}"
+   neutron-ovn-vpn-agent:
+     container_name: "neutron_ovn_vpn_agent"
+     image: "{{ neutron_ovn_vpn_agent_image_full }}"
+@@ -244,8 +236,6 @@ neutron_config_validation:
+     config: "/etc/neutron/plugins/ml2/openvswitch_agent.ini"
+   - generator: "/neutron/etc/oslo-config-generator/metering_agent.ini"
+     config: "/etc/neutron/metering_agent.ini"
+-  - generator: "/neutron/etc/oslo-config-generator/neutron_ovn_metadata_agent.ini"
+-    config: "/etc/neutron/neutron_ovn_metadata_agent.ini"
+   - generator: "/neutron/etc/oslo-config-generator/metadata_agent.ini"
+     config: "/etc/neutron/metadata_agent.ini"
+   - generator: "/neutron/etc/oslo-config-generator/sriov_agent.ini"
+@@ -325,10 +315,6 @@ neutron_ovn_maintenance_worker_image: "{{ neutron_server_image }}"
+ neutron_ovn_maintenance_worker_tag: "{{ neutron_tag }}"
+ neutron_ovn_maintenance_worker_image_full: "{{ neutron_ovn_maintenance_worker_image }}:{{ neutron_ovn_maintenance_worker_tag }}"
+ 
+-neutron_ovn_metadata_agent_image: "{{ docker_image_url }}neutron-metadata-agent"
+-neutron_ovn_metadata_agent_tag: "{{ neutron_tag }}"
+-neutron_ovn_metadata_agent_image_full: "{{ neutron_ovn_metadata_agent_image }}:{{ neutron_ovn_metadata_agent_tag }}"
+-
+ neutron_openvswitch_agent_image: "{{ docker_image_url }}neutron-openvswitch-agent"
+ neutron_openvswitch_agent_tag: "{{ neutron_tag }}"
+ neutron_openvswitch_agent_image_full: "{{ neutron_openvswitch_agent_image }}:{{ neutron_openvswitch_agent_tag }}"
+@@ -373,7 +359,6 @@ neutron_sriov_agent_dimensions: "{{ neutron_agent_dimensions }}"
+ neutron_mlnx_agent_dimensions: "{{ neutron_agent_dimensions }}"
+ neutron_eswitchd_dimensions: "{{ neutron_agent_dimensions }}"
+ neutron_metadata_agent_dimensions: "{{ neutron_agent_dimensions }}"
+-neutron_ovn_metadata_agent_dimensions: "{{ neutron_agent_dimensions }}"
+ neutron_openvswitch_agent_dimensions: "{{ neutron_agent_dimensions }}"
+ neutron_server_dimensions: "{{ default_container_dimensions }}"
+ neutron_bgp_dragent_dimensions: "{{ default_container_dimensions }}"
+@@ -450,19 +435,6 @@ neutron_openvswitch_agent_healthcheck:
+   test: "{% if neutron_openvswitch_agent_enable_healthchecks | bool %}{{ neutron_openvswitch_agent_healthcheck_test }}{% else %}NONE{% endif %}"
+   timeout: "{{ neutron_openvswitch_agent_healthcheck_timeout }}"
+ 
+-neutron_ovn_metadata_agent_enable_healthchecks: "{{ enable_container_healthchecks }}"
+-neutron_ovn_metadata_agent_healthcheck_interval: "{{ default_container_healthcheck_interval }}"
+-neutron_ovn_metadata_agent_healthcheck_retries: "{{ default_container_healthcheck_retries }}"
+-neutron_ovn_metadata_agent_healthcheck_start_period: "{{ default_container_healthcheck_start_period }}"
+-neutron_ovn_metadata_agent_healthcheck_test: ["CMD-SHELL", "healthcheck_port neutron-ovn-metadata-agent {{ ovsdb_port }}"]
+-neutron_ovn_metadata_agent_healthcheck_timeout: "{{ default_container_healthcheck_timeout }}"
+-neutron_ovn_metadata_agent_healthcheck:
+-  interval: "{{ neutron_ovn_metadata_agent_healthcheck_interval }}"
+-  retries: "{{ neutron_ovn_metadata_agent_healthcheck_retries }}"
+-  start_period: "{{ neutron_ovn_metadata_agent_healthcheck_start_period }}"
+-  test: "{% if neutron_ovn_metadata_agent_enable_healthchecks | bool %}{{ neutron_ovn_metadata_agent_healthcheck_test }}{% else %}NONE{% endif %}"
+-  timeout: "{{ neutron_ovn_metadata_agent_healthcheck_timeout }}"
+-
+ neutron_server_enable_healthchecks: "{{ enable_container_healthchecks }}"
+ neutron_server_healthcheck_interval: "{{ default_container_healthcheck_interval }}"
+ neutron_server_healthcheck_retries: "{{ default_container_healthcheck_retries }}"
+@@ -614,17 +586,6 @@ neutron_metadata_agent_default_volumes:
+   - "kolla_logs:/var/log/kolla/"
+   - "{{ '/dev/shm:/dev/shm' }}"
+   - "{{ kolla_dev_repos_directory ~ '/neutron:/dev-mode/neutron' if neutron_dev_mode | bool else '' }}"
+-neutron_ovn_metadata_agent_default_volumes:
+-  - "{{ node_config_directory }}/neutron-ovn-metadata-agent/:{{ container_config_directory }}/:ro"
+-  - "neutron_metadata_socket:/var/lib/neutron/kolla/"
+-  - "/run/openvswitch:/run/openvswitch:shared"
+-  - "/run/netns:/run/netns:shared"
+-  - "kolla_logs:/var/log/kolla/"
+-  - "{{ '/dev/shm:/dev/shm' }}"
+-  - "{{ kolla_dev_repos_directory ~ '/neutron:/dev-mode/neutron' if neutron_dev_mode | bool else '' }}"
+-  - "{{ '/var/run/docker.sock:/var/run/docker.sock:ro' if neutron_agents_wrappers | bool and kolla_container_engine == 'docker' else '' }}"
+-  - "{{ '/run/podman/podman.sock:/run/podman/podman.sock' if neutron_agents_wrappers | bool and kolla_container_engine == 'podman' else '' }}"
+-  - "{{ '/var/lib/containers:/var/lib/containers' if neutron_agents_wrappers | bool and kolla_container_engine == 'podman' else '' }}"
+ neutron_openvswitch_agent_default_volumes:
+   - "{{ node_config_directory }}/neutron-openvswitch-agent/:{{ container_config_directory }}/:ro"
+   - "/lib/modules:/lib/modules:ro"
+@@ -652,8 +613,14 @@ ironic_neutron_agent_default_volumes:
+   - "{{ '/dev/shm:/dev/shm' }}"
+ neutron_ovn_agent_default_volumes:
+   - "{{ node_config_directory }}/neutron-ovn-agent/:{{ container_config_directory }}/:ro"
++  - "neutron_metadata_socket:/var/lib/neutron/kolla/"
++  - "/run/netns:/run/netns:shared"
+   - "kolla_logs:/var/log/kolla/"
+   - "{{ '/dev/shm:/dev/shm' }}"
++  - "{{ kolla_dev_repos_directory ~ '/neutron:/dev-mode/neutron' if neutron_dev_mode | bool else '' }}"
++  - "{{ '/var/run/docker.sock:/var/run/docker.sock:ro' if neutron_agents_wrappers | bool and kolla_container_engine == 'docker' else '' }}"
++  - "{{ '/run/podman/podman.sock:/run/podman/podman.sock' if neutron_agents_wrappers | bool and kolla_container_engine == 'podman' else '' }}"
++  - "{{ '/var/lib/containers:/var/lib/containers' if neutron_agents_wrappers | bool and kolla_container_engine == 'podman' else '' }}"
+ neutron_ovn_maintenance_worker_default_volumes:
+   - "{{ node_config_directory }}/neutron-ovn-maintenance-worker/:{{ container_config_directory }}/:ro"
+   - "kolla_logs:/var/log/kolla/"
+@@ -680,7 +647,6 @@ neutron_sriov_agent_extra_volumes: "{{ neutron_extra_volumes }}"
+ neutron_mlnx_agent_extra_volumes: "{{ neutron_extra_volumes }}"
+ neutron_eswitchd_extra_volumes: "{{ neutron_extra_volumes }}"
+ neutron_metadata_agent_extra_volumes: "{{ neutron_extra_volumes }}"
+-neutron_ovn_metadata_agent_extra_volumes: "{{ neutron_extra_volumes }}"
+ neutron_openvswitch_agent_extra_volumes: "{{ neutron_extra_volumes }}"
+ neutron_server_extra_volumes: "{{ neutron_extra_volumes }}"
+ neutron_bgp_dragent_extra_volumes: "{{ neutron_extra_volumes }}"
+diff --git a/ansible/roles/neutron/handlers/main.yml b/ansible/roles/neutron/handlers/main.yml
+index 08f1faf87..3ab5d44da 100644
+--- a/ansible/roles/neutron/handlers/main.yml
++++ b/ansible/roles/neutron/handlers/main.yml
+@@ -236,24 +236,6 @@
+     privileged: "{{ service.privileged | default(False) }}"
+     healthcheck: "{{ service.healthcheck | default(omit) }}"
+ 
+-- name: Restart neutron-ovn-metadata-agent container
+-  vars:
+-    service_name: "neutron-ovn-metadata-agent"
+-    service: "{{ neutron_services[service_name] }}"
+-  become: true
+-  kolla_container:
+-    action: "recreate_or_restart_container"
+-    common_options: "{{ docker_common_options }}"
+-    name: "{{ service.container_name }}"
+-    image: "{{ service.image }}"
+-    volumes: "{{ service.volumes | reject('equalto', '') | list }}"
+-    dimensions: "{{ service.dimensions }}"
+-    privileged: "{{ service.privileged | default(False) }}"
+-    healthcheck: "{{ service.healthcheck | default(omit) }}"
+-    pid_mode: "{{ service.pid_mode | default(omit) }}"
+-    cgroupns_mode: "{{ service.cgroupns_mode | default(omit) }}"
+-    environment: "{{ service.environment | default(omit) }}"
+-
+ - name: Restart neutron-bgp-dragent container
+   vars:
+     service_name: "neutron-bgp-dragent"
+@@ -313,6 +295,11 @@
+     dimensions: "{{ service.dimensions }}"
+     privileged: "{{ service.privileged | default(False) }}"
+     healthcheck: "{{ service.healthcheck | default(omit) }}"
++    cap_add: "{{ service.cap_add | default(omit) }}"
++    cgroupns_mode: "{{ service.cgroupns_mode | default(omit) }}"
++    pid_mode: "{{ service.pid_mode | default(omit) }}"
++    security_opt: "{{ service.security_opt | default(omit) }}"
++    environment: "{{ service.environment | default(omit) }}"
+ 
+ - name: Restart neutron-ovn-vpn-agent container
+   vars:
+diff --git a/ansible/roles/neutron/tasks/config.yml b/ansible/roles/neutron/tasks/config.yml
+index 379750a66..212029cd3 100644
+--- a/ansible/roles/neutron/tasks/config.yml
++++ b/ansible/roles/neutron/tasks/config.yml
+@@ -75,7 +75,6 @@
+       - "neutron-openvswitch-agent"
+       - "neutron-ovn-agent"
+       - "neutron-ovn-maintenance-worker"
+-      - "neutron-ovn-metadata-agent"
+       - "neutron-ovn-vpn-agent"
+       - "neutron-periodic-worker"
+       - "neutron-rpc-server"
+@@ -282,19 +281,6 @@
+     mode: "0660"
+   when: service | service_enabled_and_mapped_to_host
+ 
+-- name: Copying over neutron_ovn_metadata_agent.ini
+-  become: true
+-  vars:
+-    service_name: "neutron-ovn-metadata-agent"
+-    service: "{{ neutron_services[service_name] }}"
+-  merge_configs:
+-    sources:
+-      - "{{ role_path }}/templates/neutron_ovn_metadata_agent.ini.j2"
+-      - "{{ node_custom_config }}/neutron/neutron_ovn_metadata_agent.ini"
+-    dest: "{{ node_config_directory }}/{{ service_name }}/neutron_ovn_metadata_agent.ini"
+-    mode: "0660"
+-  when: service | service_enabled_and_mapped_to_host
+-
+ - name: Copying over neutron_ovn_vpn_agent.ini
+   become: true
+   vars:
+diff --git a/ansible/roles/neutron/tasks/rolling_upgrade.yml b/ansible/roles/neutron/tasks/rolling_upgrade.yml
+index 55f3cd35f..a42a853d4 100644
+--- a/ansible/roles/neutron/tasks/rolling_upgrade.yml
++++ b/ansible/roles/neutron/tasks/rolling_upgrade.yml
+@@ -14,6 +14,43 @@
+     - inventory_hostname in groups['compute']
+     - enable_nova_fake | bool
+ 
++# TODO(kevko): Remove in 2027.2 (after next SLURP)
++- name: Remove obsolete neutron OVN metadata agent container
++  become: true
++  kolla_container:
++    action: "stop_and_remove_container"
++    common_options: "{{ docker_common_options }}"
++    name: "neutron_ovn_metadata_agent"
++    ignore_missing: true
++  when: neutron_plugin_agent == 'ovn'
++
++- name: Get container names for obsolete OVN metadata HAProxy cleanup
++  become: true
++  kolla_container_facts:
++    action: get_containers_names
++    container_engine: "{{ kolla_container_engine }}"
++  register: ovn_metadata_haproxy_containers
++  when: neutron_plugin_agent == 'ovn'
++
++- name: Remove obsolete neutron OVN metadata agent HAProxy containers
++  become: true
++  kolla_container:
++    action: "stop_and_remove_container"
++    common_options: "{{ docker_common_options }}"
++    name: "{{ item }}"
++    ignore_missing: true
++  loop: >-
++    {{ ovn_metadata_haproxy_containers.container_names | default([])
++       | select('match', '^neutron_ovn_metadata_agent_haproxy_') | list }}
++  when: neutron_plugin_agent == 'ovn'
++
++- name: Remove obsolete neutron OVN metadata agent configuration
++  become: true
++  ansible.builtin.file:
++    path: "{{ node_config_directory }}/neutron-ovn-metadata-agent"
++    state: absent
++  when: neutron_plugin_agent == 'ovn'
++
+ - name: Running Neutron database expand container
+   vars:
+     neutron_server: "{{ neutron_services['neutron-server'] }}"
+diff --git a/ansible/roles/neutron/templates/neutron-ovn-metadata-agent.json.j2 b/ansible/roles/neutron/templates/neutron-ovn-metadata-agent.json.j2
+deleted file mode 100644
+index a725d9bcb..000000000
+--- a/ansible/roles/neutron/templates/neutron-ovn-metadata-agent.json.j2
++++ /dev/null
+@@ -1,53 +0,0 @@
+-{
+-    "command": "neutron-ovn-metadata-agent --config-file /etc/neutron/neutron.conf --config-file /etc/neutron/neutron_ovn_metadata_agent.ini",
+-    "config_files": [
+-        {
+-            "source": "{{ container_config_directory }}/neutron.conf",
+-            "dest": "/etc/neutron/neutron.conf",
+-            "owner": "neutron",
+-            "perm": "0600"
+-        },
+-        {
+-            "source": "{{ container_config_directory }}/neutron_ovn_metadata_agent.ini",
+-            "dest": "/etc/neutron/neutron_ovn_metadata_agent.ini",
+-            "owner": "neutron",
+-            "perm": "0600"
+-        }
+-        {% if neutron_policy_file is defined %},{
+-            "source": "{{ container_config_directory }}/{{ neutron_policy_file }}",
+-            "dest": "/etc/neutron/{{ neutron_policy_file }}",
+-            "owner": "neutron",
+-            "perm": "0600"
+-        }{% endif %}{% if kolla_copy_ca_into_containers | bool %},
+-        {
+-            "source": "{{ container_config_directory }}/ca-certificates",
+-            "dest": "/var/lib/kolla/share/ca-certificates",
+-            "owner": "root",
+-            "perm": "0644"
+-        }{% endif %}
+-    ],
+-    "directories": [
+-        {
+-            "path": "/var/log/kolla",
+-            "owner": "fluentd:kolla",
+-            "perm": "2775"
+-        },
+-        {
+-            "path": "/var/log/kolla/neutron",
+-            "owner": "neutron:kolla",
+-            "perm": "2775"
+-        }
+-    ],
+-    "permissions": [
+-        {
+-            "path": "/var/log/kolla/neutron/*.log",
+-            "owner": "neutron:kolla",
+-            "perm": "0664"
+-        },
+-        {
+-            "path": "/var/lib/neutron/kolla",
+-            "owner": "neutron:neutron",
+-            "recurse": true
+-        }
+-    ]
+-}
+diff --git a/ansible/roles/neutron/templates/neutron_ovn_metadata_agent.ini.j2 b/ansible/roles/neutron/templates/neutron_ovn_metadata_agent.ini.j2
+deleted file mode 100644
+index 2ffe61d26..000000000
+--- a/ansible/roles/neutron/templates/neutron_ovn_metadata_agent.ini.j2
++++ /dev/null
+@@ -1,19 +0,0 @@
+-[DEFAULT]
+-auth_ca_cert = {{ openstack_cacert }}
+-nova_metadata_protocol = {{ internal_protocol }}
+-metadata_proxy_socket = /var/lib/neutron/kolla/metadata_proxy
+-nova_metadata_host = {{ nova_internal_fqdn }}
+-nova_metadata_port = {{ nova_metadata_port }}
+-metadata_proxy_shared_secret = {{ metadata_secret }}
+-log_file = neutron-ovn-metadata-agent.log
+-log_dir = /var/log/kolla/neutron
+-metadata_workers = 2
+-
+-[ovs]
+-ovsdb_connection = tcp:127.0.0.1:{{ ovsdb_port }}
+-ovsdb_timeout = {{ ovsdb_timeout }}
+-
+-[ovn]
+-ovn_nb_connection = {{ ovn_nb_connection }}
+-ovn_sb_connection = {{ ovn_sb_connection }}
+-ovn_metadata_enabled = true
+diff --git a/ansible/roles/neutron/templates/ovn_agent.ini.j2 b/ansible/roles/neutron/templates/ovn_agent.ini.j2
+index bf5761353..4f32148b3 100644
+--- a/ansible/roles/neutron/templates/ovn_agent.ini.j2
++++ b/ansible/roles/neutron/templates/ovn_agent.ini.j2
+@@ -1,7 +1,21 @@
+-[ovn]
+-ovn_nb_connection = {{ ovn_nb_connection }}
+-ovn_sb_connection = {{ ovn_sb_connection }}
++[DEFAULT]
++auth_ca_cert = {{ openstack_cacert }}
++nova_metadata_protocol = {{ internal_protocol }}
++metadata_proxy_socket = /var/lib/neutron/kolla/metadata_proxy
++nova_metadata_host = {{ nova_internal_fqdn }}
++nova_metadata_port = {{ nova_metadata_port }}
++metadata_proxy_shared_secret = {{ metadata_secret }}
++log_file = neutron-ovn-agent.log
++log_dir = /var/log/kolla/neutron
++metadata_workers = {{ neutron_metadata_workers }}
++
++[agent]
++extensions = metadata
+ 
+ [ovs]
+ ovsdb_connection = tcp:127.0.0.1:{{ ovsdb_port }}
+ ovsdb_timeout = {{ ovsdb_timeout }}
++
++[ovn]
++ovn_nb_connection = {{ ovn_nb_connection }}
++ovn_sb_connection = {{ ovn_sb_connection }}
+diff --git a/ansible/site.yml b/ansible/site.yml
+index 5ab1bb251..36b1810ea 100644
+--- a/ansible/site.yml
++++ b/ansible/site.yml
+@@ -690,7 +690,6 @@
+     - neutron-l3-agent
+     - ironic-neutron-agent
+     - neutron-metadata-agent
+-    - neutron-ovn-metadata-agent
+     - neutron-metering-agent
+     - neutron-bgp-dragent
+     - compute
+diff --git a/doc/source/reference/networking/neutron.rst b/doc/source/reference/networking/neutron.rst
+index d6d7b551d..4ebb622fa 100644
+--- a/doc/source/reference/networking/neutron.rst
++++ b/doc/source/reference/networking/neutron.rst
+@@ -346,7 +346,7 @@ Running Neutron agents subprocesses in separate containers
+ There is a feature in Kolla-Ansible that allows to overcome
+ the issue of breaking data plane connectivity, dhcp and metadata services
+ when restarting neutron-l3-agent and neutron-dhcp-agent in ml2/ovs or
+-restarting the neutron-ovn-metadata-agent in ml2/ovn.
++restarting the neutron-ovn-agent in ml2/ovn.
+ 
+ To enable it, modify the configuration in ``/etc/kolla/globals.yml``:
+ 
+diff --git a/releasenotes/notes/ovn-metadata-agent-removal-20422685d9dfefe5.yaml b/releasenotes/notes/ovn-metadata-agent-removal-20422685d9dfefe5.yaml
+new file mode 100644
+index 000000000..48abe23cb
+--- /dev/null
++++ b/releasenotes/notes/ovn-metadata-agent-removal-20422685d9dfefe5.yaml
+@@ -0,0 +1,13 @@
++---
++upgrade:
++  - |
++    The ``neutron-ovn-metadata-agent`` service has been removed, following
++    its removal from Neutron. When ``neutron_plugin_agent`` is ``ovn``,
++    metadata is now served by the ``metadata`` extension of
++    ``neutron-ovn-agent``, which is enabled by default. Upgrading removes
++    the ``neutron_ovn_metadata_agent`` container, its HAProxy child
++    containers and its configuration. Overrides in
++    ``/etc/kolla/config/neutron/neutron_ovn_metadata_agent.ini`` must be
++    moved to ``/etc/kolla/config/neutron/ovn_agent.ini``, and the
++    ``neutron-ovn-metadata-agent`` group can be removed from custom
++    inventories.
+diff --git a/tests/templates/inventory.j2 b/tests/templates/inventory.j2
+index bc8a0366f..c4b1e480b 100644
+--- a/tests/templates/inventory.j2
++++ b/tests/templates/inventory.j2
+@@ -356,9 +356,12 @@ network
+ [neutron-ovn-maintenance-worker:children]
+ control
+ 
++{# TODO(kevko): Remove in 2027.2 (after next SLURP) #}
++{% if is_upgrade %}
+ [neutron-ovn-metadata-agent:children]
+ compute
+ network
++{% endif %}
+ 
+ [neutron-ovn-vpn-agent:children]
+ neutron

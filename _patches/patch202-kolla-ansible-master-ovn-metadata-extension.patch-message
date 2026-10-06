@@ -1,0 +1,20 @@
+Replace OVN metadata agent with OVN agent extension
+
+Neutron removed the standalone neutron-ovn-metadata-agent in change
+I5cca341d80e41a820d63085766c91e3917026f83, so its container no longer
+starts on master. Serve metadata from the metadata extension of
+neutron-ovn-agent instead, and remove the old container on upgrade.
+
+The agent wrapper environment moves to neutron-ovn-agent, so HAProxy
+keeps running in separate containers when neutron_agents_wrappers is
+set. Those of the old agent are removed on upgrade, as they would
+otherwise still hold the metadata address in each namespace.
+
+Closes-Bug: #2161114
+Related-Bug: #2152164
+Change-Id: I63368713b18ecb0864842e14b9f44a88cf2cf778
+Co-Authored-By: Michal Nasiadka <mnasiadka@gmail.com>
+Co-Authored-By: Michael Still <mikal@stillhq.com>
+Assisted-By: Claude Opus 5.5 (1M context, low effort) <noreply@anthropic.com>
+Signed-off-by: Michal Arbet <michal.arbet@ultimum.io>
+Signed-off-by: Michael Still <mikal@stillhq.com>
