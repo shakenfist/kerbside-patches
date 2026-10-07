@@ -27,7 +27,7 @@ directories. This page documents each script and its purpose.
 | `../tools/recount-patch.py [--in-place\|--check] <patch...>` | Recomputes the `@@` hunk headers in a patch from its body, for when a patch in `_patches/` has been hand edited. See [patch-editing.md](patch-editing.md). |
 | `../tools/check-depends-on.py [--offline] [targets...]` | Validates the `Depends-On` footers in `_patches/`: the URL is a review.opendev.org change, the change exists, is in the project the URL names, and has not been abandoned. Targets are patch files or project directories (whose `ORDER` and `depends_on` chain are expanded); with none, every patch in `_patches/`. `--offline` skips the Gerrit lookups. Run by `test-apply.sh` and, in `--offline` form, by pre-commit. See [patch-editing.md](patch-editing.md). |
 | `../tools/test-check-depends-on.py` | Test suite for `check-depends-on.py`, run against a stubbed Gerrit so it needs no network. |
-| `../tools/patch_message.py` | The commit message embedded in a patch file. Shared by `extract-commit-message` and `check-depends-on.py` so the two cannot disagree about what a patch's message says. |
+| `../tools/patch_message.py` | The commit message and `Author:` header embedded in a patch file. Shared by `extract-commit-message`, `extract-commit-author.py` and `check-depends-on.py` so they cannot disagree about what a patch says. |
 | `../tools/test-recount-patch.py` | Test suite for `recount-patch.py`, using git itself as the oracle: it generates canonical patches, damages them, and requires the recounted result to match git's output or apply cleanly. |
 
 ### Automated Rebase Scripts
@@ -153,6 +153,7 @@ The configured hooks include:
 |--------|-------------|
 | `commit-msg.hook` | Git commit-msg hook for validating commit message format. |
 | `extract-commit-message` | Extracts commit messages from patch files. |
+| `extract-commit-author.py` | Prints a patch file's `Author:` header. `apply-patches-and-test.sh` commits each patch as that author, so a change carried from someone else's review stays attributed to them when `repush-openstack.sh` pushes it back as a new patchset. |
 | `find_changes` | Lists changed files for review. |
 | `upgrade-python` | Helper for upgrading Python dependencies. |
 

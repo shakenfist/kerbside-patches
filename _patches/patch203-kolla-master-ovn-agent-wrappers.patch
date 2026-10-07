@@ -1,0 +1,66 @@
+commit 0af4cc3eedd28d3c9c3b401c9af3f9a4aadb1f2d
+Author: Michael Still <mikal@stillhq.com>
+Date:   Wed Oct 7 06:39:46 2026 +1100
+
+    Support neutron agent wrappers in neutron-ovn-agent
+    
+    Neutron has removed the standalone OVN metadata agent, so metadata is now
+    served by the metadata extension of neutron-ovn-agent. Give that image the
+    same extend_start.sh as neutron-metadata-agent, so that its HAProxy
+    processes can run in separate containers and survive agent restarts.
+    
+    Related-Bug: #2161114
+    Change-Id: Iee3d4639183434c83f57cc459c3e14159d932105
+    Assisted-By: Claude Opus 5.5 (1M context, low effort) <noreply@anthropic.com>
+    Signed-off-by: Michael Still <mikal@stillhq.com>
+
+diff --git a/kolla/docker/neutron/neutron-ovn-agent/Dockerfile.j2 b/kolla/docker/neutron/neutron-ovn-agent/Dockerfile.j2
+index 915bef1..d5f6cfe 100644
+--- a/kolla/docker/neutron/neutron-ovn-agent/Dockerfile.j2
++++ b/kolla/docker/neutron/neutron-ovn-agent/Dockerfile.j2
+@@ -16,6 +16,8 @@ LABEL maintainer="{{ maintainer }}" name="{{ image_name }}"
+ 
+ {{ macros.kolla_patch_sources() }}
+ 
++COPY extend_start.sh /usr/local/bin/kolla_extend_start
++
+ {% block neutron_ovn_agent_footer %}{% endblock %}
+ {% block footer %}{% endblock %}
+ {{ macros.kolla_cleanup_repos() }}
+diff --git a/kolla/docker/neutron/neutron-ovn-agent/extend_start.sh b/kolla/docker/neutron/neutron-ovn-agent/extend_start.sh
+new file mode 100644
+index 0000000..001898f
+--- /dev/null
++++ b/kolla/docker/neutron/neutron-ovn-agent/extend_start.sh
+@@ -0,0 +1,18 @@
++#!/bin/bash
++
++if [[ ! -d "/var/log/kolla/neutron" ]]; then
++    mkdir -p /var/log/kolla/neutron
++fi
++if [[ $(stat -c %a /var/log/kolla/neutron) != "755" ]]; then
++    chmod 755 /var/log/kolla/neutron
++fi
++
++if [[ "${KOLLA_NEUTRON_WRAPPERS:-false}" == "true" ]]; then
++    echo "Copying neutron agent wrappers to /usr/local/bin"
++    sudo -E /usr/local/lib/neutron-wrappers/copy-wrappers
++else
++    echo "Removing neutron agent wrappers from /usr/local/bin"
++    sudo -E /usr/local/lib/neutron-wrappers/delete-wrappers
++fi
++
++. /usr/local/bin/kolla_neutron_extend_start
+diff --git a/releasenotes/notes/neutron-ovn-agent-wrappers-b937a71cd298f21a.yaml b/releasenotes/notes/neutron-ovn-agent-wrappers-b937a71cd298f21a.yaml
+new file mode 100644
+index 0000000..1281972
+--- /dev/null
++++ b/releasenotes/notes/neutron-ovn-agent-wrappers-b937a71cd298f21a.yaml
+@@ -0,0 +1,7 @@
++---
++features:
++  - |
++    The ``neutron-ovn-agent`` image now supports running the HAProxy
++    processes of its metadata extension in separate containers, as the
++    ``neutron-metadata-agent`` image already does. This is enabled by setting
++    ``KOLLA_NEUTRON_WRAPPERS=true`` in the container environment.

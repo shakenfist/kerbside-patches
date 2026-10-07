@@ -187,6 +187,21 @@ def test_corpus_urls_parse():
         raise TestFailure('no Depends-On footers found in the corpus, the parser is broken')
 
 
+def test_author():
+    """The Author header is read from the patch, and absent when it has none."""
+    with tempfile.TemporaryDirectory() as directory:
+        patch = write_patch(directory, 'patch999-test.patch',
+                            'https://review.opendev.org/c/openstack/kolla/+/993065')
+        if patch_message.author(patch) != 'Michael Still <mikal@stillhq.com>':
+            raise TestFailure(f'wrong author: {patch_message.author(patch)!r}')
+
+        bare = os.path.join(directory, 'bare.patch')
+        with open(bare, 'w') as f:
+            f.write('diff --git a/x b/x\n--- a/x\n+++ b/x\n@@ -1 +1 @@\n-a\n+b\n')
+        if patch_message.author(bare) is not None:
+            raise TestFailure('a patch without a header must have no author')
+
+
 def test_project_resolution():
     """A project directory resolves to the patches its ORDER lists."""
     cwd = os.getcwd()

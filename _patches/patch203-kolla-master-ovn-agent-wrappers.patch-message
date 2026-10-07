@@ -1,0 +1,11 @@
+Support neutron agent wrappers in neutron-ovn-agent
+
+Neutron has removed the standalone OVN metadata agent, so metadata is now
+served by the metadata extension of neutron-ovn-agent. Give that image the
+same extend_start.sh as neutron-metadata-agent, so that its HAProxy
+processes can run in separate containers and survive agent restarts.
+
+Related-Bug: #2161114
+Change-Id: Iee3d4639183434c83f57cc459c3e14159d932105
+Assisted-By: Claude Opus 5.5 (1M context, low effort) <noreply@anthropic.com>
+Signed-off-by: Michael Still <mikal@stillhq.com>
