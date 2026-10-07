@@ -325,6 +325,38 @@ lives in `tools/ci-report.sh` and currently covers:
   because the traceback is emitted by the bootstrap container and
   captured by the failing ansible task, not written under
   `/var/log/kolla`. Set `fix_merged` once a fix lands upstream.
+- `ovn-metadata-agent-missing` -- how often the
+  `neutron_ovn_metadata_agent` container dies at start with
+  `kolla_start: line 27: exec: neutron-ovn-metadata-agent: not found`.
+  Neutron removed the standalone OVN metadata agent, which had been
+  deprecated since 2024.2, together with its console script in neutron
+  change 998787 ("ovn: Remove standalone OVN Metadata agent"), merged
+  2026-09-30 and announced the same day on openstack-discuss
+  ("Any project, CI or deployment tool still relying on this agent needs
+  to be migrated to the OVN agent"). Metadata is now served only by the
+  `metadata` extension of `neutron-ovn-agent`. Kolla-Ansible still deploys the old container
+  for every ML2/OVN deployment, so once Kolla's published master images
+  picked up that neutron the container restart-loops, the `Restart
+  neutron-ovn-metadata-agent container` handler times out on an
+  unhealthy container, and `kolla-ansible deploy` fails. The last
+  `kolla-ansible-ubuntu-noble-ovn` pass was 2026-09-30 14:23 and the
+  first hit was 2026-10-02. Since then every
+  `kolla-ansible-{debian-trixie,rocky-10,ubuntu-noble}-ovn` and
+  `-ovn-upgrade` build has failed on every change. Those jobs are
+  non-voting, so they fail quietly rather than blocking the gate. The
+  upstream fix is the switch to the OVN agent extension, proposed as
+  kolla-ansible 996083 and 996078 (and the competing 997744), none of
+  them merged when this report was added on 2026-10-07. Our own
+  functional tests deploy ML2/OVS and are not exposed.
+
+  Like `mariadb-collation`, this is deterministic rather than a flake,
+  so the chart sits at 100% until the fix lands. The `job_name` column
+  shows the blast radius beyond the scenario jobs, and `fix_merged`
+  marks the switch once it merges. The signature file stops being
+  published once Kolla-Ansible no longer deploys the standalone agent,
+  so the report also names `container_logs/ovn_controller.txt` as a
+  denominator. That keeps fixed builds visible as misses instead of
+  dropping out of the report altogether.
 
 Each report is a target string plus the log file(s) to scan for it; the
 shared scan/aggregate/chart engine is `tools/count_ci_log_errors.py`
@@ -345,7 +377,9 @@ over a handful of builds. It therefore names a second log suffix,
 is published by exactly the builds where the check runs, and can never
 contain the target string, so those builds are recorded as misses and
 the hit rate becomes a real per-build failure rate. Use the same trick
-for any future signature that is only published on failure.
+for any future signature that is only published on failure, or whose
+log file stops being published once the fix lands
+(`ovn-metadata-agent-missing`).
 
 State lives in `data/ci-reporting/` (per-report CSVs, their
 checkpoints, and the charts) and is committed to the repository. Runs
