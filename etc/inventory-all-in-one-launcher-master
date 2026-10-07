@@ -13,9 +13,15 @@
 # environment, including HOME=/var/lib/kolla-ansible, so ~ points at a path the
 # host lacks. ansible_remote_tmp is therefore absolute; USER is substituted by
 # tools/bootstrap-kolla-ansible.
+#
+# The caller's PATH comes along too, so Python interpreter discovery depends on
+# who runs Ansible: bootstrap's venv kolla-ansible found the venv's python3.12
+# on Rocky and installed the Docker SDK there, and the launcher's deploy then
+# found /usr/bin/python3.12 without it. The interpreter is therefore pinned.
 [all:vars]
 ansible_connection=community.docker.nsenter
 ansible_remote_tmp=/tmp/.ansible-kolla-USER
+ansible_python_interpreter=/usr/bin/python3
 
 # These initial groups are the only groups required to be modified. The
 # additional groups are for more control of the environment.
