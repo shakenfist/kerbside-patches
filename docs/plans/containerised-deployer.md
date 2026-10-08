@@ -1444,9 +1444,12 @@ commit: Phase 2's Decision 2 and its out-of-scope list.
   `remote_user` option. ansible-core 2.21 makes its temporary
   directory under `remote_tmp`, default `~/.ansible/tmp`, and
   expands `~` as `~<remote_user>` (`plugins/action/__init__.py:530`
-  and `:981`). As the unprivileged user, that is `mkdir
-  /root/.ansible/tmp`, which fails for every module. This is read
-  from code. Step 3b confirms it before the workaround is relied on.
+  and `:981`). As the unprivileged user, this was predicted to be
+  `mkdir /root/.ansible/tmp`, failing for every module. **Step 3b
+  showed the prediction was wrong in detail.** The failure is real,
+  but `~` expanded through the container's `HOME`, so the path was
+  under `/var/lib/kolla-ansible`, which the host lacks. See the
+  Outcome.
 * The process's supplementary groups are the container's, not the
   host user's. Docker gives a `--user uid:gid` process only the
   groups listed for it in the container's `/etc/group`, and the
@@ -1582,17 +1585,21 @@ Order: 3a, then 3b. Then push with 3c, and push 3d once that run
 is in. 3e follows 3d's CI run. The management session reviews each
 step before its commit.
 
-Exit:
-* The probe below passes locally, and its run without
-  `ansible_remote_tmp` fails as predicted, or the plan records why
-  not.
-* On the phase's pull request, both launcher entries are green with
-  the nsenter inventory, and `tools/check-deployer-launcher` passed in
-  each, including its `getcap` check.
-* Every other entry is green, or fails in the same way on a `develop`
-  run without these changes.
-* `grep -rn 'id_ci\|127.0.0.1' etc/inventory-all-in-one-launcher-master`
+Exit (status as of the CI run on `2b73d58d7`, run 37805828411):
+* Met. The probe below passes locally, and its run without
+  `ansible_remote_tmp` failed, though not with the predicted path.
+  The Outcome records why.
+* Met. On the phase's pull request, both launcher entries are green
+  with the nsenter inventory, and `tools/check-deployer-launcher`
+  passed in each, including its `getcap` check, at `2b73d58d7`.
+  Rocky needed three fixes first (see the Outcome).
+* Met. Every other entry in that run is green, so none needed a
+  comparison with `develop`.
+* Met. `grep -rn 'id_ci\|127.0.0.1' etc/inventory-all-in-one-launcher-master`
   finds nothing.
+* Outstanding, not an original criterion: the docs updates of step 3e
+  are uncommitted until the management session reviews them, and the
+  phase stays In progress until the next phase is planned.
 
 ```bash
 #!/bin/bash -e
@@ -1605,6 +1612,7 @@ cd "${cfg}"
 export KOLLA_CONFIG_PATH=${cfg}
 printf '[deployer]\nimage = %s\n' "${img}" > deployer.conf
 echo '{}' > globals.yml
+echo '{}' > passwords.yml
 out=/tmp/phase3-probe-$$
 
 cat > inv <<INV
@@ -1645,6 +1653,101 @@ test -s fetched/"$(basename "${out}")"  # fetched back into the container
 rm -f "${out}" "${out}.template"
 echo "Phase 3 probe passed."
 ```
+
+#### Outcome
+
+Written after the CI run on `2b73d58d7` (run 37805828411, all jobs
+green). Phase 3 is still In progress; it closes when the next phase
+is planned.
+
+*The local probe (step 3b).*
+* The probe as written failed first, because `kolla-ansible deploy`
+  wants a `passwords.yml`. The script above now creates an empty one.
+* With that fixed it passed: fact gathering, `command`, `copy`,
+  `template` and `fetch` all worked through nsenter as the
+  unprivileged user, files on the host were owned by that user, and
+  the group list matched `id -G` (Decision 4 works).
+* Without `ansible_remote_tmp` it failed, as predicted in kind but
+  not in path. The survey expected `/root/.ansible/tmp`. In fact `~`
+  was expanded through the container's `HOME`,
+  `/var/lib/kolla-ansible`, giving a path the host does not have.
+* **`community.docker.nsenter` passes the caller's whole environment
+  to commands on the host**: `PATH`, `HOME` and the `KOLLA_*`
+  variables all arrive as the container had them. Two consequences:
+  * `ansible_remote_tmp` must be absolute, because `~` resolves
+    against the wrong `HOME`.
+  * Python interpreter discovery on the host depends on the
+    caller's `PATH`, not on the host's. This is what broke Rocky.
+
+*The Rocky 10 launcher failure and its fix.* The Debian launcher
+entry passed first time. The Rocky one needed four rounds of fixes:
+1. **Prechecks failed at "Checking docker SDK version"**, with no
+   `docker` module in `/usr/bin/python3.12`. The cause is a chain.
+   Bootstrap runs the host venv's `kolla-ansible`. nsenter leaked the
+   venv's `PATH` to the host, so interpreter discovery found the
+   venv's `python3.12`. The `openstack.kolla` `docker_sdk` role
+   derives its `pip` from `ansible_facts.python.executable`, so it
+   installed the SDK into the venv. The launcher's deploy later
+   discovered `/usr/bin/python3.12`, which lacked it. Debian passes
+   because the SDK there comes from the `python3-docker` package.
+   Commit `70b6c25c7` moved bootstrap onto the nsenter inventory as
+   part of this; that stays.
+2. **Pinning `ansible_python_interpreter` in the inventory
+   (`e0f81102a`) did not work.** kolla-ansible's `bootstrap-servers`
+   passes `ansible_python_interpreter=auto_silent` as an extra var
+   (`kolla_ansible/cli/commands.py`, about line 181), and
+   `ansible/group_vars/baremetal/ansible-python-interpreter.yml`
+   overrides inventory variables for the deploy. kolla-ansible only
+   drops its override when the caller passes its own
+   `-e ansible_python_interpreter=` (`commands.py`, about lines
+   69-74).
+3. **Passing that `-e` to both venv calls (`5c9e9da96`) broke
+   `kolla-ansible certificates`.** It runs on the implicit
+   `localhost` and needs the venv's `cryptography`, which the pin
+   pointed away from.
+4. **The fix is `2b73d58d7`.** `tools/bootstrap-kolla-ansible` passes
+   `-e ansible_python_interpreter=/usr/bin/python3` to
+   `bootstrap-servers` alone, and the inventory pin was removed.
+
+One unrelated failure: a Rocky mirror (`ftp.swin.edu.au`) was
+mid-sync and returned 404 for one image build. It was unrelated to this work.
+
+*Debian evidence, from `check-deployer-launcher`.* The inventory
+check reported the nsenter connection. `getcap /usr/bin/nsenter` in
+the pushed image reported `cap_sys_chroot,cap_sys_ptrace,cap_sys_admin=ep`,
+so the occystrap 0.4.17 fix holds through our push, which was the
+risk this phase carried. `admin-openrc.sh` and `clouds.yaml` were
+owned by the `debian` user. The Rocky run's checks were identical,
+with `cloud-user` as owner.
+
+*Deploy durations*, from the "Deploy Kolla-Ansible" step of each job
+(`started_at` to `completed_at`):
+
+| Host | Launcher entry | Control entry | Launcher | Control |
+|------|----------------|---------------|----------|---------|
+| debian 13 | `master-h-debian13-c-debian13-aio-launcher` (job 113445099316) | `master-h-debian13-c-debian13-aio` (job 113445099387) | 27m17s | 33m20s |
+| rocky 10 | `master-h-rocky10-c-debian-13-aio-launcher` (job 113445099000) | `master-h-rocky10-c-debian-13-aio` (job 113445099561) | 28m55s | 40m59s |
+
+The controls are the same host and container distributions with the
+venv deployer. These numbers do **not** show the launcher to be
+faster, and should not be read that way. Each pair ran on different
+runners at different times (the launcher jobs started at about
+17:40Z and the controls at about 18:45Z), and one other Debian
+all-in-one job, with no Kerbside, took 28m05s, so the spread between
+runs of the same shape is of the same order as the differences
+above. What they do show is that the launcher and nsenter add no
+cost large enough to stand out from that noise. A paired comparison
+would need several runs of each.
+
+*The `restorecon` report.* On the Rocky launcher job, Decision 7's
+`restorecon -n -v -R /etc/kolla` printed `no relabels needed`. So
+files written to `/etc/kolla` from the container carry correct
+labels, at least with Kolla-Ansible's baremetal role having set
+SELinux to permissive (the "Change state of selinux" task ran and
+reported `changed`). That is weaker than it sounds: permissive mode
+would not have failed the deploy in either case, but `restorecon -n`
+reports mislabelled files regardless of mode, and found none. The
+Debian job reported `SELinux is not enabled`, as expected.
 
 ### Phase 4: Bootstrapping the deploy host
 
@@ -1758,6 +1861,14 @@ Phase 1's patch199 does not apply to pristine Kolla. Its
 context. Before a push, rebase it onto the upstream `source_sha`
 alone, and check its `zuul.d/base.yaml` `override-checkout: master`
 for the collection, which has to change when Kolla branches.
+
+Raise these `community.docker.nsenter` problems found in Phase 3:
+the plugin assumes `remote_user` is root, and it leaks the caller's
+environment (`PATH`, `HOME`, `KOLLA_*`) to commands on the host. An
+upstream all-in-one inventory for the container would need the
+points in `docs/deployer-launcher.md`: a deploy host not named
+`localhost`, an absolute `ansible_remote_tmp`, and a Docker SDK in
+the Python the deploy will discover, which the inventory cannot pin.
 
 Write `docs/containerised-deployer.md`: how to build and run the
 deployer, and what the prototype learned, including the cases
