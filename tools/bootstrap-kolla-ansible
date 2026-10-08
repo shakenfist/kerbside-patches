@@ -97,6 +97,7 @@ cp -r etc/kolla /etc/
 cd "${topdir}"
 inventory_name="inventory-${topology}-${target_release}"
 venv_args=()
+bootstrap_args=()
 if [ "${deployer}" == "launcher" ] && [ "${topology}" == "all-in-one" ]; then
     # Reach this host through community.docker.nsenter, because "local" would
     # be the launcher's container. The venv calls below use the same
@@ -110,10 +111,13 @@ if [ "${deployer}" == "launcher" ] && [ "${topology}" == "all-in-one" ]; then
     # there, not in the system python the launcher's deploy discovers.
     # bootstrap-servers forces ansible_python_interpreter=auto_silent as an
     # extra var, which beats any inventory setting; only our own -e of the
-    # same name makes kolla-ansible drop it.
+    # same name makes kolla-ansible drop it. It is passed to bootstrap-servers
+    # alone, whose plays target only the baremetal hosts: an extra var reaches
+    # the implicit localhost too, and certificates runs there on the venv's
+    # python, which has the cryptography library the system one lacks.
     inventory_name="inventory-${topology}-launcher-${target_release}"
-    venv_args=(-e ansible_remote_tmp=/tmp/.ansible-kolla-root
-               -e ansible_python_interpreter=/usr/bin/python3)
+    venv_args=(-e ansible_remote_tmp=/tmp/.ansible-kolla-root)
+    bootstrap_args=(-e ansible_python_interpreter=/usr/bin/python3)
 fi
 if [ ! -e "etc/${inventory_name}" ]; then
     echo "Looked for inventory etc/${inventory_name}"
@@ -265,7 +269,8 @@ echo
 echo -e "${H2}Bootstrap servers${Color_Off}"
 # Stays on the venv until Phase 4 of docs/plans/containerised-deployer.md.
 # This installs the container engine the launcher will need.
-kolla-ansible bootstrap-servers -i /etc/kolla/inventory "${venv_args[@]}"
+kolla-ansible bootstrap-servers -i /etc/kolla/inventory "${venv_args[@]}" \
+    "${bootstrap_args[@]}"
 echo
 
 if [ "${deployer}" == "launcher" ]; then

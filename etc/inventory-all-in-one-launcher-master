@@ -17,7 +17,7 @@
 # The caller's PATH comes along too, so Python interpreter discovery depends on
 # who runs Ansible. Pinning the interpreter here does not help: kolla-ansible's
 # group_vars/baremetal and bootstrap-servers' extra vars both override it.
-# tools/bootstrap-kolla-ansible pins it on its command line instead.
+# tools/bootstrap-kolla-ansible pins it on bootstrap-servers' command line.
 [all:vars]
 ansible_connection=community.docker.nsenter
 ansible_remote_tmp=/tmp/.ansible-kolla-USER
