@@ -15,13 +15,12 @@
 # tools/bootstrap-kolla-ansible.
 #
 # The caller's PATH comes along too, so Python interpreter discovery depends on
-# who runs Ansible: bootstrap's venv kolla-ansible found the venv's python3.12
-# on Rocky and installed the Docker SDK there, and the launcher's deploy then
-# found /usr/bin/python3.12 without it. The interpreter is therefore pinned.
+# who runs Ansible. Pinning the interpreter here does not help: kolla-ansible's
+# group_vars/baremetal and bootstrap-servers' extra vars both override it.
+# tools/bootstrap-kolla-ansible pins it on its command line instead.
 [all:vars]
 ansible_connection=community.docker.nsenter
 ansible_remote_tmp=/tmp/.ansible-kolla-USER
-ansible_python_interpreter=/usr/bin/python3
 
 # These initial groups are the only groups required to be modified. The
 # additional groups are for more control of the environment.

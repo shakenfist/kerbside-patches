@@ -104,8 +104,16 @@ if [ "${deployer}" == "launcher" ] && [ "${topology}" == "all-in-one" ]; then
     # deploy will use (on Rocky it pip-installs the Docker SDK into it). They
     # run as root, so they get their own remote tmp: as root they would create
     # the inventory's one where ${SUDO_USER} could not use it.
+    #
+    # nsenter also hands the host this venv's PATH, so interpreter discovery
+    # would find the venv's python and the Docker SDK would be installed
+    # there, not in the system python the launcher's deploy discovers.
+    # bootstrap-servers forces ansible_python_interpreter=auto_silent as an
+    # extra var, which beats any inventory setting; only our own -e of the
+    # same name makes kolla-ansible drop it.
     inventory_name="inventory-${topology}-launcher-${target_release}"
-    venv_args=(-e ansible_remote_tmp=/tmp/.ansible-kolla-root)
+    venv_args=(-e ansible_remote_tmp=/tmp/.ansible-kolla-root
+               -e ansible_python_interpreter=/usr/bin/python3)
 fi
 if [ ! -e "etc/${inventory_name}" ]; then
     echo "Looked for inventory etc/${inventory_name}"
