@@ -80,7 +80,7 @@ class CommandLineTestCase(unittest.TestCase):
     def test_docker(self):
         s = self.s
         command = cli.plan('kolla-ansible', self.argv, s.environ, s.work, s.config(), 'docker', s.user, s.group,
-                           s.state, tty=False, uid=1001, gid=1002, euid=1001)
+                           s.state, tty=False, uid=1001, gid=1002, groups=[], euid=1001)
         self.assertEqual(
             ['docker', 'run', '--rm', '-i', '--network', 'host', '--user', '1001:1002', '--privileged', '--pid',
              'host'] + self.expected_tail() + [IMAGE] + self.argv,
@@ -92,17 +92,42 @@ class CommandLineTestCase(unittest.TestCase):
         s = self.s
         s.write_conf('[deployer]\nimage = %s\nengine = podman\nmounts = %s\n' % (IMAGE, s.keys))
         command = cli.plan('kolla-ansible', self.argv, s.environ, s.work, s.config(), 'podman', s.user, s.group,
-                           s.state, tty=True, uid=1001, gid=1002, euid=1001)
+                           s.state, tty=True, uid=1001, gid=1002, groups=[], euid=1001)
         self.assertEqual(
             ['podman', 'run', '--rm', '-i', '-t', '--network', 'host', '--user', '1001:1002', '--userns=keep-id',
              '--privileged', '--pid', 'host'] + self.expected_tail() + [IMAGE] + self.argv,
             command)
 
+    def plan_with(self, engine, groups, euid):
+        s = self.s
+        return cli.plan('kolla-ansible', self.argv, s.environ, s.work, s.config(), engine, s.user, s.group,
+                        s.state, tty=False, uid=1001, gid=1002, groups=groups, euid=euid)
+
+    def test_docker_supplementary_groups(self):
+        # Sorted numerically, deduplicated, and without the primary GID.
+        command = self.plan_with('docker', [1002, 100, 27, 1002, 100, 1500], 1001)
+        self.assertEqual(['--user', '1001:1002', '--group-add', '27', '--group-add', '100', '--group-add', '1500',
+                          '--privileged'], command[command.index('--user'):command.index('--privileged') + 1])
+
+    def test_rootful_podman_supplementary_groups(self):
+        command = self.plan_with('podman', [1002, 10, 4], 0)
+        self.assertNotIn('--userns=keep-id', command)
+        self.assertEqual(['--user', '1001:1002', '--group-add', '4', '--group-add', '10', '--privileged'],
+                         command[command.index('--user'):command.index('--privileged') + 1])
+
+    def test_rootless_podman_has_no_group_add(self):
+        command = self.plan_with('podman', [1002, 10, 4], 1001)
+        self.assertIn('--userns=keep-id', command)
+        self.assertNotIn('--group-add', command)
+
+    def test_no_supplementary_groups(self):
+        self.assertNotIn('--group-add', self.plan_with('docker', [1002], 1001))
+
     def test_without_host_namespaces(self):
         s = self.s
         s.write_conf('[deployer]\nimage = %s\nhost_namespaces = false\n' % IMAGE)
         command = cli.plan('kolla-ansible', ['--version'], {}, s.work, s.config(), 'docker', s.user, s.group,
-                           s.state, tty=False, uid=1001, gid=1002, euid=1001)
+                           s.state, tty=False, uid=1001, gid=1002, groups=[], euid=1001)
         self.assertNotIn('--privileged', command)
         self.assertNotIn('--pid', command)
 
@@ -110,7 +135,7 @@ class CommandLineTestCase(unittest.TestCase):
         s = self.s
         argv = ['-p', 'passwords.yml']
         command = cli.plan('kolla-genpwd', argv, {'KOLLA_CONFIG_PATH': s.cfg}, s.work, s.config(), 'docker', s.user,
-                           s.group, s.state, tty=False, uid=1001, gid=1002, euid=1001)
+                           s.group, s.state, tty=False, uid=1001, gid=1002, groups=[], euid=1001)
         self.assertEqual(['--entrypoint', 'dumb-init', IMAGE, '--single-child', '--', 'kolla-genpwd'] + argv,
                          command[-8:])
         self.assertIn('%s:%s' % (s.work, s.work), command)

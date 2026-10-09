@@ -488,6 +488,19 @@ jobs:
             'container_distro_version': 'trixie'
           },
           {
+            'name': 'master-h-rocky10-c-debian-13-aio-launcher',
+            'description': 'master debian 13 images on rocky 10 all-in-one with the containerised deployer',
+            'release': 'master',
+            'base': 'rocky:10',
+            'baseuser': 'cloud-user',
+            'topology': 'all-in-one',
+            'runs_on': 'debian-13',
+            'container_distro': 'debian',
+            'container_distro_version': 'trixie',
+            'deployer': 'launcher',
+            'non_voting': 'true'
+          },
+          {
             'name': 'master-h-rocky10-c-rocky10-aio',
             'description': 'master rocky 10 images on rocky 10 all-in-one',
             'release': 'master',

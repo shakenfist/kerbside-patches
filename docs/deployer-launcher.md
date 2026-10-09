@@ -141,10 +141,66 @@ container. That is why `~/.ssh` is mounted at both places.
   `host_namespaces` is false.
 * `-t` only when stdin is a terminal.
 * With podman as a non-root user, `--userns=keep-id`, so files the
-  run writes belong to you.
+  run writes belong to you. That also keeps your supplementary groups.
+* With docker, or podman as root, `--group-add <gid>` for each of your
+  supplementary groups (sorted, without your primary group), so host
+  `sudo` rules that name a group still match tasks run through
+  `nsenter`.
 
 The launcher then replaces itself with the engine, so the exit status
 and signals are the container's.
+
+## Running on the deploy host itself
+
+When the deploy host is the machine running the launcher, tasks reach
+it through the `community.docker.nsenter` connection plugin rather
+than SSH. The container enters the host's namespaces with
+`nsenter --target=1`, using the file capabilities on the image's
+`/usr/bin/nsenter`, and runs each command as your UID and groups.
+This puts requirements on the image, the engine and the inventory.
+
+The image and engine:
+
+* `/usr/bin/nsenter` in the image must keep its file capabilities
+  (`cap_sys_admin` among them). Check with
+  `docker run --rm --entrypoint getcap <image> /usr/bin/nsenter`.
+  `tools/check-deployer-launcher` does this in CI.
+* An image pushed with a tool that drops file capabilities breaks
+  every task with `Operation not permitted`. Push through occystrap
+  0.4.17 or later (shakenfist/occystrap#151).
+* The container needs `--privileged --pid host`, which is the
+  `host_namespaces` default. Docker must not set `no-new-privileges`.
+
+The inventory:
+
+* **The deploy host must not be named `localhost`.** Kolla-Ansible
+  runs some tasks with `delegate_to: localhost` and `connection:
+  local`, among them keystone's fernet cron generator, using paths
+  that exist only in the container. An inventory host named
+  `localhost` replaces the implicit one, and the host's
+  `ansible_connection` would send those tasks to the host, where
+  they fail. Every use of `localhost` must stay in the container.
+* `ansible_remote_tmp` must be an absolute path, for example
+  `/tmp/.ansible-kolla-<user>`. The plugin runs as `root` as far as
+  Ansible is concerned, so `~` would expand through the container's
+  `HOME` (`/var/lib/kolla-ansible`), which the host does not have.
+* The plugin passes the container's whole environment (`PATH`,
+  `HOME`, `KOLLA_*`) to commands on the host. Python interpreter
+  discovery on the host therefore depends on the `PATH` of whatever
+  ran Ansible.
+* **The interpreter cannot be pinned from the inventory.**
+  `kolla-ansible bootstrap-servers` passes
+  `ansible_python_interpreter=auto_silent` as an extra variable, and
+  a group variable file overrides the inventory for the deploy.
+  Kolla-Ansible only drops that override if the caller passes its own
+  `-e ansible_python_interpreter=...`.
+* So whoever bootstraps the host must make sure the Docker SDK lands
+  in the Python the deploy will discover. In CI,
+  `tools/bootstrap-kolla-ansible` passes
+  `-e ansible_python_interpreter=/usr/bin/python3` to
+  `bootstrap-servers` alone. Passing it to other commands is wrong:
+  `kolla-ansible certificates` runs on the implicit `localhost` and
+  needs the venv's `cryptography`.
 
 ## What it refuses
 

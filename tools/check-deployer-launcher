@@ -4,12 +4,19 @@
 #
 #   tools/check-deployer-launcher <expected owner of the openrc files>
 #
+# It checks the marker, the call log, the pinned image, that the inventory
+# reaches the host through community.docker.nsenter, that the image's nsenter
+# kept its file capability, and who owns the openrc files. It also reports, but
+# never fails on, SELinux labels under the configuration directory.
+#
 # The CHECK_* variables exist so this can be tested.
 
 owner=${1:?usage: $0 <expected-owner>}
 marker=${CHECK_MARKER:-/srv/kolla-ansible/deployer}
 log=${CHECK_LOG:-/srv/kolla-ansible/ka.log}
 configdir=${CHECK_CONFIGDIR:-/etc/kolla}
+inventory=${CHECK_INVENTORY:-/etc/kolla/inventory}
+docker=${CHECK_DOCKER:-docker}
 minimum=7
 
 failed=0
@@ -42,6 +49,35 @@ case "${image}" in
     *@sha256:*) ;;
     *) fail "deployer.conf image is not pinned by digest" ;;
 esac
+
+echo "Checking ${inventory}"
+if grep -q '^ansible_connection=community.docker.nsenter$' "${inventory}" 2> /dev/null; then
+    echo "  uses the nsenter connection"
+else
+    fail "${inventory} does not set ansible_connection=community.docker.nsenter"
+fi
+if grep -q '^ansible_host=' "${inventory}" 2> /dev/null; then
+    fail "${inventory} sets ansible_host=, so it is not reaching the host through nsenter"
+fi
+
+echo "Checking the file capability on nsenter in ${image}"
+caps=$("${docker}" run --rm --entrypoint getcap "${image}" /usr/bin/nsenter 2>&1)
+echo "  ${caps}"
+case "${caps}" in
+    *cap_sys_admin*) ;;
+    *) fail "nsenter in ${image} has no cap_sys_admin file capability; it was most likely lost in the image push (shakenfist/occystrap#151)" ;;
+esac
+
+echo "Checking SELinux labels under ${configdir} (report only)"
+if command -v selinuxenabled > /dev/null 2>&1 && selinuxenabled; then
+    if relabels=$(sudo -n restorecon -n -v -R "${configdir}" 2>&1); then
+        echo "${relabels:-  no relabels needed}" | sed 's/^/    /'
+    else
+        echo "  could not run restorecon: ${relabels}"
+    fi
+else
+    echo "  SELinux is not enabled"
+fi
 
 for name in admin-openrc.sh clouds.yaml; do
     echo "Checking ${configdir}/${name}"

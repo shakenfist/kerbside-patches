@@ -1,14 +1,26 @@
-# Phase 2 stopgap for the containerised deployer prototype (see
+# Inventory for the containerised deployer (see
 # docs/plans/containerised-deployer.md). It is identical to
-# inventory-all-in-one-master except that the kolla host is reached over SSH
-# to 127.0.0.1, because "local" would mean the launcher's container. It is
-# deleted in Phase 3, when localhost runs over nsenter instead.
+# inventory-all-in-one-master except for how the kolla host is reached: the
+# launcher runs Kolla-Ansible in a privileged container sharing the host's PID
+# namespace, and community.docker.nsenter runs each command on the host from
+# there, so no SSH is needed.
+#
+# The host must not be named localhost. Controller-side delegate_to: localhost
+# tasks, such as keystone's fernet cron generator, must keep running in the
+# container.
+#
+# The nsenter connection runs commands on the host with the container's
+# environment, including HOME=/var/lib/kolla-ansible, so ~ points at a path the
+# host lacks. ansible_remote_tmp is therefore absolute; USER is substituted by
+# tools/bootstrap-kolla-ansible.
+#
+# The caller's PATH comes along too, so Python interpreter discovery depends on
+# who runs Ansible. Pinning the interpreter here does not help: kolla-ansible's
+# group_vars/baremetal and bootstrap-servers' extra vars both override it.
+# tools/bootstrap-kolla-ansible pins it on bootstrap-servers' command line.
 [all:vars]
-ansible_host=127.0.0.1
-ansible_user=USER
-ansible_ssh_private_key_file=/srv/github/id_ci
-ansible_ssh_extra_args='-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null'
-ansible_ssh_timeout=120
+ansible_connection=community.docker.nsenter
+ansible_remote_tmp=/tmp/.ansible-kolla-USER
 
 # These initial groups are the only groups required to be modified. The
 # additional groups are for more control of the environment.

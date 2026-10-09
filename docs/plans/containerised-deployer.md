@@ -359,8 +359,8 @@ against `develop`.
 |-------|--------|--------|
 | 0. A CI entry for the prototype | Complete | #1796 (`725cf1e8a`), #1799 (`190daeeca`); shakenfist/actions#121 (`7eaa1e534`) |
 | 1. Deployer image | Complete | #1803 (`507fbea62`) |
-| 2. Launcher | In progress | |
-| 3. The localhost connection | Not started | |
+| 2. Launcher | Complete | #1812 (`b97361853`) |
+| 3. The localhost connection | In progress | |
 | 4. Bootstrapping the deploy host | Not started | |
 | 5. Version safeguards | Not started | |
 | 6. Build manifest | Not started | |
@@ -968,8 +968,9 @@ a stronger CI assertion.
   exists in this phase, so nothing needs it yet; moved to Phase 4,
   which removes the venv.
 * Podman in CI. The launcher supports it, and unit tests cover the
-  command it builds, but the first podman host is Phase 3's Rocky 10
-  entry.
+  command it builds. (This said Phase 3's Rocky 10 entry would be the
+  first podman host. It is not: Rocky CI hosts run `docker-ce`, as
+  Phase 3's survey found.)
 * The multinode inventories' `[deployment] localhost` line, which
   would also run inside the container. No launcher entry is
   multinode.
@@ -1103,8 +1104,10 @@ the `--init` requirement is gone (Decision 6).
    Phase 2 untested in CI, and would make Phase 3 land a new program
    and a new connection plugin together, which is the attribution
    problem in a worse form. The top-level Decision 5 rejected SSH to
-   `127.0.0.1` as the design, and this is not that: Phase 3 deletes
-   the file.
+   `127.0.0.1` as the design, and this is not that: Phase 3 replaces
+   the file's SSH connection with nsenter. (This said Phase 3 would
+   delete the file. It cannot, because the launcher entries still
+   need an inventory of their own; corrected in Phase 3's planning.)
 
 3. **Identity inside the container is synthesised from the host.**
    The launcher runs with `--user <uid>:<gid>`. It writes a
@@ -1320,40 +1323,431 @@ echo "Phase 2 exit check passed."
 
 ### Phase 3: The localhost connection
 
-Prerequisite: shakenfist/occystrap#151, fixed and released, since
-`build-containers.sh` installs occystrap unpinned from PyPI. Until
-then our push strips the capability on `nsenter` (Phase 1, step
-1a).
+Planning effort: high. It is the first phase where the deployer and
+its target share a kernel. Decisions 5 and 6 at the top of this plan
+either work here or the design changes.
 
-Planning effort: high.
+Run the prototype CI entries' tasks on their own host through
+`community.docker.nsenter`, as the unprivileged base user, using the
+file capabilities on the image's `nsenter`. Add a Rocky 10 launcher
+entry first, so that the new connection runs on two host operating
+systems from its first CI run.
 
-Start by adding the Rocky 10 host entry to CI (see Phase 0), as
-`master-h-rocky10-c-debian-13-aio` with the deployer switched, and
-non-voting like the first.
+**In scope:**
+* the Rocky 10 launcher entry;
+* the nsenter inventory, replacing Phase 2's SSH stopgap;
+* the launcher change that nsenter's identity model needs
+  (Decision 4);
+* a local probe of the connection before anything is pushed; and
+* stronger CI checks, and the documentation of what was found.
 
-Make Decisions 5 and 6 real. Deploy all-in-one from the container
-with `localhost` on `community.docker.nsenter`, as the unprivileged
-shared account, relying on `nsenter`'s file capabilities. Check
-file transfer, `become` and fact gathering explicitly, since
-those are where a connection plugin is most likely to fall short.
-Record in this plan which of the 85 `localhost` uses behave
-differently, if any. Most are controller-side `stat`s of
-`node_custom_config`, which the same-path mount should make a
-non-event, but that is exactly the kind of claim a demo must
-check rather than assert.
+**Out of scope:**
+* Bootstrapping the deploy host from the container, which is Phase 4.
+* A Kolla-Ansible patch adding an upstream all-in-one inventory for
+  the container. See Decision 5.
+* Fixing `community.docker.nsenter` upstream. Phase 8 proposes that
+  (Decision 3).
+* Podman. No CI host runs it (see the survey).
+* The multinode inventories' `[deployment] localhost`. No launcher
+  entry is multinode.
 
-If the file-capabilities approach fails, record why here. The
-fallback is to run the container as root and have the launcher
-restore ownership of what it wrote under the config directory.
+#### What the survey found
 
-The deliverable is an all-in-one inventory that works from the
-container. Upstream would ship it beside the existing one, not
-instead of it. Any role that turns out to assume controller and
-target share a filesystem is a patch against Kolla-Ansible,
-recorded here.
+Surveyed on 2026-10-06 against this repository at `304ae30ba`,
+kolla-ansible `f9148f101`, community.docker 5.4.0, ansible-core
+2.21.5, and occystrap 0.4.17. The section this replaces was written
+before Phases 0 to 2 ran. Its false claims are corrected in this
+section and, where they appear elsewhere, at their source in this
+commit: Phase 2's Decision 2 and its out-of-scope list.
 
-Exit: an all-in-one deploy through the launcher on a host that
-was bootstrapped the old way.
+*The prerequisite is met.*
+* shakenfist/occystrap#151 is fixed by occystrap#156, which is in the
+  `v0.4.17` tag. 0.4.17 is the latest release on PyPI.
+* `_build/build-containers.sh:128` and `:251` install occystrap with
+  no version pin, so the next image build uses 0.4.17.
+* 0.4.17 also adds a rewrite version to occystrap's layer-cache key.
+  Without it, a cached layer rewritten by an older release would
+  still be served with its capability stripped.
+* Whether the capability survives our push has not been checked on a
+  pushed image. This host has no credentials for the CI registry.
+  Step 3d's CI check is therefore the first real test.
+
+*The section's own claims.*
+* `master-h-rocky10-c-debian-13-aio` already exists. It is the venv
+  entry, and it becomes the new entry's control, so the new entry is
+  `master-h-rocky10-c-debian-13-aio-launcher`.
+* Rocky CI hosts run Docker, not podman. `etc/globals-master.yml:92`
+  leaves `kolla_container_engine` at its default, `docker`
+  (`ansible/group_vars/all/common.yml:221`), so
+  `bootstrap-servers` installs `docker-ce` on Rocky as it does on
+  Debian. Phase 2 expected Rocky to be the first podman host. That
+  claim is corrected.
+* "85 uses of `localhost` across 40 files" is now 86 across 44 at
+  `f9148f101`. The Situation section records the count measured on
+  2026-09-29, and is left alone.
+* Phase 2 did not delete a file in Phase 3's favour, as its
+  Decision 2 claimed it would. `etc/inventory-all-in-one-launcher-master`
+  stays, because the launcher entries still need an inventory whose
+  connection differs from the venv entries'. Phase 3 rewrites it.
+
+*Kolla-Ansible's `localhost` uses have already run in the container.*
+* Every `delegate_to: localhost`, `hosts: localhost` and
+  `connection: local` resolves to Ansible's implicit `localhost`.
+  The CI inventories name the deploy host `kolla`, not `localhost`,
+  so the implicit host is the deployer's own container.
+* Phase 2's green run therefore executed all 86 uses inside the
+  container. Only `validate-config`'s `become` broke (patch200).
+  Changing the connection of the host `kolla` moves none of them.
+* By module, the 86 tasks are:
+  * 50 `stat` and 14 `find`, of operator overrides under
+    `node_custom_config`;
+  * 4 `command`;
+  * 4 `file`, `copy` and `template`, two of them `validate-config`'s;
+  * 2 in octavia's certificate expiry check;
+  * the post-deploy, certificates and octavia-certificates plays,
+    which are `hosts: localhost`.
+* **The deploy host must not be named `localhost` in a container
+  inventory.** keystone's fernet cron generator
+  (`roles/keystone/tasks/config.yml:189-199`) runs
+  `{{ ansible_playbook_python }} {{ role_path }}/files/...` with
+  `delegate_to: localhost` and `connection: local`. Both paths exist
+  only in the container. An inventory host named `localhost` replaces
+  the implicit one, and a host variable `ansible_connection` beats
+  the task keyword `connection: local`, so that task would run on the
+  host and fail. Upstream's `ansible/inventory/all-in-one` names its
+  host `localhost`. So a container all-in-one inventory cannot be a
+  one-line change to it. That is a finding for Phase 8.
+* Nothing in Kolla-Ansible uses `become_user`, `ansible_user`,
+  `remote_user` or a `~` path on a target, apart from a commented
+  example in `inventory/multinode`.
+
+*How `community.docker.nsenter` actually behaves*
+(`plugins/connection/nsenter.py` in 5.4.0).
+* Each command becomes `nsenter --ipc --mount --net --pid --uts
+  --preserve-credentials --target=1 -- <cmd>`, run through the
+  container's `/bin/sh`. It does not enter a user namespace.
+  * Commands therefore run on the host as the container process's
+    own UID and GIDs. Under the launcher those are the invoking
+    user's, not root's.
+  * `nsenter`'s file capabilities are dropped when it `exec`s the
+    command, because the host's shell has none. Only the namespace
+    switch is privileged.
+  * `become` then uses the host's `sudo`, with prompt handling. That
+    is what Decision 6 wanted, and it is the opposite of Phase 2's
+    finding on the container's own `localhost`.
+* `put_file` pipes the file to `tee <path>` and `fetch_file` reads it
+  with `cat`. There is no pipelining (`has_pipelining = False`). Our
+  CI does not enable pipelining for SSH either, so the two are
+  comparable.
+* **The plugin sets `remote_user` to `root` unconditionally** in
+  `_connect`, and documents that it "always runs as root". It has no
+  `remote_user` option. ansible-core 2.21 makes its temporary
+  directory under `remote_tmp`, default `~/.ansible/tmp`, and
+  expands `~` as `~<remote_user>` (`plugins/action/__init__.py:530`
+  and `:981`). As the unprivileged user, this was predicted to be
+  `mkdir /root/.ansible/tmp`, failing for every module. **Step 3b
+  showed the prediction was wrong in detail.** The failure is real,
+  but `~` expanded through the container's `HOME`, so the path was
+  under `/var/lib/kolla-ansible`, which the host lacks. See the
+  Outcome.
+* The process's supplementary groups are the container's, not the
+  host user's. Docker gives a `--user uid:gid` process only the
+  groups listed for it in the container's `/etc/group`, and the
+  launcher's synthesised file lists none. That is read from Docker's
+  documentation, not tested; step 3b's probe asserts the group list. On the host, `sudo`
+  matches `%group` rules against the process's group list by
+  default, so a deploy account allowed sudo through `%wheel` or
+  `%sudo` would be refused. CI's base users have per-user `NOPASSWD`
+  rules from cloud-init, which is why Phase 2's SSH path never
+  showed this. SSH logins get the host's full group list.
+
+*The local host can probe nsenter, though not `become`.* Docker here
+sets no `no-new-privileges` and no user namespace remapping, so a
+container started with `--privileged --pid host` can use file
+capabilities. The local user has no passwordless sudo, so `become`
+can only be tested in CI.
+
+#### Decisions
+
+1. **The deploy host keeps an inventory name that is not `localhost`,
+   and only its connection changes.** The launcher inventory's
+   `[all:vars]` becomes `ansible_connection=community.docker.nsenter`
+   and an absolute `ansible_remote_tmp` (Decision 3). The SSH
+   variables go: `ansible_host`, `ansible_user`, the key and the
+   extra arguments. The 86 controller-side uses keep running in the
+   container, as they did in Phase 2, and the only behaviour that
+   moves is that of tasks on the host `kolla`. That keeps a failure
+   attributable to the connection alone.
+
+2. **Phase 2's stopgap goes entirely.** Bootstrap stops checking
+   `ssh` to `127.0.0.1`, and `deployer.conf` stops mounting
+   `/srv/github`, which only the SSH key needed. The launcher's
+   `mounts` key stays, because the gap it covers is real. The
+   `~/.ssh` mounts from Phase 2 Decision 3 also stay, because
+   multinode needs them.
+
+3. **`ansible_remote_tmp` is set to an absolute path, and the
+   plugin's root assumption is recorded for upstream rather than
+   patched.** The path is `/tmp/.ansible-kolla-<user>`, with
+   `<user>` substituted by bootstrap as `USER` is today. Absolute
+   paths skip `~` expansion, and `mkdtemp` still creates each task's
+   directory with mode 0700 beneath it. The correct fix is in
+   community.docker: the plugin should use the effective user, not
+   root, when the controller is not root. Carrying a patch to a
+   Galaxy collection would mean a new project directory, a new
+   source, and a change to how Phase 1's image installs collections,
+   all for one line of a plugin that documents root as its contract.
+   Phase 8 raises it upstream with this plan as the evidence. **This
+   is the decision most likely to be argued with.** It is a
+   workaround in an inventory, which an upstream inventory would have
+   to repeat until community.docker changes.
+
+4. **The launcher gives the container the invoking user's
+   supplementary groups**, with one `--group-add <gid>` for each GID
+   in `os.getgroups()` other than the primary one. Through nsenter,
+   the container's identity *is* the identity tasks run with on the
+   host, so it should match what an SSH login would get. That makes
+   `%group` sudo rules work. It also needs no change to the
+   synthesised `/etc/group`, because `--group-add` takes numbers.
+   This applies to docker and to rootful podman. Rootless podman with
+   `--userns=keep-id` already keeps the user's groups.
+
+5. **No upstream inventory patch in this phase.** "How this work is
+   carried" lists an nsenter inventory as a Kolla-Ansible patch, and
+   the old Phase 3 section said upstream would ship one beside the
+   existing all-in-one. The survey shows that file cannot simply be
+   upstream's all-in-one with a different connection, because the
+   host has to be renamed. And no CI entry here would run it: our
+   inventories under `etc/` carry Kerbside's groups and name the host
+   `kolla`. A patch that nothing deploys is one that rots. Phase 8
+   writes it, from the delta this phase proves: the host name rule
+   and two `[all:vars]` lines.
+
+6. **The Rocky entry lands first, still on SSH, and nsenter lands
+   second.** Each is pushed separately. A failure in the first is
+   about Rocky (`cloud-user`, `docker-ce` from Kolla, SELinux); a
+   failure in the second is about the connection. Both entries are
+   non-voting until Phase 7.
+
+7. **The CI check proves the connection and the capability.**
+   `tools/check-deployer-launcher` also checks that:
+   * `/etc/kolla/inventory` sets `ansible_connection=community.docker.nsenter`
+     and no `ansible_host`; and
+   * `getcap /usr/bin/nsenter` in the pinned image reports
+     `cap_sys_admin`, run as the base user, who is logged in to the
+     registry. This is the first test of a capability that has been
+     through our push.
+
+   Where SELinux is enabled, it also prints `restorecon -n -v -R
+   /etc/kolla` without failing, so any labels that tasks run from a
+   container got wrong are visible.
+
+#### Risks
+
+* **The capability does not survive the push, even with 0.4.17.**
+  Then every nsenter task fails with `Operation not permitted`.
+  Step 3d's check names this cause rather than leaving it to be
+  inferred from a failed deploy. If it fails, the fix is in
+  occystrap, not here.
+* **More of ansible-core assumes `remote_user` is the real user than
+  the survey found.** Step 3b runs fact gathering, file transfer and
+  modules locally, with and without the `remote_tmp` workaround.
+  Whatever else it finds is added to the inventory or recorded here,
+  before any push.
+* **`HOME` on the host is the container's `/var/lib/kolla-ansible`.**
+  The host does not have it. A task that writes under `$HOME`
+  without `become` would fail. None was found, and sudo resets
+  `HOME` for `become` tasks. Step 3b runs `env` on the host to
+  record what tasks actually see.
+* **`docker` on Rocky is not reachable by `cloud-user`.** Then
+  bootstrap's `docker login` or `launcher pin` fails. Step 3c's CI
+  run finds out while still on SSH. The fix belongs in bootstrap.
+* **SELinux labels from a container process.** Kolla-Ansible's
+  baremetal role sets SELinux to permissive by default, so CI will
+  not fail on this. Decision 7's report makes it visible for the
+  proposal.
+* **Fallback.** If file capabilities cannot work at all, the
+  recorded fallback stands: run the container as root and have the
+  launcher restore ownership of what it wrote. That would put a root
+  process with host namespaces behind every command, against top-level
+  Decision 6, and it would be recorded here as the design failing,
+  not as a detail.
+
+| Step | Effort | Model | Isolation | Brief for sub-agent |
+|------|--------|-------|-----------|---------------------|
+| 3a | medium | sonnet | none | Implement Decision 4 of Phase 3 in `docs/plans/containerised-deployer.md`. In `deployer/launcher/kolla_ansible_launcher/command.py`, add `--group-add <gid>` for each supplementary GID, sorted, excluding the primary GID. Take the GIDs as a parameter of the command builder, as the UID and GID already are. `cli.py` passes `os.getgroups()`. Do not add them for rootless podman with `--userns=keep-id`. Add unit tests for docker, rootful podman and rootless podman, and update `docs/deployer-launcher.md`'s list of engine flags. Standard library only; single quotes; 120 columns; `pre-commit run --all-files` must pass. Commit subject: "Give the deployer the user's supplementary groups." |
+| 3b | medium | sonnet | none | Read-only on this host, apart from `/tmp` and a scratch directory. Build the deployer image locally as Phase 1 step 1e did: `_build/assemble-source.sh --no-tarball master`, then `_build/imagebuild.sh` for `^(base\|openstack-base\|kolla-ansible)$` with tag `local`. Install `deployer/launcher` (with 3a) into a scratch venv, and run the probe below as the current user, reporting its full output. Then run it once more with the `ansible_remote_tmp` line removed from the inventory, and report whether it fails with the `/root/.ansible/tmp` error the survey predicts. Do not use `sudo`. `become` is not tested here. Commit nothing; the results go into this plan in step 3e. |
+| 3c | low | sonnet | none | In `.github/workflows/functional-tests.yml`, copy `master-h-rocky10-c-debian-13-aio` to a new entry after it, named `master-h-rocky10-c-debian-13-aio-launcher` and described `master debian 13 images on rocky 10 all-in-one with the containerised deployer`, with `'deployer': 'launcher'` and `'non_voting': 'true'`, following `master-h-debian13-c-debian13-aio-launcher`. Change nothing else. This push still uses Phase 2's SSH inventory. Commit subject: "Add a Rocky 10 entry for the deployer prototype." |
+| 3d | medium | sonnet | none | Implement Decisions 1, 2, 3 and 7 of Phase 3. Rewrite `etc/inventory-all-in-one-launcher-master`'s header and `[all:vars]` to `ansible_connection=community.docker.nsenter` and `ansible_remote_tmp=/tmp/.ansible-kolla-USER`. In `tools/bootstrap-kolla-ansible`, remove the ssh check to `127.0.0.1` and the `mounts = /srv/github` line, keep the `USER` substitution, and update the comments that mention SSH. Extend `tools/check-deployer-launcher` with the inventory, `getcap` and SELinux checks of Decision 7. The `getcap` check runs `docker run --rm --entrypoint getcap <image from deployer.conf> /usr/bin/nsenter`, and on failure says that the capability was lost, naming occystrap#151. Shellcheck-clean, and the venv entries must be unchanged. Commit subject: "Reach the deploy host through nsenter." |
+| 3e | low | sonnet | none | After 3d's CI run, record in Phase 3 of `docs/plans/containerised-deployer.md` what 3b and the CI runs found: the probe output summary, deploy durations of each launcher entry against its control, the `restorecon` report, and anything that behaved differently. Update `docs/deployer-launcher.md` with what nsenter requires of the image, the engine and the inventory (a host not named `localhost`, an absolute `ansible_remote_tmp`), and add a line to Phase 8 listing the community.docker change and the upstream inventory to be proposed. Commit subject: "Record what the nsenter connection needed." |
+
+Order: 3a, then 3b. Then push with 3c, and push 3d once that run
+is in. 3e follows 3d's CI run. The management session reviews each
+step before its commit.
+
+Exit (status as of the CI run on `2b73d58d7`, run 37805828411):
+* Met. The probe below passes locally, and its run without
+  `ansible_remote_tmp` failed, though not with the predicted path.
+  The Outcome records why.
+* Met. On the phase's pull request, both launcher entries are green
+  with the nsenter inventory, and `tools/check-deployer-launcher`
+  passed in each, including its `getcap` check, at `2b73d58d7`.
+  Rocky needed three fixes first (see the Outcome).
+* Met. Every other entry in that run is green, so none needed a
+  comparison with `develop`.
+* Met. `grep -rn 'id_ci\|127.0.0.1' etc/inventory-all-in-one-launcher-master`
+  finds nothing.
+* Outstanding, not an original criterion: the docs updates of step 3e
+  are uncommitted until the management session reviews them, and the
+  phase stays In progress until the next phase is planned.
+
+```bash
+#!/bin/bash -e
+# Phase 3 probe. Run as a non-root user in the docker group, with the
+# launcher's venv on PATH. It runs tasks on THIS host through nsenter,
+# writing only under /tmp.
+img=${1:?usage: $0 <image>}
+cfg=$(mktemp -d)
+cd "${cfg}"
+export KOLLA_CONFIG_PATH=${cfg}
+printf '[deployer]\nimage = %s\n' "${img}" > deployer.conf
+echo '{}' > globals.yml
+echo '{}' > passwords.yml
+out=/tmp/phase3-probe-$$
+
+cat > inv <<INV
+[all]
+probe ansible_connection=community.docker.nsenter ansible_remote_tmp=/tmp/.ansible-kolla-$(id -un)
+INV
+cat > play.yml <<PLAY
+- hosts: probe
+  gather_facts: true
+  tasks:
+    - ansible.builtin.assert:
+        that:
+          - ansible_facts.hostname == '$(hostname -s)'
+          - ansible_facts.user_id == '$(id -un)'
+    - ansible.builtin.command: id -G
+      register: id_groups
+    - ansible.builtin.assert:
+        that: id_groups.stdout.split() | sort == '$(id -G)'.split() | sort
+    - ansible.builtin.command: env
+      register: host_env
+    - ansible.builtin.debug:
+        var: host_env.stdout_lines
+    - ansible.builtin.copy:
+        content: "probe\n"
+        dest: ${out}
+    - ansible.builtin.template:
+        src: ${cfg}/globals.yml
+        dest: ${out}.template
+    - ansible.builtin.fetch:
+        src: ${out}
+        dest: ${cfg}/fetched/
+        flat: true
+PLAY
+kolla-ansible deploy -i inv -p play.yml
+test "$(cat "${out}")" = probe          # written on the host
+test "$(stat -c %U "${out}")" = "$(id -un)"
+test -s fetched/"$(basename "${out}")"  # fetched back into the container
+rm -f "${out}" "${out}.template"
+echo "Phase 3 probe passed."
+```
+
+#### Outcome
+
+Written after the CI run on `2b73d58d7` (run 37805828411, all jobs
+green). Phase 3 is still In progress; it closes when the next phase
+is planned.
+
+*The local probe (step 3b).*
+* The probe as written failed first, because `kolla-ansible deploy`
+  wants a `passwords.yml`. The script above now creates an empty one.
+* With that fixed it passed: fact gathering, `command`, `copy`,
+  `template` and `fetch` all worked through nsenter as the
+  unprivileged user, files on the host were owned by that user, and
+  the group list matched `id -G` (Decision 4 works).
+* Without `ansible_remote_tmp` it failed, as predicted in kind but
+  not in path. The survey expected `/root/.ansible/tmp`. In fact `~`
+  was expanded through the container's `HOME`,
+  `/var/lib/kolla-ansible`, giving a path the host does not have.
+* **`community.docker.nsenter` passes the caller's whole environment
+  to commands on the host**: `PATH`, `HOME` and the `KOLLA_*`
+  variables all arrive as the container had them. Two consequences:
+  * `ansible_remote_tmp` must be absolute, because `~` resolves
+    against the wrong `HOME`.
+  * Python interpreter discovery on the host depends on the
+    caller's `PATH`, not on the host's. This is what broke Rocky.
+
+*The Rocky 10 launcher failure and its fix.* The Debian launcher
+entry passed first time. The Rocky one needed four rounds of fixes:
+1. **Prechecks failed at "Checking docker SDK version"**, with no
+   `docker` module in `/usr/bin/python3.12`. The cause is a chain.
+   Bootstrap runs the host venv's `kolla-ansible`. nsenter leaked the
+   venv's `PATH` to the host, so interpreter discovery found the
+   venv's `python3.12`. The `openstack.kolla` `docker_sdk` role
+   derives its `pip` from `ansible_facts.python.executable`, so it
+   installed the SDK into the venv. The launcher's deploy later
+   discovered `/usr/bin/python3.12`, which lacked it. Debian passes
+   because the SDK there comes from the `python3-docker` package.
+   Commit `70b6c25c7` moved bootstrap onto the nsenter inventory as
+   part of this; that stays.
+2. **Pinning `ansible_python_interpreter` in the inventory
+   (`e0f81102a`) did not work.** kolla-ansible's `bootstrap-servers`
+   passes `ansible_python_interpreter=auto_silent` as an extra var
+   (`kolla_ansible/cli/commands.py`, about line 181), and
+   `ansible/group_vars/baremetal/ansible-python-interpreter.yml`
+   overrides inventory variables for the deploy. kolla-ansible only
+   drops its override when the caller passes its own
+   `-e ansible_python_interpreter=` (`commands.py`, about lines
+   69-74).
+3. **Passing that `-e` to both venv calls (`5c9e9da96`) broke
+   `kolla-ansible certificates`.** It runs on the implicit
+   `localhost` and needs the venv's `cryptography`, which the pin
+   pointed away from.
+4. **The fix is `2b73d58d7`.** `tools/bootstrap-kolla-ansible` passes
+   `-e ansible_python_interpreter=/usr/bin/python3` to
+   `bootstrap-servers` alone, and the inventory pin was removed.
+
+One unrelated failure: a Rocky mirror (`ftp.swin.edu.au`) was
+mid-sync and returned 404 for one image build. It was unrelated to this work.
+
+*Debian evidence, from `check-deployer-launcher`.* The inventory
+check reported the nsenter connection. `getcap /usr/bin/nsenter` in
+the pushed image reported `cap_sys_chroot,cap_sys_ptrace,cap_sys_admin=ep`,
+so the occystrap 0.4.17 fix holds through our push, which was the
+risk this phase carried. `admin-openrc.sh` and `clouds.yaml` were
+owned by the `debian` user. The Rocky run's checks were identical,
+with `cloud-user` as owner.
+
+*Deploy durations*, from the "Deploy Kolla-Ansible" step of each job
+(`started_at` to `completed_at`):
+
+| Host | Launcher entry | Control entry | Launcher | Control |
+|------|----------------|---------------|----------|---------|
+| debian 13 | `master-h-debian13-c-debian13-aio-launcher` (job 113445099316) | `master-h-debian13-c-debian13-aio` (job 113445099387) | 27m17s | 33m20s |
+| rocky 10 | `master-h-rocky10-c-debian-13-aio-launcher` (job 113445099000) | `master-h-rocky10-c-debian-13-aio` (job 113445099561) | 28m55s | 40m59s |
+
+The controls are the same host and container distributions with the
+venv deployer. These numbers do **not** show the launcher to be
+faster, and should not be read that way. Each pair ran on different
+runners at different times (the launcher jobs started at about
+17:40Z and the controls at about 18:45Z), and one other Debian
+all-in-one job, with no Kerbside, took 28m05s, so the spread between
+runs of the same shape is of the same order as the differences
+above. What they do show is that the launcher and nsenter add no
+cost large enough to stand out from that noise. A paired comparison
+would need several runs of each.
+
+*The `restorecon` report.* On the Rocky launcher job, Decision 7's
+`restorecon -n -v -R /etc/kolla` printed `no relabels needed`. So
+files written to `/etc/kolla` from the container carry correct
+labels, at least with Kolla-Ansible's baremetal role having set
+SELinux to permissive (the "Change state of selinux" task ran and
+reported `changed`). That is weaker than it sounds: permissive mode
+would not have failed the deploy in either case, but `restorecon -n`
+reports mislabelled files regardless of mode, and found none. The
+Debian job reported `SELinux is not enabled`, as expected.
 
 ### Phase 4: Bootstrapping the deploy host
 
@@ -1467,6 +1861,14 @@ Phase 1's patch199 does not apply to pristine Kolla. Its
 context. Before a push, rebase it onto the upstream `source_sha`
 alone, and check its `zuul.d/base.yaml` `override-checkout: master`
 for the collection, which has to change when Kolla branches.
+
+Raise these `community.docker.nsenter` problems found in Phase 3:
+the plugin assumes `remote_user` is root, and it leaks the caller's
+environment (`PATH`, `HOME`, `KOLLA_*`) to commands on the host. An
+upstream all-in-one inventory for the container would need the
+points in `docs/deployer-launcher.md`: a deploy host not named
+`localhost`, an absolute `ansible_remote_tmp`, and a Docker SDK in
+the Python the deploy will discover, which the inventory cannot pin.
 
 Write `docs/containerised-deployer.md`: how to build and run the
 deployer, and what the prototype learned, including the cases
