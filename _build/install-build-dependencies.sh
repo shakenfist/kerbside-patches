@@ -44,14 +44,18 @@ if [ "${NAME}" == "Rocky Linux" ]; then
         MarkupSafe==2.1.5 /srv/shakenfist/clingwrap
     echo
 
-    echo -e "${H2}Install a recent Docker${Color_Off}"
     # dockerd needs the xt_addrtype netfilter module for its NAT rules, and
     # on Rocky that ships in kernel-modules-extra. Pin to the running kernel
-    # because the dnf update above may have staged a newer one.
+    # because the dnf update above may have staged a newer one. This is
+    # installed even with --no-docker, because Kolla-Ansible's bootstrap will
+    # install Docker later.
     sudo dnf install -y "kernel-modules-extra-$(uname -r)"
-    sudo dnf config-manager --add-repo \
-        https://download.docker.com/linux/centos/docker-ce.repo
-    sudo dnf install -y docker-ce docker-ce-cli containerd.io
+    if [ "${install_docker}" == "true" ]; then
+        echo -e "${H2}Install a recent Docker${Color_Off}"
+        sudo dnf config-manager --add-repo \
+            https://download.docker.com/linux/centos/docker-ce.repo
+        sudo dnf install -y docker-ce docker-ce-cli containerd.io
+    fi
     echo
 else
     echo -e "${H2}Additional packages${Color_Off}"
@@ -68,40 +72,44 @@ else
         MarkupSafe==2.1.5 /srv/shakenfist/clingwrap
     echo
 
-    echo -e "${H2}Install a recent Docker${Color_Off}"
-    sudo apt-get update
-    sudo apt-get install ca-certificates curl
-    sudo install -m 0755 -d /etc/apt/keyrings
-    sudo curl -fsSL https://download.docker.com/linux/debian/gpg \
-        -o /etc/apt/keyrings/docker.asc
-    sudo chmod a+r /etc/apt/keyrings/docker.asc
+    if [ "${install_docker}" == "true" ]; then
+        echo -e "${H2}Install a recent Docker${Color_Off}"
+        sudo apt-get update
+        sudo apt-get install ca-certificates curl
+        sudo install -m 0755 -d /etc/apt/keyrings
+        sudo curl -fsSL https://download.docker.com/linux/debian/gpg \
+            -o /etc/apt/keyrings/docker.asc
+        sudo chmod a+r /etc/apt/keyrings/docker.asc
 
-    echo \
-        "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.asc] \
-        https://download.docker.com/linux/${ID} ${VERSION_CODENAME} stable" | \
-        sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
-    sudo apt-get update
+        echo \
+            "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.asc] \
+            https://download.docker.com/linux/${ID} ${VERSION_CODENAME} stable" | \
+            sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
+        sudo apt-get update
 
-    sudo apt-get install -y docker-ce docker-ce-cli containerd.io \
-        docker-buildx-plugin docker-compose-plugin
+        sudo apt-get install -y docker-ce docker-ce-cli containerd.io \
+            docker-buildx-plugin docker-compose-plugin
+    fi
 fi
 
-# Enable containerd snapshotter for OCI format tarballs
-if [ -f /etc/docker/daemon.json ]; then
-    sudo jq '. + {"features": (.features // {} + {"containerd-snapshotter": true})}' \
-        /etc/docker/daemon.json | sudo sponge /etc/docker/daemon.json
-else
-    echo '{"features":{"containerd-snapshotter":true}}' | \
-        sudo tee /etc/docker/daemon.json > /dev/null
+if [ "${install_docker}" == "true" ]; then
+    # Enable containerd snapshotter for OCI format tarballs
+    if [ -f /etc/docker/daemon.json ]; then
+        sudo jq '. + {"features": (.features // {} + {"containerd-snapshotter": true})}' \
+            /etc/docker/daemon.json | sudo sponge /etc/docker/daemon.json
+    else
+        echo '{"features":{"containerd-snapshotter":true}}' | \
+            sudo tee /etc/docker/daemon.json > /dev/null
+    fi
+
+    sudo systemctl start docker
+    echo
+
+    # Allow the current user to access docker
+    echo -e "${H2}Grant access to docker${Color_Off}"
+    sudo usermod -a -G docker $(whoami)
+    echo
 fi
-
-sudo systemctl start docker
-echo
-
-# Allow the current user to access docker
-echo -e "${H2}Grant access to docker${Color_Off}"
-sudo usermod -a -G docker $(whoami)
-echo
 
 # Setup a tools venv
 echo -e "${H2}Setup a tools venv${Color_Off}"

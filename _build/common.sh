@@ -98,6 +98,11 @@ topology="all-in-one"
 # docs/plans/containerised-deployer.md).
 deployer="venv"
 
+# Should install-build-dependencies.sh install Docker? The containerised
+# deployer's CI entries say no, so that the launcher meets a host with no
+# container engine (Phase 4 of docs/plans/containerised-deployer.md).
+install_docker="true"
+
 # Ensure we have a git commit sha
 if [ -z ${CI_COMMIT_SHORT_SHA} ]; then
     export CI_COMMIT_SHORT_SHA=$(git rev-parse --short HEAD)
@@ -257,6 +262,12 @@ while [[ ${found_arg} -gt 0 ]]; do
         --skip-debsecan)
             export skip_debsecan="true"
             echo "Will skip debsecan vulnerability scan."
+            shift
+            found_arg=1
+            ;;
+        --no-docker)
+            export install_docker="false"
+            echo "Will not install Docker."
             shift
             found_arg=1
             ;;

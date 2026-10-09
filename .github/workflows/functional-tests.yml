@@ -605,12 +605,14 @@ jobs:
           ${GITHUB_WORKSPACE}/actions/tools/install-collection.sh
 
       - name: Setup test environment
-        uses: shakenfist/actions/setup-kerbside-environment@main
+        uses: shakenfist/actions/setup-kerbside-environment@kerbside-no-docker
         with:
           base: ${{ matrix.test.base }}
           base_user: ${{ matrix.test.baseuser }}
           openstack_release: ${{ matrix.test.release }}
           topology: ${{ matrix.test.topology }}
+          # The containerised deployer's launcher installs an engine itself.
+          install_docker: ${{ matrix.test.deployer != 'launcher' }}
 
       - name: Dump CI environment details
         run: |
