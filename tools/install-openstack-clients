@@ -1,7 +1,15 @@
 #!/bin/bash -e
 
 . ./_build/common.sh
-. /srv/kolla-ansible/venv/bin/activate
+
+# The clients have a venv of their own, so that they do not depend on the
+# Kolla-Ansible one (which the launcher entries do not have). On the CI runner
+# the workflow has already made the directory writable.
+clients_venv=/srv/openstack-clients/venv
+if [ ! -e "${clients_venv}/bin/activate" ]; then
+    python3 -mvenv "${clients_venv}"
+fi
+. "${clients_venv}/bin/activate"
 
 echo
 echo -e "${H1}==================================================${Color_Off}"
@@ -32,8 +40,8 @@ for client in openstacksdk 'python-openstackclient<10.2'; do
     fi
 
     for executable in $(pip3 show -f ${package} | grep "/bin/" | sed 's/.*\///'); do
-        ln -s /srv/kolla-ansible/venv/bin/${executable} /usr/local/bin/
-        echo "Linked /srv/kolla-ansible/venv/bin/${executable} ${Arrow} /usr/local/bin/"
+        ln -sf "${clients_venv}/bin/${executable}" /usr/local/bin/
+        echo "Linked ${clients_venv}/bin/${executable} ${Arrow} /usr/local/bin/"
     done
     echo
 done

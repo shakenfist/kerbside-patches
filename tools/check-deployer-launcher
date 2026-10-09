@@ -6,8 +6,11 @@
 #
 # It checks the marker, the call log, the pinned image, that the inventory
 # reaches the host through community.docker.nsenter, that the image's nsenter
-# kept its file capability, and who owns the openrc files. It also reports, but
-# never fails on, SELinux labels under the configuration directory.
+# kept its file capability, who owns the openrc files, and that bootstrap built
+# no Kolla-Ansible venv. It also reports, but never fails on, SELinux labels
+# under the configuration directory and what bootstrap did to the container
+# engine: the engine packages, Docker's server version and daemon.json, and the
+# running containers.
 #
 # The CHECK_* variables exist so this can be tested.
 
@@ -17,6 +20,8 @@ log=${CHECK_LOG:-/srv/kolla-ansible/ka.log}
 configdir=${CHECK_CONFIGDIR:-/etc/kolla}
 inventory=${CHECK_INVENTORY:-/etc/kolla/inventory}
 docker=${CHECK_DOCKER:-docker}
+venv=${CHECK_VENV:-/srv/kolla-ansible/venv}
+daemon_json=${CHECK_DAEMON_JSON:-/etc/docker/daemon.json}
 minimum=7
 
 failed=0
@@ -68,6 +73,13 @@ case "${caps}" in
     *) fail "nsenter in ${image} has no cap_sys_admin file capability; it was most likely lost in the image push (shakenfist/occystrap#151)" ;;
 esac
 
+echo "Checking that bootstrap built no venv at ${venv}"
+if [ -e "${venv}" ]; then
+    fail "${venv} exists, but the launcher deployer should not need a Kolla-Ansible venv"
+else
+    echo "  absent"
+fi
+
 echo "Checking SELinux labels under ${configdir} (report only)"
 if command -v selinuxenabled > /dev/null 2>&1 && selinuxenabled; then
     if relabels=$(sudo -n restorecon -n -v -R "${configdir}" 2>&1); then
@@ -78,6 +90,32 @@ if command -v selinuxenabled > /dev/null 2>&1 && selinuxenabled; then
 else
     echo "  SELinux is not enabled"
 fi
+
+echo "Reporting the engine packages (report only)"
+if command -v dpkg > /dev/null 2>&1; then
+    dpkg -l docker.io docker-ce containerd.io podman 2>&1 | sed 's/^/    /'
+elif command -v rpm > /dev/null 2>&1; then
+    rpm -q docker.io docker-ce containerd.io podman 2>&1 | sed 's/^/    /'
+else
+    echo "  no dpkg or rpm"
+fi
+
+echo "Reporting the Docker server version (report only)"
+version=$("${docker}" info --format '{{.ServerVersion}}' 2>&1)
+echo "  ${version}"
+
+echo "Reporting ${daemon_json} (report only)"
+if [ -r "${daemon_json}" ]; then
+    sed 's/^/    /' "${daemon_json}"
+else
+    echo "  not readable or absent"
+fi
+
+echo "Reporting running containers (report only)"
+running=$("${docker}" ps --format '{{.Names}}' 2>&1)
+count=$(echo "${running}" | grep -c . || true)
+echo "  ${count} lines of output"
+echo "${running}" | sed 's/^/    /'
 
 for name in admin-openrc.sh clouds.yaml; do
     echo "Checking ${configdir}/${name}"
