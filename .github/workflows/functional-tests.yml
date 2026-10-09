@@ -879,9 +879,8 @@ jobs:
 
           echo
           echo "Install client..."
-          sudo mkdir -p /srv/kolla-ansible
-          sudo chown -R debian:debian /srv/kolla-ansible
-          python3 -mvenv /srv/kolla-ansible/venv
+          sudo mkdir -p /srv/openstack-clients
+          sudo chown -R debian:debian /srv/openstack-clients
 
           echo
           echo "Fetch the correct version of the code..."

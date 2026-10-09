@@ -1,7 +1,6 @@
 #!/bin/bash -e
 
 . ./_build/common.sh
-. /srv/kolla-ansible/venv/bin/activate
 
 echo
 echo -e "${H1}==================================================${Color_Off}"

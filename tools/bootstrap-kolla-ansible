@@ -31,65 +31,88 @@ if [ "${deployer}" == "launcher" ]; then
     fi
 fi
 
-echo -e "${H2}Make venv for '${ID}' distro${Color_Off}"
+echo -e "${H2}Prepare for '${ID}' distro${Color_Off}"
 if [ "${ID}" == "rocky" ]; then
     echo "Install missing Rocky dependencies."
     dnf install -y python3-libselinux libselinux-python3 wget curl
 fi
 
-python3 -mvenv --system-site-packages /srv/kolla-ansible/venv
-echo "${deployer}" > /srv/kolla-ansible/deployer
-. /srv/kolla-ansible/venv/bin/activate
+launcher_ka=/srv/kolla-ansible/launcher-venv/bin/kolla-ansible
+launcher_genpwd=/srv/kolla-ansible/launcher-venv/bin/kolla-genpwd
 
-echo -e "${H2}Log python binary locations${Color_Off}"
-echo "pip3 ${Arrow} "$(which pip3)
-echo "python3 ${Arrow} "$(which python3)
-echo
+if [ "${deployer}" == "launcher" ]; then
+    # No Kolla-Ansible venv at all: everything below runs from the deployer
+    # image, which needs only the launcher and a container engine.
+    mkdir -p /srv/kolla-ansible
+    echo "${deployer}" > /srv/kolla-ansible/deployer
 
-echo -e "${H2}Log python version${Color_Off}"
-python3 --version
-echo
+    echo -e "${H2}Install the launcher into its own venv${Color_Off}"
+    # Not --system-site-packages: the launcher refuses to run beside a
+    # kolla-ansible distribution.
+    python3 -mvenv /srv/kolla-ansible/launcher-venv
+    /srv/kolla-ansible/launcher-venv/bin/pip install "${topdir}/deployer/launcher"
+    echo
 
-echo -e "${H2}Install dependencies${Color_Off}"
-ansible_core=""
-if [ "${target_release}" == "2024.1" ]; then
-    ansible_core="ansible-core<2.17"
-elif [ "${target_release}" == "2024.2" ]; then
-    ansible_core="ansible-core>=2.15,<2.18"
-elif [ "${target_release}" == "2025.1" ]; then
-    ansible_core="ansible-core>=2.17,<2.19"
-elif [ "${target_release}" == "2025.2" ]; then
-    ansible_core="ansible-core>=2.17,<2.19"
+    echo -e "${H2}Install a container engine if there is none${Color_Off}"
+    "${launcher_ka}" launcher install-engine
+    echo
 else
-    ansible_core="ansible-core>=2.19,<2.21"
+    echo -e "${H2}Make venv${Color_Off}"
+    python3 -mvenv --system-site-packages /srv/kolla-ansible/venv
+    echo "${deployer}" > /srv/kolla-ansible/deployer
+    . /srv/kolla-ansible/venv/bin/activate
+
+    echo -e "${H2}Log python binary locations${Color_Off}"
+    echo "pip3 ${Arrow} "$(which pip3)
+    echo "python3 ${Arrow} "$(which python3)
+    echo
+
+    echo -e "${H2}Log python version${Color_Off}"
+    python3 --version
+    echo
+
+    echo -e "${H2}Install dependencies${Color_Off}"
+    ansible_core=""
+    if [ "${target_release}" == "2024.1" ]; then
+        ansible_core="ansible-core<2.17"
+    elif [ "${target_release}" == "2024.2" ]; then
+        ansible_core="ansible-core>=2.15,<2.18"
+    elif [ "${target_release}" == "2025.1" ]; then
+        ansible_core="ansible-core>=2.17,<2.19"
+    elif [ "${target_release}" == "2025.2" ]; then
+        ansible_core="ansible-core>=2.17,<2.19"
+    else
+        ansible_core="ansible-core>=2.19,<2.21"
+    fi
+    pip3 install -U ${ansible_core} ansible dbus-python selinux
+    echo
+
+    echo -e "${H2}Upgrade the POSIX ansible collection${Color_Off}"
+    ansible-galaxy collection install ansible.posix --upgrade
+    echo
+
+    echo -e "${H2}Install docker python libraries${Color_Off}"
+    pip3 install docker
+    echo
+
+    echo -e "${H2}Log state of source${Color_Off}"
+    cd ${topsrcdir}
+    ls -lrth
+    echo
+
+    echo -e "${H2}Install patched Kolla-Ansible${Color_Off}"
+    cd "${topsrcdir}/kolla-ansible"
+    pip3 install -e .
+    echo
+
+    echo -e "${H2}Install Kolla-Ansible dependencies${Color_Off}"
+    export PATH=$PATH:/usr/local/bin
+    kolla-ansible install-deps
+    echo
 fi
-pip3 install -U ${ansible_core} ansible dbus-python selinux
-echo
 
-echo -e "${H2}Upgrade the POSIX ansible collection${Color_Off}"
-ansible-galaxy collection install ansible.posix --upgrade
-echo
-
-echo -e "${H2}Install docker python libraries${Color_Off}"
-pip3 install docker
-echo
-
-echo -e "${H2}Log state of source${Color_Off}"
-cd ${topsrcdir}
-ls -lrth
-echo
-
-echo -e "${H2}Install patched Kolla-Ansible${Color_Off}"
+# The inventory and globals.yml come from the Kolla-Ansible tree.
 cd "${topsrcdir}/kolla-ansible"
-pip3 install -e .
-echo
-
-echo -e "${H2}Install Kolla-Ansible dependencies${Color_Off}"
-export PATH=$PATH:/usr/local/bin
-# This and the certificates and bootstrap-servers calls below stay on the venv
-# until Phase 4 of docs/plans/containerised-deployer.md.
-kolla-ansible install-deps
-echo
 
 echo -e "${H2}Bootstrap inventory for topology ${topology} running ${target_release}${Color_Off}"
 mkdir -p /etc/kolla
@@ -97,27 +120,18 @@ cp -r etc/kolla /etc/
 cd "${topdir}"
 inventory_name="inventory-${topology}-${target_release}"
 venv_args=()
-bootstrap_args=()
 if [ "${deployer}" == "launcher" ] && [ "${topology}" == "all-in-one" ]; then
     # Reach this host through community.docker.nsenter, because "local" would
-    # be the launcher's container. The venv calls below use the same
-    # inventory, so that bootstrap-servers prepares the host Python the
-    # deploy will use (on Rocky it pip-installs the Docker SDK into it). They
-    # run as root, so they get their own remote tmp: as root they would create
-    # the inventory's one where ${SUDO_USER} could not use it.
-    #
-    # nsenter also hands the host this venv's PATH, so interpreter discovery
-    # would find the venv's python and the Docker SDK would be installed
-    # there, not in the system python the launcher's deploy discovers.
-    # bootstrap-servers forces ansible_python_interpreter=auto_silent as an
-    # extra var, which beats any inventory setting; only our own -e of the
-    # same name makes kolla-ansible drop it. It is passed to bootstrap-servers
-    # alone, whose plays target only the baremetal hosts: an extra var reaches
-    # the implicit localhost too, and certificates runs there on the venv's
-    # python, which has the cryptography library the system one lacks.
+    # be the launcher's container. The certificates and bootstrap-servers
+    # calls below use the same inventory, so that bootstrap-servers prepares
+    # the host Python the deploy will use (on Rocky it pip-installs the Docker
+    # SDK into it). They run as root, so they get their own remote tmp: as
+    # root they would create the inventory's one where ${SUDO_USER} could not
+    # use it. bootstrap-servers runs in a chroot of the deployer image, which
+    # gives the host the image's PATH, so interpreter discovery matches the
+    # deploy and needs no pin.
     inventory_name="inventory-${topology}-launcher-${target_release}"
     venv_args=(-e ansible_remote_tmp=/tmp/.ansible-kolla-root)
-    bootstrap_args=(-e ansible_python_interpreter=/usr/bin/python3)
 fi
 if [ ! -e "etc/${inventory_name}" ]; then
     echo "Looked for inventory etc/${inventory_name}"
@@ -247,40 +261,7 @@ if [ "${topology}" == "all-in-one" ]; then
     fi
 fi
 
-echo -e "${H2}Generate passwords${Color_Off}"
-kolla-genpwd
-echo
-
-if [ -n "${registry_token}" ]; then
-    echo -e "${H2}Add docker registry password${Color_Off}"
-    grep -v "docker_registry_password" /etc/kolla/passwords.yml > /etc/kolla/passwords.yml.new
-    echo "docker_registry_password: ${registry_token}" >> /etc/kolla/passwords.yml.new
-    mv /etc/kolla/passwords.yml.new /etc/kolla/passwords.yml
-else
-    echo -e "${H2}No registry token provided, keeping genpwd docker registry password${Color_Off}"
-fi
-echo
-
-echo -e "${H2}Make certificates${Color_Off}"
-# Stays on the venv until Phase 4 of docs/plans/containerised-deployer.md.
-kolla-ansible certificates -i /etc/kolla/inventory "${venv_args[@]}"
-echo
-
-echo -e "${H2}Bootstrap servers${Color_Off}"
-# Stays on the venv until Phase 4 of docs/plans/containerised-deployer.md.
-# This installs the container engine the launcher will need.
-kolla-ansible bootstrap-servers -i /etc/kolla/inventory "${venv_args[@]}" \
-    "${bootstrap_args[@]}"
-echo
-
 if [ "${deployer}" == "launcher" ]; then
-    echo -e "${H2}Install the launcher into its own venv${Color_Off}"
-    # Not --system-site-packages: the launcher refuses to run beside a
-    # kolla-ansible distribution, and the venv above holds the real one.
-    python3 -mvenv /srv/kolla-ansible/launcher-venv
-    /srv/kolla-ansible/launcher-venv/bin/pip install "${topdir}/deployer/launcher"
-    echo
-
     # globals.yml was written (and rewritten for non-CI registries) above, so
     # take the deployer image's location from it.
     globals_value() {
@@ -294,6 +275,60 @@ if [ "${deployer}" == "launcher" ]; then
         deployer_image="${registry}/${deployer_image}"
     fi
 
+    # install-engine installed one if there was none; this is whichever the
+    # launcher will use for root's calls below.
+    if command -v docker > /dev/null 2>&1; then
+        engine=docker
+    else
+        engine=podman
+    fi
+
+    if [ -n "${registry_token}" ] && [ -n "${registry}" ]; then
+        echo -e "${H2}Log root in to ${registry} with ${engine}${Color_Off}"
+        echo "${registry_token}" | "${engine}" login "${registry}" \
+            --username "${registry_user}" --password-stdin
+        echo
+    fi
+
+    echo -e "${H2}Pin ${deployer_image} as root${Color_Off}"
+    # pin adds the image to this otherwise empty section.
+    printf '[deployer]\n' > /etc/kolla/deployer.conf
+    "${launcher_ka}" launcher --configdir /etc/kolla pin "${deployer_image}"
+    cat /etc/kolla/deployer.conf
+    echo
+
+    echo -e "${H2}Generate passwords${Color_Off}"
+    "${launcher_genpwd}"
+    echo
+else
+    echo -e "${H2}Generate passwords${Color_Off}"
+    kolla-genpwd
+    echo
+fi
+
+if [ -n "${registry_token}" ]; then
+    echo -e "${H2}Add docker registry password${Color_Off}"
+    grep -v "docker_registry_password" /etc/kolla/passwords.yml > /etc/kolla/passwords.yml.new
+    echo "docker_registry_password: ${registry_token}" >> /etc/kolla/passwords.yml.new
+    mv /etc/kolla/passwords.yml.new /etc/kolla/passwords.yml
+else
+    echo -e "${H2}No registry token provided, keeping genpwd docker registry password${Color_Off}"
+fi
+echo
+
+if [ "${deployer}" == "launcher" ]; then
+    echo -e "${H2}Make certificates${Color_Off}"
+    "${launcher_ka}" certificates -i /etc/kolla/inventory "${venv_args[@]}"
+    echo
+
+    echo -e "${H2}Bootstrap servers${Color_Off}"
+    # This installs the container engine Kolla deploys with, replacing the
+    # one install-engine put there on Debian. It needs root, and runs from an
+    # unpacked copy of the deployer image rather than from a container, which
+    # the replacement would kill.
+    "${launcher_ka}" bootstrap-servers -i /etc/kolla/inventory "${venv_args[@]}"
+    echo
+
     if [ -n "${registry_token}" ] && [ -n "${registry}" ]; then
         echo -e "${H2}Log ${SUDO_USER} in to ${registry}${Color_Off}"
         echo "${registry_token}" | sudo -H -u "${SUDO_USER}" docker login "${registry}" \
@@ -304,12 +339,20 @@ if [ "${deployer}" == "launcher" ]; then
     # The launcher runs as ${SUDO_USER} and writes here, so bootstrap must be
     # finished writing as root before this point.
     echo -e "${H2}Give ${SUDO_USER} /etc/kolla and pin ${deployer_image}${Color_Off}"
-    # pin adds the image to this otherwise empty section.
-    printf '[deployer]\n' > /etc/kolla/deployer.conf
     chown -R "${SUDO_USER}:" /etc/kolla
-    sudo -H -u "${SUDO_USER}" /srv/kolla-ansible/launcher-venv/bin/kolla-ansible \
+    # On Rocky, Docker's image store is not podman's, so this pulls the image
+    # into the engine the deploy will use.
+    sudo -H -u "${SUDO_USER}" "${launcher_ka}" \
         launcher --configdir /etc/kolla pin "${deployer_image}"
     cat /etc/kolla/deployer.conf
+    echo
+else
+    echo -e "${H2}Make certificates${Color_Off}"
+    kolla-ansible certificates -i /etc/kolla/inventory "${venv_args[@]}"
+    echo
+
+    echo -e "${H2}Bootstrap servers${Color_Off}"
+    kolla-ansible bootstrap-servers -i /etc/kolla/inventory "${venv_args[@]}"
     echo
 fi
 
