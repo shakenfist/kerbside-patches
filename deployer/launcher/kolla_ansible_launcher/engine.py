@@ -1,6 +1,7 @@
 """The calls the launcher makes to the container engine itself.
 
-These are image inspection and pulls, which work the same way with docker and
+These are image inspection and pulls, and the create, export and rm that
+unpack an image for bootstrap-servers, which work the same way with docker and
 podman. Each function takes the subprocess runner as an argument, so that
 tests can stand in for the engine. The launcher never logs in to a registry:
 that is the operator's job, as it is for any image.
@@ -47,6 +48,36 @@ def labels(engine, image, run):
                                 '"%s login" as this user' % (image, engine, engine))
     value = _inspect(engine, image, '.Config.Labels', run)
     return value or {}
+
+
+def image_env(engine, image, run):
+    """Return an image's environment, from .Config.Env, as a dict."""
+    env = {}
+    for entry in _inspect(engine, image, '.Config.Env', run) or []:
+        name, sep, value = entry.partition('=')
+        if sep and name:
+            env[name] = value
+    return env
+
+
+def create(engine, image, run):
+    """Create, but do not start, a container from a local image. Return its ID."""
+    result = run([engine, 'create', image], stdout=subprocess.PIPE, universal_newlines=True)
+    container = (result.stdout or '').strip()
+    if result.returncode != 0 or not container:
+        raise LauncherError('cannot create a container from %s with %s' % (image, engine))
+    return container
+
+
+def export_command(engine, container):
+    """Return the command that writes a container's filesystem as a tar stream on stdout."""
+    return [engine, 'export', container]
+
+
+def remove(engine, container, run):
+    """Remove a container made by create(). Return True on success."""
+    result = run([engine, 'rm', container], stdout=subprocess.DEVNULL)
+    return result.returncode == 0
 
 
 def check_protocol(image, image_labels):
