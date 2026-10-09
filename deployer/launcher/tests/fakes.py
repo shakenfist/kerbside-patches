@@ -12,10 +12,12 @@ class FakeEngine:
     entry.
     """
 
-    def __init__(self, local=None, remote=None):
+    def __init__(self, local=None, remote=None, du='1720320\t/x\n', rm_status=0):
         self.local = dict(local or {})
         self.remote = dict(remote or {})
         self.calls = []
+        self.du = du
+        self.rm_status = rm_status
 
     def __call__(self, command, **kwargs):
         self.calls.append(command)
@@ -34,6 +36,14 @@ class FakeEngine:
                 return subprocess.CompletedProcess(command, 1)
             self.local[command[2]] = image
             return subprocess.CompletedProcess(command, 0)
+        if command[1] == 'create':
+            if self._find(command[2]) is None:
+                return subprocess.CompletedProcess(command, 125, stdout='')
+            return subprocess.CompletedProcess(command, 0, stdout=CONTAINER + '\n')
+        if command[1] == 'rm':
+            return subprocess.CompletedProcess(command, self.rm_status)
+        if command[0] == 'du':
+            return subprocess.CompletedProcess(command, 0, stdout=self.du)
         raise AssertionError('unexpected command %s' % command)
 
     def _find(self, reference):
@@ -45,5 +55,49 @@ class FakeEngine:
         return None
 
 
-def image(labels=None, repo_digests=None, image_id='sha256:' + 'b' * 64):
-    return {'Config': {'Labels': labels}, 'RepoDigests': repo_digests or [], 'Id': image_id}
+def image(labels=None, repo_digests=None, image_id='sha256:' + 'b' * 64, env=None):
+    return {'Config': {'Labels': labels, 'Env': env}, 'RepoDigests': repo_digests or [], 'Id': image_id}
+
+
+CONTAINER = 'c' * 64
+
+
+class FakeProcess:
+    """What FakePopen returns: a process that has already finished."""
+
+    def __init__(self, command, status, stdout=None):
+        self.command = command
+        self.status = status
+        self.stdout = stdout
+        self.signals = []
+
+    def wait(self):
+        return self.status
+
+    def kill(self):
+        pass
+
+    def send_signal(self, signum):
+        self.signals.append(signum)
+
+
+class FakeStream:
+    def __init__(self):
+        self.closed = False
+
+    def close(self):
+        self.closed = True
+
+
+class FakePopen:
+    """A stand-in for subprocess.Popen; statuses maps a command's first word to its exit status."""
+
+    def __init__(self, statuses=None):
+        self.statuses = dict(statuses or {})
+        self.calls = []
+
+    def __call__(self, command, **kwargs):
+        self.calls.append((command, kwargs))
+        stdout = FakeStream() if kwargs.get('stdout') == subprocess.PIPE else None
+        word = 'unshare' if command[0] == 'unshare' else ('tar' if command[0] == 'tar' else 'export')
+        return FakeProcess(command, self.statuses.get(word, 0), stdout)

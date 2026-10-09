@@ -3,7 +3,10 @@
 Each script refuses what it must, works out the mounts and the command line,
 and then execs the container engine, so the exit status and signals are the
 container's own. The launcher takes over one word of Kolla-Ansible's
-subcommand namespace, "launcher", for "launcher pin" and "launcher show".
+subcommand namespace, "launcher", for "launcher pin", "launcher show" and
+"launcher install-engine". bootstrap-servers is the exception to the exec: it
+runs from an unpacked copy of the image (see bootstrap.py), because it may
+replace the engine a container would run in.
 """
 
 import argparse
@@ -15,10 +18,12 @@ import sys
 from kolla_ansible_launcher import __version__
 from kolla_ansible_launcher import LauncherError
 from kolla_ansible_launcher import args as args_mod
+from kolla_ansible_launcher import bootstrap as bootstrap_mod
 from kolla_ansible_launcher import command as command_mod
 from kolla_ansible_launcher import config as config_mod
 from kolla_ansible_launcher import engine as engine_mod
 from kolla_ansible_launcher import identity
+from kolla_ansible_launcher import install as install_mod
 
 
 def refuse_kolla_ansible_distribution(find=importlib.metadata.distribution):
@@ -75,6 +80,8 @@ def run(tool, argv, environ=None, cwd=None, runner=subprocess.run, execvp=os.exe
             if word == 'launcher':
                 return launcher(argv[index + 1:], environ, cwd, runner)
             refuse_subcommand(word)
+            if word == bootstrap_mod.SUBCOMMAND:
+                return bootstrap_mod.run(argv, environ, cwd, runner)
 
         configdir = args_mod.configdir(tool, argv, environ, cwd)
         config = config_mod.load(configdir)
@@ -102,17 +109,21 @@ def _launcher_parser():
         description='Manage the deployer image that kolla-ansible-launcher %s runs.' % __version__)
     parser.add_argument('--configdir', help='the Kolla configuration directory (default: $%s or %s)'
                         % (args_mod.CONFIG_PATH_ENV, args_mod.DEFAULT_CONFIG_PATH))
-    actions = parser.add_subparsers(dest='action', metavar='{pin,show}')
+    actions = parser.add_subparsers(dest='action', metavar='{pin,show,install-engine}')
     pin = actions.add_parser('pin', help='pull an image and write it to deployer.conf by digest')
     pin.add_argument('reference', help='the deployer image, for example registry/kolla/kolla-ansible:tag')
     actions.add_parser('show', help='print deployer.conf and the image\'s labels')
+    actions.add_parser('install-engine', help='install docker or podman from the distribution if neither is '
+                       'installed (needs root)')
     return parser
 
 
 def launcher(argv, environ, cwd, runner):
-    """The launcher subcommand: "launcher pin <image>" and "launcher show"."""
+    """The launcher subcommand: "launcher pin <image>", "launcher show" and "launcher install-engine"."""
     parser = _launcher_parser()
     parsed = parser.parse_args(argv)
+    if parsed.action == 'install-engine':
+        return install_mod.install_engine(run=runner, environ=environ)
     configdir = args_mod.absolute(parsed.configdir or environ.get(args_mod.CONFIG_PATH_ENV) or
                                   args_mod.DEFAULT_CONFIG_PATH, cwd)
     if parsed.action == 'pin':
