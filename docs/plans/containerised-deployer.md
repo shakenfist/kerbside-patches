@@ -360,7 +360,7 @@ against `develop`.
 | 0. A CI entry for the prototype | Complete | #1796 (`725cf1e8a`), #1799 (`190daeeca`); shakenfist/actions#121 (`7eaa1e534`) |
 | 1. Deployer image | Complete | #1803 (`507fbea62`) |
 | 2. Launcher | Complete | #1812 (`b97361853`) |
-| 3. The localhost connection | In progress | |
+| 3. The localhost connection | Complete | #1831 (`f2dd038ab`) |
 | 4. Bootstrapping the deploy host | Not started | |
 | 5. Version safeguards | Not started | |
 | 6. Build manifest | Not started | |
@@ -1597,9 +1597,8 @@ Exit (status as of the CI run on `2b73d58d7`, run 37805828411):
   comparison with `develop`.
 * Met. `grep -rn 'id_ci\|127.0.0.1' etc/inventory-all-in-one-launcher-master`
   finds nothing.
-* Outstanding, not an original criterion: the docs updates of step 3e
-  are uncommitted until the management session reviews them, and the
-  phase stays In progress until the next phase is planned.
+* Met. Step 3e's records landed in `7111be9d7`, and #1831 merged as
+  `f2dd038ab`.
 
 ```bash
 #!/bin/bash -e
@@ -1657,8 +1656,7 @@ echo "Phase 3 probe passed."
 #### Outcome
 
 Written after the CI run on `2b73d58d7` (run 37805828411, all jobs
-green). Phase 3 is still In progress; it closes when the next phase
-is planned.
+green).
 
 *The local probe (step 3b).*
 * The probe as written failed first, because `kolla-ansible deploy`
