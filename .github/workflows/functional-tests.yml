@@ -605,7 +605,7 @@ jobs:
           ${GITHUB_WORKSPACE}/actions/tools/install-collection.sh
 
       - name: Setup test environment
-        uses: shakenfist/actions/setup-kerbside-environment@kerbside-no-docker
+        uses: shakenfist/actions/setup-kerbside-environment@main
         with:
           base: ${{ matrix.test.base }}
           base_user: ${{ matrix.test.baseuser }}
