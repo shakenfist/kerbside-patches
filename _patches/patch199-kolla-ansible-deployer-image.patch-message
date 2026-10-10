@@ -28,10 +28,11 @@ tool itself, in the same way as Kolla packages every service.
   the image was built with.
 * The Kolla-Ansible version, the git commit of each source tree where
   one is known, and the installed collections are recorded in
-  /etc/kolla-ansible/deployer.json. Labels cannot be computed from the
-  output of a build step, so the image carries only static labels:
-  kolla_ansible_launcher_protocol, which a wrapper script can check
-  before running the image, and openstack_release.
+  /etc/kolla-ansible/deployer.json, along with the Kolla tag and
+  OpenStack release the image was built with. Labels cannot be computed
+  from the output of a build step, so the image carries only static
+  labels: kolla_ansible_launcher_protocol, which a wrapper script can
+  check before running the image, openstack_release, and kolla_tag.
 * nsenter is given cap_sys_admin, cap_sys_ptrace and cap_sys_chroot as
   file capabilities, so that the community.docker.nsenter connection
   plugin can reach the host from an unprivileged container user.

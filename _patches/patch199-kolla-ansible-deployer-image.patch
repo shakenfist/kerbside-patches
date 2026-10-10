@@ -32,10 +32,11 @@ Date:   Thu Oct 1 18:12:21 2026 +1000
       the image was built with.
     * The Kolla-Ansible version, the git commit of each source tree where
       one is known, and the installed collections are recorded in
-      /etc/kolla-ansible/deployer.json. Labels cannot be computed from the
-      output of a build step, so the image carries only static labels:
-      kolla_ansible_launcher_protocol, which a wrapper script can check
-      before running the image, and openstack_release.
+      /etc/kolla-ansible/deployer.json, along with the Kolla tag and
+      OpenStack release the image was built with. Labels cannot be computed
+      from the output of a build step, so the image carries only static
+      labels: kolla_ansible_launcher_protocol, which a wrapper script can
+      check before running the image, openstack_release, and kolla_tag.
     * nsenter is given cap_sys_admin, cap_sys_ptrace and cap_sys_chroot as
       file capabilities, so that the community.docker.nsenter connection
       plugin can reach the host from an unprivileged container user.
@@ -74,10 +75,10 @@ new file mode 100644
 index 000000000..ddf399019
 --- /dev/null
 +++ b/kolla/docker/kolla-ansible/Dockerfile.j2
-@@ -0,0 +1,91 @@
+@@ -0,0 +1,93 @@
 +FROM {{ namespace }}/{{ image_prefix }}openstack-base:{{ tag }}
 +{% block labels %}
-+LABEL maintainer="{{ maintainer }}" name="{{ image_name }}" kolla_ansible_launcher_protocol="1" openstack_release="{{ openstack_release }}"
++LABEL maintainer="{{ maintainer }}" name="{{ image_name }}" kolla_ansible_launcher_protocol="1" openstack_release="{{ openstack_release }}" kolla_tag="{{ tag }}"
 +{% endblock %}
 +
 +{% block kolla_ansible_header %}{% endblock %}
@@ -140,6 +141,8 @@ index 000000000..ddf399019
 +    && kolla_ansible_deployer_info \
 +        --source kolla-ansible=/kolla-ansible \
 +        --source ansible-collection-kolla=$(ls -d /plugins/*ansible-collection-kolla* | head -n 1) \
++        --tag {{ tag }} \
++        --openstack-release {{ openstack_release }} \
 +        --output /etc/kolla-ansible/deployer.json \
 +    && chmod 644 /etc/kolla-ansible/deployer.json \
 +    && rm -rf /root/.ansible \
@@ -171,7 +174,7 @@ new file mode 100644
 index 000000000..1fe5ff700
 --- /dev/null
 +++ b/kolla/docker/kolla-ansible/kolla_ansible_deployer_info.py
-@@ -0,0 +1,97 @@
+@@ -0,0 +1,104 @@
 +#!/usr/bin/env python3
 +
 +# Licensed under the Apache License, Version 2.0 (the "License");
@@ -249,11 +252,18 @@ index 000000000..1fe5ff700
 +    parser.add_argument('--source', action='append', default=[],
 +                        type=parse_source,
 +                        help='A source tree, as NAME=PATH. May be repeated.')
++    parser.add_argument('--tag', required=True,
++                        help='The Kolla tag the image was built with.')
++    parser.add_argument('--openstack-release', required=True,
++                        help='The OpenStack release the image was built '
++                             'for, as Kolla renders it.')
 +    parser.add_argument('--output', required=True,
 +                        help='The file to write the JSON document to.')
 +    args = parser.parse_args()
 +
 +    info = {
++        'tag': args.tag,
++        'openstack_release': args.openstack_release,
 +        'kolla_ansible_version': package_version('kolla-ansible'),
 +        'ansible_core_version': package_version('ansible-core'),
 +        'sources': {name: {'path': path, 'git_sha': git_sha(path)}
@@ -274,7 +284,7 @@ new file mode 100644
 index 000000000..cd5604e84
 --- /dev/null
 +++ b/releasenotes/notes/add-kolla-ansible-image-0746f6311029c37f.yaml
-@@ -0,0 +1,17 @@
+@@ -0,0 +1,19 @@
 +---
 +features:
 +  - |
@@ -285,9 +295,11 @@ index 000000000..cd5604e84
 +    so that nothing is fetched from Ansible Galaxy or git when the image
 +    runs. Its entrypoint is ``kolla-ansible``, so
 +    ``docker run kolla-ansible --help`` works without any wrapper.
-+    The image records the Kolla-Ansible version, the git commit of each
-+    source tree it was built from where known, and the installed
-+    collections in ``/etc/kolla-ansible/deployer.json``. Kolla-Ansible is
++    The image records the Kolla tag and OpenStack release it was built
++    with, the Kolla-Ansible version, the git commit of each source tree it
++    was built from where known, and the installed collections in
++    ``/etc/kolla-ansible/deployer.json``. The tag is also a ``kolla_tag``
++    label, beside ``openstack_release``. Kolla-Ansible is
 +    taken from the ``kolla-ansible`` source and the ``openstack.kolla``
 +    collection from the ``kolla-ansible-plugin-ansible-collection-kolla``
 +    source, both of which can be overridden in ``kolla-build.conf`` to
