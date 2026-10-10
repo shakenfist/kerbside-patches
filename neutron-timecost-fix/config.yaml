@@ -1,0 +1,10 @@
+repo: https://opendev.org/openstack/neutron
+source_branch: master
+destination_branch: timecost-call-id
+shallow_clone: true
+directory: neutron
+release: master-neutron-timecost-fix
+depends_on: ''
+source_sha: a9178db9826b10d1febab98624fb64b30fdd734b
+previous_source_sha: a9178db9826b10d1febab98624fb64b30fdd734b
+repush: true
