@@ -1,0 +1,118 @@
+commit e0b33415dca43bcddef603d1107216167d4b2087
+Author: Michael Still <mikal@stillhq.com>
+Date:   Sat Oct 10 12:39:10 2026 +1100
+
+    ovsdb: Read manager options when they are used
+    
+    helpers.enable_connection_uri was a functools.partial that read the
+    [OVS] ovsdb_timeout and of_inactivity_probe options at import time.
+    neutron-ovn-agent imports it before parsing its configuration files,
+    so it always created the OVSDB manager with the default values.
+    
+    Make it a function that reads the options on each call, keeping the
+    partial's other defaults and letting callers override any of them.
+    
+    Related-Bug: #1868686
+    Prompt: a scan of neutron for values fixed at import time found this
+    partial; tracing imports against config parsing showed only the OVN
+    agent loads it too early.
+    Assisted-By: Claude Opus 5.5 (1M context, low effort) <noreply@anthropic.com>
+    Co-Authored-By: Claude Opus 5.5 (1M context, low effort) <noreply@anthropic.com>
+    
+    Change-Id: I6c21f5bdeab3e2d74a2f78b3866db7d48c9dab26
+    Signed-off-by: Michael Still <mikal@stillhq.com>
+
+diff --git a/neutron/agent/ovsdb/native/helpers.py b/neutron/agent/ovsdb/native/helpers.py
+index 849b19b443..1250e99a20 100644
+--- a/neutron/agent/ovsdb/native/helpers.py
++++ b/neutron/agent/ovsdb/native/helpers.py
+@@ -12,8 +12,6 @@
+ #    License for the specific language governing permissions and limitations
+ #    under the License.
+ 
+-import functools
+-
+ from oslo_config import cfg
+ 
+ from neutron.conf.agent import ovs_conf as agent_ovs_conf
+@@ -24,8 +22,13 @@ from neutron.privileged.agent.ovsdb.native import helpers as priv_helpers
+ agent_ovs_conf.register_ovs_agent_opts(cfg.CONF)
+ ml2_ovs_conf.register_ovs_opts(cfg=cfg.CONF)
+ 
+-enable_connection_uri = functools.partial(
+-    priv_helpers.enable_connection_uri,
+-    log_fail_as_error=False, check_exit_code=True,
+-    timeout=cfg.CONF.OVS.ovsdb_timeout,
+-    inactivity_probe=cfg.CONF.OVS.of_inactivity_probe * 1000)
++
++def enable_connection_uri(conn_uri, **kwargs):
++    # Read the options on each call, not at import: neutron-ovn-agent imports
++    # this module before it has parsed its configuration files.
++    kwargs.setdefault('log_fail_as_error', False)
++    kwargs.setdefault('check_exit_code', True)
++    kwargs.setdefault('timeout', cfg.CONF.OVS.ovsdb_timeout)
++    kwargs.setdefault('inactivity_probe',
++                      cfg.CONF.OVS.of_inactivity_probe * 1000)
++    return priv_helpers.enable_connection_uri(conn_uri, **kwargs)
+diff --git a/neutron/tests/unit/agent/ovsdb/native/test_helpers.py b/neutron/tests/unit/agent/ovsdb/native/test_helpers.py
+new file mode 100644
+index 0000000000..a4f05f2616
+--- /dev/null
++++ b/neutron/tests/unit/agent/ovsdb/native/test_helpers.py
+@@ -0,0 +1,44 @@
++#    Licensed under the Apache License, Version 2.0 (the "License"); you may
++#    not use this file except in compliance with the License. You may obtain
++#    a copy of the License at
++#
++#         http://www.apache.org/licenses/LICENSE-2.0
++#
++#    Unless required by applicable law or agreed to in writing, software
++#    distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
++#    WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
++#    License for the specific language governing permissions and limitations
++#    under the License.
++
++from unittest import mock
++
++from oslo_config import cfg
++
++from neutron.agent.ovsdb.native import helpers
++from neutron.tests import base
++
++CONN_URI = 'tcp:127.0.0.1:6640'
++
++
++class EnableConnectionUriTestCase(base.BaseTestCase):
++
++    def setUp(self):
++        super().setUp()
++        self.mock_priv = mock.patch.object(
++            helpers.priv_helpers, 'enable_connection_uri').start()
++
++    def test_reads_configuration_when_called(self):
++        # Set after the module has been imported, as an agent that imports
++        # it before parsing its configuration files would.
++        cfg.CONF.set_override('ovsdb_timeout', 42, 'OVS')
++        cfg.CONF.set_override('of_inactivity_probe', 7, 'OVS')
++        helpers.enable_connection_uri(CONN_URI)
++        self.mock_priv.assert_called_once_with(
++            CONN_URI, log_fail_as_error=False, check_exit_code=True,
++            timeout=42, inactivity_probe=7000)
++
++    def test_arguments_override_configuration(self):
++        helpers.enable_connection_uri(CONN_URI, inactivity_probe=10)
++        self.mock_priv.assert_called_once_with(
++            CONN_URI, log_fail_as_error=False, check_exit_code=True,
++            timeout=cfg.CONF.OVS.ovsdb_timeout, inactivity_probe=10)
+diff --git a/releasenotes/notes/ovn-agent-ovsdb-manager-options-2b4ed65a1bfacdd5.yaml b/releasenotes/notes/ovn-agent-ovsdb-manager-options-2b4ed65a1bfacdd5.yaml
+new file mode 100644
+index 0000000000..f576e8128d
+--- /dev/null
++++ b/releasenotes/notes/ovn-agent-ovsdb-manager-options-2b4ed65a1bfacdd5.yaml
+@@ -0,0 +1,6 @@
++---
++fixes:
++  - |
++    ``neutron-ovn-agent`` now honours the ``[OVS] ovsdb_timeout`` and
++    ``[OVS] of_inactivity_probe`` options when it creates the OVSDB
++    manager. It previously always used their default values.

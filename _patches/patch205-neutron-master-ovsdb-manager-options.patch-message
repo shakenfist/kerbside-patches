@@ -1,0 +1,19 @@
+ovsdb: Read manager options when they are used
+
+helpers.enable_connection_uri was a functools.partial that read the
+[OVS] ovsdb_timeout and of_inactivity_probe options at import time.
+neutron-ovn-agent imports it before parsing its configuration files,
+so it always created the OVSDB manager with the default values.
+
+Make it a function that reads the options on each call, keeping the
+partial's other defaults and letting callers override any of them.
+
+Related-Bug: #1868686
+Prompt: a scan of neutron for values fixed at import time found this
+partial; tracing imports against config parsing showed only the OVN
+agent loads it too early.
+Assisted-By: Claude Opus 5.5 (1M context, low effort) <noreply@anthropic.com>
+Co-Authored-By: Claude Opus 5.5 (1M context, low effort) <noreply@anthropic.com>
+
+Change-Id: I6c21f5bdeab3e2d74a2f78b3866db7d48c9dab26
+Signed-off-by: Michael Still <mikal@stillhq.com>
