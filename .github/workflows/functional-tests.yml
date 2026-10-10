@@ -611,6 +611,8 @@ jobs:
           base_user: ${{ matrix.test.baseuser }}
           openstack_release: ${{ matrix.test.release }}
           topology: ${{ matrix.test.topology }}
+          # The containerised deployer's launcher installs an engine itself.
+          install_docker: ${{ matrix.test.deployer != 'launcher' }}
 
       - name: Dump CI environment details
         run: |

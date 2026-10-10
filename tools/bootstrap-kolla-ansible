@@ -329,6 +329,13 @@ if [ "${deployer}" == "launcher" ]; then
     "${launcher_ka}" bootstrap-servers -i /etc/kolla/inventory "${venv_args[@]}"
     echo
 
+    # The launcher runs the deploy as ${SUDO_USER} through Docker. Nothing
+    # else grants that on a host that started with no engine, and sudo -u
+    # picks up the new group without a fresh login.
+    echo -e "${H2}Let ${SUDO_USER} use Docker${Color_Off}"
+    usermod -a -G docker "${SUDO_USER}"
+    echo
+
     if [ -n "${registry_token}" ] && [ -n "${registry}" ]; then
         echo -e "${H2}Log ${SUDO_USER} in to ${registry}${Color_Off}"
         echo "${registry_token}" | sudo -H -u "${SUDO_USER}" docker login "${registry}" \

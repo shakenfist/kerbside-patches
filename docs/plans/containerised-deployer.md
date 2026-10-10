@@ -426,7 +426,8 @@ section put the switch in the wrong place:
   `/srv/kolla-ansible/venv/bin` into `/usr/local/bin`. A launcher
   deployment still needs somewhere for them to live. That is Phase
   2's problem, not this one, but it is why "launcher mode" can not
-  simply mean "no venv".
+  simply mean "no venv". (Phase 4 gave them their own venv,
+  `/srv/openstack-clients/venv`, in both modes.)
 * Argument parsing is shared in `_build/common.sh`, and it rejects
   unknown flags. An action that always passed a new flag would
   break every caller running an older checkout of this repository.
@@ -1060,9 +1061,10 @@ the `--init` requirement is gone (Decision 6).
 
 *This repository.*
 * `tools/postinstall-kolla-ansible` already calls `./tools/ka
-  post-deploy` (Phase 0). The OpenStack clients are linked out of the
-  venv by `tools/install-openstack-clients`, on the target and also
-  on the CI runner (`functional-tests.yml:874-890`).
+  post-deploy` (Phase 0). The OpenStack clients were linked out of the
+  bootstrap venv by `tools/install-openstack-clients`, on the target
+  and also on the CI runner (`functional-tests.yml:874-890`). Phase 4
+  moved them to `/srv/openstack-clients/venv`.
 * There is no Python tooling: no `pyproject.toml`, `tox.ini` or
   flake8 configuration. Pre-commit runs actionlint, shellcheck,
   skillsaw and the two patch checks.
@@ -1576,7 +1578,7 @@ can only be tested in CI.
 | Step | Effort | Model | Isolation | Brief for sub-agent |
 |------|--------|-------|-----------|---------------------|
 | 3a | medium | sonnet | none | Implement Decision 4 of Phase 3 in `docs/plans/containerised-deployer.md`. In `deployer/launcher/kolla_ansible_launcher/command.py`, add `--group-add <gid>` for each supplementary GID, sorted, excluding the primary GID. Take the GIDs as a parameter of the command builder, as the UID and GID already are. `cli.py` passes `os.getgroups()`. Do not add them for rootless podman with `--userns=keep-id`. Add unit tests for docker, rootful podman and rootless podman, and update `docs/deployer-launcher.md`'s list of engine flags. Standard library only; single quotes; 120 columns; `pre-commit run --all-files` must pass. Commit subject: "Give the deployer the user's supplementary groups." |
-| 3b | medium | sonnet | none | Read-only on this host, apart from `/tmp` and a scratch directory. Build the deployer image locally as Phase 1 step 1e did: `_build/assemble-source.sh --no-tarball master`, then `_build/imagebuild.sh` for `^(base\|openstack-base\|kolla-ansible)$` with tag `local`. Install `deployer/launcher` (with 3a) into a scratch venv, and run the probe below as the current user, reporting its full output. Then run it once more with the `ansible_remote_tmp` line removed from the inventory, and report whether it fails with the `/root/.ansible/tmp` error the survey predicts. Do not use `sudo`. `become` is not tested here. Commit nothing; the results go into this plan in step 3e. |
+| 3b | medium | sonnet | none | Read-only on this host, apart from `/tmp` and a scratch directory. Build the deployer image locally as Phase 1 step 1e did: `_build/assemble-source.sh --no-tarball master`, then `mkdir archive` (`_build/imagebuild.sh` fails with `archive/kolla-build.conf: No such file or directory` without it), then `_build/imagebuild.sh` for `^(base\|openstack-base\|kolla-ansible)$` with tag `local`. Install `deployer/launcher` (with 3a) into a scratch venv, and run the probe below as the current user, reporting its full output. Then run it once more with the `ansible_remote_tmp` line removed from the inventory, and report whether it fails with the `/root/.ansible/tmp` error the survey predicts. Do not use `sudo`. `become` is not tested here. Commit nothing; the results go into this plan in step 3e. |
 | 3c | low | sonnet | none | In `.github/workflows/functional-tests.yml`, copy `master-h-rocky10-c-debian-13-aio` to a new entry after it, named `master-h-rocky10-c-debian-13-aio-launcher` and described `master debian 13 images on rocky 10 all-in-one with the containerised deployer`, with `'deployer': 'launcher'` and `'non_voting': 'true'`, following `master-h-debian13-c-debian13-aio-launcher`. Change nothing else. This push still uses Phase 2's SSH inventory. Commit subject: "Add a Rocky 10 entry for the deployer prototype." |
 | 3d | medium | sonnet | none | Implement Decisions 1, 2, 3 and 7 of Phase 3. Rewrite `etc/inventory-all-in-one-launcher-master`'s header and `[all:vars]` to `ansible_connection=community.docker.nsenter` and `ansible_remote_tmp=/tmp/.ansible-kolla-USER`. In `tools/bootstrap-kolla-ansible`, remove the ssh check to `127.0.0.1` and the `mounts = /srv/github` line, keep the `USER` substitution, and update the comments that mention SSH. Extend `tools/check-deployer-launcher` with the inventory, `getcap` and SELinux checks of Decision 7. The `getcap` check runs `docker run --rm --entrypoint getcap <image from deployer.conf> /usr/bin/nsenter`, and on failure says that the capability was lost, naming occystrap#151. Shellcheck-clean, and the venv entries must be unchanged. Commit subject: "Reach the deploy host through nsenter." |
 | 3e | low | sonnet | none | After 3d's CI run, record in Phase 3 of `docs/plans/containerised-deployer.md` what 3b and the CI runs found: the probe output summary, deploy durations of each launcher entry against its control, the `restorecon` report, and anything that behaved differently. Update `docs/deployer-launcher.md` with what nsenter requires of the image, the engine and the inventory (a host not named `localhost`, an absolute `ansible_remote_tmp`), and add a line to Phase 8 listing the community.docker change and the upstream inventory to be proposed. Commit subject: "Record what the nsenter connection needed." |
@@ -1797,10 +1799,17 @@ line for the whole plan.
 *The starting state.*
 * The CI targets are stock `debian:13` and `rocky:10` cloud images
   (`setup-kerbside-environment` in shakenfist/actions, `base:` in the
-  `test_installs` matrix). Nothing installs an engine before
-  `tools/bootstrap-kolla-ansible` runs, so both are already the "no
-  engine" host this phase asks for. The old section named only
-  Debian 13. Phase 3 added Rocky 10, and this phase covers both.
+  `test_installs` matrix). **This was wrong, and the first CI run
+  did not catch it.** The setup action ran
+  `_build/install-build-dependencies.sh` on the target, which
+  installed `docker-ce` before `tools/bootstrap-kolla-ansible`, so
+  neither host was a "no engine" host and `install-engine` was a
+  no-op. #1857 fixed it with a `--no-docker` option on that script,
+  an `install_docker` input to `setup-kerbside-environment`
+  (shakenfist/actions#150) and bootstrap adding the base user to the
+  `docker` group afterwards. The Outcome records the clean-host run.
+  The old section named only Debian 13.
+  Phase 3 added Rocky 10, and this phase covers both.
 * In launcher mode, bootstrap still builds the full venv
   (`tools/bootstrap-kolla-ansible:40-90`) and runs four things from
   it: `install-deps`, `kolla-genpwd`, `certificates` and
@@ -1964,17 +1973,31 @@ engine and then simulating Kolla's `docker-ce` install.
 #### Risks
 
 * **The bind mounts outlive the helper**, for example if a process
-  started in the chroot daemonises. Then the namespace survives and
-  the directory cannot be deleted. Decision 3's `st_dev` rule stops
-  the deletion going through a mount, and the launcher warns and
-  leaves the directory in place. Step 4b checks that nothing is left
-  mounted or on disk after a run.
+  started in the chroot daemonises and keeps the namespace alive.
+  This does not block deletion, as first written. Since Linux 3.18,
+  unlinking a directory that is a mount point only in another mount
+  namespace is allowed, and lazily detaches that mount. Deletion
+  therefore succeeds, and the surviving process keeps its open
+  inodes. The mountinfo check and Decision 3's `st_dev` rule are
+  backstops against a propagation bug that let a mount leak into the
+  launcher's own namespace, where `rmtree` could reach it; the
+  launcher warns and leaves the directory in place if either
+  trips. Step 4b checks that nothing is left mounted or on disk
+  after a run.
+* **On Rocky the unpacked tree carries the wrong SELinux labels.**
+  `tar` creates files under `/var/lib/kolla-ansible-launcher`, so
+  they take that directory's label (`var_lib_t`), not the image's.
+  The chroot then runs `bootstrap-servers` as root through `sudo`,
+  which is `unconfined_t` and expected to be allowed to execute and
+  read them. If enforcing SELinux denies it, the failure would show
+  as `Permission denied` from inside the chroot with an AVC in the
+  audit log. The Rocky CI run shows what happened (see the Outcome).
 * **`docker.io`'s removal on Debian takes the half-installed state of
   `docker-ce` with it**, for example if the masked unit stops
   `docker-ce`'s postinst from starting the daemon and something then
   depends on it. The role's own "Start and enable docker" task is
-  meant to cover this. The Debian CI run shows whether it does, and
-  the check prints the end state.
+  meant to cover this. The clean-host Debian run showed it did (see
+  the Outcome).
 * **Root's registry login is a different file from the base user's.**
   On Rocky, rootful podman keeps its credentials in
   `/run/containers/0/auth.json`, and Docker's are per user. Bootstrap
@@ -1982,7 +2005,8 @@ engine and then simulating Kolla's `docker-ce` install.
   any image the current engine lacks, which it already does.
 * **`docker-ce` 29 might not see `docker.io`'s images.** Then the
   launcher pulls again on its first run as the base user. That costs
-  one pull, and is not a failure.
+  one pull, and is not a failure. On Debian the image was seen; on
+  Rocky the two engines pull separately by design.
 * **The interpreter goes wrong again.** If the chroot's `PATH` did not
   reach the host as expected, prechecks would fail at "Checking docker
   SDK version" as in Phase 3. Removing the workaround is deliberate,
@@ -2009,17 +2033,245 @@ exact `unshare` and `mount` invocations. The management session
 agrees them first. A chroot helper is cheap to describe and expensive
 to rework once the tests are written around it.
 
-Exit:
-* Both launcher entries are green, and `tools/check-deployer-launcher`
-  passes in each with no `/srv/kolla-ansible/venv` on the target.
-* The Debian launcher job's check shows `docker-ce` installed and
-  `docker.io` gone. The Rocky one shows `docker-ce` and `podman`.
-  Both jobs' logs show the launcher installing the engine and
-  unpacking the image.
-* The venv entries and multinode are green in the same run.
-* 4b's probe passed, with nothing left mounted or on disk.
-* `grep -n 'ansible_python_interpreter' tools/bootstrap-kolla-ansible`
-  finds nothing.
+Exit (status as of the clean-host CI run 37996529795 on `9a28da1a4`,
+attempt 1):
+* Met. Both launcher entries are green, and
+  `tools/check-deployer-launcher` passed in each with no
+  `/srv/kolla-ansible/venv` on the target ("absent" in both logs).
+  Both ran with `Will not install Docker.` from the setup action, so
+  the targets really were bare.
+* Met. The Debian check shows `docker-ce` 5:29.9.0 and
+  `containerd.io` 2.4.1 installed and `docker.io` in state `rc`
+  (removed, configuration remains), so `docker.io` was installed and
+  then replaced. The Rocky check shows `docker-ce`, `containerd.io`
+  and `podman` 5.8.2 together. Both logs show the launcher installing
+  the engine (`installing docker.io with apt-get`, `installing
+  podman with dnf`) and unpacking the image (`with docker`, `with
+  podman`).
+* Partly met. The venv entries are green in the same run. Multinode
+  deployed and passed its tests but the job failed in "Collect logs",
+  and the Ubuntu all-in-one deployed with `failed=0` but failed in
+  `tools/install-openstack-clients`. Neither touches Phase 4 (see the
+  Outcome). Multinode passed when re-run (attempt 2).
+* Met. 4b's probe passed with nothing left mounted or on disk, except
+  that ownership preservation was not exercised locally. The clean-host
+  jobs unpack as real root and bootstrap completed.
+* Met. `grep -n 'ansible_python_interpreter' tools/bootstrap-kolla-ansible`
+  finds nothing (exit status 1), and the prechecks' "Checking docker
+  SDK version" passed on both hosts.
+
+#### Outcome
+
+Written after the clean-host CI run 37996529795 (pull request #1857,
+head `9a28da1a4`, attempt 1). It replaces an earlier draft written
+from a run that did not test what it was meant to.
+
+*History.*
+* #1854 merged (merge `78c6e79c7`) with steps 4a and 4c, after a
+  green run (37881878526, head `da9ef681c`). That run had Docker
+  preinstalled, so it proved the unpack-and-chroot half of the design
+  and that `install-engine` leaves an existing engine alone, and
+  nothing about installing or replacing one. Its unpack numbers are a
+  secondary data point: Debian 9.0s, Rocky 5.2s, 1169 MiB, both with
+  docker.
+* The survey's claim that the CI targets were stock images with no
+  engine was wrong. `setup-kerbside-environment` ran
+  `_build/install-build-dependencies.sh` on the target, which
+  installed `docker-ce` before bootstrap, so `install-engine` printed
+  "docker is already installed" on both hosts. #1857 (commit
+  `150a7c138`, "Start the launcher entries with no engine.") fixed
+  this with a `--no-docker` option on that script, an `install_docker`
+  input on `setup-kerbside-environment` (shakenfist/actions#150,
+  merged), and bootstrap adding the base user to the `docker` group
+  after `bootstrap-servers`, because with no engine beforehand the
+  `docker` group only exists once Kolla has installed `docker-ce`. `9a28da1a4` restored the
+  action reference to `@main`.
+* The evidence is run 37996529795, attempt 1.
+
+*Bootstrap on a bare host.* Completed on both. Both jobs log `Will
+not install Docker.` before bootstrap. The deployer image was the
+same digest on both
+(`sha256:eb20f4d19ee3ef0e4fcaff74473f8998b2641f9beb31628a3e3c13e8b69fa080`).
+
+| Host | Launcher entry (job) | `install-engine` | Pull / unpack engine | `bootstrap-servers` recap |
+|------|----------------------|------------------|----------------------|---------------------------|
+| debian 13 | `master-h-debian13-c-debian13-aio-launcher` (114127096861) | `docker.io` and `docker-cli` (26.1.5), apt | docker | `ok=39 changed=13 failed=0` |
+| rocky 10 | `master-h-rocky10-c-debian-13-aio-launcher` (114127096671) | `podman` 5.8.2, dnf | podman | `ok=39 changed=19 failed=0` |
+
+The launcher's unpack lines:
+
+```
+kolla-ansible: unpacked <image>@sha256:eb20f4d1... with docker into /var/lib/kolla-ansible-launcher/bootstrap-at25ekou/rootfs in 1.9s, 1170 MiB (du -sx)
+kolla-ansible: unpacked <image>@sha256:eb20f4d1... with podman into /var/lib/kolla-ansible-launcher/bootstrap-ysj_9j2x/rootfs in 3.3s, 1170 MiB (du -sx)
+```
+
+| Host | Engine | Unpack time | Size (`du -sx`) |
+|------|--------|-------------|-----------------|
+| debian 13 | docker (`docker.io` 26.1.5) | 1.9s | 1170 MiB |
+| rocky 10 | podman 5.8.2 | 3.3s | 1170 MiB |
+
+The size is within a MiB of the first run's 1169 MiB and of the local
+probe. It is lower than Phase 1's 1.68 GB image size, which was
+measured differently; I did not establish why. The times are well
+under the first run's 9.0s and 5.2s. I did not establish why, and
+one run each does not say. Neither log shows a
+warning about a mount or a directory left in place.
+
+On Rocky the image was pulled twice, as the plan expected: by
+podman as root for the launcher, and later by Docker for the base
+user once `docker-ce` existed. On Debian it was pulled once: root's
+pin downloaded it with `docker.io` ("Downloaded newer image"), and
+after `docker-ce` replaced `docker.io` the base user's pin reported
+"Image is up to date". So `docker-ce` 29 saw the images `docker.io`
+had stored, and the Risk about that did not materialise.
+
+*The engine replacement on Debian.* This is the case shape (d)
+exists for and the first run could not reach. `docker.io` 26.1.5 was
+installed by `install-engine`, the launcher unpacked the pinned
+digest with it, and `bootstrap-servers` then ran the Kolla `docker`
+role from inside that unpacked deployer. The role installed
+`docker-ce` and removed `docker.io` underneath the running chroot.
+Afterwards `dpkg` shows `docker-ce` 5:29.9.0 and `containerd.io`
+2.4.1 `ii` and `docker.io` `rc`. The role's "Start and enable docker"
+task reported `ok`, bootstrap finished `failed=0`, and prechecks,
+pull, deploy and the tests all passed. The Risk about `docker.io`'s
+removal leaving `docker-ce` half-installed did not materialise.
+
+*The end state*, from `tools/check-deployer-launcher` after the
+deploy:
+
+| | debian 13 | rocky 10 |
+|---|-----------|----------|
+| Packages | `docker-ce` 5:29.9.0, `containerd.io` 2.4.1; `docker.io` 26.1.5 `rc`; `podman` not installed | `docker-ce` 29.9.0, `containerd.io` 2.4.1, `podman` 5.8.2 |
+| Docker server (`docker version`) | 29.9.0 | 29.9.0 |
+| `/etc/docker/daemon.json` | `bridge: none`, `ip-forward: false`, `iptables: false`, log `max-size` 50m, `max-file` 5 | identical |
+| Running containers | 36 lines: the deployed cloud (`mariadb` to `kerbside_proxy`) and neutron's `qdhcp` and `qrouter` helpers | 36 lines, same shape |
+| Venv at `/srv/kolla-ansible/venv` | absent | absent |
+
+The inventory check reported the nsenter connection; `getcap` on the
+image's `nsenter` reported `cap_sys_chroot,cap_sys_ptrace,cap_sys_admin=ep`;
+the `admin-openrc.sh` and `clouds.yaml` owners were `debian` and
+`cloud-user`. On Rocky `podman` and `docker-ce` coexisting is what
+the plan predicted, and nothing in the log shows one disturbing the
+other.
+
+*The interpreter.* "Checking docker SDK version" in the prechecks
+passed on both hosts (`ok: [kolla]`) with
+`ansible_python_interpreter` gone from `tools/bootstrap-kolla-ansible`
+(`grep -n 'ansible_python_interpreter' tools/bootstrap-kolla-ansible`
+exits 1). That is the check Phase 3's Rocky failure came from. This
+time it is on bare hosts: on Rocky the `docker_sdk` role ran "Install
+docker SDK for python using pip" and reported `changed`, so the SDK
+was installed by the deploy and found by the check with no pin. On
+Debian that task was skipped and the check still passed. The Risk
+"The interpreter goes wrong again" did not materialise.
+
+*Durations.* From the "Deploy Kolla-Ansible" step of each job
+(`started_at` to `completed_at`), which includes bootstrap, and the
+duration the job log reports for the "Bootstrap Kolla-Ansible" action.
+Each launcher entry is against its venv control in the same run.
+
+| Host | Entry | Job | Deploy step | Bootstrap |
+|------|-------|-----|-------------|-----------|
+| debian 13 | `master-h-debian13-c-debian13-aio-launcher` | 114127096861 | 23m58s | 1m26s |
+| debian 13 | `master-h-debian13-c-debian13-aio` (control) | 114127096676 | 25m51s | 2m14s |
+| rocky 10 | `master-h-rocky10-c-debian-13-aio-launcher` | 114127096671 | 28m38s | 1m49s |
+| rocky 10 | `master-h-rocky10-c-debian-13-aio` (control) | 114127096649 | 27m41s | 2m13s |
+
+The deploy-step differences (1m53s in the launcher's favour on
+Debian, 57s against it on Rocky) are noise, for the same reason as in
+Phase 3: they point in opposite directions, each pair ran on different
+runners at different times, and Phase 3's controls ranged widely for
+the same shapes. A paired comparison would need several runs of each.
+
+The bootstrap sub-step is the comparison of interest, and the
+launcher's now includes installing an engine (the controls' Docker
+comes from the setup step, outside the timed bootstrap). Even so
+the launcher was faster in both (48s on Debian, 24s on Rocky). One run
+each, so this is labelled noise until repeated. The unpack is a
+small share of the launcher's bootstrap (1.9s of 1m26s and 3.3s of
+1m49s).
+
+*The local probe (step 4b).*
+* No local image existed. `_build/imagebuild.sh` failed with
+  `archive/kolla-build.conf: No such file or directory` until
+  `mkdir archive` was run. Phase 3 step 3b's recipe needs the same,
+  and its row now says so.
+* The image built as `kolla/kolla-ansible:local`, 1.67 GB.
+* `unshare --map-auto` failed because `newuidmap` (package `uidmap`)
+  is not installed. The probe used `--map-root-user --mount`, with a
+  `tar` shim adding `--no-same-owner`, since a fake root cannot
+  `chown`. **Ownership preservation was therefore not exercised
+  locally.** The clean-host jobs, which unpack as real root, are the
+  evidence for it: bootstrap completed on both.
+* The launcher unpacked in 8.0s, 1169 MiB. `kolla-ansible
+  bootstrap-servers --help`, `ansible --version` (ansible-core
+  2.21.5, Python 3.13.5) and a `cat` through a same-path mount all
+  exited 0.
+* Afterwards the run directory was gone and `findmnt` showed nothing
+  left behind. Docker was usable from inside the user namespace.
+
+*What the chroot needed by hand.* Nothing, beyond Decision 2. In
+CI the helper built the mounts, `bootstrap-servers` ran from the
+image's environment as root, and no step needed a manual `mount`,
+`chmod` or environment variable. Decision 4's root requirement held
+(bootstrap runs under `sudo`). The remote tmp directory is the one
+thing still passed by hand, `-e ansible_remote_tmp=/tmp/.ansible-kolla-root`,
+as the survey said. What did need changing was outside the chroot:
+the base user's `docker` group membership, which only exists once
+Kolla has installed `docker-ce` (see History).
+
+*SELinux on Rocky.* The Rocky job is green and `bootstrap-servers`
+ran from the unpacked tree under `/var/lib/kolla-ansible-launcher`
+(label `var_lib_t`, as the Risk predicts). What the log shows:
+`tools/check-deployer-launcher` took its SELinux branch
+(`selinuxenabled` succeeded, where Debian printed "SELinux is not
+enabled") and `restorecon -n -v -R /etc/kolla` reported `no
+relabels needed`. So SELinux was enabled on the host. The baremetal
+role's "Change state of selinux" task, about 39 seconds into
+`bootstrap-servers`, reported `changed`, which is consistent with it
+having been enforcing before, Rocky's default. **This log cannot say
+whether SELinux was enforcing when the chroot started.** There is no
+`getenforce` and the audit log is not collected, so an AVC would not
+have shown even if one had been logged. Nothing failed with a
+permission error. If this needs settling, `getenforce` before
+bootstrap and `ausearch -m avc` after would do it.
+
+*Other failures in the run, unrelated to Phase 4.*
+* **Multinode** (job 114127096781): the deploy and the tests passed,
+  and "Collect logs" failed with exit status 127. `tools/gather-logs`
+  installs clingwrap on each node from GitHub and pip, so a failure
+  there would leave clingwrap missing on a node and give exactly this
+  status. Separately, the step runs under `bash -e` and uses `wait
+  ${pids}`, so a background job that exits non-zero aborts the step
+  before the per-node "Warning: gather-logs on ... exited with code"
+  code can run. That second part is a pre-existing workflow bug, not
+  caused by this phase.
+* **Ubuntu 24.04 all-in-one** (job 114127096765): the deploy passed
+  (`failed=0`), then `tools/install-openstack-clients` failed with
+  `Temporary failure in name resolution` for `devpi.home.stillhq.com`.
+  This is the step Phase 4 changed (the clients' venv), but the
+  error is a failure to resolve a name, not a path or venv problem,
+  and the same index was reachable earlier in the same job.
+* Both look like a DNS or network problem in the test cloud in the
+  same window. The multinode job passed when re-run (attempt 2). The
+  Ubuntu job was not re-run in that attempt.
+
+*Plan corrections made by this phase's findings, at their source.*
+* The Risk "The bind mounts outlive the helper" claimed that a
+  surviving namespace blocks deletion. It does not: since Linux 3.18
+  unlinking a directory that is a mount point only in another
+  namespace succeeds and lazily detaches the mount. The Risk is
+  rewritten, and the mountinfo check and `st_dev` rule are now
+  described as backstops.
+* A Risk is added for the SELinux labels of the unpacked tree on
+  Rocky.
+* The survey's claim that the CI targets have no engine is
+  corrected and records how #1857 fixed it.
+* Phase 3 step 3b's brief now includes `mkdir archive`.
+* The two passages that said the OpenStack clients live in the
+  bootstrap venv now say Phase 4 moved them to
+  `/srv/openstack-clients/venv`.
 
 ### Phase 5: Version safeguards
 
