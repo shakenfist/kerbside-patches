@@ -1,0 +1,1307 @@
+commit 168a6ebdff634167bc45990abed8fe3c40ad8e1b
+Author: Michael Still <mikal@stillhq.com>
+Date:   Sun Oct 11 09:07:28 2026 +1100
+
+    Guard deployments against the wrong deployer.
+    
+    A Kolla Ansible deployer image packages one version of the deployment
+    tool and is built alongside one set of service images. Nothing stops an
+    operator from running it against a configuration naming other images,
+    against a deployment a newer deployer has already changed, or as an
+    upgrade across more releases than upstream supports. Each of these
+    fails late and messily, if it fails at all.
+    
+    This change adds checks which run first in every playbook except
+    destroy.yml, which must work whatever the versions so that a mistake
+    can always be cleaned up.
+    
+    * Every successful deploy, deploy-containers, reconfigure, upgrade and
+      migrate-container-engine writes a record of what changed each host to
+      /etc/kolla/kolla-ansible-deployment.json on that host: the release,
+      the Kolla Ansible version and git commit, the tag, the action and the
+      time. It is owned by config_owner_user and config_owner_group with
+      mode 0600, like other configuration. It is written whatever tags were
+      given, because a partial deploy has still changed the host.
+    * When /etc/kolla-ansible/deployer.json exists, that is when Kolla
+      Ansible runs from a deployer image, the new deployer-checks.yml play
+      refuses an openstack_tag or openstack_release which differs from the
+      image's, and compares the image with each target's record. An older
+      release, or the same release with an older Kolla Ansible version, is
+      refused. A newer release may run only bootstrap-servers, pull,
+      prechecks, gather-facts and upgrade, and upgrade may move only to the
+      next release, or from a .1 release to the next .1. An upgrade to
+      master is allowed with a warning.
+    * A virtualenv install cannot tell which release it is for, because
+      openstack_release is set by the operator, so it writes the record but
+      does not check it.
+    * The new --override-deployer-checks option turns each refusal into a
+      warning, for example after an upgrade done by hand.
+    * The rules are in a filter plugin, so that they are unit tested.
+      gather-facts.yml imports the play, so that it runs once for every
+      playbook which gathers facts. Playbooks which act on the deploy host
+      alone check the configuration only.
+    
+    Assisted-By: Claude Opus 5.5 (1M context, high effort) <noreply@anthropic.com>
+    Co-Authored-By: Claude Opus 5.5 (1M context, high effort) <noreply@anthropic.com>
+    Change-Id: I0791c64ba93126ac97a0b789c2900302808e3980
+    Signed-off-by: Michael Still <mikal@stillhq.com>
+
+diff --git a/ansible/bifrost.yml b/ansible/bifrost.yml
+index a390ea5cb..3000e79db 100644
+--- a/ansible/bifrost.yml
++++ b/ansible/bifrost.yml
+@@ -1,4 +1,9 @@
+ ---
++- name: Check the deployer
++  import_playbook: deployer-checks.yml
++  vars:
++    kolla_deployer_checks_hosts: bifrost
++
+ - name: Apply role bifrost
+   hosts: bifrost
+   roles:
+diff --git a/ansible/deployer-checks.yml b/ansible/deployer-checks.yml
+new file mode 100644
+index 000000000..14d63876e
+--- /dev/null
++++ b/ansible/deployer-checks.yml
+@@ -0,0 +1,84 @@
++---
++# NOTE: A containerised deployer records what it was built from in
++# kolla_deployer_info_path. When that file exists, this play refuses to run
++# a deployer against a configuration naming images it was not built with,
++# against a target last changed by a newer deployer, or as an upgrade which
++# is not supported. Without it, as in a virtualenv, the play does nothing.
++# kolla-ansible --override-deployer-checks turns each refusal into a warning.
++#
++# Every playbook imports this first, apart from destroy.yml, which must work
++# whatever the versions so that a mistake can always be cleaned up. Importers
++# set kolla_deployer_checks_hosts to the hosts they act on, and those which
++# act only on the deploy host set kolla_deployer_checks_records to false.
++#
++# The configuration check uses only a lookup and controller-side actions, so
++# it reads the deployer's own files wherever localhost's connection goes.
++# Refusals are fatal to the whole run rather than to one host. Unreachable
++# hosts are left to the gather facts play, as before.
++- name: Check the deployer against the configuration and the deployment
++  hosts: "{{ kolla_deployer_checks_hosts | default('all') }}"
++  gather_facts: false
++  tasks:
++    - name: Check the deployer
++      when: kolla_deployer_info | length > 0
++      block:
++        - name: Check the deployer against the configuration
++          vars:
++            kolla_deployer_config_check_result: >-
++              {{ kolla_deployer_info |
++                 kolla_deployer_config_check(openstack_release, openstack_tag,
++                                             kolla_override_deployer_checks | bool) }}
++          block:
++            - name: Warn about the deployer and the configuration  # noqa: run-once[task]
++              ansible.builtin.debug:
++                msg: "{{ kolla_deployer_config_check_result.warnings }}"
++              run_once: true
++              when: kolla_deployer_config_check_result.warnings | length > 0
++
++            - name: Refuse a configuration this deployer was not built for  # noqa: run-once[task]
++              ansible.builtin.fail:
++                msg: "{{ kolla_deployer_config_check_result.errors | join(' ') }}"
++              run_once: true
++              any_errors_fatal: true
++              when: kolla_deployer_config_check_result.errors | length > 0
++
++        - name: Check the deployer against the deployment
++          when: kolla_deployer_checks_records | default(true) | bool
++          block:
++            - name: Check whether there is a deployment record
++              become: true
++              ansible.builtin.stat:
++                path: "{{ kolla_deployment_record_path }}"
++                get_checksum: false
++              ignore_unreachable: true
++              register: kolla_deployment_record_stat
++
++            - name: Read the deployment record
++              become: true
++              ansible.builtin.slurp:
++                src: "{{ kolla_deployment_record_path }}"
++              register: kolla_deployment_record_file
++              when:
++                - kolla_deployment_record_stat.stat is defined
++                - kolla_deployment_record_stat.stat.exists
++
++            - name: Compare the deployer with the deployment record
++              vars:
++                kolla_deployer_record_check_result: >-
++                  {{ (kolla_deployment_record_file.content | b64decode
++                      if kolla_deployment_record_file.content is defined else none) |
++                     kolla_deployer_record_check(kolla_deployer_info, kolla_action | default(''),
++                                                 inventory_hostname, kolla_deployment_record_path,
++                                                 kolla_override_deployer_checks | bool) }}
++              block:
++                - name: Warn about the deployer and the deployment record
++                  ansible.builtin.debug:
++                    msg: "{{ kolla_deployer_record_check_result.warnings }}"
++                  when: kolla_deployer_record_check_result.warnings | length > 0
++
++                - name: Refuse a deployment this deployer must not change
++                  ansible.builtin.fail:
++                    msg: "{{ kolla_deployer_record_check_result.errors | join(' ') }}"
++                  any_errors_fatal: true
++                  when: kolla_deployer_record_check_result.errors | length > 0
++  tags: always
+diff --git a/ansible/filter_plugins/deployer_checks.py b/ansible/filter_plugins/deployer_checks.py
+new file mode 100644
+index 000000000..869cf0a38
+--- /dev/null
++++ b/ansible/filter_plugins/deployer_checks.py
+@@ -0,0 +1,26 @@
++# Licensed under the Apache License, Version 2.0 (the "License"); you may
++# not use this file except in compliance with the License. You may obtain
++# a copy of the License at
++#
++#      http://www.apache.org/licenses/LICENSE-2.0
++#
++# Unless required by applicable law or agreed to in writing, software
++# distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
++# WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
++# License for the specific language governing permissions and limitations
++# under the License.
++
++from kolla_ansible import deployer_checks
++
++
++class FilterModule(object):
++    """Deployer check filters"""
++
++    def filters(self):
++        return {
++            'kolla_deployer_config_check':
++                deployer_checks.deployer_config_check,
++            'kolla_deployer_record_check':
++                deployer_checks.deployer_record_check,
++            'kolla_deployment_record': deployer_checks.deployment_record,
++        }
+diff --git a/ansible/gather-facts.yml b/ansible/gather-facts.yml
+index 4b7de2ee3..e2e258291 100644
+--- a/ansible/gather-facts.yml
++++ b/ansible/gather-facts.yml
+@@ -1,4 +1,10 @@
+ ---
++# NOTE: The deployer checks are imported here, rather than by each playbook
++# which imports this one, so that they run once, and first, for every action
++# which gathers facts.
++- name: Check the deployer
++  import_playbook: deployer-checks.yml
++
+ # NOTE(awiddersheim): Gather facts for all hosts as a
+ # first step since several plays below require them when
+ # building their configurations.
+diff --git a/ansible/group_vars/all/common.yml b/ansible/group_vars/all/common.yml
+index 52a6a6005..fb81264ce 100644
+--- a/ansible/group_vars/all/common.yml
++++ b/ansible/group_vars/all/common.yml
+@@ -310,6 +310,17 @@ openstack_release: "master"
+ # Docker image tag used by default.
+ openstack_tag: "{{ openstack_release }}-{{ kolla_base_distro }}-{{ kolla_base_distro_version }}{{ openstack_tag_suffix }}"
+ openstack_tag_suffix: ""
++
++# A containerised deployer records what it was built from in this file. When
++# it exists, Kolla Ansible checks itself against the configuration and against
++# what last changed each target. See deployer-checks.yml.
++kolla_deployer_info_path: "/etc/kolla-ansible/deployer.json"
++kolla_deployer_info: "{{ lookup('ansible.builtin.file', kolla_deployer_info_path) | from_json if kolla_deployer_info_path is file else {} }}"
++# What last deployed, reconfigured or upgraded a host is recorded here.
++kolla_deployment_record_path: "{{ node_config_directory }}/kolla-ansible-deployment.json"
++# Set by kolla-ansible --override-deployer-checks to turn every refusal of the
++# deployer checks into a warning.
++kolla_override_deployer_checks: false
+ openstack_logging_debug: "False"
+ 
+ openstack_region_name: "RegionOne"
+diff --git a/ansible/mariadb-backup.yml b/ansible/mariadb-backup.yml
+index 371991c86..7fb107802 100644
+--- a/ansible/mariadb-backup.yml
++++ b/ansible/mariadb-backup.yml
+@@ -1,4 +1,9 @@
+ ---
++- name: Check the deployer
++  import_playbook: deployer-checks.yml
++  vars:
++    kolla_deployer_checks_hosts: mariadb
++
+ - name: Backup MariaDB
+   hosts: mariadb
+   max_fail_percentage: >-
+diff --git a/ansible/mariadb-recovery.yml b/ansible/mariadb-recovery.yml
+index 6f69867db..a0d374644 100644
+--- a/ansible/mariadb-recovery.yml
++++ b/ansible/mariadb-recovery.yml
+@@ -1,4 +1,9 @@
+ ---
++- name: Check the deployer
++  import_playbook: deployer-checks.yml
++  vars:
++    kolla_deployer_checks_hosts: mariadb
++
+ - name: Recover mariadb
+   hosts: mariadb
+   max_fail_percentage: >-
+diff --git a/ansible/octavia-certificates.yml b/ansible/octavia-certificates.yml
+index aeebb814f..085b499b5 100644
+--- a/ansible/octavia-certificates.yml
++++ b/ansible/octavia-certificates.yml
+@@ -1,4 +1,10 @@
+ ---
++- name: Check the deployer
++  import_playbook: deployer-checks.yml
++  vars:
++    kolla_deployer_checks_hosts: localhost
++    kolla_deployer_checks_records: false
++
+ - name: Apply role octavia-certificates
+   hosts: localhost
+   roles:
+diff --git a/ansible/post-deploy.yml b/ansible/post-deploy.yml
+index af565e544..785b4f223 100644
+--- a/ansible/post-deploy.yml
++++ b/ansible/post-deploy.yml
+@@ -1,4 +1,10 @@
+ ---
++- name: Check the deployer
++  import_playbook: deployer-checks.yml
++  vars:
++    kolla_deployer_checks_hosts: localhost
++    kolla_deployer_checks_records: false
++
+ - name: Determining whether we need become=true
+   hosts: localhost
+   gather_facts: false
+diff --git a/ansible/rabbitmq-reset-state.yml b/ansible/rabbitmq-reset-state.yml
+index 4bb3cbdb0..1c8b0b0d9 100644
+--- a/ansible/rabbitmq-reset-state.yml
++++ b/ansible/rabbitmq-reset-state.yml
+@@ -1,4 +1,9 @@
+ ---
++- name: Check the deployer
++  import_playbook: deployer-checks.yml
++  vars:
++    kolla_deployer_checks_hosts: rabbitmq
++
+ - name: Reset RabbitMQ state
+   hosts: rabbitmq
+   tasks:
+diff --git a/ansible/site.yml b/ansible/site.yml
+index 4b29b43ba..263a8050e 100644
+--- a/ansible/site.yml
++++ b/ansible/site.yml
+@@ -1024,3 +1024,28 @@
+        default(100) }}
+   roles:
+     - { role: skyline, tags: skyline }
++
++# NOTE: Record on each host what last deployed it, so that the deployer checks
++# (deployer-checks.yml) can refuse an older deployer later. Hosts which failed
++# earlier in the run have left the play, so only successful hosts are
++# recorded. The record is written whatever tags were given, because a partial
++# deploy has still changed the host.
++- name: Record the deployment
++  gather_facts: false
++  hosts: baremetal
++  max_fail_percentage: "{{ kolla_max_fail_percentage | default(100) }}"
++  tasks:
++    - name: Record what deployed this host
++      become: true
++      vars:
++        kolla_deployment_record_content: >-
++          {{ kolla_deployer_info |
++             kolla_deployment_record(openstack_release, openstack_tag, kolla_action) }}
++      ansible.builtin.copy:
++        content: "{{ kolla_deployment_record_content | to_nice_json }}\n"
++        dest: "{{ kolla_deployment_record_path }}"
++        owner: "{{ config_owner_user }}"
++        group: "{{ config_owner_group }}"
++        mode: "0600"
++      when: kolla_action in ['deploy', 'deploy-containers', 'reconfigure', 'upgrade', 'migrate-container-engine']
++  tags: always
+diff --git a/doc/source/user/operating-kolla.rst b/doc/source/user/operating-kolla.rst
+index 44e3ddd88..53e1868f8 100644
+--- a/doc/source/user/operating-kolla.rst
++++ b/doc/source/user/operating-kolla.rst
+@@ -197,6 +197,40 @@ After this command is complete, the containers will have been recreated from
+ the new images and all database schema upgrades and similar actions performed
+ for you.
+ 
++Deployer checks
++---------------
++
++Each successful ``deploy``, ``deploy-containers``, ``reconfigure``,
++``upgrade`` and ``migrate-container-engine`` records what changed each host in
++``/etc/kolla/kolla-ansible-deployment.json`` on that host: the release, the
++Kolla Ansible version and git commit, the images' tag, the action and the
++time. The record is written whatever ``--tags`` were given.
++
++When Kolla Ansible runs from a containerised deployer image, which describes
++itself in ``/etc/kolla-ansible/deployer.json``, every action except
++``destroy`` first checks the deployer:
++
++* against the configuration: ``openstack_tag`` and ``openstack_release`` must
++  be the tag and release the deployer was built with;
++* against each target's record: a deployer for an older release, or for the
++  same release with an older Kolla Ansible version, is refused;
++* a deployer for a newer release may run only ``bootstrap-servers``, ``pull``,
++  ``prechecks``, ``gather-facts`` and ``upgrade`` until the upgrade is done;
++  and
++* ``upgrade`` may move to the next release, or from a ``.1`` release to the
++  next ``.1`` release (a SLURP upgrade). An upgrade to ``master`` is allowed
++  with a warning.
++
++``master`` counts as newer than every release, so a host last deployed from
++``master`` refuses a deployer for a stable release.
++
++Kolla Ansible installed with ``pip`` cannot tell which release it is for,
++because ``openstack_release`` is set in ``globals.yml``, so it writes the
++record but does not check it.
++
++``--override-deployer-checks`` turns each refusal into a warning, for example
++after an upgrade done by hand outside these rules.
++
+ 
+ CLI Command Completion
+ ~~~~~~~~~~~~~~~~~~~~~~
+diff --git a/kolla_ansible/ansible.py b/kolla_ansible/ansible.py
+index da53bc81a..3b740cf24 100644
+--- a/kolla_ansible/ansible.py
++++ b/kolla_ansible/ansible.py
+@@ -139,6 +139,13 @@ def add_kolla_ansible_args(parser):
+         dest="kolla_passwords",
+         help="Path to the kolla ansible passwords file"
+     )
++    parser.add_argument(
++        "--override-deployer-checks",
++        action="store_true",
++        dest="override_deployer_checks",
++        help="Warn rather than stop when a containerised deployer's checks "
++             "against the configuration or the deployment fail."
++    )
+ 
+ 
+ def _get_inventory_paths(parsed_args) -> List[str]:
+@@ -264,6 +271,8 @@ def build_args(parsed_args,
+     if extra_vars:
+         for extra_var_name, extra_var_value in extra_vars.items():
+             args += ["-e", "%s=%s" % (extra_var_name, extra_var_value)]
++    if getattr(parsed_args, "override_deployer_checks", False):
++        args += ["-e", "kolla_override_deployer_checks=yes"]
+     args += ["-e", "CONFIG_DIR=%s" %
+              os.path.abspath(parsed_args.kolla_config_path)]
+     if parsed_args.become:
+diff --git a/kolla_ansible/deployer_checks.py b/kolla_ansible/deployer_checks.py
+new file mode 100644
+index 000000000..bbb5e9c1c
+--- /dev/null
++++ b/kolla_ansible/deployer_checks.py
+@@ -0,0 +1,331 @@
++# Licensed under the Apache License, Version 2.0 (the "License"); you may
++# not use this file except in compliance with the License. You may obtain
++# a copy of the License at
++#
++#      http://www.apache.org/licenses/LICENSE-2.0
++#
++# Unless required by applicable law or agreed to in writing, software
++# distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
++# WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
++# License for the specific language governing permissions and limitations
++# under the License.
++
++"""Checks of a containerised deployer against its configuration and targets.
++
++A Kolla Ansible deployer image records what it was built from in a JSON
++document (deployer.json). Every successful deploy, reconfigure or upgrade
++records on each target what changed it last (the deployment record). The
++filters here compare the two, so that a deployer is not run against a
++configuration naming images it was not built with, against a deployment last
++changed by a newer deployer, or as an upgrade upstream does not support.
++"""
++
++import datetime
++from importlib import metadata
++import json
++import math
++import re
++
++from packaging import version as packaging_version
++
++OVERRIDE_OPTION = '--override-deployer-checks'
++OVERRIDE_HINT = 'Pass %s to override this check.' % OVERRIDE_OPTION
++UNKNOWN = 'unknown'
++RECORD_FORMAT_VERSION = 1
++
++# Actions, as the kolla_action variable names them, which may run with a
++# deployer for a newer release than the deployment, before it is upgraded.
++PRE_UPGRADE_ACTIONS = ('bootstrap-servers', 'pull', 'precheck',
++                       'gather-facts')
++# The same, as an operator types them.
++PRE_UPGRADE_COMMANDS = 'bootstrap-servers, pull, prechecks, gather-facts'
++UPGRADE_ACTION = 'upgrade'
++# Actions which change only the deploy host, and so are not checked against
++# the deployment records of the targets.
++DEPLOY_HOST_ACTIONS = ('certificates', 'octavia-certificates', 'post-deploy')
++
++_RELEASE_RE = re.compile(r'^(\d{4})\.([12])$')
++_MASTER = 'master'
++
++
++class ReleaseError(ValueError):
++    """A release name which cannot be compared."""
++
++
++def parse_release(release):
++    """Return a sortable key for an OpenStack release series.
++
++    Series are named YYYY.1 and YYYY.2. master sorts above every series.
++    """
++    if release == _MASTER:
++        return (math.inf, math.inf)
++    match = _RELEASE_RE.match(str(release)) if release else None
++    if not match:
++        raise ReleaseError(release)
++    return (int(match.group(1)), int(match.group(2)))
++
++
++def compare_releases(a, b):
++    """Return -1, 0 or 1 as release a is older than, equal to or newer than b.
++
++    Raises ReleaseError if either cannot be parsed.
++    """
++    key_a = parse_release(a)
++    key_b = parse_release(b)
++    return (key_a > key_b) - (key_a < key_b)
++
++
++def upgrade_targets(release):
++    """Return the series a deployment at release may be upgraded to.
++
++    A series may be upgraded to the next one, and a .1 series, which is a
++    skip-level upgrade release (SLURP), also to the next .1. An upgrade to
++    master is handled separately, because master's place among the series
++    cannot be known.
++    """
++    if release == _MASTER:
++        return []
++    year, minor = parse_release(release)
++    if minor == 1:
++        return ['%d.2' % year, '%d.1' % (year + 1)]
++    return ['%d.1' % (year + 1)]
++
++
++def compare_versions(a, b):
++    """Return -1, 0 or 1 as version a is older than, equal to or newer than b.
++
++    Versions are compared as PEP 440 versions, which orders pbr's .devN
++    versions correctly. Returns None if either cannot be parsed.
++    """
++    try:
++        version_a = packaging_version.Version(str(a))
++        version_b = packaging_version.Version(str(b))
++    except packaging_version.InvalidVersion:
++        return None
++    return (version_a > version_b) - (version_a < version_b)
++
++
++def _installed_version():
++    try:
++        return metadata.version('kolla-ansible')
++    except metadata.PackageNotFoundError:
++        return UNKNOWN
++
++
++def _installed_git_sha():
++    """Return the commit pbr recorded when Kolla Ansible was installed."""
++    try:
++        pbr_json = metadata.distribution('kolla-ansible').read_text(
++            'pbr.json')
++        return json.loads(pbr_json).get('git_version') or UNKNOWN
++    except (metadata.PackageNotFoundError, TypeError, ValueError,
++            AttributeError):
++        return UNKNOWN
++
++
++def deployer_identity(deployer_info):
++    """Return what this deployer is.
++
++    In a deployer image, this comes from its deployer.json. Otherwise, for
++    example in a virtualenv, the version and commit come from the installed
++    package and there is no tag or release.
++    """
++    deployer_info = deployer_info or {}
++    sha = (deployer_info.get('sources', {}).get('kolla-ansible', {})
++           .get('git_sha'))
++    if not sha or sha == UNKNOWN:
++        sha = _installed_git_sha()
++    return {
++        'kolla_ansible_version': (deployer_info.get('kolla_ansible_version') or
++                                  _installed_version()),
++        'kolla_ansible_git_sha': sha,
++        'tag': deployer_info.get('tag'),
++        'openstack_release': deployer_info.get('openstack_release'),
++    }
++
++
++def _result(errors, warnings, override):
++    if override:
++        warnings = warnings + [
++            'Overriding this refusal because %s was given: %s'
++            % (OVERRIDE_OPTION, error) for error in errors]
++        errors = []
++    return {'errors': errors, 'warnings': warnings}
++
++
++def deployer_config_check(deployer_info, openstack_release, openstack_tag,
++                          override=False):
++    """Check a deployer image against the configuration.
++
++    Returns a dict of the refusals ('errors') and 'warnings'. With override,
++    refusals are returned as warnings instead.
++    """
++    identity = deployer_identity(deployer_info)
++    errors = []
++    warnings = []
++
++    tag = identity['tag']
++    if not tag:
++        warnings.append(
++            "This deployer's deployer.json does not record its tag, so "
++            "openstack_tag was not checked.")
++    elif tag != openstack_tag:
++        errors.append(
++            'This deployer was built with tag %s, but openstack_tag is %s. '
++            'Use the deployer built with %s, or set openstack_tag to %s. %s'
++            % (tag, openstack_tag, openstack_tag, tag, OVERRIDE_HINT))
++
++    release = identity['openstack_release']
++    if not release:
++        warnings.append(
++            "This deployer's deployer.json does not record its release, so "
++            "openstack_release was not checked.")
++    elif release != openstack_release:
++        errors.append(
++            'This deployer was built for release %s, but openstack_release '
++            'is %s. Use a deployer built for %s, or set openstack_release to '
++            '%s. %s'
++            % (release, openstack_release, openstack_release, release,
++               OVERRIDE_HINT))
++
++    return _result(errors, warnings, override)
++
++
++def _describe_record(record, host, path):
++    return ("%s's deployment record %s says it was last changed by "
++            "Kolla Ansible %s for release %s (commit %s, action %s, %s)."
++            % (host, path,
++               record.get('kolla_ansible_version'),
++               record.get('openstack_release'),
++               record.get('kolla_ansible_git_sha') or UNKNOWN,
++               record.get('kolla_action') or UNKNOWN,
++               record.get('timestamp') or UNKNOWN))
++
++
++def _describe_deployer(identity):
++    return ('This deployer is Kolla Ansible %s for release %s '
++            '(commit %s, tag %s).'
++            % (identity['kolla_ansible_version'],
++               identity['openstack_release'],
++               identity['kolla_ansible_git_sha'] or UNKNOWN,
++               identity['tag'] or UNKNOWN))
++
++
++def deployer_record_check(record_text, deployer_info, kolla_action, host,
++                          path, override=False):
++    """Check a deployer image against one target's deployment record.
++
++    record_text is the record's content, or None if the target has none.
++    Returns a dict of the refusals ('errors') and 'warnings'. With override,
++    refusals are returned as warnings instead.
++    """
++    errors = []
++    warnings = []
++    action = kolla_action or ''
++
++    if record_text is None or action in DEPLOY_HOST_ACTIONS:
++        return _result(errors, warnings, override)
++
++    try:
++        record = json.loads(record_text)
++        if not isinstance(record, dict):
++            raise ValueError('the record is not a JSON object')
++        missing = [field for field in ('openstack_release',
++                                       'kolla_ansible_version')
++                   if not record.get(field)]
++        if missing:
++            raise ValueError('the record has no %s' % ' or '.join(missing))
++    except ValueError as e:
++        errors.append(
++            "%s's deployment record %s could not be read: %s. Correct or "
++            "remove it. %s" % (host, path, e, OVERRIDE_HINT))
++        return _result(errors, warnings, override)
++
++    identity = deployer_identity(deployer_info)
++    if not identity['openstack_release']:
++        warnings.append(
++            "This deployer's deployer.json does not record its release, so "
++            "it was not checked against %s's deployment record." % host)
++        return _result(errors, warnings, override)
++
++    described = '%s %s' % (_describe_record(record, host, path),
++                           _describe_deployer(identity))
++    d_release = identity['openstack_release']
++    r_release = record['openstack_release']
++    d_version = identity['kolla_ansible_version']
++    r_version = record['kolla_ansible_version']
++
++    try:
++        releases = compare_releases(d_release, r_release)
++    except ReleaseError as e:
++        errors.append(
++            '%s Release %s cannot be compared: releases must be master, '
++            'YYYY.1 or YYYY.2. %s' % (described, e, OVERRIDE_HINT))
++        return _result(errors, warnings, override)
++
++    if releases < 0:
++        errors.append(
++            '%s Release %s is older than %s, and an older deployer cannot '
++            'manage a newer deployment. Use a deployer for %s or later. %s'
++            % (described, d_release, r_release, r_release, OVERRIDE_HINT))
++
++    elif releases == 0:
++        versions = compare_versions(d_version, r_version)
++        if versions is None:
++            warnings.append(
++                '%s Kolla Ansible versions %s and %s cannot be compared, so '
++                'only the releases were checked.'
++                % (described, d_version, r_version))
++        elif versions < 0:
++            errors.append(
++                '%s Kolla Ansible %s is older than %s. Use a deployer at '
++                'Kolla Ansible %s or later. %s'
++                % (described, d_version, r_version, r_version,
++                   OVERRIDE_HINT))
++
++    elif action in PRE_UPGRADE_ACTIONS:
++        pass
++
++    elif action == UPGRADE_ACTION:
++        if d_release == _MASTER:
++            warnings.append(
++                '%s Upgrading from %s to master: whether this is a '
++                'supported upgrade cannot be known from the deployer. Check '
++                'the release notes before continuing.'
++                % (described, r_release))
++        elif d_release not in upgrade_targets(r_release):
++            errors.append(
++                '%s Upgrading from %s to %s is not a supported upgrade '
++                'path. From %s the supported upgrades are to %s. Upgrade '
++                'through each release in turn. %s'
++                % (described, r_release, d_release, r_release,
++                   '%s or %s' % (', '.join(upgrade_targets(r_release)),
++                                 _MASTER),
++                   OVERRIDE_HINT))
++
++    else:
++        errors.append(
++            '%s Release %s is newer than %s, so %s cannot run until the '
++            'deployment is upgraded. Before an upgrade only %s and upgrade '
++            'may run. Run kolla-ansible upgrade first. %s'
++            % (described, d_release, r_release, action or 'this action',
++               PRE_UPGRADE_COMMANDS, OVERRIDE_HINT))
++
++    return _result(errors, warnings, override)
++
++
++def deployment_record(deployer_info, openstack_release, openstack_tag,
++                      kolla_action):
++    """Return the deployment record to write on a target."""
++    identity = deployer_identity(deployer_info)
++    now = datetime.datetime.now(datetime.timezone.utc)
++    return {
++        'format_version': RECORD_FORMAT_VERSION,
++        'openstack_release': openstack_release,
++        'openstack_tag': openstack_tag,
++        'kolla_ansible_version': identity['kolla_ansible_version'],
++        'kolla_ansible_git_sha': identity['kolla_ansible_git_sha'],
++        'deployer_tag': identity['tag'],
++        'kolla_action': kolla_action,
++        'timestamp': now.strftime('%Y-%m-%dT%H:%M:%SZ'),
++    }
+diff --git a/kolla_ansible/tests/unit/test_ansible_args.py b/kolla_ansible/tests/unit/test_ansible_args.py
+new file mode 100644
+index 000000000..e44c87edc
+--- /dev/null
++++ b/kolla_ansible/tests/unit/test_ansible_args.py
+@@ -0,0 +1,39 @@
++# Licensed under the Apache License, Version 2.0 (the "License"); you may
++# not use this file except in compliance with the License. You may obtain
++# a copy of the License at
++#
++#      http://www.apache.org/licenses/LICENSE-2.0
++#
++# Unless required by applicable law or agreed to in writing, software
++# distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
++# WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
++# License for the specific language governing permissions and limitations
++# under the License.
++
++import argparse
++import unittest
++
++from kolla_ansible import ansible
++
++
++class TestOverrideDeployerChecks(unittest.TestCase):
++
++    def _build_args(self, argv):
++        parser = argparse.ArgumentParser()
++        ansible.add_ansible_args(parser)
++        ansible.add_kolla_ansible_args(parser)
++        parsed_args = parser.parse_args(
++            ['--configdir', '/etc/kolla', '-i', '/etc/kolla/inventory'] +
++            argv)
++        return ansible.build_args(parsed_args, ['site.yml'],
++                                  extra_vars={'kolla_action': 'deploy'})
++
++    def test_default(self):
++        executable, args = self._build_args([])
++        self.assertEqual('ansible-playbook', executable)
++        self.assertNotIn('kolla_override_deployer_checks=yes', args)
++
++    def test_override(self):
++        executable, args = self._build_args(['--override-deployer-checks'])
++        index = args.index('kolla_override_deployer_checks=yes')
++        self.assertEqual('-e', args[index - 1])
+diff --git a/kolla_ansible/tests/unit/test_deployer_checks_filters.py b/kolla_ansible/tests/unit/test_deployer_checks_filters.py
+new file mode 100644
+index 000000000..f2dc857e1
+--- /dev/null
++++ b/kolla_ansible/tests/unit/test_deployer_checks_filters.py
+@@ -0,0 +1,480 @@
++# Licensed under the Apache License, Version 2.0 (the "License"); you may
++# not use this file except in compliance with the License. You may obtain
++# a copy of the License at
++#
++#      http://www.apache.org/licenses/LICENSE-2.0
++#
++# Unless required by applicable law or agreed to in writing, software
++# distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
++# WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
++# License for the specific language governing permissions and limitations
++# under the License.
++
++import datetime
++from importlib import metadata
++import json
++import unittest
++from unittest import mock
++
++from kolla_ansible import deployer_checks as dc
++
++HINT = 'Pass --override-deployer-checks to override this check.'
++HOST = 'controller0'
++PATH = '/etc/kolla/kolla-ansible-deployment.json'
++
++
++def _deployer(release='2026.1', version='23.0.0', tag='2026.1-debian-trixie',
++              sha='a' * 40):
++    return {
++        'kolla_ansible_version': version,
++        'openstack_release': release,
++        'tag': tag,
++        'sources': {'kolla-ansible': {'path': '/kolla-ansible',
++                                      'git_sha': sha}},
++    }
++
++
++def _record(release='2026.1', version='23.0.0', **kwargs):
++    record = {
++        'format_version': 1,
++        'openstack_release': release,
++        'openstack_tag': '%s-debian-trixie' % release,
++        'kolla_ansible_version': version,
++        'kolla_ansible_git_sha': 'b' * 40,
++        'deployer_tag': '%s-debian-trixie' % release,
++        'kolla_action': 'deploy',
++        'timestamp': '2026-10-11T01:02:03Z',
++    }
++    record.update(kwargs)
++    return json.dumps(record)
++
++
++class TestReleases(unittest.TestCase):
++
++    def test_parse(self):
++        self.assertEqual((2025, 1), dc.parse_release('2025.1'))
++        self.assertEqual((2026, 2), dc.parse_release('2026.2'))
++        self.assertGreater(dc.parse_release('master'),
++                           dc.parse_release('2099.2'))
++
++    def test_parse_invalid(self):
++        for release in ('zed', '2025.3', '2025', '25.1', '', None,
++                        'stable/2025.1'):
++            with self.subTest(release=release):
++                self.assertRaises(dc.ReleaseError, dc.parse_release, release)
++
++    def test_compare(self):
++        ordered = ['2025.1', '2025.2', '2026.1', '2026.2', 'master']
++        for i, older in enumerate(ordered):
++            self.assertEqual(0, dc.compare_releases(older, older))
++            for newer in ordered[i + 1:]:
++                with self.subTest(older=older, newer=newer):
++                    self.assertEqual(-1, dc.compare_releases(older, newer))
++                    self.assertEqual(1, dc.compare_releases(newer, older))
++
++    def test_upgrade_targets(self):
++        self.assertEqual(['2025.2', '2026.1'], dc.upgrade_targets('2025.1'))
++        self.assertEqual(['2026.1'], dc.upgrade_targets('2025.2'))
++        self.assertEqual([], dc.upgrade_targets('master'))
++
++
++class TestVersions(unittest.TestCase):
++
++    def test_order(self):
++        ordered = ['22.1.0.dev266', '22.1.0.dev300', '22.1.0', '22.1.1',
++                   '23.0.0.dev1']
++        for i, older in enumerate(ordered):
++            self.assertEqual(0, dc.compare_versions(older, older))
++            for newer in ordered[i + 1:]:
++                with self.subTest(older=older, newer=newer):
++                    self.assertEqual(-1, dc.compare_versions(older, newer))
++                    self.assertEqual(1, dc.compare_versions(newer, older))
++
++    def test_unknown(self):
++        self.assertIsNone(dc.compare_versions('unknown', '22.1.0'))
++        self.assertIsNone(dc.compare_versions('22.1.0', None))
++
++
++class TestDeployerIdentity(unittest.TestCase):
++
++    def test_from_deployer_info(self):
++        self.assertEqual(
++            {'kolla_ansible_version': '23.0.0',
++             'kolla_ansible_git_sha': 'a' * 40,
++             'tag': '2026.1-debian-trixie',
++             'openstack_release': '2026.1'},
++            dc.deployer_identity(_deployer()))
++
++    @mock.patch.object(dc.metadata, 'distribution')
++    @mock.patch.object(dc.metadata, 'version')
++    def test_from_installed_package(self, mock_version, mock_distribution):
++        mock_version.return_value = '22.1.0.dev266'
++        mock_distribution.return_value.read_text.return_value = (
++            '{"git_version": "6f2df72", "is_release": false}')
++        self.assertEqual(
++            {'kolla_ansible_version': '22.1.0.dev266',
++             'kolla_ansible_git_sha': '6f2df72',
++             'tag': None,
++             'openstack_release': None},
++            dc.deployer_identity({}))
++        mock_version.assert_called_once_with('kolla-ansible')
++        mock_distribution.return_value.read_text.assert_called_once_with(
++            'pbr.json')
++
++    @mock.patch.object(dc.metadata, 'distribution')
++    @mock.patch.object(dc.metadata, 'version')
++    def test_unknown_sha_in_image(self, mock_version, mock_distribution):
++        mock_distribution.return_value.read_text.return_value = (
++            '{"git_version": "6f2df72"}')
++        identity = dc.deployer_identity(_deployer(sha='unknown'))
++        self.assertEqual('6f2df72', identity['kolla_ansible_git_sha'])
++        self.assertEqual('23.0.0', identity['kolla_ansible_version'])
++        mock_version.assert_not_called()
++
++    @mock.patch.object(dc.metadata, 'distribution')
++    @mock.patch.object(dc.metadata, 'version')
++    def test_nothing_known(self, mock_version, mock_distribution):
++        mock_version.side_effect = metadata.PackageNotFoundError
++        mock_distribution.side_effect = metadata.PackageNotFoundError
++        identity = dc.deployer_identity(None)
++        self.assertEqual('unknown', identity['kolla_ansible_version'])
++        self.assertEqual('unknown', identity['kolla_ansible_git_sha'])
++
++    @mock.patch.object(dc.metadata, 'distribution')
++    def test_no_pbr_json(self, mock_distribution):
++        mock_distribution.return_value.read_text.return_value = None
++        self.assertEqual('unknown', dc._installed_git_sha())
++
++
++class TestConfigCheck(unittest.TestCase):
++
++    def test_match(self):
++        result = dc.deployer_config_check(
++            _deployer(), '2026.1', '2026.1-debian-trixie')
++        self.assertEqual({'errors': [], 'warnings': []}, result)
++
++    def test_tag_mismatch(self):
++        result = dc.deployer_config_check(
++            _deployer(), '2026.1', 'not-this-tag')
++        self.assertEqual([], result['warnings'])
++        self.assertEqual(
++            ['This deployer was built with tag 2026.1-debian-trixie, but '
++             'openstack_tag is not-this-tag. Use the deployer built with '
++             'not-this-tag, or set openstack_tag to 2026.1-debian-trixie. ' +
++             HINT],
++            result['errors'])
++
++    def test_release_mismatch(self):
++        result = dc.deployer_config_check(
++            _deployer(), '2025.2', '2026.1-debian-trixie')
++        self.assertEqual(
++            ['This deployer was built for release 2026.1, but '
++             'openstack_release is 2025.2. Use a deployer built for 2025.2, '
++             'or set openstack_release to 2026.1. ' + HINT],
++            result['errors'])
++
++    def test_both_mismatch(self):
++        result = dc.deployer_config_check(_deployer(), '2025.2', 'other')
++        self.assertEqual(2, len(result['errors']))
++
++    def test_override(self):
++        result = dc.deployer_config_check(
++            _deployer(), '2026.1', 'not-this-tag', override=True)
++        self.assertEqual([], result['errors'])
++        self.assertEqual(1, len(result['warnings']))
++        self.assertTrue(result['warnings'][0].startswith(
++            'Overriding this refusal because --override-deployer-checks was '
++            'given: This deployer was built with tag'))
++
++    def test_old_deployer_info(self):
++        info = _deployer()
++        del info['tag']
++        del info['openstack_release']
++        result = dc.deployer_config_check(info, '2026.1', 'anything')
++        self.assertEqual([], result['errors'])
++        self.assertEqual(
++            ["This deployer's deployer.json does not record its tag, so "
++             "openstack_tag was not checked.",
++             "This deployer's deployer.json does not record its release, so "
++             "openstack_release was not checked."],
++            result['warnings'])
++
++
++class TestRecordCheck(unittest.TestCase):
++
++    ALL_ACTIONS = (
++        'bootstrap-servers', 'pull', 'precheck', 'gather-facts', 'upgrade',
++        'deploy', 'deploy-containers', 'reconfigure', 'stop', 'check',
++        'config', 'config_validate', 'prune-images', 'nova-libvirt-cleanup',
++        'migrate-container-engine', 'backup', 'rabbitmq-reset-state',
++        'deploy-servers', '')
++    REFUSED_BEFORE_UPGRADE = tuple(
++        a for a in ALL_ACTIONS
++        if a not in ('bootstrap-servers', 'pull', 'precheck', 'gather-facts',
++                     'upgrade'))
++
++    def _check(self, record_text, deployer=None, action='deploy',
++               override=False):
++        return dc.deployer_record_check(
++            record_text, deployer or _deployer(), action, HOST, PATH,
++            override=override)
++
++    def assertClean(self, result):
++        self.assertEqual({'errors': [], 'warnings': []}, result)
++
++    def assertRefused(self, result, *fragments):
++        self.assertEqual(1, len(result['errors']), result)
++        self.assertEqual([], result['warnings'])
++        message = result['errors'][0]
++        self.assertTrue(message.endswith(HINT), message)
++        for fragment in fragments:
++            self.assertIn(fragment, message)
++
++    def test_no_record(self):
++        for action in self.ALL_ACTIONS:
++            with self.subTest(action=action):
++                self.assertClean(self._check(None, action=action))
++
++    def test_same_release_same_version(self):
++        for action in self.ALL_ACTIONS:
++            with self.subTest(action=action):
++                self.assertClean(self._check(_record(), action=action))
++
++    def test_same_release_newer_deployer_version(self):
++        self.assertClean(self._check(_record(version='23.0.0.dev10')))
++
++    def test_same_release_older_deployer_version(self):
++        for action in self.ALL_ACTIONS:
++            with self.subTest(action=action):
++                result = self._check(_record(version='23.0.1'),
++                                     action=action)
++                self.assertRefused(
++                    result,
++                    "controller0's deployment record %s says it was last "
++                    "changed by Kolla Ansible 23.0.1 for release 2026.1 "
++                    "(commit %s, action deploy, 2026-10-11T01:02:03Z)."
++                    % (PATH, 'b' * 40),
++                    'This deployer is Kolla Ansible 23.0.0 for release '
++                    '2026.1 (commit %s, tag 2026.1-debian-trixie).'
++                    % ('a' * 40),
++                    'Kolla Ansible 23.0.0 is older than 23.0.1. Use a '
++                    'deployer at Kolla Ansible 23.0.1 or later.')
++
++    def test_dev_versions(self):
++        deployer = _deployer(release='master', version='22.1.0.dev266')
++        self.assertClean(self._check(
++            _record(release='master', version='22.1.0.dev100'), deployer))
++        self.assertRefused(
++            self._check(_record(release='master', version='22.1.0.dev300'),
++                        deployer),
++            'Kolla Ansible 22.1.0.dev266 is older than 22.1.0.dev300.')
++
++    def test_unknown_versions(self):
++        result = self._check(_record(version='unknown'))
++        self.assertEqual([], result['errors'])
++        self.assertEqual(1, len(result['warnings']))
++        self.assertIn('Kolla Ansible versions 23.0.0 and unknown cannot be '
++                      'compared, so only the releases were checked.',
++                      result['warnings'][0])
++
++    def test_older_release(self):
++        for action in self.ALL_ACTIONS:
++            with self.subTest(action=action):
++                self.assertRefused(
++                    self._check(_record(release='2026.2', version='23.1.0'),
++                                action=action),
++                    'Release 2026.1 is older than 2026.2, and an older '
++                    'deployer cannot manage a newer deployment. Use a '
++                    'deployer for 2026.2 or later.')
++
++    def test_older_release_newer_version(self):
++        # The release decides, whatever the versions say.
++        self.assertRefused(
++            self._check(_record(release='2026.2', version='1.0.0')),
++            'Release 2026.1 is older than 2026.2')
++
++    def test_master_record_stable_deployer(self):
++        self.assertRefused(
++            self._check(_record(release='master', version='22.1.0.dev1')),
++            'Release 2026.1 is older than master')
++
++    def test_newer_release_before_upgrade(self):
++        record = _record(release='2025.2', version='22.0.0')
++        for action in ('bootstrap-servers', 'pull', 'precheck',
++                       'gather-facts'):
++            with self.subTest(action=action):
++                self.assertClean(self._check(record, action=action))
++
++    def test_newer_release_refused_until_upgraded(self):
++        record = _record(release='2025.2', version='22.0.0')
++        for action in self.REFUSED_BEFORE_UPGRADE:
++            with self.subTest(action=action):
++                self.assertRefused(
++                    self._check(record, action=action),
++                    'Release 2026.1 is newer than 2025.2, so %s cannot run '
++                    'until the deployment is upgraded. Before an upgrade '
++                    'only bootstrap-servers, pull, prechecks, gather-facts '
++                    'and upgrade may run. Run kolla-ansible upgrade first.'
++                    % (action or 'this action'))
++
++    def test_upgrade_paths(self):
++        supported = [('2025.1', '2025.2'), ('2025.2', '2026.1'),
++                     ('2025.1', '2026.1'), ('2026.1', '2026.2')]
++        for old, new in supported:
++            with self.subTest(old=old, new=new):
++                self.assertClean(self._check(
++                    _record(release=old, version='1.0.0'),
++                    _deployer(release=new, tag=new), action='upgrade'))
++
++    def test_unsupported_upgrade_paths(self):
++        unsupported = [('2025.2', '2026.2', '2026.1'),
++                       ('2025.1', '2026.2', '2025.2, 2026.1'),
++                       ('2024.1', '2026.1', '2024.2, 2025.1'),
++                       ('2024.2', '2025.2', '2025.1')]
++        for old, new, targets in unsupported:
++            with self.subTest(old=old, new=new):
++                self.assertRefused(
++                    self._check(_record(release=old, version='1.0.0'),
++                                _deployer(release=new, tag=new),
++                                action='upgrade'),
++                    'Upgrading from %s to %s is not a supported upgrade '
++                    'path. From %s the supported upgrades are to %s or '
++                    'master. Upgrade through each release in turn.'
++                    % (old, new, old, targets))
++
++    def test_upgrade_to_master(self):
++        for old in ('2024.1', '2025.2', '2026.2'):
++            with self.subTest(old=old):
++                result = self._check(
++                    _record(release=old, version='1.0.0'),
++                    _deployer(release='master', version='23.0.0.dev1'),
++                    action='upgrade')
++                self.assertEqual([], result['errors'])
++                self.assertEqual(1, len(result['warnings']))
++                self.assertIn(
++                    'Upgrading from %s to master: whether this is a '
++                    'supported upgrade cannot be known from the deployer. '
++                    'Check the release notes before continuing.' % old,
++                    result['warnings'][0])
++
++    def test_upgrade_same_release(self):
++        # An upgrade within a release is checked as any other action.
++        self.assertClean(self._check(_record(), action='upgrade'))
++        self.assertRefused(
++            self._check(_record(version='23.0.1'), action='upgrade'),
++            'Kolla Ansible 23.0.0 is older than 23.0.1')
++
++    def test_override(self):
++        cases = [
++            (_record(version='23.0.1'), 'deploy'),
++            (_record(release='2026.2'), 'deploy'),
++            (_record(release='2025.2'), 'reconfigure'),
++            (_record(release='2024.2'), 'upgrade'),
++            ('not json', 'deploy'),
++        ]
++        for record, action in cases:
++            with self.subTest(record=record, action=action):
++                refused = self._check(record, action=action)
++                result = self._check(record, action=action, override=True)
++                self.assertEqual([], result['errors'])
++                self.assertEqual(
++                    ['Overriding this refusal because '
++                     '--override-deployer-checks was given: ' +
++                     refused['errors'][0]],
++                    result['warnings'])
++
++    def test_deploy_host_actions(self):
++        for action in ('certificates', 'octavia-certificates',
++                       'post-deploy'):
++            with self.subTest(action=action):
++                self.assertClean(self._check(
++                    _record(release='2026.2'), action=action))
++                self.assertClean(self._check('not json', action=action))
++
++    def test_malformed_record(self):
++        cases = [
++            ('not json', 'Expecting value'),
++            ('[]', 'the record is not a JSON object'),
++            ('{}', 'the record has no openstack_release or '
++                   'kolla_ansible_version'),
++            (json.dumps({'openstack_release': '2026.1'}),
++             'the record has no kolla_ansible_version'),
++        ]
++        for text, reason in cases:
++            with self.subTest(text=text):
++                self.assertRefused(
++                    self._check(text),
++                    "controller0's deployment record %s could not be read: "
++                    % PATH, reason, 'Correct or remove it.')
++
++    def test_unparsable_release(self):
++        self.assertRefused(
++            self._check(_record(release='zed')),
++            'Release zed cannot be compared: releases must be master, '
++            'YYYY.1 or YYYY.2.')
++        self.assertRefused(
++            self._check(_record(), _deployer(release='custom')),
++            'Release custom cannot be compared')
++
++    def test_deployer_without_release(self):
++        info = _deployer()
++        del info['openstack_release']
++        result = self._check(_record(release='2026.2'), info)
++        self.assertEqual([], result['errors'])
++        self.assertEqual(
++            ["This deployer's deployer.json does not record its release, so "
++             "it was not checked against controller0's deployment record."],
++            result['warnings'])
++
++    def test_minimal_record(self):
++        record = json.dumps({'openstack_release': '2026.1',
++                             'kolla_ansible_version': '23.0.1'})
++        self.assertRefused(
++            self._check(record),
++            'by Kolla Ansible 23.0.1 for release 2026.1 (commit unknown, '
++            'action unknown, unknown).')
++
++
++class TestDeploymentRecord(unittest.TestCase):
++
++    @mock.patch.object(dc, 'datetime')
++    def test_record(self, mock_datetime):
++        mock_datetime.timezone = datetime.timezone
++        mock_datetime.datetime.now.return_value = datetime.datetime(
++            2026, 10, 11, 1, 2, 3, tzinfo=datetime.timezone.utc)
++        self.assertEqual(
++            {'format_version': 1,
++             'openstack_release': '2026.1',
++             'openstack_tag': '2026.1-debian-trixie',
++             'kolla_ansible_version': '23.0.0',
++             'kolla_ansible_git_sha': 'a' * 40,
++             'deployer_tag': '2026.1-debian-trixie',
++             'kolla_action': 'deploy',
++             'timestamp': '2026-10-11T01:02:03Z'},
++            dc.deployment_record(_deployer(), '2026.1',
++                                 '2026.1-debian-trixie', 'deploy'))
++        mock_datetime.datetime.now.assert_called_once_with(
++            datetime.timezone.utc)
++
++    @mock.patch.object(dc.metadata, 'distribution')
++    @mock.patch.object(dc.metadata, 'version')
++    def test_record_from_virtualenv(self, mock_version, mock_distribution):
++        mock_version.return_value = '22.1.0.dev266'
++        mock_distribution.return_value.read_text.return_value = (
++            '{"git_version": "6f2df72"}')
++        record = dc.deployment_record({}, 'master', 'master-debian-trixie',
++                                      'upgrade')
++        self.assertEqual('22.1.0.dev266', record['kolla_ansible_version'])
++        self.assertEqual('6f2df72', record['kolla_ansible_git_sha'])
++        self.assertIsNone(record['deployer_tag'])
++        self.assertEqual('master-debian-trixie', record['openstack_tag'])
++        self.assertEqual('upgrade', record['kolla_action'])
++
++    def test_record_round_trip(self):
++        # A record written by one deployer passes the check by the same one.
++        record = dc.deployment_record(_deployer(), '2026.1',
++                                      '2026.1-debian-trixie', 'deploy')
++        self.assertEqual(
++            {'errors': [], 'warnings': []},
++            dc.deployer_record_check(json.dumps(record), _deployer(),
++                                     'reconfigure', HOST, PATH))
+diff --git a/releasenotes/notes/deployer-checks-5c3bf4aaabef98ac.yaml b/releasenotes/notes/deployer-checks-5c3bf4aaabef98ac.yaml
+new file mode 100644
+index 000000000..e27a6e843
+--- /dev/null
++++ b/releasenotes/notes/deployer-checks-5c3bf4aaabef98ac.yaml
+@@ -0,0 +1,24 @@
++---
++features:
++  - |
++    Kolla Ansible now records what last changed each host in
++    ``/etc/kolla/kolla-ansible-deployment.json``, after each successful
++    ``deploy``, ``deploy-containers``, ``reconfigure``, ``upgrade`` and
++    ``migrate-container-engine``. The record holds the release, the Kolla
++    Ansible version and git commit, the images' tag, the action and the time.
++    It is written whatever ``--tags`` were given, because a partial deploy has
++    still changed the host.
++  - |
++    When Kolla Ansible runs from a containerised deployer image, every action
++    except ``destroy`` first checks the deployer. It refuses an
++    ``openstack_tag`` or ``openstack_release`` that differs from the image's.
++    It refuses a host whose record shows an older release, or the same
++    release with an older Kolla Ansible version. Before an upgrade, a deployer
++    for a newer release may run only ``bootstrap-servers``, ``pull``,
++    ``prechecks``, ``gather-facts`` and ``upgrade``, and ``upgrade`` may move
++    only to the next release, or from a ``.1`` release to the next ``.1``.
++    ``master`` counts as newer than every release, so a host last deployed
++    from ``master`` refuses a deployer for a stable release. The new
++    ``--override-deployer-checks`` option turns each refusal into a warning.
++    Kolla Ansible installed with ``pip`` writes the record but does not check
++    it.
+diff --git a/requirements.txt b/requirements.txt
+index 930f4f996..24157eb55 100644
+--- a/requirements.txt
++++ b/requirements.txt
+@@ -22,3 +22,6 @@ oslo.utils>=3.33.0 # Apache-2.0
+ 
+ # CLI
+ cliff>=4.7.0 # Apache-2.0
++
++# version comparison
++packaging>=20.4 # Apache-2.0
