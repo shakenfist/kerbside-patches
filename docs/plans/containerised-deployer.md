@@ -362,7 +362,7 @@ against `develop`.
 | 1. Deployer image | Complete | #1803 (`507fbea62`) |
 | 2. Launcher | Complete | #1812 (`b97361853`) |
 | 3. The localhost connection | Complete | #1831 (`f2dd038ab`) |
-| 4. Bootstrapping the deploy host | In progress | |
+| 4. Bootstrapping the deploy host | Complete | #1854 (`78c6e79c7`), #1857 (`af2474d4f`); shakenfist/actions#150 |
 | 5. Version safeguards | Not started | |
 | 6. Build manifest | Not started | |
 | 7. Make the prototype entry voting | Not started | |
@@ -2053,7 +2053,8 @@ attempt 1):
   deployed and passed its tests but the job failed in "Collect logs",
   and the Ubuntu all-in-one deployed with `failed=0` but failed in
   `tools/install-openstack-clients`. Neither touches Phase 4 (see the
-  Outcome). Multinode passed when re-run (attempt 2).
+  Outcome). Multinode passed when re-run (attempt 2), and every entry,
+  Ubuntu included, was green on #1857's final head `26fad76ae`.
 * Met. 4b's probe passed with nothing left mounted or on disk, except
   that ownership preservation was not exercised locally. The clean-host
   jobs unpack as real root and bootstrap completed.
@@ -2440,6 +2441,16 @@ We will know this plan has succeeded when the following are true:
 * Rootless podman as the deployer's engine. nsenter rules it out
   for a deploy host that is also a target, but it should work
   where the deploy host is not.
+* The "Collect logs" step in `functional-tests.yml` aborts on the
+  first node whose `tools/gather-logs` fails: it runs under
+  `bash -e`, and `wait ${pids}` returns the last job's status before
+  the per-node warning code runs (Phase 4's Outcome). Not this
+  plan's change; fix it in its own pull request.
+* Whether SELinux is enforcing when the chroot of Phase 4 starts on
+  Rocky. Nothing failed and `restorecon -n` found no mislabelled
+  files, but the job captures neither `getenforce` nor the audit
+  log. Add both to `tools/check-deployer-launcher` if it matters to
+  the proposal.
 
 ### Bugs fixed during this work
 
