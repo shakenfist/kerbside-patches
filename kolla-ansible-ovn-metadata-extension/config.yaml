@@ -5,8 +5,8 @@ shallow_clone: false
 directory: kolla-ansible
 release: master-ovn-metadata-extension
 depends_on: ''
-source_sha: 6f2df724ab38da9c99ae9136b271cf15b1d13055
-previous_source_sha: f9148f1012a733a2bd6d0d33411fab0e3fe02d80
+source_sha: e7c2b4010a99d7c1fdb4fb885abc5391a328e033
+previous_source_sha: 6f2df724ab38da9c99ae9136b271cf15b1d13055
 skip_rebase: false
 skip_claude: true
 repush: false
