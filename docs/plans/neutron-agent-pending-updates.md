@@ -16,7 +16,7 @@ how reviewers react before building anything larger.
 
 | Phase | What | Status | Merged |
 |-------|------|--------|--------|
-| 1 | Propose `pending_updates` in the L3 agent's heartbeat upstream | In progress | |
+| 1 | Propose `pending_updates` in the L3 and DHCP agent heartbeats upstream | In progress | |
 | 2 | Fallback: out-of-tree metrics extension | Proposed | |
 | 3 | Push audit | Not started | |
 
@@ -57,6 +57,11 @@ test and a release note. Operators can read it with
 `openstack network agent show`, and exporters that already scrape the
 agent list can pick it up.
 
+patch207 makes the same change in `DhcpAgentWithStateReport._report_state`,
+which uses the same queue class, with `Related-Bug: #2170465`. It is
+stacked on patch206 so reviewers see the L3 change first; if they want
+the two as one change, squash them.
+
 What it counts: updates in the priority queue that no worker has taken
 yet. Once a worker takes an update for a router that another worker is
 already processing, the update is handed to the primary worker
@@ -67,9 +72,7 @@ message should not claim more than that.
 
 How to judge the reaction:
 
-- **Accepted, or accepted with changes:** follow it to merge. Offer
-  the same key for the DHCP agent (`DhcpAgentWithStateReport`), which
-  uses the same queue class, as a follow-up.
+- **Accepted, or accepted with changes:** follow both patches to merge.
 - **Rejected because the heartbeat is the wrong place:** for example,
   "configurations is for configuration, not runtime state". Ask where
   reviewers would put it. If the answer is oslo.metrics or nowhere, go
