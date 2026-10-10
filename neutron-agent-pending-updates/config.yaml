@@ -1,0 +1,10 @@
+repo: https://opendev.org/openstack/neutron
+source_branch: master
+destination_branch: agent-pending-updates
+shallow_clone: true
+directory: neutron
+release: master-neutron-agent-pending-updates
+depends_on: ''
+source_sha: dd92e47ab193ea1eda3f31463098e9e4e1375e48
+previous_source_sha: dd92e47ab193ea1eda3f31463098e9e4e1375e48
+repush: true

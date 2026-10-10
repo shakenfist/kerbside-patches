@@ -1,0 +1,70 @@
+commit 968339ee881c9d5ada9a662446558071251e70dd
+Author: Michael Still <mikal@stillhq.com>
+Date:   Sat Oct 10 17:20:42 2026 +1100
+
+    l3: Report pending updates in agent state
+    
+    The L3 agent queues router and network updates for its worker pool, but
+    nothing shows how long that queue is without reading the agent's logs.
+    Report its length as pending_updates in the configurations the agent
+    sends with every heartbeat, beside its router and interface counts.
+    
+    Prompt: while reading the L3 agent, Mikal asked whether it publishes any
+    metrics about its work queue. It does not, and LP #1512864 left such
+    instrumentation to case-by-case patches, so he chose to propose the
+    smallest in-tree change first and see how reviewers react.
+    Assisted-By: Claude Opus 5.5 (1M context, low effort) <noreply@anthropic.com>
+    Co-Authored-By: Claude Opus 5.5 (1M context, low effort) <noreply@anthropic.com>
+    
+    Change-Id: Icb83a84cc95388c9f68af538294022730dca1b90
+    Signed-off-by: Michael Still <mikal@stillhq.com>
+
+diff --git a/neutron/agent/l3/agent.py b/neutron/agent/l3/agent.py
+index 941f80635a..020acd22d2 100644
+--- a/neutron/agent/l3/agent.py
++++ b/neutron/agent/l3/agent.py
+@@ -1067,6 +1067,7 @@ class L3NATAgentWithStateReport(L3NATAgent):
+         configurations['ex_gw_ports'] = num_ex_gw_ports
+         configurations['interfaces'] = num_interfaces
+         configurations['floating_ips'] = num_floating_ips
++        configurations['pending_updates'] = self._queue.qsize
+         try:
+             agent_status = self.state_rpc.report_state(self.context,
+                                                        self.agent_state,
+diff --git a/neutron/tests/unit/agent/l3/test_agent.py b/neutron/tests/unit/agent/l3/test_agent.py
+index f183602e3b..bcf1686f19 100644
+--- a/neutron/tests/unit/agent/l3/test_agent.py
++++ b/neutron/tests/unit/agent/l3/test_agent.py
+@@ -488,6 +488,19 @@ class TestBasicRouterOperations(BasicRouterOperationsFramework):
+             agent._report_state()
+             self.assertFalse(agent.fullsync)
+ 
++    def test_report_state_pending_updates(self):
++        with mock.patch.object(agent_rpc.PluginReportStateAPI,
++                               'report_state') as report_state:
++            agent = l3_agent.L3NATAgentWithStateReport(host=HOSTNAME,
++                                                       conf=self.conf)
++            agent.init_host()
++            for router_id in ('r1', 'r2'):
++                agent._queue.add(resource_processing_queue.ResourceUpdate(
++                    router_id, l3_agent.PRIORITY_RPC))
++            agent._report_state()
++            reported = report_state.call_args[0][1]
++            self.assertEqual(2, reported['configurations']['pending_updates'])
++
+     def test_periodic_sync_routers_task_call_clean_stale_namespaces(self):
+         agent = l3_agent.L3NATAgent(HOSTNAME, self.conf)
+         agent.init_host()
+diff --git a/releasenotes/notes/l3-agent-pending-updates-4b7e1c9a2d3f5e60.yaml b/releasenotes/notes/l3-agent-pending-updates-4b7e1c9a2d3f5e60.yaml
+new file mode 100644
+index 0000000000..c81df8d972
+--- /dev/null
++++ b/releasenotes/notes/l3-agent-pending-updates-4b7e1c9a2d3f5e60.yaml
+@@ -0,0 +1,7 @@
++---
++features:
++  - |
++    The L3 agent now reports the number of router and network updates
++    waiting to be processed as ``pending_updates`` in its ``configurations``,
++    shown by ``openstack network agent show``. A value that stays high or
++    keeps growing means the agent is not keeping up with its work.
