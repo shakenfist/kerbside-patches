@@ -99,7 +99,7 @@ PRs and issues with the `DAILY_REBASE_TOKEN` secret.
 
 | Script | Description |
 |--------|-------------|
-| `gerrit-pre-push-lint` | Pre-push linter for OpenStack Gerrit submissions. Checks for common issues that reviewers flag during code review (missing release notes, bug references, YAML line length, Jinja2 issues, etc.). Supports checking stacked patches with `--stack N` or `--range origin/master..HEAD`. |
+| `gerrit-pre-push-lint` | Pre-push linter for OpenStack Gerrit submissions. Checks for common issues that reviewers flag during code review (missing release notes, bug references, YAML line length, Jinja2 issues, etc.). It also learns subject conventions from the last 200 commits of the project: when at least 40% carry an area prefix (`ovn: `, `[OVN] `) it warns about a subject without one, and when at most 10% end with a period it warns about a subject that does. A shallow clone skips this check. Supports checking stacked patches with `--stack N` or `--range origin/master..HEAD`. |
 | `analyze-gerrit-review-times` | Analyzes Gerrit review timestamps to find optimal posting times. Fetches recent merged reviews and shows when reviewers are most active by hour and day of week. |
 | `analyze-gerrit-patch-size` | Analyzes correlation between patch size, series length, and review response. Shows how patch complexity affects time to review, merge, and number of revision cycles needed. |
 | `analyze-gerrit-new-roles` | Analyzes historical patterns for new Ansible role additions. Shows successful strategies, series vs standalone patterns, and recommendations for getting new roles merged. |
