@@ -49,7 +49,8 @@ upstream `dd92e47ab1`.
 ## Phase 1 --- `pending_updates` in the heartbeat
 
 Series `neutron-agent-pending-updates/`, patch206, Gerrit topic
-`agent-pending-updates`. One line in
+`agent-pending-updates`, closing LP #2170465 (filed 2026-10-11 as a
+plain bug, not an RFE, citing LP #1512864). One line in
 `L3NATAgentWithStateReport._report_state` adds
 `configurations['pending_updates'] = self._queue.qsize`, with a unit
 test and a release note. Operators can read it with
@@ -126,10 +127,6 @@ Rejected alternatives:
 
 ## Open questions
 
-- **Should a Launchpad bug be filed before pushing?** Neutron reviewers
-  usually want one for a user-visible change, and an RFE tag invites
-  the drivers meeting to weigh in. Default: file a short bug against
-  neutron, add `Closes-Bug` to the patch, and link LP #1512864 from it.
 - **Is the key name right?** `pending_updates` matches the DHCP log
   message's wording ("Pending events"). Default: keep it unless
   reviewers object.

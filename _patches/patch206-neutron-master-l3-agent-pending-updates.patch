@@ -9,6 +9,7 @@ Date:   Sat Oct 10 17:20:42 2026 +1100
     Report its length as pending_updates in the configurations the agent
     sends with every heartbeat, beside its router and interface counts.
     
+    Closes-Bug: #2170465
     Prompt: while reading the L3 agent, Mikal asked whether it publishes any
     metrics about its work queue. It does not, and LP #1512864 left such
     instrumentation to case-by-case patches, so he chose to propose the
