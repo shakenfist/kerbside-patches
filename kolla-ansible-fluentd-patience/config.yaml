@@ -7,6 +7,6 @@ release: master-fluentd-tail-patience
 depends_on: ''
 source_sha: 6f2df724ab38da9c99ae9136b271cf15b1d13055
 previous_source_sha: 6caf5c9855e254f5f55f2c6a7c719d13da58affa
-skip_rebase: true
+skip_rebase: false
 skip_claude: true
 repush: true

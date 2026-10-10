@@ -35,7 +35,7 @@ directories. This page documents each script and its purpose.
 | Script | Description |
 |--------|-------------|
 | `rebase-with-claude.sh [options] [projects...]` | Unified rebase helper for both CI and CLI use. Tests patches, analyzes failures, and invokes Claude Code to auto-fix. Options: `--bump-shas` (update to HEAD), `--step-forward N` (advance N commits from current), `--no-claude`, `--interactive`, `--ci`, `--max-turns N` (default 50), `--output-dir DIR`. |
-| `bump-source-shas.sh [N]` | Updates `source_sha` in all project `config.yaml` files. With a positional arg N, sets to the Nth most recent upstream commit (default: 1 = HEAD). With `--forward N`, steps forward N commits from the current SHA. With `--changelog <path>`, writes a per-project summary of new upstream commits (short hashes + oneline messages) to the specified file. |
+| `bump-source-shas.sh [N]` | Updates `source_sha` in all project `config.yaml` files. With a positional arg N, sets to the Nth most recent upstream commit (default: 1 = HEAD). With `--forward N`, steps forward N commits from the current SHA. With `--changelog <path>`, writes a summary of new upstream commits (short hashes + oneline messages) to the specified file, listing each repository and range once even when several series patch that repository. It moves every series' SHA, including those with `skip_rebase: true`. |
 | `analyze-shared-patches.py <results.json>` | Analyzes failing patches to determine fix strategy (`modify_in_place` vs `create_copy`) based on whether patches are shared across releases. |
 | `find-patch-usage.py <patch-file>` | Finds all ORDER files that reference a given patch. Returns JSON with list of projects using the patch. |
 | `get-next-patch-number.py` | Returns the next available patch number by checking both existing files in `_patches/` and open GitHub PRs. |
@@ -99,7 +99,7 @@ PRs and issues with the `DAILY_REBASE_TOKEN` secret.
 
 | Script | Description |
 |--------|-------------|
-| `gerrit-pre-push-lint` | Pre-push linter for OpenStack Gerrit submissions. Checks for common issues that reviewers flag during code review (missing release notes, bug references, YAML line length, Jinja2 issues, etc.). Supports checking stacked patches with `--stack N` or `--range origin/master..HEAD`. |
+| `gerrit-pre-push-lint` | Pre-push linter for OpenStack Gerrit submissions. Checks for common issues that reviewers flag during code review (missing release notes, bug references, YAML line length, Jinja2 issues, etc.). It also learns subject conventions from the last 200 commits of the project: when at least 40% carry an area prefix (`ovn: `, `[OVN] `) it warns about a subject without one, and when at most 10% end with a period it warns about a subject that does. A shallow clone skips this check. Supports checking stacked patches with `--stack N` or `--range origin/master..HEAD`. |
 | `analyze-gerrit-review-times` | Analyzes Gerrit review timestamps to find optimal posting times. Fetches recent merged reviews and shows when reviewers are most active by hour and day of week. |
 | `analyze-gerrit-patch-size` | Analyzes correlation between patch size, series length, and review response. Shows how patch complexity affects time to review, merge, and number of revision cycles needed. |
 | `analyze-gerrit-new-roles` | Analyzes historical patterns for new Ansible role additions. Shows successful strategies, series vs standalone patterns, and recommendations for getting new roles merged. |

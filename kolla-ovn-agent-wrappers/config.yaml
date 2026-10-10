@@ -7,6 +7,6 @@ release: master-kolla-ovn-agent-wrappers
 depends_on: ''
 source_sha: 3fc91f2985bb1263e46a3190e270f8827628e7c2
 previous_source_sha: a902c7c0da2c842f0b4c659dff8b4766d11f96bd
-skip_rebase: true
+skip_rebase: false
 skip_claude: true
 repush: false

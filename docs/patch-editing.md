@@ -195,6 +195,32 @@ codenames come from `_build/release-names.yaml` (2025.1 is `epoxy`,
 `_build/analyze-shared-patches.py <results.json>` makes this decision
 for a set of failures from `test-patches-for-ci.sh`, and suggests names.
 
+## Independent patch series
+
+A fix that is going upstream on its own, unrelated to the rest of our
+stack, gets its own series directory rather than a line in the
+project's main `ORDER`: `neutron-timecost-fix/`,
+`kolla-magnum-setuptools-pin/` and `kolla-ansible-json-logging/` are
+examples. Its `config.yaml` differs from the main series in four keys:
+
+| Key | Set to | Why |
+|-----|--------|-----|
+| `release` | a name of its own, e.g. `master-neutron-timecost-fix` | `assemble-source.sh` builds every series whose release matches the build's, so sharing `master` would pull it into image builds |
+| `destination_branch` | a short name for the class of problem, e.g. `import-time-config` | `repush-openstack.sh` runs `git review` from this branch, and git review uses the branch name as the Gerrit topic |
+| `repush` | `true` | lets `repush-openstack.sh` push the series to Gerrit |
+| `skip_rebase` | `false` (or absent) | see below |
+
+`skip_rebase: true` stops `test-patches-for-ci.sh` -- and so the daily
+rebase and its Claude fixer -- from applying the series. It does not
+stop `bump-source-shas.sh` moving the series' `source_sha` every day. Set
+it only on a "wave" directory whose every patch is also listed by a
+series that is tested; on an independent series it means the pin moves
+daily while nothing checks that the patches still apply.
+
+Several series can patch the same repository. The daily changelog
+lists each repository and commit range once, whichever series reaches
+it first.
+
 ## Linter issues
 
 Kolla-Ansible runs `tox -elinters`, which includes ansible-lint. The common

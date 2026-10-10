@@ -483,6 +483,101 @@ class GerritLinter:
                 )
 
     # =========================================================================
+    # Check 3a: Subject Conventions Learned From History
+    # =========================================================================
+    # Projects differ in conventions nobody writes down: neutron marks the
+    # area a change touches with a "ovn: " or "[OVN] " prefix, and almost
+    # never ends a subject with a period. Rather than keep a per-project
+    # table, learn both from the commits the change is being proposed on.
+    SUBJECT_PREFIX_RE = re.compile(
+        r'^(\[[^\]]{1,30}\]|[A-Za-z0-9_./-]{1,30}(?: [A-Za-z0-9_./-]+)?:)\s'
+    )
+    HISTORY_SAMPLE = 200
+    MIN_HISTORY = 50
+    PREFIX_SHARE = 0.4
+    PERIOD_SHARE = 0.1
+
+    def get_history_subjects(
+        self, base: str, paths: Optional[list[str]] = None
+    ) -> list[str]:
+        """Return recent non-merge commit subjects reachable from base."""
+        cmd = [
+            'git', 'log', '--no-merges', '--format=%s',
+            f'-{self.HISTORY_SAMPLE}', base,
+        ]
+        if paths:
+            cmd += ['--'] + paths
+        result = subprocess.run(
+            cmd, capture_output=True, text=True, cwd=self.repo_path
+        )
+        if result.returncode != 0:
+            return []
+        return [s for s in result.stdout.split('\n') if s]
+
+    def check_subject_conventions(
+        self, commit_message: str, base: str, changed_files: list[str]
+    ):
+        """Compare the subject against the project's recent subjects.
+
+        base is the commit the change sits on, so the change itself is not
+        part of the sample.
+        """
+        subject = commit_message.split('\n')[0]
+        history = self.get_history_subjects(base)
+        if len(history) < self.MIN_HISTORY:
+            self.add_issue(
+                Severity.INFO,
+                'COMMIT',
+                1,
+                f'Only {len(history)} commits of history (a shallow '
+                'clone?), so subject conventions were not checked.',
+                None,
+            )
+            return
+
+        prefixed = [s for s in history if self.SUBJECT_PREFIX_RE.match(s)]
+        share = len(prefixed) / len(history)
+        if share >= self.PREFIX_SHARE and not self.SUBJECT_PREFIX_RE.match(
+            subject
+        ):
+            # Suggest the prefixes used on the same directories first, then
+            # the project's most common ones.
+            dirs = sorted({os.path.dirname(f) or '.' for f in changed_files})
+            nearby = self.get_history_subjects(base, dirs)
+            counts: dict[str, int] = {}
+            for source in (nearby, prefixed):
+                for s in source:
+                    match = self.SUBJECT_PREFIX_RE.match(s)
+                    if match:
+                        # "[OVN]" and "ovn:" name the same area.
+                        area = match.group(1).strip('[]:').lower()
+                        counts[area] = counts.get(area, 0) + 1
+                if len(counts) >= 3:
+                    break
+            common = sorted(counts, key=lambda p: -counts[p])[:6]
+            self.add_issue(
+                Severity.WARNING,
+                'COMMIT',
+                1,
+                f'Subject has no area prefix, but {len(prefixed)} of the '
+                f'last {len(history)} {self.project_name} subjects do.',
+                'Start the subject with the area the change touches, as '
+                '"<area>: " or "[<area>] ". Recent areas: '
+                + ', '.join(common),
+            )
+
+        periods = len([s for s in history if s.endswith('.')])
+        if subject.endswith('.') and periods / len(history) <= self.PERIOD_SHARE:
+            self.add_issue(
+                Severity.WARNING,
+                'COMMIT',
+                1,
+                f'Subject ends with a period, but only {periods} of the '
+                f'last {len(history)} {self.project_name} subjects do.',
+                'Drop the trailing period.',
+            )
+
+    # =========================================================================
     # Check 4: YAML Line Length
     # =========================================================================
     def check_yaml_line_length(self, filepath: str, content: str):
@@ -704,6 +799,9 @@ class GerritLinter:
         if commit_message:
             self.check_bug_reference(commit_message, changed_files)
             self.check_commit_message(commit_message)
+            self.check_subject_conventions(
+                commit_message, 'HEAD~1', changed_files
+            )
 
         # Run per-file checks
         for filepath in changed_files:
@@ -759,6 +857,9 @@ class GerritLinter:
             if commit_message:
                 self.check_bug_reference(commit_message, changed_files)
                 self.check_commit_message(commit_message)
+                self.check_subject_conventions(
+                    commit_message, f'{sha}~1', changed_files
+                )
 
             # Run per-file checks
             for filepath in changed_files:

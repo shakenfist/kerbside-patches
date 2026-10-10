@@ -168,6 +168,8 @@ Before posting, check these common issues (see `gerrit-pre-push-lint` tool):
 - [ ] **Release notes** - Add for user-visible changes (`reno new <slug>`)
 - [ ] **Bug reference** - Add `Closes-Bug: #NNNN` for non-trivial fixes
 - [ ] **Commit message** - Subject ≤50 chars ideal, ≤72 max
+- [ ] **Subject conventions** - Match the project's own habits: neutron and kolla
+      mark the area (`ovn: `, `CI: `) and almost never end a subject with a period
 - [ ] **Commit body** - At most two paragraphs, ≤4 lines each
 - [ ] **Code comments** - Only where the code cannot explain itself
 - [ ] **YAML line length** - Keep under 160 characters

@@ -1,0 +1,19 @@
+common: Generate a timecost call id for every call
+
+timecost() generated its call id when it decorated a function, so every
+call logged the same id, and the start and end messages of overlapping
+calls such as concurrent get_routers() RPCs could not be paired.
+Generate the id per call, and keep the decorated function's name.
+
+oslo.utils' time_it() fixes its message when it is applied, so the
+wrapper now applies it on each call instead of once at import.
+
+Related-Bug: #1835663
+Prompt: while reading the L3 agent, Mikal noticed that timecost() mints
+its call id at import; a neutron-tempest-plugin-openvswitch log showed
+every get_routers() call sharing one id.
+Assisted-By: Claude Opus 5.5 (1M context, low effort) <noreply@anthropic.com>
+Co-Authored-By: Claude Opus 5.5 (1M context, low effort) <noreply@anthropic.com>
+
+Change-Id: Ia509f80b6e21fdef445e651da2a5a89215d8106e
+Signed-off-by: Michael Still <mikal@stillhq.com>

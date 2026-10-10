@@ -160,7 +160,8 @@ one upstream would refuse anyway. The costs, accepted:
 
 A separate series directory for each upstream project
 (`kolla-deployer/`, `kolla-ansible-deployer/`, with `repush: true`
-and `skip_rebase: true`, following `kolla-ansible-json-logging/`)
+and `skip_rebase: true`, like the `kolla-ansible-kerbside/` wave
+directory: the main series already test the same patches)
 is only created in Phase 8, when there is something to push to
 Gerrit. It lists the same patch files, so there is still one copy
 of each.

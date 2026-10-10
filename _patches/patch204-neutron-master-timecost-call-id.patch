@@ -1,0 +1,94 @@
+commit e5e513314078abccf0cb39c2e611030be3e141b2
+Author: Michael Still <mikal@stillhq.com>
+Date:   Sat Oct 10 12:22:20 2026 +1100
+
+    common: Generate a timecost call id for every call
+    
+    timecost() generated its call id when it decorated a function, so every
+    call logged the same id, and the start and end messages of overlapping
+    calls such as concurrent get_routers() RPCs could not be paired.
+    Generate the id per call, and keep the decorated function's name.
+    
+    oslo.utils' time_it() fixes its message when it is applied, so the
+    wrapper now applies it on each call instead of once at import.
+    
+    Related-Bug: #1835663
+    Prompt: while reading the L3 agent, Mikal noticed that timecost() mints
+    its call id at import; a neutron-tempest-plugin-openvswitch log showed
+    every get_routers() call sharing one id.
+    Assisted-By: Claude Opus 5.5 (1M context, low effort) <noreply@anthropic.com>
+    Co-Authored-By: Claude Opus 5.5 (1M context, low effort) <noreply@anthropic.com>
+    
+    Change-Id: Ia509f80b6e21fdef445e651da2a5a89215d8106e
+    Signed-off-by: Michael Still <mikal@stillhq.com>
+
+diff --git a/neutron/common/utils.py b/neutron/common/utils.py
+index 28a840d3c5..849ba7b97e 100644
+--- a/neutron/common/utils.py
++++ b/neutron/common/utils.py
+@@ -960,16 +960,18 @@ def spawn_n(func, *args, **kwargs):
+ 
+ 
+ def timecost(f):
+-    call_id = uuidutils.generate_uuid()
+-    message_base = ("Time-cost: call %(call_id)s function %(fname)s ") % {
+-        "call_id": call_id, "fname": f.__name__}
+-    end_message = message_base + "took %(seconds).3fs seconds to run"
+-
+-    @timeutils.time_it(LOG, message=end_message, min_duration=None)
++    @functools.wraps(f)
+     def wrapper(*args, **kwargs):
++        # A new call id for every call, so that the start and end messages
++        # of overlapping calls to the same function can be paired.
++        call_id = uuidutils.generate_uuid()
++        message_base = ("Time-cost: call %(call_id)s function %(fname)s ") % {
++            "call_id": call_id, "fname": f.__name__}
++        end_message = message_base + "took %(seconds).3fs seconds to run"
++
+         LOG.debug('%s start', message_base)
+-        ret = f(*args, **kwargs)
+-        return ret
++        timed = timeutils.time_it(LOG, message=end_message, min_duration=None)
++        return timed(f)(*args, **kwargs)
+     return wrapper
+ 
+ 
+diff --git a/neutron/tests/unit/common/test_utils.py b/neutron/tests/unit/common/test_utils.py
+index 3083b24bfa..144fe3d6a1 100644
+--- a/neutron/tests/unit/common/test_utils.py
++++ b/neutron/tests/unit/common/test_utils.py
+@@ -907,3 +907,34 @@ class TestFindUniqueSequence(base.BaseTestCase):
+         # One of the groups is empty - no solution possible
+         result = utils.find_unique_sequence([['a'], [], ['c']])
+         self.assertIsNone(result)
++
++
++class TestTimecost(base.BaseTestCase):
++    @staticmethod
++    def _call_id(message, args):
++        return re.match(r'Time-cost: call (\S+) ', message % args).group(1)
++
++    def test_call_id_per_call(self):
++        @utils.timecost
++        def decorated(value):
++            return value
++
++        with mock.patch.object(utils, 'LOG') as mock_log:
++            self.assertEqual(1, decorated(1))
++            self.assertEqual(2, decorated(2))
++
++        # LOG.debug(message, args) for the start of each call, and
++        # LOG.log(level, message, args) from time_it for the end.
++        start_ids = [self._call_id(*c.args)
++                     for c in mock_log.debug.call_args_list]
++        end_ids = [self._call_id(*c.args[1:])
++                   for c in mock_log.log.call_args_list]
++        self.assertEqual(2, len(set(start_ids)))
++        self.assertEqual(start_ids, end_ids)
++
++    def test_wraps(self):
++        @utils.timecost
++        def decorated():
++            pass
++
++        self.assertEqual('decorated', decorated.__name__)
