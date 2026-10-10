@@ -11,3 +11,4 @@
 ../_patches/patch181-kolla-ansible-master-fluentd-etcd.patch
 ../_patches/patch200-kolla-ansible-master-validate-config-become.patch
 ../_patches/patch201-kolla-ansible-master-check-config-deployer-conf.patch
+../_patches/patch206-kolla-ansible-master-deployer-guards.patch

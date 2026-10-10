@@ -1,0 +1,43 @@
+Guard deployments against the wrong deployer.
+
+A Kolla Ansible deployer image packages one version of the deployment
+tool and is built alongside one set of service images. Nothing stops an
+operator from running it against a configuration naming other images,
+against a deployment a newer deployer has already changed, or as an
+upgrade across more releases than upstream supports. Each of these
+fails late and messily, if it fails at all.
+
+This change adds checks which run first in every playbook except
+destroy.yml, which must work whatever the versions so that a mistake
+can always be cleaned up.
+
+* Every successful deploy, deploy-containers, reconfigure, upgrade and
+  migrate-container-engine writes a record of what changed each host to
+  /etc/kolla/kolla-ansible-deployment.json on that host: the release,
+  the Kolla Ansible version and git commit, the tag, the action and the
+  time. It is owned by config_owner_user and config_owner_group with
+  mode 0600, like other configuration. It is written whatever tags were
+  given, because a partial deploy has still changed the host.
+* When /etc/kolla-ansible/deployer.json exists, that is when Kolla
+  Ansible runs from a deployer image, the new deployer-checks.yml play
+  refuses an openstack_tag or openstack_release which differs from the
+  image's, and compares the image with each target's record. An older
+  release, or the same release with an older Kolla Ansible version, is
+  refused. A newer release may run only bootstrap-servers, pull,
+  prechecks, gather-facts and upgrade, and upgrade may move only to the
+  next release, or from a .1 release to the next .1. An upgrade to
+  master is allowed with a warning.
+* A virtualenv install cannot tell which release it is for, because
+  openstack_release is set by the operator, so it writes the record but
+  does not check it.
+* The new --override-deployer-checks option turns each refusal into a
+  warning, for example after an upgrade done by hand.
+* The rules are in a filter plugin, so that they are unit tested.
+  gather-facts.yml imports the play, so that it runs once for every
+  playbook which gathers facts. Playbooks which act on the deploy host
+  alone check the configuration only.
+
+Assisted-By: Claude Opus 5.5 (1M context, high effort) <noreply@anthropic.com>
+Co-Authored-By: Claude Opus 5.5 (1M context, high effort) <noreply@anthropic.com>
+Change-Id: I0791c64ba93126ac97a0b789c2900302808e3980
+Signed-off-by: Michael Still <mikal@stillhq.com>
