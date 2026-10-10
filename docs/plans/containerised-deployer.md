@@ -363,7 +363,7 @@ against `develop`.
 | 2. Launcher | Complete | #1812 (`b97361853`) |
 | 3. The localhost connection | Complete | #1831 (`f2dd038ab`) |
 | 4. Bootstrapping the deploy host | Complete | #1854 (`78c6e79c7`), #1857 (`af2474d4f`); shakenfist/actions#150 |
-| 5. Version safeguards | Not started | |
+| 5. Version safeguards | In progress | |
 | 6. Build manifest | Not started | |
 | 7. Make the prototype entry voting | Not started | |
 | 8. Documentation and upstream proposal | Not started | |
@@ -2280,27 +2280,220 @@ bootstrap and `ausearch -m avc` after would do it.
 Planning effort: medium, once Phases 1 to 4 have fixed the
 contracts.
 
-Two guards, both evaluated inside the container, where the
+Two guards, both evaluated by Ansible inside the deployer, where the
 configuration can be read properly:
 
-* **Deployer against configuration.** A precheck compares the
-  image's own release label with the effective `openstack_release`
-  and `openstack_tag`, and refuses a mismatch. It runs at the
-  start of every action, not only `prechecks`, because the
-  foot-gun fires on `deploy` and `reconfigure` too.
+* **Deployer against configuration.** The deployer knows the tag and
+  release it was built with. The guard refuses an effective
+  `openstack_tag` or `openstack_release` that differs.
 * **Deployer against deployment.** Each successful `deploy` or
-  `upgrade` records the deployed release and Kolla-Ansible SHA on
-  the targets. A deployer older than that record refuses to run.
-  `upgrade` may move forward only by the steps upstream supports,
-  including skip-level (SLURP) upgrades, and an explicit
-  `--allow-downgrade` exists for rollback. It prints what it is
-  overriding.
+  `upgrade` records what deployed it on every target. The guard
+  refuses a deployer older than that record, and refuses an upgrade
+  path upstream does not support, unless the operator passes
+  `--allow-downgrade`, in which case it says what it is overriding.
 
-Where the record lives on the targets is decided in this phase.
-The default is a file under `node_config_directory`, which
-already exists on every target.
+**In scope:**
+* the build tag and release in the image's `deployer.json`;
+* a Kolla-Ansible patch with both guards, the record, and
+  `--allow-downgrade`;
+* a CI check that makes each guard fire and not fire, and shows the
+  override; and
+* the documentation of all three.
 
-Exit: each guard demonstrated both firing and not firing, in CI.
+**Out of scope:**
+* Guards for the venv deployer. It has no reliable notion of its own
+  release (Decision 2), and the venv entries are the controls. The
+  record is still written there, so a deployment made by the venv can
+  later be guarded by an image.
+* Per-service tag overrides (`<service>_tag`). The guard checks
+  `openstack_tag` alone. Phase 6's manifest is what pins every image.
+* Proving an upgrade or a skip-level upgrade end to end. No CI entry
+  upgrades, and adding one is a separate cost. The path rules are
+  unit-tested in the filter plugin instead (step 5b).
+
+#### What the survey found
+
+Surveyed on 2026-10-11 against this repository at `af2474d4f`,
+Kolla `3fc91f2` and Kolla-Ansible `6f2df72`, the pinned
+`source_sha`s.
+
+*What the image already knows about itself.*
+* patch199's `kolla-ansible/Dockerfile.j2` labels the image
+  `openstack_release="{{ openstack_release }}"` and writes
+  `/etc/kolla-ansible/deployer.json` with the Kolla-Ansible version,
+  the ansible-core version and each source tree's git commit. It does
+  not record the build tag.
+* `kolla-build` passes `tag` to every template
+  (`kolla/image/kolla_worker.py:387`), so the tag can be written into
+  `deployer.json` at build time. The old section said only that the
+  image carried a "release label", which cannot be compared with a
+  tag.
+* Kolla's own default tag is
+  `{openstack_release}-{base}-{base_tag}`
+  (`kolla/common/config.py:397`), and Kolla-Ansible's `openstack_tag`
+  default is
+  `{{ openstack_release }}-{{ kolla_base_distro }}-{{ kolla_base_distro_version }}{{ openstack_tag_suffix }}`
+  (`ansible/group_vars/all/common.yml:311`), so upstream's two
+  defaults agree. Our CI builds every image, the deployer included,
+  with one content-hashed tag, and `tools/bootstrap-kolla-ansible`
+  substitutes the same value for `openstack_tag`
+  (`etc/globals-master.yml:52`).
+* Labels are image metadata, which Ansible inside the container
+  cannot read. `deployer.json` is a file in the image, and is
+  present in the Phase 4 chroot too.
+
+*Where a guard can run.*
+* `ansible/gather-facts.yml` is imported first by `site.yml` and by
+  `kolla-host.yml`, `certificates.yml`, `prune-images.yml`,
+  `rabbitmq-upgrade.yml`, `nova-libvirt-cleanup.yml` and
+  `migrate-container-engine.yml`. `site.yml` serves `deploy`,
+  `deploy-containers`, `prechecks`, `pull`, `reconfigure`, `upgrade`,
+  `stop`, `check`, `genconfig`, `validate-config` and `gather-facts`
+  (`kolla_ansible/cli/commands.py:30-36`, where `site` is the default
+  playbook).
+* Not covered by `gather-facts.yml`: `post-deploy.yml`,
+  `destroy.yml`, `mariadb-backup.yml`, `mariadb-recovery.yml`,
+  `octavia-certificates.yml`, `bifrost.yml` and
+  `rabbitmq-reset-state.yml`.
+* Kolla-Ansible has no record of what deployed a host today. Nothing
+  under `ansible/` writes a version file, and the only mention of
+  skip-level upgrades is prose in
+  `doc/source/user/operating-kolla.rst`.
+* `node_config_directory` is `/etc/kolla`
+  (`ansible/group_vars/all/common.yml:166`). On an all-in-one host it
+  is also the operator's configuration directory, which upstream's
+  `tests/check-config.sh` audits: every file there must be
+  `root:root` with mode 600, 660 or 770, apart from a fixed list.
+
+*The old section's claims.* It is otherwise accurate. "A precheck"
+was the wrong word: it must run for every action, as the section
+itself says, so it cannot live in the `prechecks` role. "The
+image's own release label" is corrected above.
+
+#### Decisions
+
+1. **The image records its tag and release in `deployer.json`**, by
+   amending patch199 rather than adding a patch: the image and its
+   provenance file are one upstream change, which Phase 8 rebases
+   anyway. The provenance script gains `--tag {{ tag }}` and
+   `--openstack-release {{ openstack_release }}`, and the image gains
+   a `kolla_tag` label beside its `openstack_release` one, so that
+   `launcher show` can print both without running anything.
+
+2. **The guards run only when `/etc/kolla-ansible/deployer.json`
+   exists**, that is, when Kolla-Ansible runs from the deployer image.
+   In a venv, Kolla-Ansible's own release is the
+   `group_vars/all/common.yml` default of `openstack_release`, which
+   an operator's `globals.yml` overrides, so the venv cannot tell what
+   it is. Guarding on a value the operator can override would guard
+   nothing. The venv entries are therefore untouched, as Phase 4
+   left them.
+
+3. **The guards are one play, in a new `ansible/deployer-checks.yml`,
+   imported first by every playbook except `destroy.yml`.** `destroy`
+   must work whatever the versions, because it is how an operator
+   cleans up a mistake. The play runs on `localhost` for the
+   configuration guard, and on the play's hosts for the deployment
+   guard, reading each target's record with `slurp`. A playbook that
+   touches no targets, such as `certificates.yml`, gets the
+   configuration guard alone.
+
+4. **The record is `{{ node_config_directory }}/kolla-ansible-deployment.json`**,
+   written at the end of a successful `deploy`, `deploy-containers` or
+   `upgrade`, `root:root` mode 0600, on every host in the play. It
+   holds the release, the Kolla-Ansible version and git commit, the
+   deployer tag, the action and a UTC timestamp. Mode 0600 `root:root`
+   satisfies `tests/check-config.sh` on an all-in-one host. It is
+   written by venv deploys too, since writing costs nothing and a
+   later image-based deployer can then guard it.
+
+5. **The comparison rules.** Releases compare as series
+   (`2025.1` < `2025.2` < `2026.1`), with `master` above every
+   series. Kolla-Ansible versions compare as PEP 440 versions, which
+   orders pbr's `.devN` versions correctly within a branch. Against a
+   record:
+   * an older release, or the same release with an older
+     Kolla-Ansible version, is refused for every action;
+   * a newer release is allowed only for the actions an upgrade
+     needs before it lands (`bootstrap-servers`, `pull`,
+     `prechecks`, `gather-facts`) and for `upgrade` itself. Anything
+     else is refused, with a message saying to upgrade first;
+   * `upgrade` may move to the next series, or, from a `.1` (SLURP)
+     series, to the next `.1`. Anything further is refused. An
+     upgrade to `master` is allowed from any series, with a warning,
+     because `master`'s place in the series is not knowable from the
+     deployer; and
+   * `--allow-downgrade`, a new Kolla-Ansible option passed through
+     as an extra variable, turns each refusal into a warning that
+     names the record and the deployer.
+   The rules live in a filter plugin, so that they are unit-tested
+   in Kolla-Ansible's own test tree rather than through Ansible.
+   **This is the decision most likely to be argued with.** Upstream
+   has never enforced an upgrade path, and an operator who has
+   upgraded by hand outside the rules would now need
+   `--allow-downgrade` to proceed, which is the wrong name for that
+   case. The alternative, warning only, would not have stopped the
+   foot-gun this plan exists to remove.
+
+6. **CI demonstrates the guards on the launcher entries, cheaply.** A
+   new `tools/check-deployer-guards`, run on the target after
+   `check-deployer-launcher`, uses `kolla-ansible gather-facts`, the
+   cheapest action that imports the guard play:
+   * guard 1 does not fire: `gather-facts` succeeds;
+   * guard 1 fires: `gather-facts -e openstack_tag=not-this-tag`
+     fails, naming both tags;
+   * guard 2 does not fire: the record exists after the deploy, and
+     the CI run's own `reconfigure` succeeded against it;
+   * guard 2 fires: with the record's Kolla-Ansible version replaced
+     by a higher one, `gather-facts` fails, naming both versions; and
+   * the override: the same with `--allow-downgrade` succeeds and
+     prints the warning. The original record is then restored.
+
+#### Risks
+
+* **pbr versions in the image differ from the venv's.** The image
+  installs Kolla-Ansible from an archive without `.git`, so pbr may
+  report a different version from a git checkout of the same commit.
+  A venv deploy followed by an image deploy could then look like a
+  downgrade. CI runs neither sequence. Step 5b reads the image's
+  version from `deployer.json` and records the git commit beside it,
+  and the Outcome records both versions from a real run.
+* **The record breaks `tests/check-config.sh`.** Decision 4's owner and
+  mode are chosen to pass it. CI runs that script on every all-in-one
+  entry, so a mistake shows at once.
+* **A guard that fires on the CI entries' own run.** For example, the
+  record written by `deploy` followed by `reconfigure` from the same
+  image must pass. That is exactly guard 2's "does not fire" case,
+  and the existing CI run exercises it.
+* **The guard slows every action.** One `slurp` per host and one
+  `localhost` task. The Outcome compares deploy durations with Phase
+  4's.
+
+| Step | Effort | Model | Isolation | Brief for sub-agent |
+|------|--------|-------|-----------|---------------------|
+| 5a | medium | sonnet | none | Amend `_patches/patch199-kolla-ansible-deployer-image.patch` per Decision 1 of Phase 5 in `docs/plans/containerised-deployer.md`: the provenance script takes `--tag` and `--openstack-release` and writes them into `deployer.json` as `tag` and `openstack_release`; the Dockerfile passes `{{ tag }}` and `{{ openstack_release }}`; the `LABEL` line gains `kolla_tag="{{ tag }}"`; the release note says so. Recount with `tools/recount-patch.py --in-place`, regenerate the message file with `tools/extract-commit-message`, and prove it with `_build/test-apply.sh kolla` with tests, so that pep8 runs. Then add `tag` and `openstack_release` to what `kolla-ansible launcher show` prints from the labels if they are not already printed (they are labels, so they may be), with a unit test. Commit subject: "Record the deployer image's tag and release." |
+| 5b | high | opus | none | Write a new upstream-bound Kolla-Ansible patch implementing Decisions 2-5 of Phase 5, listed in `kolla-ansible/ORDER`, numbered by `_build/get-next-patch-number.py`. Read the survey first; it names the playbooks and lines. Contents: `ansible/deployer-checks.yml`, imported first by every playbook under `ansible/` except `destroy.yml`; a filter plugin under `ansible/filter_plugins/` (or `kolla_ansible/` where the existing filters live; follow the tree) with the series and version comparison and the action rules, and unit tests beside the existing filter tests; the record written at the end of `deploy`, `deploy-containers` and `upgrade` in `site.yml`; a `--allow-downgrade` option on the CLI (`kolla_ansible/cli/commands.py`), passed as the extra variable `kolla_allow_downgrade`; and a release note. Every refusal message names the record's values, the deployer's values and the option that overrides it. Prove it with `_build/test-apply.sh kolla-ansible` with tests. Commit subject: "Guard deployments against the wrong deployer." |
+| 5c | medium | sonnet | none | Write `tools/check-deployer-guards` per Decision 6 of Phase 5, shellcheck-clean, run on the target as the base user through `tools/ka` so that the launcher runs it. It saves and restores the record with `sudo`, and must restore it even when a check fails (a `trap`). Add a workflow step after "Assert the containerised deployer prototype was selected", for launcher entries only, that ssh-es to the target and runs it, in the style of its neighbours. Commit subject: "Show the deployer guards firing in CI." |
+| 5d | low | sonnet | none | After 5c's CI run, add an Outcome to Phase 5: each guard's firing and not-firing output from the job log, the record's content on each host, the image's and the record's Kolla-Ansible versions, deploy durations against Phase 4's, and anything that behaved differently from this section. Annotate the exit criteria, and update `docs/deployer-launcher.md` with the guards, the record and `--allow-downgrade`. Commit subject: "Record what the version safeguards did." |
+
+Order: 5a, then 5b after its back brief, then 5c. Push all three
+together. 5d follows that CI run. The management session reviews
+each step before its commit.
+
+**Back brief gate on 5b.** Before writing the patch, 5b's sub-agent
+reports the filter plugin's interface, the exact refusal messages,
+the playbook import list, and how `slurp` handles a host with no
+record. The rules are cheap to change in prose and expensive once
+tests encode them.
+
+Exit:
+* Both launcher entries are green, and `tools/check-deployer-guards`
+  shows each guard firing and not firing, and the override, in each.
+* The venv entries and multinode are green in the same run, with no
+  guard output in their logs.
+* `tests/check-config.sh` passes on every all-in-one entry with the
+  record present.
+* The filter plugin's unit tests cover every rule in Decision 5.
 
 ### Phase 6: Build manifest
 
