@@ -51,7 +51,9 @@ upstream `dd92e47ab1`.
 
 Series `neutron-agent-pending-updates/`, patch206, Gerrit topic
 `agent-pending-updates`, closing LP #2170465 (filed 2026-10-11 as a
-plain bug, not an RFE, citing LP #1512864). One line in
+plain bug, not an RFE, citing LP #1512864), and uploaded as
+[1009917](https://review.opendev.org/c/openstack/neutron/+/1009917).
+One line in
 `L3NATAgentWithStateReport._report_state` adds
 `configurations['pending_updates'] = self._queue.qsize`, with a unit
 test and a release note. Operators can read it with
@@ -59,7 +61,8 @@ test and a release note. Operators can read it with
 agent list can pick it up.
 
 patch207 makes the same change in `DhcpAgentWithStateReport._report_state`,
-which uses the same queue class, with `Related-Bug: #2170465`. It is
+which uses the same queue class, with `Related-Bug: #2170465`, uploaded
+as [1009918](https://review.opendev.org/c/openstack/neutron/+/1009918). It is
 stacked on patch206 so reviewers see the L3 change first; if they want
 the two as one change, squash them.
 
