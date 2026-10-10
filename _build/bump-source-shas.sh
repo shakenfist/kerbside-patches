@@ -56,6 +56,11 @@ fi
 
 # Lock in new daily SHAs for each project we're patching
 cwd=$(pwd)
+# Several series can patch the same upstream repository (kolla-ansible has
+# more than one), and on a daily bump they all move across the same range.
+# Record each repository and range in the changelog once, whichever series
+# reaches it first, rather than once per series.
+declare -A changelog_seen=()
 # -maxdepth 2 limits us to top-level ./<project>/config.yaml and avoids the
 # assembled src/ tree, where upstream repos ship their own config.yaml files.
 projects=$(find . -maxdepth 2 -type f -name "config.yaml" | cut -f 2 -d "/")
@@ -65,7 +70,6 @@ for project in ${projects}; do
     source_branch=$(yq -r .source_branch ${project}/config.yaml)
     current_source_sha=$(yq -r .source_sha ${project}/config.yaml)
     directory=$(yq -r .directory ${project}/config.yaml)
-    skip_rebase=$(yq -r '.skip_rebase // false' ${project}/config.yaml)
 
     echo
     echo "Processing ${project}..."
@@ -102,15 +106,16 @@ for project in ${projects}; do
         fi
     fi
 
-    # Generate changelog before deleting the clone (skip for directories
-    # with skip_rebase=true to avoid duplicate entries from wave dirs)
+    # Generate changelog before deleting the clone
+    changelog_key="${repo} ${current_source_sha}..${source_sha}"
     if [ -n "${changelog_path}" ] \
             && [ "${source_sha}" != "${current_source_sha}" ] \
-            && [ "${skip_rebase}" != "true" ]; then
+            && [ -z "${changelog_seen[${changelog_key}]:-}" ]; then
+        changelog_seen[${changelog_key}]=1
         short_old=$(echo "${current_source_sha}" | cut -c1-9)
         short_new=$(echo "${source_sha}" | cut -c1-9)
         {
-            echo "${project} updated from ${short_old} to ${short_new}"
+            echo "$(basename "${repo}" .git) updated from ${short_old} to ${short_new}"
             git log --no-merges --oneline "${current_source_sha}..${source_sha}" \
                 | sed 's/^/    /'
             echo

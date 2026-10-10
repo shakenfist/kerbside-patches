@@ -74,7 +74,9 @@ upstream is a Phase 8 question. See
 Each `<project>[-<version>]/` directory contains:
 
 - `config.yaml` -- repo URL, branch, source SHA, release
-  name, dependencies
+  name, dependencies, and the Gerrit and rebase settings
+  an independent series needs (see
+  [docs/patch-editing.md](docs/patch-editing.md#independent-patch-series))
 - `ORDER` -- ordered list of patches to apply from
   `_patches/`
 - `FORCE` (optional) -- forces inclusion even with no
