@@ -5,6 +5,6 @@ shallow_clone: true
 directory: neutron
 release: master-neutron-timecost-fix
 depends_on: ''
-source_sha: a9178db9826b10d1febab98624fb64b30fdd734b
+source_sha: dd92e47ab193ea1eda3f31463098e9e4e1375e48
 previous_source_sha: a9178db9826b10d1febab98624fb64b30fdd734b
 repush: true
