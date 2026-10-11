@@ -1,4 +1,4 @@
-commit 168a6ebdff634167bc45990abed8fe3c40ad8e1b
+commit ac71f80575467fa9d8f14bea07fbaf6b558a14d0
 Author: Michael Still <mikal@stillhq.com>
 Date:   Sun Oct 11 09:07:28 2026 +1100
 
@@ -11,9 +11,9 @@ Date:   Sun Oct 11 09:07:28 2026 +1100
     upgrade across more releases than upstream supports. Each of these
     fails late and messily, if it fails at all.
     
-    This change adds checks which run first in every playbook except
-    destroy.yml, which must work whatever the versions so that a mistake
-    can always be cleaned up.
+    This change adds checks which run before anything changes a host, in
+    every playbook except destroy.yml, which must work whatever the versions
+    so that a mistake can always be cleaned up.
     
     * Every successful deploy, deploy-containers, reconfigure, upgrade and
       migrate-container-engine writes a record of what changed each host to
@@ -37,9 +37,12 @@ Date:   Sun Oct 11 09:07:28 2026 +1100
     * The new --override-deployer-checks option turns each refusal into a
       warning, for example after an upgrade done by hand.
     * The rules are in a filter plugin, so that they are unit tested.
-      gather-facts.yml imports the play, so that it runs once for every
-      playbook which gathers facts. Playbooks which act on the deploy host
-      alone check the configuration only.
+      gather-facts.yml imports the play after gathering facts, so that it
+      runs once for every playbook which gathers facts. It must come after,
+      because its first module run on a host adds the discovered interpreter
+      to ansible_facts, and gather-facts.yml skips hosts which have facts.
+      Playbooks which act on the deploy host alone check the configuration
+      only.
     
     Assisted-By: Claude Opus 5.5 (1M context, high effort) <noreply@anthropic.com>
     Co-Authored-By: Claude Opus 5.5 (1M context, high effort) <noreply@anthropic.com>
@@ -62,10 +65,10 @@ index a390ea5cb..3000e79db 100644
    roles:
 diff --git a/ansible/deployer-checks.yml b/ansible/deployer-checks.yml
 new file mode 100644
-index 000000000..14d63876e
+index 000000000..f1b28b6d6
 --- /dev/null
 +++ b/ansible/deployer-checks.yml
-@@ -0,0 +1,84 @@
+@@ -0,0 +1,87 @@
 +---
 +# NOTE: A containerised deployer records what it was built from in
 +# kolla_deployer_info_path. When that file exists, this play refuses to run
@@ -74,15 +77,18 @@ index 000000000..14d63876e
 +# is not supported. Without it, as in a virtualenv, the play does nothing.
 +# kolla-ansible --override-deployer-checks turns each refusal into a warning.
 +#
-+# Every playbook imports this first, apart from destroy.yml, which must work
-+# whatever the versions so that a mistake can always be cleaned up. Importers
-+# set kolla_deployer_checks_hosts to the hosts they act on, and those which
-+# act only on the deploy host set kolla_deployer_checks_records to false.
++# Every playbook imports this before anything changes a host, apart from
++# destroy.yml, which must work whatever the versions so that a mistake can
++# always be cleaned up. Importers set kolla_deployer_checks_hosts to the hosts
++# they act on, and those which act only on the deploy host set
++# kolla_deployer_checks_records to false. Import this after any fact gathering
++# guarded by 'not ansible_facts', as in gather-facts.yml: reading the record
++# adds the discovered interpreter to a host's ansible_facts.
 +#
 +# The configuration check uses only a lookup and controller-side actions, so
 +# it reads the deployer's own files wherever localhost's connection goes.
 +# Refusals are fatal to the whole run rather than to one host. Unreachable
-+# hosts are left to the gather facts play, as before.
++# hosts are ignored here, and left to fact gathering to report.
 +- name: Check the deployer against the configuration and the deployment
 +  hosts: "{{ kolla_deployer_checks_hosts | default('all') }}"
 +  gather_facts: false
@@ -183,20 +189,21 @@ index 000000000..869cf0a38
 +            'kolla_deployment_record': deployer_checks.deployment_record,
 +        }
 diff --git a/ansible/gather-facts.yml b/ansible/gather-facts.yml
-index 4b7de2ee3..e2e258291 100644
+index 4b7de2ee3..ad16014d3 100644
 --- a/ansible/gather-facts.yml
 +++ b/ansible/gather-facts.yml
-@@ -1,4 +1,10 @@
- ---
+@@ -60,3 +60,11 @@
+         # Don't gather if fact caching is in use
+         - not hostvars[item].ansible_facts
+   tags: always
++
 +# NOTE: The deployer checks are imported here, rather than by each playbook
-+# which imports this one, so that they run once, and first, for every action
-+# which gathers facts.
++# which imports this one, so that they run once for every action which
++# gathers facts, before anything changes a host. They come after the facts
++# are gathered because their first module run on a host adds the discovered
++# interpreter to ansible_facts, which would make the plays above skip it.
 +- name: Check the deployer
 +  import_playbook: deployer-checks.yml
-+
- # NOTE(awiddersheim): Gather facts for all hosts as a
- # first step since several plays below require them when
- # building their configurations.
 diff --git a/ansible/group_vars/all/common.yml b/ansible/group_vars/all/common.yml
 index 52a6a6005..fb81264ce 100644
 --- a/ansible/group_vars/all/common.yml

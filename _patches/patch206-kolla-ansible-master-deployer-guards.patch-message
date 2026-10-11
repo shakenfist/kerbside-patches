@@ -7,9 +7,9 @@ against a deployment a newer deployer has already changed, or as an
 upgrade across more releases than upstream supports. Each of these
 fails late and messily, if it fails at all.
 
-This change adds checks which run first in every playbook except
-destroy.yml, which must work whatever the versions so that a mistake
-can always be cleaned up.
+This change adds checks which run before anything changes a host, in
+every playbook except destroy.yml, which must work whatever the versions
+so that a mistake can always be cleaned up.
 
 * Every successful deploy, deploy-containers, reconfigure, upgrade and
   migrate-container-engine writes a record of what changed each host to
@@ -33,9 +33,12 @@ can always be cleaned up.
 * The new --override-deployer-checks option turns each refusal into a
   warning, for example after an upgrade done by hand.
 * The rules are in a filter plugin, so that they are unit tested.
-  gather-facts.yml imports the play, so that it runs once for every
-  playbook which gathers facts. Playbooks which act on the deploy host
-  alone check the configuration only.
+  gather-facts.yml imports the play after gathering facts, so that it
+  runs once for every playbook which gathers facts. It must come after,
+  because its first module run on a host adds the discovered interpreter
+  to ansible_facts, and gather-facts.yml skips hosts which have facts.
+  Playbooks which act on the deploy host alone check the configuration
+  only.
 
 Assisted-By: Claude Opus 5.5 (1M context, high effort) <noreply@anthropic.com>
 Co-Authored-By: Claude Opus 5.5 (1M context, high effort) <noreply@anthropic.com>
