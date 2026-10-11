@@ -2290,12 +2290,14 @@ configuration can be read properly:
   `upgrade` records what deployed it on every target. The guard
   refuses a deployer older than that record, and refuses an upgrade
   path upstream does not support, unless the operator passes
-  `--allow-downgrade`, in which case it says what it is overriding.
+  `--override-deployer-checks`, in which case it says what it is
+  overriding. (Named `--allow-downgrade` when planned; renamed at the
+  5b back brief, and corrected here in 5d.)
 
 **In scope:**
 * the build tag and release in the image's `deployer.json`;
 * a Kolla-Ansible patch with both guards, the record, and
-  `--allow-downgrade`;
+  `--override-deployer-checks`;
 * a CI check that makes each guard fire and not fire, and shows the
   override; and
 * the documentation of all three.
@@ -2390,19 +2392,39 @@ image's own release label" is corrected above.
    left them.
 
 3. **The guards are one play, in a new `ansible/deployer-checks.yml`,
-   imported first by every playbook except `destroy.yml`.** `destroy`
+   imported by every playbook except `destroy.yml`.** `destroy`
    must work whatever the versions, because it is how an operator
-   cleans up a mistake. The play runs on `localhost` for the
-   configuration guard, and on the play's hosts for the deployment
-   guard, reading each target's record with `slurp`. A playbook that
-   touches no targets, such as `certificates.yml`, gets the
+   cleans up a mistake. The configuration guard runs once for the run
+   (`run_once`), and the deployment guard on each of the play's
+   hosts, reading each target's record with `slurp`. A playbook that
+   acts only on the deploy host, such as `certificates.yml`, gets the
    configuration guard alone.
+   *Corrected in 5d.* The play is imported **at the end of
+   `gather-facts.yml`**, which covers every playbook that imports it
+   (so it runs once per action that gathers facts), and directly by
+   `post-deploy.yml` and `octavia-certificates.yml` (localhost only,
+   record check off), `bifrost.yml`, `mariadb-backup.yml`,
+   `mariadb-recovery.yml` and `rabbitmq-reset-state.yml`. It must come
+   after Kolla's own fact gathering, not first: any module run on a
+   host before it puts `discovered_interpreter_python` into
+   `ansible_facts`, and Kolla's `Gather facts` task
+   (`when: not ansible_facts`) then skips the host. The first CI run
+   failed this way (see the Outcome). `any_errors_fatal` sits on the
+   two refusal tasks, not on the play, so that an unreachable host is
+   not newly fatal.
 
 4. **The record is `{{ node_config_directory }}/kolla-ansible-deployment.json`**,
    written at the end of a successful `deploy`, `deploy-containers` or
    `upgrade`, `root:root` mode 0600, on every host in the play. It
    holds the release, the Kolla-Ansible version and git commit, the
-   deployer tag, the action and a UTC timestamp. Mode 0600 `root:root`
+   deployer tag, the action and a UTC timestamp.
+   *Corrected in 5d.* It is written by a final play of `site.yml` on
+   `baremetal`, for `deploy`, `deploy-containers`, `reconfigure`,
+   `upgrade` and `migrate-container-engine`, owned by
+   `config_owner_user`. Its fields are `format_version`,
+   `openstack_release`, `openstack_tag`, `kolla_ansible_version`,
+   `kolla_ansible_git_sha`, `deployer_tag`, `kolla_action` and
+   `timestamp`. Mode 0600 `root:root`
    satisfies `tests/check-config.sh` on an all-in-one host. It is
    written by venv deploys too, since writing costs nothing and a
    later image-based deployer can then guard it.
@@ -2423,16 +2445,23 @@ image's own release label" is corrected above.
      upgrade to `master` is allowed from any series, with a warning,
      because `master`'s place in the series is not knowable from the
      deployer; and
-   * `--allow-downgrade`, a new Kolla-Ansible option passed through
-     as an extra variable, turns each refusal into a warning that
-     names the record and the deployer.
+   * `--override-deployer-checks`, a new Kolla-Ansible option passed
+     through as an extra variable, turns each refusal, of the
+     configuration guard as well as the record guard, into a warning
+     that names the record and the deployer. (Planned as
+     `--allow-downgrade`; corrected in 5d.)
    The rules live in a filter plugin, so that they are unit-tested
    in Kolla-Ansible's own test tree rather than through Ansible.
    **This is the decision most likely to be argued with.** Upstream
    has never enforced an upgrade path, and an operator who has
    upgraded by hand outside the rules would now need
-   `--allow-downgrade` to proceed, which is the wrong name for that
-   case. The alternative, warning only, would not have stopped the
+   `--override-deployer-checks` to proceed. (The option was first
+   called `--allow-downgrade`, the wrong name for that case, and was
+   renamed for that reason.)
+   *Corrected in 5d.* The rules compare `kolla_action` values
+   (`precheck`, `config`, `config_validate`, ...), not the words an
+   operator types. `kolla-ansible gather-facts` runs `gather-facts.yml`
+   directly. The alternative, warning only, would not have stopped the
    foot-gun this plan exists to remove.
 
 6. **CI demonstrates the guards on the launcher entries, cheaply.** A
@@ -2446,8 +2475,8 @@ image's own release label" is corrected above.
      the CI run's own `reconfigure` succeeded against it;
    * guard 2 fires: with the record's Kolla-Ansible version replaced
      by a higher one, `gather-facts` fails, naming both versions; and
-   * the override: the same with `--allow-downgrade` succeeds and
-     prints the warning. The original record is then restored.
+   * the override: the same with `--override-deployer-checks`
+     succeeds and prints the warning. The original record is then restored.
 
 #### Risks
 
@@ -2486,14 +2515,250 @@ the playbook import list, and how `slurp` handles a host with no
 record. The rules are cheap to change in prose and expensive once
 tests encode them.
 
-Exit:
-* Both launcher entries are green, and `tools/check-deployer-guards`
-  shows each guard firing and not firing, and the override, in each.
-* The venv entries and multinode are green in the same run, with no
-  guard output in their logs.
-* `tests/check-config.sh` passes on every all-in-one entry with the
-  record present.
-* The filter plugin's unit tests cover every rule in Decision 5.
+Note on the step table: the briefs above are kept as written. Where
+they say `--allow-downgrade`, or that the guard play is imported
+first by every playbook, the Decisions above carry the corrected
+text (marked "Corrected in 5d"), and the Outcome below says why.
+
+Exit (status as of CI run 38132378783 on `181c8540c`, attempt 1; the
+earlier run 38091129412 on `66ee372f7` failed, see the Outcome):
+* Met. Both launcher entries are green (jobs 114474727293, Debian
+  13, and 114474727243, Rocky 10), and `tools/check-deployer-guards`
+  passed in each: all six `PASS:` lines, covering the record, guard 1
+  not firing and firing, guard 2 firing, the override, and the
+  record's restoration. Guard 2 *not* firing is shown by the deploy
+  and reconfigure runs themselves, not by that script (see the
+  Outcome).
+* Met for the venv entries and multinode, with a qualification. All
+  six other entries are green (Debian 13 all-in-one, Rocky 10 with
+  Debian images, Ubuntu 24.04, Rocky-on-Rocky, no-kerbside, and
+  multinode), and their logs have no warning, refusal or override
+  text. The guard play does
+  appear in their logs, as nine `PLAY [Check the deployer ...]` blocks
+  whose tasks all say `skipping`, because the play is imported
+  unconditionally and its tasks are gated on `deployer.json`. "No
+  guard output" is therefore true of warnings and failures, not of
+  the play header. The venv entries also write the record (six
+  `Record the deployment` plays each; on the Debian venv all-in-one
+  and on multinode, two of them `changed` on every target, the
+  `deploy` and the `reconfigure`, and the rest skipped).
+* Met. `tests/check-config.sh` ran, and passed, in the "Validate
+  deployed config" step of all eight all-in-one and multinode jobs
+  (every job whose log shows the `tests/check-config.sh` group),
+  with the record present: it is written before that step runs, by
+  `deploy`. The record is `root:root` mode 0600 in the launcher
+  entries; I did not separately print the mode in the venv entries.
+* Met by the patch, not by this run. patch206 carries 41 unit tests
+  (`kolla_ansible/tests/unit/test_deployer_checks_filters.py`) for the
+  rules of Decision 5, and 5b's `test-apply.sh --test-patch patch206`
+  run passed (523 unit tests). The CI run does not exercise the
+  upgrade or SLURP rules at all, and no entry upgrades. That those
+  rules work through Ansible, rather than in the filter, is unproven.
+  Nor did any run exercise guard 1's release mismatch, a record
+  older than the deployer, a host with no record on a deployer
+  image, or multinode with the launcher (there is no such entry).
+
+#### Outcome
+
+Written after CI run 38132378783 (pull request #1867, head
+`181c8540c`, attempt 1), which was green in all 15 jobs. An earlier
+run, 38091129412 on `66ee372f7`, is used only for the first
+deviation below.
+
+*History.*
+* 5a (`24672f5c2`) amended patch199 and 5b (`66ee372f7`) added
+  patch206 with the guards, the record and the option. 5c
+  (`ab6f0dd92`) added `tools/check-deployer-guards` and its workflow
+  step.
+* **The first CI run found a real bug in 5b.** Both launcher entries
+  failed in `certificates`, on `kolla_address`: "Interface 'eth0' not
+  present on host 'kolla'". `gather-facts.yml` had imported the
+  guard play first. The guard's `stat` was the first module to run
+  on the host, which triggered interpreter discovery and put
+  `discovered_interpreter_python` into `ansible_facts`; Kolla's own
+  `Gather facts` task is `when: not ansible_facts`, so it skipped the
+  host, and nothing later had the interface facts. `181c8540c`
+  moves the import to the end of `gather-facts.yml`. 5b's local
+  probes missed it because none ran Kolla's fact gathering after the
+  guard. The lesson is general: any module run on a host before
+  Kolla's explicit fact gathering suppresses it.
+* The other failure in that run (Rocky 10 non-launcher, a 503 from
+  the test cloud when creating the instance) was infrastructure and
+  unrelated.
+
+*Where the guard runs.* patch206 imports `deployer-checks.yml` at the
+end of `gather-facts.yml` and directly in `post-deploy.yml` and
+`octavia-certificates.yml` (deploy host only, record check off),
+`bifrost.yml`, `mariadb-backup.yml`, `mariadb-recovery.yml` and
+`rabbitmq-reset-state.yml`. `destroy.yml` has none. In the Debian
+launcher job the guard play ran nine times: `certificates`,
+`bootstrap-servers`, `prechecks`, `pull`, `deploy`,
+`validate-config`, `check`, `reconfigure` and `post-deploy`. The
+guard ran on every action this CI run took.
+
+*Guards not firing, in the deploy path.* In every one of those nine
+runs, on both launcher hosts, the two warning tasks and the two
+refusal tasks reported `skipping` and the record `stat` reported `ok`
+(`skipping` for `post-deploy` on `localhost`, which has the record
+check off). In the `certificates` run, for example:
+
+```
+PLAY [Check the deployer against the configuration and the deployment] ***
+TASK [Warn about the deployer and the configuration] ***
+skipping: [kolla]
+TASK [Refuse a configuration this deployer was not built for] ***
+skipping: [kolla]
+TASK [Check whether there is a deployment record] ***
+ok: [kolla]
+TASK [Read the deployment record] ***
+skipping: [kolla]
+TASK [Warn about the deployer and the deployment record] ***
+skipping: [kolla]
+TASK [Refuse a deployment this deployer must not change] ***
+skipping: [kolla]
+```
+
+Before `deploy` finishes there is no record, so in the first five
+runs (`certificates`, `bootstrap-servers`, `prechecks`, `pull` and
+`deploy`) "Read the deployment record" skipped. The next three
+(`validate-config`, `check` and `reconfigure`) read the record that
+`deploy` wrote and compared it with the deployer without refusing.
+`reconfigure` against the `deploy` record from the same image is
+guard 2 not firing in anger. `post-deploy` skips the record check by
+design.
+
+*`tools/check-deployer-guards`.* Identical on both hosts apart from
+the timestamp. Each of the six checks printed `PASS:`.
+
+```
+Checking the deployment record /etc/kolla/kolla-ansible-deployment.json
+PASS: /etc/kolla/kolla-ansible-deployment.json exists
+Checking that guard 1 does not fire for the deployed tag
+PASS: gather-facts passes the guards
+Checking that guard 1 fires for a different tag
+PASS: a mismatched openstack_tag is refused
+Rewriting kolla_ansible_version in /etc/kolla/kolla-ansible-deployment.json to 9999.0.0
+Checking that guard 2 fires for a record from a newer Kolla-Ansible
+PASS: a newer recorded version is refused
+Checking that --override-deployer-checks overrides the refusal
+PASS: --override-deployer-checks overrides the refusal and warns
+Restoring /etc/kolla/kolla-ansible-deployment.json
+PASS: /etc/kolla/kolla-ansible-deployment.json was restored
+```
+
+The script prints only its verdicts when a check passes, so the job
+log does not contain the refusal messages themselves. It asserts that
+each refusal contains `This deployer was built with tag` or `is older
+than`, and `Pass --override-deployer-checks to override this check.`,
+and that the override prints `Overriding this refusal because
+--override-deployer-checks was given`. The messages come from
+patch206; the tag one reads "This deployer was built with tag *T*,
+but openstack_tag is *U*. Use the deployer built with *U*, or set
+openstack_tag to *T*." and the version one names the host, the
+record's path, and the record's and the deployer's versions, release,
+commit and tag. Printing the refusal on success would make this
+section self-evident from the log, and is a cheap change if wanted.
+The script took 21s on Rocky and 15s on Debian (step timestamps).
+
+*The record on each host*, as `tools/check-deployer-guards` printed
+it:
+
+| Field | Debian 13 | Rocky 10 |
+|-------|-----------|----------|
+| `format_version` | 1 | 1 |
+| `openstack_release` | `master` | `master` |
+| `openstack_tag` | `master-debian-trixie-956ffea5` | same |
+| `deployer_tag` | `master-debian-trixie-956ffea5` | same |
+| `kolla_ansible_version` | `23.1.0.dev18` | `23.1.0.dev18` |
+| `kolla_ansible_git_sha` | `a5f569044ddc3a7ae20bfcb945932852b2f35a6e` | same |
+| `kolla_action` | `reconfigure` | `reconfigure` |
+| `timestamp` | `2026-10-11T13:49:02Z` | `2026-10-11T14:58:33Z` |
+
+`kolla_action` is `reconfigure` because the CI's idempotency
+reconfigure ran after `deploy` and overwrote the record; the
+`Record the deployment` play reported `changed` for `deploy` and
+`reconfigure` and `skipping` for the other four runs.
+`tests/check-config.sh` passed with the record present, so Decision 4's `config_owner_user`, mode
+0600 held, at least as far as that script audits it. The venv
+entries wrote the same record, and multinode wrote it on all seven
+nodes.
+
+*Versions.* The record's Kolla-Ansible version and commit come from
+the image's `deployer.json`, so the image and the record agree by
+construction: `23.1.0.dev18`, commit `a5f569044`. The log does not
+print `deployer.json` itself. The Risk that a venv build and an image
+build of one commit would report different pbr versions did not
+materialise: the Debian venv job installed `kolla-ansible==23.1.0.dev18`
+from the same source tree. This compares one commit's venv with one
+commit's image, not a venv deploy followed by an image deploy,
+which no entry does.
+
+*Durations.* The "Deploy Kolla-Ansible" step (`started_at` to
+`completed_at`, which includes bootstrap), against Phase 4's same
+step, with the controls from the same run.
+
+| Host | Entry | Job | Phase 5 | Phase 4 |
+|------|-------|-----|---------|---------|
+| debian 13 | launcher | 114474727293 | 24m06s | 23m58s |
+| debian 13 | control | 114474727244 | 33m15s | 25m51s |
+| rocky 10 | launcher | 114474727243 | 36m39s | 28m38s |
+| rocky 10 | control | 114474727291 | 27m11s | 27m41s |
+
+Per action, in seconds, from each action's `duration_ms`:
+
+| Action | deb launcher | deb control | rocky launcher | rocky control |
+|--------|-------------|-------------|----------------|---------------|
+| Bootstrap | 84 | 165 | 156 | 133 |
+| Pre-checks | 50 | 53 | 63 | 46 |
+| Pull | 102 | 147 | 121 | 91 |
+| Deploy | 618 | 876 | 975 | 750 |
+| Validate config | 125 | 150 | 184 | 125 |
+| Reconfigure | 401 | 526 | 602 | 419 |
+
+The guard itself is not what moved these. Summing the time from each
+`PLAY [Check the deployer ...]` header to the next play header (from the
+log's timestamps, so roughly) gives 3.9s over nine runs on the Debian
+launcher, 6.3s on the Rocky launcher, and 1.7s and 1.1s on the
+controls, where every task skips. That is the cost of one `stat` per
+run, a few seconds in 24 to 37 minutes.
+
+The launcher-against-control differences are in opposite directions
+on the two hosts (Debian launcher 9m faster, Rocky launcher 9m
+slower), the Debian control was 7m slower than in Phase 4, and the
+Rocky launcher was 8m slower than in Phase 4 with its bootstrap
+(156s against 109s) and unpack (5.9s against 3.3s) also slower. That
+is the same pattern as Phases 3 and 4: different runners at different
+times. The Rocky launcher is slower than its control in every
+action, which is why I would not call it noise without more runs, but
+no guard cost I can find explains it, and one run does not say. On
+Debian the launcher was faster in every action. The unpack lines were
+`with docker ... in 3.3s, 1170 MiB` and `with podman ... in 5.9s,
+1170 MiB`.
+
+*Anything that behaved differently from this section.*
+* The option is `--override-deployer-checks`, not `--allow-downgrade`.
+  The 5b back brief renamed it, because "downgrade" is the wrong word
+  for an upgrade done by hand outside the rules. It overrides both
+  guards, so a tag mismatch is a warning too.
+* The import point and the list of playbooks (Decision 3), the
+  actions the record is written for (Decision 4), and the rule
+  inputs (Decision 5) differ from the plan as first written, and are
+  corrected at their source above. In particular the rules compare
+  `kolla_action` values, so the pre-upgrade list is `bootstrap-servers`,
+  `pull`, `precheck` and `gather-facts`, and the CLI words in the
+  refusal text come from a separate list.
+* `any_errors_fatal` is on the two refusal tasks only, so an
+  unreachable host is not newly fatal. The `stat` has
+  `ignore_unreachable`.
+* 5a added `tag` and `openstack_release` to `deployer.json`, and
+  `kolla_tag` to the image's labels.
+* The record check is gated on `deployer.json` existing. Both hosts
+  satisfied that, so there is no CI evidence of a deployer image
+  without the file (which the plan does not intend to exist).
+* Not exercised by CI: the upgrade and SLURP rules through Ansible,
+  a record newer by release rather than by version, a host with no
+  record under a deployer image, `bifrost`, the MariaDB and RabbitMQ
+  playbooks, and multinode with the launcher.
 
 ### Phase 6: Build manifest
 
