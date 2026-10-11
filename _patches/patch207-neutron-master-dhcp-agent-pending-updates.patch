@@ -1,0 +1,76 @@
+commit b36ade9da1234a1a423d3dd230f0d255cd53b1aa
+Author: Michael Still <mikal@stillhq.com>
+Date:   Sun Oct 11 09:49:33 2026 +1100
+
+    dhcp: Report pending updates in agent state
+    
+    The DHCP agent logs the length of its update queue, but only at debug
+    level. Report it as pending_updates in the configurations the agent
+    sends with every heartbeat, as the L3 agent does.
+    
+    Related-Bug: #2170465
+    Prompt: after proposing pending_updates for the L3 agent, Mikal asked for
+    the equivalent DHCP agent change as a second patch in the same series;
+    the DHCP agent uses the same ResourceProcessingQueue.
+    Assisted-By: Claude Opus 5.5 (1M context, low effort) <noreply@anthropic.com>
+    Co-Authored-By: Claude Opus 5.5 (1M context, low effort) <noreply@anthropic.com>
+    
+    Change-Id: Ia164204c61826be7b9498436f90283698c3a0747
+    Signed-off-by: Michael Still <mikal@stillhq.com>
+
+diff --git a/neutron/agent/dhcp/agent.py b/neutron/agent/dhcp/agent.py
+index 31ec7a6ee0..2f8c863b99 100644
+--- a/neutron/agent/dhcp/agent.py
++++ b/neutron/agent/dhcp/agent.py
+@@ -1154,8 +1154,9 @@ class DhcpAgentWithStateReport(DhcpAgent):
+ 
+     def _report_state(self):
+         try:
+-            self.agent_state.get('configurations').update(
+-                self.cache.get_state())
++            configurations = self.agent_state.get('configurations')
++            configurations.update(self.cache.get_state())
++            configurations['pending_updates'] = self._queue.qsize
+             ctx = context.get_admin_context_without_session()
+             agent_status = self.state_rpc.report_state(
+                 ctx, self.agent_state, True)
+diff --git a/neutron/tests/unit/agent/dhcp/test_agent.py b/neutron/tests/unit/agent/dhcp/test_agent.py
+index b72cda465e..83ad75ad9b 100644
+--- a/neutron/tests/unit/agent/dhcp/test_agent.py
++++ b/neutron/tests/unit/agent/dhcp/test_agent.py
+@@ -865,6 +865,21 @@ class TestDhcpAgent(base.BaseTestCase):
+                 self.assertEqual(dhcp_.needs_resync_reasons[None][1],
+                                 'Agent has just been revived')
+ 
++    def test_report_state_pending_updates(self):
++        dhcp_ = dhcp_agent.DhcpAgentWithStateReport(HOSTNAME)
++        dhcp_.init_host()
++        for network_id in ('1', '2'):
++            dhcp_._queue.add(dhcp_agent.DHCPResourceUpdate(
++                network_id, dhcp_agent.DEFAULT_PRIORITY, obj_type='network'))
++
++        with mock.patch.object(dhcp_.state_rpc,
++                               'report_state') as report_state,\
++                mock.patch.object(dhcp_, 'run'):
++            dhcp_._report_state()
++
++        reported = report_state.call_args[0][1]
++        self.assertEqual(2, reported['configurations']['pending_updates'])
++
+     def test_periodic_resync_helper(self):
+         dhcp = dhcp_agent.DhcpAgent(HOSTNAME)
+         dhcp.init_host()
+diff --git a/releasenotes/notes/dhcp-agent-pending-updates-8d2f6a1c3e5b7094.yaml b/releasenotes/notes/dhcp-agent-pending-updates-8d2f6a1c3e5b7094.yaml
+new file mode 100644
+index 0000000000..20f7afcbfd
+--- /dev/null
++++ b/releasenotes/notes/dhcp-agent-pending-updates-8d2f6a1c3e5b7094.yaml
+@@ -0,0 +1,8 @@
++---
++features:
++  - |
++    The DHCP agent now reports the number of network, subnet and port
++    updates waiting to be processed as ``pending_updates`` in its
++    ``configurations``, shown by ``openstack network agent show``, as the
++    L3 agent does. A value that stays high or keeps growing means the
++    agent is not keeping up with its work.
