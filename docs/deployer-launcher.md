@@ -282,6 +282,85 @@ A directory left this way, or by a launcher that was killed, stays in
 `/var/lib/kolla-ansible-launcher/` until you delete it. The launcher
 never deletes a run directory it did not create in the same run.
 
+## Deployer checks
+
+A deployer image packages one version of Kolla-Ansible and is built
+with one set of service images. Kolla-Ansible checks the deployer
+itself, before anything changes a host, so that the wrong one stops
+early and clearly. The checks are in the Kolla-Ansible patch
+`patch206` (`ansible/deployer-checks.yml`, with the rules in
+`kolla_ansible/deployer_checks.py`), not in the launcher.
+
+**When they run.** Only when `/etc/kolla-ansible/deployer.json`
+exists, which is to say from a deployer image. A Kolla-Ansible
+installed in a virtualenv does not check, because its release is
+whatever `openstack_release` in `globals.yml` says, so it has nothing
+reliable to compare. It still writes the record below. The checks run
+once for every action that gathers facts, and in `post-deploy`,
+`octavia-certificates`, `bifrost`, `mariadb-backup`, `mariadb-recovery`
+and `rabbitmq-reset-state`. `destroy` is deliberately **not** checked:
+it must work whatever the versions, because it is how a mistake is
+cleaned up. In `post-deploy` and `octavia-certificates`, which act on
+the deploy host only, just the configuration is checked.
+
+**The configuration check.** The image records the tag and release it
+was built with (`tag` and `openstack_release` in `deployer.json`, and
+`kolla_tag` and `openstack_release` as image labels, which
+`launcher show` prints). The run is refused if `openstack_tag` or
+`openstack_release` differs. Only `openstack_tag` is checked: a
+per-service `<service>_tag` override is not.
+
+**The record.** Each successful `deploy`, `deploy-containers`,
+`reconfigure`, `upgrade` and `migrate-container-engine` writes
+`/etc/kolla/kolla-ansible-deployment.json` on every host it acted on
+(the directory is `node_config_directory`). It is owned by
+`config_owner_user`, mode 0600, so it passes
+`tests/check-config.sh`. It is written whatever `--tags` were given,
+because a partial deploy still changed the host.
+
+```
+{
+    "deployer_tag": "master-debian-trixie-956ffea5",
+    "format_version": 1,
+    "kolla_action": "reconfigure",
+    "kolla_ansible_git_sha": "a5f569044ddc3a7ae20bfcb945932852b2f35a6e",
+    "kolla_ansible_version": "23.1.0.dev18",
+    "openstack_release": "master",
+    "openstack_tag": "master-debian-trixie-956ffea5",
+    "timestamp": "2026-10-11T13:49:02Z"
+}
+```
+
+**The record check.** The deployer is compared with each target's
+record. Releases compare as series (`2025.2` < `2026.1`), with
+`master` above every series; Kolla-Ansible versions compare as PEP 440
+versions. A host with no record is not checked.
+
+* A deployer for an older release, or for the same release with an
+  older Kolla-Ansible version, is refused for every action.
+* A deployer for a newer release may run only `bootstrap-servers`,
+  `pull`, `prechecks`, `gather-facts` and `upgrade`. Anything else
+  is refused until the upgrade is done.
+* `upgrade` may move to the next series, or from a `.1` series to the
+  next `.1` (a SLURP upgrade). Anything further is refused. An
+  upgrade to `master` is allowed, with a warning.
+
+Every refusal says what the record says, what the deployer is, and
+how to override it.
+
+**Overriding.** `--override-deployer-checks`, an option of
+`kolla-ansible` itself (so `kolla-ansible deploy -i inventory
+--override-deployer-checks`), turns every refusal, of the
+configuration check and of the record check, into a warning that says
+what was overridden. Use it, for example, after an upgrade done by
+hand outside these rules. It does not skip the checks, and nothing is
+recorded about having used it.
+
+`tools/check-deployer-guards` shows the checks in CI: it makes
+`kolla-ansible gather-facts` pass, then refuse a mismatched tag, then
+refuse a record claiming a Kolla-Ansible of 9999.0.0, then pass with
+the override, and restores the record afterwards.
+
 ## What it refuses
 
 * A `kolla-ansible` distribution in the same environment.
@@ -300,3 +379,7 @@ never deletes a run directory it did not create in the same run.
 
 Each error is one line on stderr, prefixed with the tool name, and
 exit status 1.
+
+The deployer checks above are refusals too, but come from
+Kolla-Ansible, not from the launcher, and are written to the output
+of the run.

@@ -1,0 +1,146 @@
+#!/bin/bash
+# Assert that the Kolla-Ansible deployer guards work on a deployed cloud (see
+# docs/plans/containerised-deployer.md, Decision 6). Run on the target, as the
+# base user, from the kerbside-patches checkout:
+#
+#   tools/check-deployer-guards
+#
+# It checks that the deployment record exists, that gather-facts (which runs
+# the guard play first) passes, that a tag mismatch is refused, that a record
+# written by a newer Kolla-Ansible is refused, and that
+# --override-deployer-checks overrides the refusal. The record is backed up
+# first and restored on exit, even if a check fails.
+#
+# The CHECK_* variables exist so this can be tested.
+
+record=${CHECK_RECORD:-/etc/kolla/kolla-ansible-deployment.json}
+inventory=${CHECK_INVENTORY:-/etc/kolla/inventory}
+ka=${CHECK_KA:-./tools/ka}
+sudo=${CHECK_SUDO:-sudo}
+python=${CHECK_PYTHON:-python3}
+tail_lines=${CHECK_TAIL_LINES:-60}
+
+failed=0
+fail() {
+    echo "FAIL: $*"
+    failed=1
+}
+pass() {
+    echo "PASS: $*"
+}
+
+work=$(mktemp -d)
+backup=${work}/record.orig
+have_backup=0
+
+restore() {
+    if [ "${have_backup}" -eq 1 ]; then
+        echo "Restoring ${record}"
+        if ! ${sudo} cp -p "${backup}" "${record}"; then
+            fail "could not restore ${record}"
+        elif ${sudo} cmp "${backup}" "${record}"; then
+            pass "${record} was restored"
+        else
+            fail "${record} differs from the original after restoring it"
+        fi
+    fi
+    rm -rf "${work}"
+    if [ "${failed}" -ne 0 ]; then
+        exit 1
+    fi
+}
+trap restore EXIT
+
+# run <name> [args...] runs gather-facts, with output in ${work}/<name>.out and
+# the exit status in ${rc}.
+run() {
+    local name=$1
+    shift
+    ${sudo} "${ka}" gather-facts -i "${inventory}" "$@" > "${work}/${name}.out" 2>&1
+    rc=$?
+}
+
+show() {
+    echo "  last ${tail_lines} lines of output:"
+    tail -n "${tail_lines}" "${work}/$1.out" | sed 's/^/    /'
+}
+
+# expect_ok <name> <description> [args...]
+expect_ok() {
+    local name=$1 what=$2
+    shift 2
+    run "${name}" "$@"
+    if [ "${rc}" -eq 0 ]; then
+        pass "${what}"
+    else
+        fail "${what} (exit ${rc})"
+        show "${name}"
+    fi
+}
+
+# expect_refused <name> <description> <text> [args...]
+expect_refused() {
+    local name=$1 what=$2 text=$3
+    shift 3
+    run "${name}" "$@"
+    if [ "${rc}" -eq 0 ]; then
+        fail "${what}: gather-facts succeeded but should have been refused"
+        show "${name}"
+    elif ! grep -q "${text}" "${work}/${name}.out" ||
+        ! grep -q 'Pass --override-deployer-checks to override this check\.' "${work}/${name}.out"; then
+        fail "${what}: refused (exit ${rc}) but the output lacks '${text}' or the override hint"
+        show "${name}"
+    else
+        pass "${what}"
+    fi
+}
+
+echo "Checking the deployment record ${record}"
+if ${sudo} test -f "${record}"; then
+    pass "${record} exists"
+    ${sudo} cat "${record}" | sed 's/^/    /'
+else
+    fail "${record} does not exist"
+    exit 1
+fi
+${sudo} cp -p "${record}" "${backup}" || { fail "could not back up ${record}"; exit 1; }
+have_backup=1
+
+echo "Checking that guard 1 does not fire for the deployed tag"
+expect_ok plain "gather-facts passes the guards"
+
+echo "Checking that guard 1 fires for a different tag"
+expect_refused tag "a mismatched openstack_tag is refused" 'This deployer was built with tag' \
+    -e openstack_tag=not-this-tag
+if grep -q 'Overriding this refusal because --override-deployer-checks was given' "${work}/tag.out"; then
+    fail "the tag mismatch refusal printed the override warning without the option"
+fi
+
+echo "Rewriting kolla_ansible_version in ${record} to 9999.0.0"
+if ${sudo} "${python}" -c '
+import json, sys
+path = sys.argv[1]
+with open(path) as f:
+    data = json.load(f)
+data["kolla_ansible_version"] = "9999.0.0"
+with open(path, "w") as f:
+    json.dump(data, f, indent=4)
+    f.write("\n")
+' "${record}"; then
+    echo "Checking that guard 2 fires for a record from a newer Kolla-Ansible"
+    expect_refused older "a newer recorded version is refused" 'is older than'
+
+    echo "Checking that --override-deployer-checks overrides the refusal"
+    run override --override-deployer-checks
+    if [ "${rc}" -ne 0 ]; then
+        fail "gather-facts with --override-deployer-checks failed (exit ${rc})"
+        show override
+    elif ! grep -q 'Overriding this refusal because --override-deployer-checks was given' "${work}/override.out"; then
+        fail "the override succeeded but the output lacks the override warning"
+        show override
+    else
+        pass "--override-deployer-checks overrides the refusal and warns"
+    fi
+else
+    fail "could not rewrite ${record}"
+fi
