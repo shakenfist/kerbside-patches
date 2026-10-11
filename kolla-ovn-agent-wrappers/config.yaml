@@ -5,8 +5,8 @@ shallow_clone: false
 directory: kolla
 release: master-kolla-ovn-agent-wrappers
 depends_on: ''
-source_sha: 3fc91f2985bb1263e46a3190e270f8827628e7c2
-previous_source_sha: a902c7c0da2c842f0b4c659dff8b4766d11f96bd
+source_sha: 4561a138f62d7a8078ba7d7f6fe32744a626f7c3
+previous_source_sha: 3fc91f2985bb1263e46a3190e270f8827628e7c2
 skip_rebase: false
 skip_claude: true
 repush: false
