@@ -1,0 +1,2385 @@
+From cf9dc2065a3fcdbfe5e8e19292d7d9041394befa Mon Sep 17 00:00:00 2001
+From: Enrico Kern <enrico.kern@stackxperts.com>
+Date: Thu, 8 Oct 2026 10:55:59 +0200
+Subject: [PATCH] horizonX: cross-request caching and large-cloud fixes for
+ Horizon 2025.1
+
+---
+ horizon/utils/cached.py                       | 702 ++++++++++++++++++
+ openstack_auth/policy.py                      |   6 +
+ openstack_dashboard/api/_nova.py              |  19 +-
+ openstack_dashboard/api/cinder.py             | 124 +++-
+ openstack_dashboard/api/glance.py             |  46 +-
+ openstack_dashboard/api/keystone.py           |  24 +-
+ openstack_dashboard/api/neutron.py            | 234 +++++-
+ openstack_dashboard/api/nova.py               |  72 +-
+ openstack_dashboard/api/placement.py          |  29 +-
+ .../dashboards/admin/floating_ips/views.py    |  55 +-
+ .../dashboards/admin/instances/views.py       |  15 +-
+ .../dashboards/admin/networks/views.py        |  19 +-
+ .../dashboards/admin/volumes/views.py         |  17 +-
+ .../dashboards/project/instances/views.py     |  77 +-
+ .../dashboards/project/volumes/views.py       |  65 +-
+ 15 files changed, 1357 insertions(+), 147 deletions(-)
+ create mode 100644 horizon/utils/cached.py
+
+diff --git a/horizon/utils/cached.py b/horizon/utils/cached.py
+new file mode 100644
+index 0000000..5d715c1
+--- /dev/null
++++ b/horizon/utils/cached.py
+@@ -0,0 +1,702 @@
++# Copyright 2026 stackxperts GmbH
++#
++#    Licensed under the Apache License, Version 2.0 (the "License"); you may
++#    not use this file except in compliance with the License. You may obtain
++#    a copy of the License at
++#
++#         http://www.apache.org/licenses/LICENSE-2.0
++#
++#    Unless required by applicable law or agreed to in writing, software
++#    distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
++#    WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
++#    License for the specific language governing permissions and limitations
++#    under the License.
++
++"""Cross-request, scope-aware caching for openstack_dashboard.api list calls.
++
++Why this exists
++---------------
++``horizon.utils.memoized.memoized`` keeps a process-local OrderedDict in a
++closure. Most horizon API helpers take ``request`` as the first positional
++argument; ``request`` is wrapped in a weakref and becomes part of the key, so
++when the request is garbage collected the entry is auto-evicted. Net effect:
++``@memoized`` on ``api.glance.image_list_detailed`` etc. is per-request only,
++even though kolla deployments ship a perfectly good shared memcached.
++
++This module fills that gap with a Django-cache-backed decorator
++``@cached_api`` that:
++
++* Builds a key scoped to (function, scope ids, hashed args/kwargs, and a
++  tuple of "version counters")
++* Reads/writes ``django.core.cache.caches['default']`` (memcached in kolla)
++* Is invalidated on user-driven writes via ``bump_versions()``, which simply
++  ``INCR`` s the matching counters and orphans every key that referenced the
++  old version
++* Falls back to direct function call on any cache layer exception, so
++  memcached down does not break horizon
++
++Storage format
++--------------
++Values are pickled by this module, zlib-compressed above 16 KiB and stored
++as raw bytes behind a small header (magic, codec, length, digest). Payloads
++above ``HORIZONX_CACHE_CHUNK_BYTES`` (default 900 KiB) are split over
++several keys, because memcached refuses items above its ``item_size_max``
++(1 MiB by default) and Django's backend swallows that error. A clouds-worth
++image list (1300+ images, ~1.7 MB pickled) is the case that needs this.
++
++Security boundary
++-----------------
++* Every key hashes its scope ids. The ``token`` scope isolates per auth
++  token. The ``authz`` scope shares an entry between tokens that are scoped
++  to the same project with the same role set; use it only for calls whose
++  result is fully decided by (project, roles), such as the glance image list.
++* Token rotation (default 1h) bounds staleness for revoked roles/quotas on
++  token-scoped entries; TTLs bound it for ``authz`` entries.
++* Per-resource version counters propagate writes (image upload, network
++  create, fip allocate, ...) to all readers in the same scope within one
++  request cycle.
++* Pickle is used for the payload. The cache is written and read by horizon
++  workers in the same trust domain; memcached must not be reachable from
++  untrusted networks (the same requirement Django's own cache backends and
++  cache-backed sessions have).
++"""
++
++import copy
++import functools
++import hashlib
++import logging
++import pickle
++import struct
++import threading
++import time
++import zlib
++
++from django.conf import settings
++from django.core.cache import caches
++
++LOG = logging.getLogger(__name__)
++
++# Key prefix is intentionally short -- memcached has a 250-byte key limit
++# and Django's cache framework adds its own KEY_PREFIX:VERSION:USER_KEY
++# wrapping on top.
++_KEY_PREFIX = 'h2c:'
++# Namespace of response keys. Bump it whenever the stored format changes, so
++# workers running different builds during a rolling upgrade never read each
++# other's entries. ('r:' was the fast1-fast4 pickled-tuple format.)
++_RESPONSE_NS = 'r2:'
++_HASH_LEN = 32
++
++# Version-counter keys are stored with no expiry (timeout=None -> backend
++# default, which for pymemcache is the configured slab max ~30 days). They
++# get refreshed implicitly each time we INCR a hot resource.
++_VERSION_KEY_TIMEOUT = None
++
++# Sentinel for distinguishing a real cache miss from a cached None.
++_MISS = object()
++
++# Stored value: header + inline payload (or header only, when chunked).
++#   magic | codec | flags | chunk count | payload length | created | digest
++_MAGIC = b'h2c2'
++_HEADER = struct.Struct('!4scBIQQ16s')
++_CODEC_PICKLE = b'p'
++_CODEC_ZLIB = b'z'
++_FLAG_REBIND = 0x01
++
++_COMPRESS_MIN_BYTES = 16 * 1024
++_DEFAULT_CHUNK_BYTES = 900 * 1024
++_DEFAULT_MAX_BYTES = 64 * 1024 * 1024
++# Chunks outlive their header a little, so a reader that found the header
++# also finds the chunks.
++_CHUNK_GRACE_SECONDS = 60
++
++# How long a function stays uncached in this worker after its result could
++# not be frozen or serialised. Time-limited so one odd response does not
++# disable caching until the next restart.
++_BYPASS_SECONDS = 600
++
++# Attribute set on frozen wrappers that held the live ``request``; the
++# current request is re-attached on every cache hit.
++_REBIND_ATTR = '_h2c_rebind_request'
++
++# Attributes of openstack-client Resources that are plumbing, not data.
++_RESOURCE_INTERNALS = frozenset(('manager',))
++
++# Per-key process-local lock. Suppresses intra-worker dogpile on cold-cache
++# population. Cross-worker dogpile is bounded at N_workers. Entries are
++# dropped after the fill so the dict does not grow with every token.
++_locks_lock = threading.Lock()
++_locks: dict = {}
++
++# qualname -> time.monotonic() deadline of a temporary bypass.
++_bypass_until: dict = {}
++
++# qualnames whose serialised payload has been round-trip checked once in
++# this worker.
++_validated: set = set()
++
++
++def _setting(name, default):
++    return getattr(settings, name, default)
++
++
++def _get_lock(key):
++    with _locks_lock:
++        lock = _locks.get(key)
++        if lock is None:
++            lock = _locks[key] = threading.Lock()
++        return lock
++
++
++def _drop_lock(key):
++    with _locks_lock:
++        _locks.pop(key, None)
++
++
++def _bypassed(qualname):
++    until = _bypass_until.get(qualname)
++    if until is None:
++        return False
++    if until > time.monotonic():
++        return True
++    _bypass_until.pop(qualname, None)
++    return False
++
++
++def _bypass(qualname, reason):
++    _bypass_until[qualname] = time.monotonic() + _BYPASS_SECONDS
++    LOG.warning("cached_api: not caching %s for %d s in this worker: %s",
++                qualname, _BYPASS_SECONDS, reason)
++
++
++def _own_attrs(obj):
++    """Instance ``__dict__`` without triggering any ``__getattr__`` hook.
++
++    openstack-client Resources lazy-load missing attributes with an API call
++    from ``__getattr__``; ``hasattr`` on them is not free.
++    """
++    try:
++        return vars(obj)
++    except TypeError:
++        return {}
++
++
++def _thaw_resource(cls, state):
++    """Rebuild an openstack-client Resource from its frozen ``__dict__``.
++
++    The instance is created without running ``__init__`` and marked loaded,
++    so the client's lazy-loading ``__getattr__`` never calls the API (and
++    never recurses on a half-built object, which is what default pickling of
++    a Resource runs into). ``manager`` is ``None``: data access, properties
++    such as ``Flavor.is_public`` and ``to_dict()`` work, methods that talk to
++    the API do not. Cached results are read-only by design.
++    """
++    obj = cls.__new__(cls)
++    obj.__dict__.update(state)
++    obj.__dict__['manager'] = None
++    obj.__dict__['_loaded'] = True
++    return obj
++
++
++class _FrozenResource:
++    """Pickle carrier for an openstack-client Resource (novaclient,
++    cinderclient, keystoneclient). Unpickles as a real instance of the
++    original class via ``_thaw_resource``."""
++
++    def __init__(self, cls, state):
++        self.cls = cls
++        self.state = state
++
++    def __reduce__(self):
++        return (_thaw_resource, (self.cls, self.state))
++
++
++class _FrozenInner:
++    """Picklable stand-in for a glance image (a warlock model).
++
++    glanceclient builds its image class at runtime from the API schema, so
++    the class cannot be pickled by reference. Horizon's ``glance.Image``
++    wrapper delegates attribute access to the model through
++    ``_apiresource``; ``_FrozenInner`` mimics the attribute and mapping
++    access of the model on top of a plain dict.
++
++    Note: ``__slots__`` is intentionally NOT set. Some horizon views
++    decorate the objects they receive (``image.tenant_name = ...``); slots
++    would block those writes with an unhelpful ``AttributeError``. Each
++    request unpickles fresh instances so cross-request decoration leak is
++    not a concern.
++    """
++
++    def __init__(self, info, extras=None):
++        self._info = dict(info) if info else {}
++        if extras:
++            self.__dict__.update(extras)
++
++    def __getattr__(self, name):
++        # Called only when the attribute is missing from instance __dict__
++        # (so view-set decorations like t.domain_name take precedence).
++        # Avoid infinite recursion if _info itself is missing, e.g. during
++        # ``__setstate__`` partial restore.
++        if name == '_info':
++            raise AttributeError(name)
++        try:
++            return self.__dict__['_info'][name]
++        except KeyError:
++            raise AttributeError(name)
++
++    def __getitem__(self, key):
++        return self._info[key]
++
++    def __contains__(self, key):
++        return key in self._info
++
++    def keys(self):
++        return self._info.keys()
++
++    def items(self):
++        return self._info.items()
++
++    def __iter__(self):
++        return iter(self._info)
++
++    def __len__(self):
++        return len(self._info)
++
++    def __repr__(self):
++        return '_FrozenInner(%r)' % (self._info,)
++
++    def to_dict(self):
++        return copy.deepcopy(self._info)
++
++    def is_loaded(self):
++        return True
++
++    def __reduce__(self):
++        extras = {k: v for k, v in self.__dict__.items() if k != '_info'}
++        return (_FrozenInner, (self._info, extras))
++
++
++class _Freezer:
++    """Replace OpenStack Resource objects in a value with picklable
++    equivalents. Walks lists/tuples/dicts recursively. Non-Resource values
++    are returned unchanged.
++
++    Why this exists: openstack-client Resources do not survive pickling (see
++    ``_FrozenInner``). Freezing the value before it is stored keeps the
++    cached copy plain data. Caller still receives the live value; only the
++    cached copy is frozen.
++    """
++
++    def __init__(self):
++        # Set when a frozen wrapper needs the current request re-attached
++        # on read (e.g. ``nova.Server`` keeps ``self.request``).
++        self.rebind = False
++
++    def freeze(self, value):
++        if value is None or isinstance(value, (str, bytes, int, float, bool)):
++            return value
++        # Containers come back as the original object when nothing inside
++        # changed, so pickle's memo keeps shared sub-objects shared (a client
++        # Resource holds every payload value twice: in ``_info`` and as an
++        # attribute). Dict subclasses are always copied: glance's warlock
++        # models are dict subclasses whose class cannot be pickled.
++        if isinstance(value, dict):
++            out = {k: self.freeze(v) for k, v in value.items()}
++            if type(value) is dict and all(
++                    out[k] is v for k, v in value.items()):
++                return value
++            return out
++        if isinstance(value, list):
++            out = [self.freeze(v) for v in value]
++            if type(value) is list and all(
++                    a is b for a, b in zip(out, value)):
++                return value
++            return out
++        if isinstance(value, tuple):
++            out = [self.freeze(v) for v in value]
++            if all(a is b for a, b in zip(out, value)):
++                return value
++            if hasattr(value, '_make'):
++                return type(value)._make(out)
++            return tuple(out)
++
++        attrs = _own_attrs(value)
++
++        # Horizon's APIResourceWrapper subclasses (e.g.
++        # openstack_dashboard.api.cinder.Volume) delegate whitelisted
++        # attribute access to the underlying client Resource through
++        # ``_apiresource``. Freeze the inner and keep whatever else the
++        # wrapper carries (``volume.transfer``, ``group.volume_type_names``).
++        if attrs.get('_apiresource') is not None:
++            return self._freeze_wrapper(value, attrs)
++
++        # Bare openstack-client Resource. Has ``_info`` populated from the
++        # JSON API response plus one attribute per payload key, and anything
++        # horizon set afterwards (``flavor.extras``).
++        if isinstance(attrs.get('_info'), dict):
++            state = {k: self.freeze(v) for k, v in attrs.items()
++                     if k not in _RESOURCE_INTERNALS}
++            return _FrozenResource(type(value), state)
++
++        # Glance warlock-generated images iterate as dicts but are not
++        # plain dicts. Detect by quack and snapshot.
++        if hasattr(value, 'items') and hasattr(value, '__contains__'):
++            try:
++                return _FrozenInner(
++                    self.freeze({k: value[k] for k in value}))
++            except Exception:
++                pass
++
++        return value
++
++    def _freeze_wrapper(self, value, attrs):
++        cls = type(value)
++        shell = cls.__new__(cls)
++        state = dict(attrs)
++        inner = state.pop('_apiresource')
++        if state.pop('request', None) is not None:
++            shell.__dict__[_REBIND_ATTR] = True
++            self.rebind = True
++        if isinstance(inner, dict) and type(inner) is not dict:
++            # glance warlock model: keep attribute access working.
++            frozen_inner = _FrozenInner(
++                self.freeze({k: inner[k] for k in inner}))
++        else:
++            frozen_inner = self.freeze(inner)
++        shell.__dict__['_apiresource'] = frozen_inner
++        for name, val in state.items():
++            shell.__dict__[name] = self.freeze(val)
++        return shell
++
++
++def _freeze_value(value):
++    return _Freezer().freeze(value)
++
++
++def _rebind_requests(value, request, depth=0):
++    """Re-attach the current request to frozen wrappers that held one."""
++    if depth > 4:
++        return
++    if isinstance(value, (list, tuple)):
++        for item in value:
++            _rebind_requests(item, request, depth + 1)
++    elif isinstance(value, dict):
++        for item in value.values():
++            _rebind_requests(item, request, depth + 1)
++    else:
++        attrs = _own_attrs(value)
++        if attrs.pop(_REBIND_ATTR, False):
++            attrs['request'] = request
++
++
++class _TooLarge(Exception):
++    pass
++
++
++def _chunk_key(key, digest, index):
++    return '%s:%s:%d' % (key, digest.hex()[:12], index)
++
++
++def _store(cache, key, frozen, ttl, rebind, validate):
++    blob = pickle.dumps(frozen, pickle.HIGHEST_PROTOCOL)
++    if validate:
++        # One local round trip per function and worker. Catches payloads
++        # that pickle but cannot be rebuilt (the fast1 RecursionError case)
++        # before they reach memcached.
++        pickle.loads(blob)
++    codec = _CODEC_PICKLE
++    if len(blob) >= _COMPRESS_MIN_BYTES:
++        blob = zlib.compress(blob, 1)
++        codec = _CODEC_ZLIB
++    if len(blob) > _setting('HORIZONX_CACHE_MAX_BYTES', _DEFAULT_MAX_BYTES):
++        raise _TooLarge('%d bytes after compression' % len(blob))
++    chunk = _setting('HORIZONX_CACHE_CHUNK_BYTES', _DEFAULT_CHUNK_BYTES)
++    digest = hashlib.sha256(blob).digest()[:16]
++    flags = _FLAG_REBIND if rebind else 0
++    created = int(time.time())
++    if len(blob) <= chunk:
++        header = _HEADER.pack(_MAGIC, codec, flags, 0, len(blob), created,
++                              digest)
++        cache.set(key, header + blob, timeout=ttl)
++        return
++    parts = [blob[i:i + chunk] for i in range(0, len(blob), chunk)]
++    failed = cache.set_many(
++        {_chunk_key(key, digest, i): part for i, part in enumerate(parts)},
++        timeout=ttl + _CHUNK_GRACE_SECONDS)
++    if failed:
++        LOG.debug("cached_api: %d of %d chunks not stored for %s",
++                  len(failed), len(parts), key)
++        return
++    header = _HEADER.pack(_MAGIC, codec, flags, len(parts), len(blob),
++                          created, digest)
++    cache.set(key, header, timeout=ttl)
++
++
++def _load(cache, key):
++    """Return ``(value, needs_rebind)`` or ``(_MISS, False)``."""
++    raw = cache.get(key)
++    if not isinstance(raw, bytes) or len(raw) < _HEADER.size:
++        return _MISS, False
++    magic, codec, flags, chunks, length, _created, digest = (
++        _HEADER.unpack_from(raw))
++    if magic != _MAGIC:
++        return _MISS, False
++    if chunks == 0:
++        blob = raw[_HEADER.size:]
++    else:
++        keys = [_chunk_key(key, digest, i) for i in range(chunks)]
++        got = cache.get_many(keys)
++        if len(got) != chunks:
++            return _MISS, False
++        blob = b''.join(got[k] for k in keys)
++    if (len(blob) != length or
++            hashlib.sha256(blob).digest()[:16] != digest):
++        return _MISS, False
++    if codec == _CODEC_ZLIB:
++        blob = zlib.decompress(blob)
++    elif codec != _CODEC_PICKLE:
++        return _MISS, False
++    return pickle.loads(blob), bool(flags & _FLAG_REBIND)
++
++
++def _scope_id(request, scope):
++    """Resolve a scope name to a stable id string for the current request."""
++    user = getattr(request, 'user', None)
++    if scope == 'token':
++        token = getattr(user, 'token', None)
++        return getattr(token, 'id', '') or ''
++    if scope == 'project':
++        return getattr(user, 'project_id', '') or ''
++    if scope == 'user':
++        return getattr(user, 'id', '') or ''
++    if scope == 'domain':
++        return (getattr(user, 'user_domain_id', '') or
++                getattr(user, 'domain_id', '') or '')
++    if scope == 'authz':
++        # What decides the result of a project-scoped list call: the project
++        # the token is scoped to and the roles it carries there. Tokens
++        # without a project (domain/system scope) stay isolated per token.
++        project = getattr(user, 'project_id', '') or ''
++        if not project:
++            token = getattr(user, 'token', None)
++            return 'token:' + (getattr(token, 'id', '') or '')
++        roles = sorted({r.get('name', '') for r in
++                        (getattr(user, 'roles', None) or [])
++                        if isinstance(r, dict)})
++        return 'project:%s|roles:%s' % (project, ','.join(roles))
++    raise ValueError("unknown cached_api scope %r" % scope)
++
++
++def _version_key(scope_value, resource):
++    return '{prefix}vk:{resource}:{scope}'.format(
++        prefix=_KEY_PREFIX, resource=resource, scope=scope_value)
++
++
++def _hash_args(args, kwargs):
++    # Drop the request object (always the first positional arg in horizon
++    # API helpers). Sort kwargs for determinism.
++    safe_args = args[1:] if args else ()
++    try:
++        payload = pickle.dumps(
++            (safe_args, sorted(kwargs.items())),
++            pickle.HIGHEST_PROTOCOL)
++    except Exception:
++        # Fallback for unpicklable args: stable repr. Less collision-safe
++        # but better than blowing up.
++        payload = repr((safe_args, sorted(kwargs.items()))).encode('utf-8')
++    return hashlib.sha256(payload).hexdigest()[:_HASH_LEN]
++
++
++def _resolve_versions(request, version_specs):
++    """Fetch current values of all named version counters in one round trip."""
++    if not version_specs:
++        return ()
++    keys = []
++    for spec in version_specs:
++        resource, scope = spec.split(':', 1)
++        if scope == 'global':
++            keys.append(_version_key('global', resource))
++        else:
++            sval = _scope_id(request, scope)
++            keys.append(_version_key(sval, resource))
++    try:
++        got = caches['default'].get_many(keys)
++    except Exception:
++        LOG.debug("cached_api: version get_many failed", exc_info=True)
++        return tuple(0 for _ in keys)
++    return tuple(got.get(k, 0) for k in keys)
++
++
++def _build_key(func, scope_tuple, version_values, request, args, kwargs):
++    parts = [func.__module__, func.__qualname__]
++    for s in scope_tuple:
++        parts.append('%s=%s' % (s, _scope_id(request, s)))
++    if version_values:
++        parts.append('v=' + ','.join(str(v) for v in version_values))
++    parts.append('a=' + _hash_args(args, kwargs))
++    raw = '|'.join(parts)
++    digest = hashlib.sha256(raw.encode('utf-8')).hexdigest()
++    return _KEY_PREFIX + _RESPONSE_NS + digest
++
++
++def cached_api(ttl, scope=('token',), versions=()):
++    """Cache the return value of an openstack_dashboard.api list helper.
++
++    The decorated function MUST take ``request`` as its first positional arg.
++
++    :param ttl: time-to-live in seconds. Should be <= keystone token
++        lifetime; once a token is revoked the user cannot read token-scoped
++        entries regardless of TTL. ``HORIZONX_CACHE_TTLS`` in the settings
++        (``{'<module>.<qualname>': seconds}``) overrides it per function.
++    :param scope: tuple of scope names. Each is one of ``'token'``,
++        ``'project'``, ``'user'``, ``'domain'`` or ``'authz'`` (project plus
++        role set, shared between tokens).
++    :param versions: tuple of version-counter names of the form
++        ``'<resource>:<scope>'``. ``<scope>`` is one of ``'project'``,
++        ``'user'``, ``'domain'``, or ``'global'``. Bumping any of these
++        counters orphans matching cache entries.
++    """
++    if isinstance(scope, str):
++        scope = (scope,)
++    scope_tuple = tuple(scope)
++    version_tuple = tuple(versions)
++
++    def decorate(func):
++        qualname = func.__qualname__
++        ttl_name = '%s.%s' % (func.__module__, qualname)
++
++        def _read(cache, key, request):
++            try:
++                value, rebind = _load(cache, key)
++            except Exception:
++                LOG.debug("cached_api: read failed for %s; treating as miss",
++                          qualname, exc_info=True)
++                return _MISS
++            if value is not _MISS and rebind:
++                _rebind_requests(value, request)
++            return value
++
++        def _write(cache, key, value):
++            freezer = _Freezer()
++            try:
++                frozen = freezer.freeze(value)
++            except Exception as e:
++                _bypass(qualname, 'freeze failed (%s)' % e)
++                return
++            ttl_now = _setting('HORIZONX_CACHE_TTLS', {}).get(ttl_name, ttl)
++            try:
++                _store(cache, key, frozen, ttl_now, freezer.rebind,
++                       validate=qualname not in _validated)
++                _validated.add(qualname)
++            except _TooLarge as e:
++                _bypass(qualname, 'result too large (%s)' % e)
++            except (pickle.PicklingError, pickle.UnpicklingError, TypeError,
++                    AttributeError, RecursionError) as e:
++                _bypass(qualname, 'result is not serialisable (%s)' % e)
++            except Exception:
++                LOG.debug("cached_api: set failed for %s", qualname,
++                          exc_info=True)
++
++        @functools.wraps(func)
++        def wrapper(*args, **kwargs):
++            request = args[0] if args else kwargs.get('request')
++            if request is None or _bypassed(qualname):
++                return func(*args, **kwargs)
++
++            # Per-request hard bypass for views that need a fresh read
++            # (used after create/delete redirects on shared resources).
++            try:
++                if request.GET.get('cache_bust'):
++                    return func(*args, **kwargs)
++            except Exception:
++                pass
++
++            cache = caches['default']
++            try:
++                versions_now = _resolve_versions(request, version_tuple)
++                key = _build_key(func, scope_tuple, versions_now,
++                                 request, args, kwargs)
++            except Exception:
++                LOG.debug("cached_api: key build failed for %s; bypassing",
++                          qualname, exc_info=True)
++                return func(*args, **kwargs)
++
++            value = _read(cache, key, request)
++            if value is not _MISS:
++                return value
++
++            lock = _get_lock(key)
++            try:
++                with lock:
++                    value = _read(cache, key, request)
++                    if value is not _MISS:
++                        return value
++                    value = func(*args, **kwargs)
++                    _write(cache, key, value)
++                    return value
++            finally:
++                _drop_lock(key)
++
++        wrapper._cached_api = True
++        wrapper._cached_api_ttl = ttl
++        wrapper._cached_api_scope = scope_tuple
++        wrapper._cached_api_versions = version_tuple
++        return wrapper
++
++    return decorate
++
++
++class ProcessTTLCache:
++    """Per-process cache for values that only change on upgrades, such as
++    API version ranges and extension lists, keyed by endpoint URL.
++
++    Horizon otherwise asks for them again on every request (several round
++    trips per page). Values must not be ``None``; ``get`` returns ``None``
++    on a miss.
++    """
++
++    def __init__(self, ttl):
++        self.ttl = ttl
++        self._data = {}
++
++    def get(self, key):
++        hit = self._data.get(key)
++        if hit is not None and hit[0] > time.monotonic():
++            return hit[1]
++        return None
++
++    def set(self, key, value):
++        self._data[key] = (time.monotonic() + self.ttl, value)
++
++
++def bump_versions(request, version_specs):
++    """Increment the named version counter(s).
++
++    Each affected counter's INCR orphans every cache entry that referenced
++    its prior value. Subsequent reads see a fresh result. Call from inside
++    create/update/delete API helpers in ``openstack_dashboard.api.*``.
++
++    Cheap-on-failure: a missing counter is initialised to 1 via ``add()``;
++    a backend exception is swallowed and logged at debug level.
++    """
++    if not version_specs:
++        return
++    cache = caches['default']
++    for spec in version_specs:
++        try:
++            resource, scope = spec.split(':', 1)
++            if scope == 'global':
++                key = _version_key('global', resource)
++            else:
++                sval = _scope_id(request, scope)
++                if not sval:
++                    continue
++                key = _version_key(sval, resource)
++            try:
++                cache.incr(key)
++            except ValueError:
++                # Counter does not exist yet. add() is set-if-absent, so a
++                # racing worker that beat us to it will not be clobbered.
++                cache.add(key, 1, timeout=_VERSION_KEY_TIMEOUT)
++        except Exception:
++            LOG.debug("cached_api: version bump failed for %s",
++                      spec, exc_info=True)
+diff --git a/openstack_auth/policy.py b/openstack_auth/policy.py
+index cb14fc8..d7294a6 100644
+--- a/openstack_auth/policy.py
++++ b/openstack_auth/policy.py
+@@ -134,6 +134,12 @@ def _get_enforcer():
+                 LOG.warning("Cannot load a policy file '%s' for service '%s' "
+                             "due to ValueError. The file might be wrongly "
+                             "formatted.", policy_file, service)
++            else:
++                # enforce() calls load_rules() on every check, which stats
++                # the policy files and directories each time (thousands of
++                # times on a long table). The files only change on a
++                # redeploy, which restarts horizon.
++                enforcer.use_conf = False
+ 
+             # Ensure enforcer.rules is populated.
+             if enforcer.rules:
+diff --git a/openstack_dashboard/api/_nova.py b/openstack_dashboard/api/_nova.py
+index 4d237cc..35fe3a7 100644
+--- a/openstack_dashboard/api/_nova.py
++++ b/openstack_dashboard/api/_nova.py
+@@ -22,6 +22,7 @@ from novaclient import api_versions
+ from novaclient import client as nova_client
+ 
+ from horizon import exceptions as horizon_exceptions
++from horizon.utils.cached import ProcessTTLCache
+ from horizon.utils import memoized
+ 
+ from openstack_dashboard.api import base
+@@ -133,10 +134,24 @@ class Server(base.APIResourceWrapper):
+         return getattr(self, 'OS-EXT-SRV-ATTR:user_data', "")
+ 
+ 
++# Nova's microversion range per endpoint; it only changes on upgrades.
++_server_versions = ProcessTTLCache(600)
++
++
++def _get_server_version_range(request):
++    nova_url = base.url_for(request, 'compute')
++    versions = _server_versions.get(nova_url)
++    if versions is None:
++        versions = api_versions._get_server_version_range(
++            novaclient(request))
++        if not versions[1].is_null():
++            _server_versions.set(nova_url, versions)
++    return versions
++
++
+ @memoized.memoized
+ def get_microversion(request, features):
+-    client = novaclient(request)
+-    min_ver, max_ver = api_versions._get_server_version_range(client)
++    min_ver, max_ver = _get_server_version_range(request)
+     return (microversions.get_microversion_for_features(
+         'nova', features, api_versions.APIVersion, min_ver, max_ver))
+ 
+diff --git a/openstack_dashboard/api/cinder.py b/openstack_dashboard/api/cinder.py
+index 7d023a2..044ef90 100644
+--- a/openstack_dashboard/api/cinder.py
++++ b/openstack_dashboard/api/cinder.py
+@@ -31,6 +31,7 @@ from cinderclient import exceptions as cinder_exception
+ from cinderclient.v3.contrib import list_extensions as cinder_list_extensions
+ 
+ from horizon import exceptions
++from horizon.utils.cached import bump_versions, cached_api, ProcessTTLCache
+ from horizon.utils.memoized import memoized
+ 
+ from openstack_dashboard.api import _nova
+@@ -250,6 +251,24 @@ def cinderclient(request, version=None):
+     return c
+ 
+ 
++# Cinder's microversion range per endpoint. Without this every
++# get_microversion() call (several per page, the panel checks included) is
++# a GET on the cinder root.
++_server_versions = ProcessTTLCache(600)
++
++
++def _get_server_version(cinder_url, insecure, cacert):
++    versions = _server_versions.get(cinder_url)
++    if versions is None:
++        versions = cinder_client.get_server_version(cinder_url,
++                                                    insecure, cacert)
++        # cinderclient falls back to 2.0/2.0 when the endpoint does not
++        # answer; do not keep that.
++        if versions[1].ver_major >= 3:
++            _server_versions.set(cinder_url, versions)
++    return versions
++
++
+ def get_microversion(request, features):
+     try:
+         version, cinder_url = _find_cinder_url(request)
+@@ -259,8 +278,7 @@ def get_microversion(request, features):
+     insecure = settings.OPENSTACK_SSL_NO_VERIFY
+     cacert = settings.OPENSTACK_SSL_CACERT
+ 
+-    min_ver, max_ver = cinder_client.get_server_version(cinder_url,
+-                                                        insecure, cacert)
++    min_ver, max_ver = _get_server_version(cinder_url, insecure, cacert)
+     return microversions.get_microversion_for_features(
+         'cinder', features, api_versions.APIVersion, min_ver, max_ver)
+ 
+@@ -293,6 +311,9 @@ def version_get():
+     return api_version['version']
+ 
+ 
++_VOLUME_VERSIONS = ('volume:project',)
++
++
+ def volume_list(request, search_opts=None, marker=None, sort_dir="desc"):
+     volumes, _, __ = volume_list_paged(
+         request, search_opts=search_opts, marker=marker, paginate=False,
+@@ -320,6 +341,11 @@ def update_pagination(entities, page_size, marker, sort_dir):
+     return entities, has_more_data, has_prev_data
+ 
+ 
++@cached_api(
++    ttl=60,
++    scope=('token', 'project'),
++    versions=_VOLUME_VERSIONS,
++)
+ @profiler.trace
+ def volume_list_paged(request, search_opts=None, marker=None, paginate=False,
+                       sort_dir="desc"):
+@@ -405,6 +431,7 @@ def volume_create(request, size, name, description, volume_type,
+             'group_id': group_id}
+ 
+     volume = client.volumes.create(size, **data)
++    bump_versions(request, _VOLUME_VERSIONS)
+     return Volume(volume)
+ 
+ 
+@@ -412,33 +439,43 @@ def volume_create(request, size, name, description, volume_type,
+ def volume_extend(request, volume_id, new_size):
+     client = _cinderclient_with_features(request,
+                                          'extend_in_use_volume')
+-    return client.volumes.extend(volume_id, new_size)
++    result = client.volumes.extend(volume_id, new_size)
++    bump_versions(request, _VOLUME_VERSIONS)
++    return result
+ 
+ 
+ @profiler.trace
+ def volume_delete(request, volume_id):
+-    return cinderclient(request).volumes.delete(volume_id)
++    result = cinderclient(request).volumes.delete(volume_id)
++    bump_versions(request, _VOLUME_VERSIONS)
++    return result
+ 
+ 
+ @profiler.trace
+ def volume_retype(request, volume_id, new_type, migration_policy):
+-    return cinderclient(request).volumes.retype(volume_id,
+-                                                new_type,
+-                                                migration_policy)
++    result = cinderclient(request).volumes.retype(volume_id,
++                                                  new_type,
++                                                  migration_policy)
++    bump_versions(request, _VOLUME_VERSIONS)
++    return result
+ 
+ 
+ @profiler.trace
+ def volume_set_bootable(request, volume_id, bootable):
+-    return cinderclient(request).volumes.set_bootable(volume_id,
+-                                                      bootable)
++    result = cinderclient(request).volumes.set_bootable(volume_id,
++                                                        bootable)
++    bump_versions(request, _VOLUME_VERSIONS)
++    return result
+ 
+ 
+ @profiler.trace
+ def volume_update(request, volume_id, name, description):
+     vol_data = {'name': name,
+                 'description': description}
+-    return cinderclient(request).volumes.update(volume_id,
+-                                                **vol_data)
++    result = cinderclient(request).volumes.update(volume_id,
++                                                  **vol_data)
++    bump_versions(request, _VOLUME_VERSIONS)
++    return result
+ 
+ 
+ @profiler.trace
+@@ -495,6 +532,14 @@ def volume_snapshot_list(request, search_opts=None):
+     return snapshots
+ 
+ 
++_SNAPSHOT_VERSIONS = ('snapshot:project',)
++
++
++@cached_api(
++    ttl=60,
++    scope=('token', 'project'),
++    versions=_SNAPSHOT_VERSIONS,
++)
+ @profiler.trace
+ def volume_snapshot_list_paged(request, search_opts=None, marker=None,
+                                paginate=False, sort_dir="desc"):
+@@ -533,13 +578,17 @@ def volume_snapshot_create(request, volume_id, name,
+             'description': description,
+             'force': force}
+ 
+-    return VolumeSnapshot(cinderclient(request).volume_snapshots.create(
++    result = VolumeSnapshot(cinderclient(request).volume_snapshots.create(
+         volume_id, **data))
++    bump_versions(request, _SNAPSHOT_VERSIONS)
++    return result
+ 
+ 
+ @profiler.trace
+ def volume_snapshot_delete(request, snapshot_id):
+-    return cinderclient(request).volume_snapshots.delete(snapshot_id)
++    result = cinderclient(request).volume_snapshots.delete(snapshot_id)
++    bump_versions(request, _SNAPSHOT_VERSIONS)
++    return result
+ 
+ 
+ @profiler.trace
+@@ -788,6 +837,14 @@ def default_quota_update(request, **kwargs):
+     cinderclient(request).quota_classes.update(DEFAULT_QUOTA_NAME, **kwargs)
+ 
+ 
++_VOLUME_TYPE_VERSIONS = ('volumetype:global',)
++
++
++@cached_api(
++    ttl=1800,
++    scope=('token',),
++    versions=_VOLUME_TYPE_VERSIONS,
++)
+ @profiler.trace
+ def volume_type_list(request):
+     return cinderclient(request).volume_types.list()
+@@ -795,17 +852,21 @@ def volume_type_list(request):
+ 
+ @profiler.trace
+ def volume_type_create(request, name, description=None, is_public=True):
+-    return cinderclient(request).volume_types.create(name, description,
+-                                                     is_public)
++    result = cinderclient(request).volume_types.create(name, description,
++                                                       is_public)
++    bump_versions(request, _VOLUME_TYPE_VERSIONS)
++    return result
+ 
+ 
+ @profiler.trace
+ def volume_type_update(request, volume_type_id, name=None, description=None,
+                        is_public=None):
+-    return cinderclient(request).volume_types.update(volume_type_id,
+-                                                     name,
+-                                                     description,
+-                                                     is_public)
++    result = cinderclient(request).volume_types.update(volume_type_id,
++                                                       name,
++                                                       description,
++                                                       is_public)
++    bump_versions(request, _VOLUME_TYPE_VERSIONS)
++    return result
+ 
+ 
+ @profiler.trace
+@@ -817,7 +878,9 @@ def volume_type_default(request):
+ @profiler.trace
+ def volume_type_delete(request, volume_type_id):
+     try:
+-        return cinderclient(request).volume_types.delete(volume_type_id)
++        result = cinderclient(request).volume_types.delete(volume_type_id)
++        bump_versions(request, _VOLUME_TYPE_VERSIONS)
++        return result
+     except cinder_exception.BadRequest:
+         raise exceptions.BadRequest(_(
+             "This volume type is used by one or more volumes."))
+@@ -967,6 +1030,10 @@ def service_list(request):
+     return cinderclient(request).services.list()
+ 
+ 
++@cached_api(
++    ttl=3600,
++    scope=('token', 'project'),
++)
+ @profiler.trace
+ def availability_zone_list(request, detailed=False):
+     return cinderclient(request).availability_zones.list(detailed=detailed)
+@@ -1133,6 +1200,14 @@ def group_type_spec_unset(request, group_type_id, keys):
+     return group_type._apiresource.unset_keys(keys)
+ 
+ 
++_GROUP_VERSIONS = ('group:project',)
++
++
++@cached_api(
++    ttl=300,
++    scope=('token', 'project'),
++    versions=_GROUP_VERSIONS,
++)
+ @profiler.trace
+ def group_list(request, search_opts=None):
+     client = _cinderclient_with_generic_groups(request)
+@@ -1186,7 +1261,9 @@ def group_create(request, name, group_type, volume_types,
+         params['description'] = description
+     if availability_zone is not None:
+         params['availability_zone'] = availability_zone
+-    return Group(client.groups.create(**params))
++    result = Group(client.groups.create(**params))
++    bump_versions(request, _GROUP_VERSIONS)
++    return result
+ 
+ 
+ @profiler.trace
+@@ -1194,15 +1271,18 @@ def group_create_from_source(request, name, group_snapshot_id=None,
+                              source_group_id=None, description=None,
+                              user_id=None, project_id=None):
+     client = _cinderclient_with_generic_groups(request)
+-    return Group(client.groups.create_from_src(
++    result = Group(client.groups.create_from_src(
+         group_snapshot_id, source_group_id, name, description,
+         user_id, project_id))
++    bump_versions(request, _GROUP_VERSIONS)
++    return result
+ 
+ 
+ @profiler.trace
+ def group_delete(request, group_id, delete_volumes=False):
+     client = _cinderclient_with_generic_groups(request)
+     client.groups.delete(group_id, delete_volumes)
++    bump_versions(request, _GROUP_VERSIONS)
+ 
+ 
+ @profiler.trace
+diff --git a/openstack_dashboard/api/glance.py b/openstack_dashboard/api/glance.py
+index 009af6a..331bf8e 100644
+--- a/openstack_dashboard/api/glance.py
++++ b/openstack_dashboard/api/glance.py
+@@ -34,6 +34,7 @@ from glanceclient.v2 import client
+ 
+ 
+ from horizon import messages
++from horizon.utils.cached import bump_versions, cached_api
+ from horizon.utils.memoized import memoized
+ from openstack_dashboard.api import base
+ from openstack_dashboard.contrib.developer.profiler import api as profiler
+@@ -172,9 +173,14 @@ def _normalize_list_input(filters, **kwargs):
+     _normalize_owner_id_filter(filters)
+ 
+ 
++_IMAGE_VERSIONS = ('image:project', 'image:global')
++
++
+ @profiler.trace
+ def image_delete(request, image_id):
+-    return glanceclient(request).images.delete(image_id)
++    result = glanceclient(request).images.delete(image_id)
++    bump_versions(request, _IMAGE_VERSIONS)
++    return result
+ 
+ 
+ @profiler.trace
+@@ -187,15 +193,28 @@ def image_get(request, image_id):
+ @profiler.trace
+ def image_deactivate(request, image_id):
+     """Deactivates an Image"""
+-    return glanceclient(request).images.deactivate(image_id)
++    result = glanceclient(request).images.deactivate(image_id)
++    bump_versions(request, _IMAGE_VERSIONS)
++    return result
+ 
+ 
+ @profiler.trace
+ def image_reactivate(request, image_id):
+     """Reactivates an Image"""
+-    return glanceclient(request).images.reactivate(image_id)
+-
+-
++    result = glanceclient(request).images.reactivate(image_id)
++    bump_versions(request, _IMAGE_VERSIONS)
++    return result
++
++
++# Shared between tokens of the same project and role set: what glance lists
++# depends on nothing else, and a large catalogue (1000+ images) costs
++# several seconds per fetch. Images created outside horizon (CLI, API)
++# show up after the TTL at the latest.
++@cached_api(
++    ttl=600,
++    scope=('authz',),
++    versions=('image:project', 'image:global'),
++)
+ @profiler.trace
+ def image_list_detailed(request, marker=None, sort_dir='desc',
+                         sort_key='created_at', filters=None, paginate=False,
+@@ -307,8 +326,10 @@ def image_list_detailed(request, marker=None, sort_dir='desc',
+ def image_update(request, image_id, **kwargs):
+     image_data = kwargs.get('data', None)
+     try:
+-        return Image(glanceclient(request).images.update(
++        result = Image(glanceclient(request).images.update(
+             image_id, **kwargs))
++        bump_versions(request, _IMAGE_VERSIONS)
++        return result
+     finally:
+         if image_data:
+             try:
+@@ -474,6 +495,7 @@ def image_create(request, **kwargs):
+     image = glanceclient(request).images.create(**kwargs)
+     if location is not None:
+         glanceclient(request).images.add_location(image.id, location, {})
++    bump_versions(request, _IMAGE_VERSIONS)
+ 
+     if data:
+         if isinstance(data, str):
+@@ -514,15 +536,19 @@ def image_create(request, **kwargs):
+ @profiler.trace
+ def image_update_properties(request, image_id, remove_props=None, **kwargs):
+     """Add or update a custom property of an image."""
+-    return glanceclient(request).images.update(image_id,
+-                                               remove_props,
+-                                               **kwargs)
++    result = glanceclient(request).images.update(image_id,
++                                                 remove_props,
++                                                 **kwargs)
++    bump_versions(request, _IMAGE_VERSIONS)
++    return result
+ 
+ 
+ @profiler.trace
+ def image_delete_properties(request, image_id, keys):
+     """Delete custom properties for an image."""
+-    return glanceclient(request, '2').images.update(image_id, keys)
++    result = glanceclient(request, '2').images.update(image_id, keys)
++    bump_versions(request, _IMAGE_VERSIONS)
++    return result
+ 
+ 
+ class BaseGlanceMetadefAPIResourceWrapper(base.APIResourceWrapper):
+diff --git a/openstack_dashboard/api/keystone.py b/openstack_dashboard/api/keystone.py
+index 6d1150f..85cff11 100644
+--- a/openstack_dashboard/api/keystone.py
++++ b/openstack_dashboard/api/keystone.py
+@@ -32,6 +32,7 @@ from openstack_auth import backend
+ from openstack_auth import utils as auth_utils
+ 
+ from horizon import exceptions
++from horizon.utils.cached import bump_versions, cached_api
+ 
+ from openstack_dashboard.api import base
+ from openstack_dashboard.contrib.developer.profiler import api as profiler
+@@ -252,14 +253,19 @@ def domain_update(request, domain_id, name=None, description=None,
+     return response
+ 
+ 
++_TENANT_VERSIONS = ('tenant:domain', 'tenant:global')
++
++
+ @profiler.trace
+ def tenant_create(request, name, description=None, enabled=None,
+                   domain=None, **kwargs):
+     manager = VERSIONS.get_project_manager(request, admin=True)
+     try:
+-        return manager.create(name, domain,
+-                              description=description,
+-                              enabled=enabled, **kwargs)
++        result = manager.create(name, domain,
++                                description=description,
++                                enabled=enabled, **kwargs)
++        bump_versions(request, _TENANT_VERSIONS)
++        return result
+     except keystone_exceptions.Conflict:
+         raise exceptions.Conflict()
+ 
+@@ -345,8 +351,14 @@ def tenant_get(request, project, admin=True):
+ def tenant_delete(request, project):
+     manager = VERSIONS.get_project_manager(request, admin=True)
+     manager.delete(project)
++    bump_versions(request, _TENANT_VERSIONS)
+ 
+ 
++@cached_api(
++    ttl=600,
++    scope=('token', 'user'),
++    versions=_TENANT_VERSIONS,
++)
+ @profiler.trace
+ def tenant_list(request, paginate=False, marker=None, domain=None, user=None,
+                 admin=True, filters=None):
+@@ -383,8 +395,10 @@ def tenant_update(request, project, name=None, description=None,
+                   enabled=None, domain=None, **kwargs):
+     manager = VERSIONS.get_project_manager(request, admin=True)
+     try:
+-        return manager.update(project, name=name, description=description,
+-                              enabled=enabled, domain=domain, **kwargs)
++        result = manager.update(project, name=name, description=description,
++                                enabled=enabled, domain=domain, **kwargs)
++        bump_versions(request, _TENANT_VERSIONS)
++        return result
+     except keystone_exceptions.Conflict:
+         raise exceptions.Conflict()
+ 
+diff --git a/openstack_dashboard/api/neutron.py b/openstack_dashboard/api/neutron.py
+index 2b1af45..8d33adc 100644
+--- a/openstack_dashboard/api/neutron.py
++++ b/openstack_dashboard/api/neutron.py
+@@ -28,6 +28,7 @@ import netaddr
+ 
+ from django.conf import settings
+ from django.utils.translation import gettext_lazy as _
++from horizon.utils.cached import bump_versions, cached_api, ProcessTTLCache
+ from keystoneauth1 import exceptions as ks_exceptions
+ from keystoneauth1 import session
+ from keystoneauth1 import token_endpoint
+@@ -36,6 +37,7 @@ from neutronclient.v2_0 import client as neutron_client
+ from novaclient import exceptions as nova_exc
+ import openstack
+ from openstack import exceptions as sdk_exceptions
++from openstack.network.v2 import network as sdk_network
+ import requests
+ 
+ from openstack_auth import utils as auth_utils
+@@ -749,15 +751,25 @@ class FloatingIpManager(object):
+         else:
+             port_search_opts = {}
+         fips = list(self.net_client.ips(**search_opts))
+-        # Get port list to add instance_id to floating IP list
+-        # instance_id is stored in device_id attribute
+-        ports = port_list(self.request, **port_search_opts)
+-        port_dict = collections.OrderedDict([(p['id'], p) for p in ports])
+         fips_list = []
+         for fip in fips:
+             fips_list.append(fip.to_dict())
++        # instance_id is the device_id of the associated port. Neutron's
++        # fip-port-details extension returns device_id and device_owner with
++        # each floating IP; list ports only for floating IPs without it.
++        port_dict = {}
++        if any(fip.get('port_id') and not fip.get('port_details')
++               for fip in fips_list):
++            ports = port_list(self.request, **port_search_opts)
++            port_dict = collections.OrderedDict([(p['id'], p) for p in ports])
+         for fip in fips_list:
+-            self._set_instance_info(fip, port_dict.get(fip['port_id']))
++            port = port_dict.get(fip['port_id'])
++            if port is None and fip.get('port_details'):
++                details = fip['port_details']
++                port = types.SimpleNamespace(
++                    device_id=details.get('device_id'),
++                    device_owner=details.get('device_owner') or '')
++            self._set_instance_info(fip, port)
+         return [FloatingIp(fip) for fip in fips_list]
+ 
+     @profiler.trace
+@@ -1060,6 +1072,75 @@ def list_resources_with_long_filters(list_method,
+         return resources
+ 
+ 
++def _project_filter(params):
++    """Translate horizon's ``tenant_id`` filter for openstacksdk.
++
++    For ports, subnets, subnet pools, routers and trunks openstacksdk only
++    knows ``project_id`` as a server-side filter. An unknown ``tenant_id`` is
++    not sent to neutron; the SDK lists everything the token can see and
++    filters client-side, which for an admin token is the whole cloud.
++    """
++    if 'tenant_id' not in params:
++        return params
++    params = dict(params)
++    tenant_id = params.pop('tenant_id')
++    params.setdefault('project_id', tenant_id)
++    return params
++
++
++# Above this many networks one unfiltered subnet listing is cheaper than
++# several filtered ones.
++_SUBNET_LOOKUP_MAX_NETWORKS = 100
++_SUBNET_LOOKUP_CHUNK = 40
++_ID_LOOKUP_CHUNK = 40
++
++
++def _networks_by_ids(request, ids, params):
++    """Fetch networks by id with a server-side filter.
++
++    openstacksdk has no server-side ``id`` filter for networks: it lists
++    every network the token can see and filters client-side, once per id
++    (571 networks and ~4 s per call for an admin on a large cloud). Neutron
++    filters by id itself, so query it directly and build the SDK objects
++    the same way the SDK builds them from a list response.
++    """
++    query = {k: v for k, v in params.items()
++             if k not in ('id', 'retrieve_all', 'paginated')}
++    query = sdk_network.Network._query_mapping._transpose(
++        query, sdk_network.Network)
++    client = networkclient(request)
++    ids = sorted(ids)
++    networks = []
++    for i in range(0, len(ids), _ID_LOOKUP_CHUNK):
++        resp = client.get('/networks',
++                          params=dict(query, id=ids[i:i + _ID_LOOKUP_CHUNK]),
++                          raise_exc=False)
++        sdk_exceptions.raise_from_response(resp)
++        networks.extend(sdk_network.Network.existing(**raw)
++                        for raw in resp.json().get('networks', []))
++    return networks
++
++
++def _subnets_for_networks(request, networks):
++    """List the subnets of ``networks`` only.
++
++    The subnet ``id`` filter is client-side in openstacksdk, ``network_id``
++    is server-side, so filter by network.
++    """
++    net_ids = sorted({n.id for n in networks
++                      if getattr(n, 'subnet_ids', None)})
++    if not net_ids:
++        return []
++    if len(net_ids) > _SUBNET_LOOKUP_MAX_NETWORKS:
++        return subnet_list(request)
++    subnets = []
++    for i in range(0, len(net_ids), _SUBNET_LOOKUP_CHUNK):
++        subnets.extend(subnet_list(
++            request,
++            network_id=tuple(net_ids[i:i + _SUBNET_LOOKUP_CHUNK])))
++    return subnets
++
++
+ @profiler.trace
+ def trunk_show(request, trunk_id):
+     LOG.debug("trunk_show(): trunk_id=%s", trunk_id)
+@@ -1070,7 +1151,7 @@ def trunk_show(request, trunk_id):
+ @profiler.trace
+ def trunk_list(request, **params):
+     LOG.debug("trunk_list(): params=%s", params)
+-    trunks = networkclient(request).trunks(**params)
++    trunks = networkclient(request).trunks(**_project_filter(params))
+     if not isinstance(trunks, (types.GeneratorType, list)):
+         trunks = [trunks]
+     return [Trunk(t.to_dict()) for t in trunks]
+@@ -1200,6 +1281,11 @@ def _network_list_paged(request, page_data, params):
+     return update_pagination(nets, page_data)
+ 
+ 
++@cached_api(
++    ttl=600,
++    scope=('token', 'project'),
++    versions=('network:project', 'network:global'),
++)
+ @profiler.trace
+ def network_list(request, single_page=False, **params):
+     LOG.debug("network_list(): params=%s", params)
+@@ -1209,24 +1295,26 @@ def network_list(request, single_page=False, **params):
+     if 'id' in params and isinstance(params['id'], list):
+         list_values = params['id']
+     if single_page is True:
+-        params['retrieve_all'] = False
++        # neutronclient took ``retrieve_all=False``; openstacksdk ignores it
++        # and follows every "next" link (all networks in pages of ``limit``)
++        # unless told not to paginate.
++        params['paginated'] = False
+ 
+     networks = []
+     if 'tenant_id' in params:
+         params['project_id'] = params.pop('tenant_id')
+-    for value in list_values:
+-        params['id'] = value
+-        for net in networkclient(request).networks(**params):
+-            networks.append(net)
+-    if not list_values:
++    if list_values:
++        networks = _networks_by_ids(request, list_values, params)
++    else:
+         networks = networkclient(request).networks(**params)
+ 
+-    # Get subnet list to expand subnet info in network list.
+-    subnets = subnet_list(request)
+-    subnet_dict = dict((s['id'], s) for s in subnets)
+-
+     if not isinstance(networks, (list, types.GeneratorType)):
+         networks = [networks]
++    networks = list(networks)
++
++    # Get subnet list to expand subnet info in network list.
++    subnets = _subnets_for_networks(request, networks)
++    subnet_dict = dict((s['id'], s) for s in subnets)
+     nets_with_subnet = []
+     net_ids = set()
+ 
+@@ -1582,6 +1670,14 @@ def _perform_query(
+     return networks, has_more_data, has_prev_data
+ 
+ 
++_NETWORK_VERSIONS = ('network:project', 'network:global')
++
++
++@cached_api(
++    ttl=600,
++    scope=('token', 'project'),
++    versions=_NETWORK_VERSIONS,
++)
+ @profiler.trace
+ def network_list_for_tenant(request, tenant_id, include_external=False,
+                             include_pre_auto_allocate=False, page_data=None,
+@@ -1684,6 +1780,7 @@ def network_create(request, **kwargs):
+     if 'tenant_id' not in kwargs:
+         kwargs['tenant_id'] = request.user.project_id
+     network = networkclient(request).create_network(**kwargs).to_dict()
++    bump_versions(request, _NETWORK_VERSIONS)
+     return Network(network)
+ 
+ 
+@@ -1693,6 +1790,7 @@ def network_update(request, network_id, **kwargs):
+               {'network_id': network_id, 'params': kwargs})
+     network = networkclient(request).update_network(network_id,
+                                                     **kwargs).to_dict()
++    bump_versions(request, _NETWORK_VERSIONS)
+     return Network(network)
+ 
+ 
+@@ -1701,13 +1799,14 @@ def network_delete(request, network_id):
+     LOG.debug("network_delete(): netid=%s", network_id)
+     networkclient(request).delete_network(network_id)
+     request.session['network_deleted'] = network_id
++    bump_versions(request, _NETWORK_VERSIONS)
+ 
+ 
+ @profiler.trace
+ @memoized
+ def subnet_list(request, **params):
+     LOG.debug("subnet_list(): params=%s", params)
+-    subnets = networkclient(request).subnets(**params)
++    subnets = networkclient(request).subnets(**_project_filter(params))
+     ret_val = [Subnet(s.to_dict()) for s in subnets]
+     return ret_val
+ 
+@@ -1768,7 +1867,8 @@ def subnet_delete(request, subnet_id):
+ @profiler.trace
+ def subnetpool_list(request, **params):
+     LOG.debug("subnetpool_list(): params=%s", params)
+-    subnetpools = networkclient(request).subnet_pools(**params)
++    subnetpools = networkclient(request).subnet_pools(
++        **_project_filter(params))
+     if not isinstance(subnetpools, (types.GeneratorType, list)):
+         subnetpools = [subnetpools]
+     return [SubnetPool(s.to_dict()) for s in subnetpools]
+@@ -1834,11 +1934,19 @@ def subnetpool_delete(request, subnetpool_id):
+     return networkclient(request).delete_subnet_pool(subnetpool_id)
+ 
+ 
++_PORT_VERSIONS = ('port:project',)
++
++
++@cached_api(
++    ttl=300,
++    scope=('token', 'project'),
++    versions=_PORT_VERSIONS,
++)
+ @profiler.trace
+ @memoized
+ def port_list(request, **params):
+     LOG.debug("port_list(): params=%s", params)
+-    ports = networkclient(request).ports(**params)
++    ports = networkclient(request).ports(**_project_filter(params))
+     if not isinstance(ports, (types.GeneratorType, list)):
+         ports = [ports]
+     return [Port(p.to_dict()) for p in ports]
+@@ -1864,11 +1972,10 @@ def port_list_with_trunk_types(request, **params):
+     if not is_extension_supported(request, 'trunk'):
+         return port_list(request, **params)
+ 
++    params = _project_filter(params)
+     ports = networkclient(request).ports(**params)
+     trunk_filters = {}
+-    if 'tenant_id' in params:
+-        trunk_filters['tenant_id'] = params['tenant_id']
+-    elif 'project_id' in params:
++    if 'project_id' in params:
+         trunk_filters['project_id'] = params['project_id']
+     trunks = networkclient(request).trunks(**trunk_filters)
+     parent_ports = set(t['port_id'] for t in trunks)
+@@ -1923,6 +2030,7 @@ def port_create(request, network_id, **kwargs):
+         kwargs['tenant_id'] = request.user.project_id
+     kwargs['network_id'] = network_id
+     port = networkclient(request).create_port(**kwargs).to_dict()
++    bump_versions(request, _PORT_VERSIONS)
+     return Port(port)
+ 
+ 
+@@ -1930,6 +2038,7 @@ def port_create(request, network_id, **kwargs):
+ def port_delete(request, port_id):
+     LOG.debug("port_delete(): portid=%s", port_id)
+     networkclient(request).delete_port(port_id)
++    bump_versions(request, _PORT_VERSIONS)
+ 
+ 
+ @profiler.trace
+@@ -1938,6 +2047,7 @@ def port_update(request, port_id, **kwargs):
+               {'port_id': port_id, 'kwargs': kwargs})
+     kwargs = unescape_port_kwargs(**kwargs)
+     port = networkclient(request).update_port(port_id, **kwargs).to_dict()
++    bump_versions(request, _PORT_VERSIONS)
+     return Port(port)
+ 
+ 
+@@ -1966,7 +2076,7 @@ def router_get(request, router_id, **params):
+ 
+ @profiler.trace
+ def router_list(request, **params):
+-    routers = networkclient(request).routers(**params)
++    routers = networkclient(request).routers(**_project_filter(params))
+     if not isinstance(routers, (types.GeneratorType, list)):
+         routers = [routers]
+     return [Router(r) for r in routers]
+@@ -2091,6 +2201,20 @@ def list_dhcp_agent_hosting_networks(request, network, **params):
+     return [Agent(a.to_dict()) for a in agents]
+ 
+ 
++@profiler.trace
++def dhcp_agent_network_counts(request):
++    """Number of DHCP agents hosting each network.
++
++    One call per DHCP agent instead of one call per network.
++    """
++    client = networkclient(request)
++    counts = collections.Counter()
++    for agent in client.agents(agent_type='DHCP agent'):
++        for network in client.dhcp_agent_hosting_networks(agent):
++            counts[network.id] += 1
++    return counts
++
++
+ @profiler.trace
+ def list_l3_agent_hosting_router(request, router, **params):
+     agents = networkclient(request).routers_hosting_l3_agents(router,
+@@ -2127,6 +2251,14 @@ def floating_ip_pools_list(request):
+     return FloatingIpManager(request).list_pools()
+ 
+ 
++_FIP_VERSIONS = ('fip:project',)
++
++
++@cached_api(
++    ttl=600,
++    scope=('token', 'project'),
++    versions=_FIP_VERSIONS,
++)
+ @memoized
+ def tenant_floating_ip_list(request, all_tenants=False, **search_opts):
+     return FloatingIpManager(request).list(all_tenants=all_tenants,
+@@ -2158,19 +2290,27 @@ def tenant_floating_ip_get(request, floating_ip_id):
+ 
+ 
+ def tenant_floating_ip_allocate(request, pool=None, tenant_id=None, **params):
+-    return FloatingIpManager(request).allocate(pool, tenant_id, **params)
++    result = FloatingIpManager(request).allocate(pool, tenant_id, **params)
++    bump_versions(request, _FIP_VERSIONS)
++    return result
+ 
+ 
+ def tenant_floating_ip_release(request, floating_ip_id):
+-    return FloatingIpManager(request).release(floating_ip_id)
++    result = FloatingIpManager(request).release(floating_ip_id)
++    bump_versions(request, _FIP_VERSIONS)
++    return result
+ 
+ 
+ def floating_ip_associate(request, floating_ip_id, port_id):
+-    return FloatingIpManager(request).associate(floating_ip_id, port_id)
++    result = FloatingIpManager(request).associate(floating_ip_id, port_id)
++    bump_versions(request, _FIP_VERSIONS)
++    return result
+ 
+ 
+ def floating_ip_disassociate(request, floating_ip_id):
+-    return FloatingIpManager(request).disassociate(floating_ip_id)
++    result = FloatingIpManager(request).disassociate(floating_ip_id)
++    bump_versions(request, _FIP_VERSIONS)
++    return result
+ 
+ 
+ def floating_ip_target_list(request):
+@@ -2190,6 +2330,14 @@ def floating_ip_supported(request):
+     return FloatingIpManager(request).is_supported()
+ 
+ 
++_SECGROUP_VERSIONS = ('secgroup:project',)
++
++
++@cached_api(
++    ttl=600,
++    scope=('token', 'project'),
++    versions=_SECGROUP_VERSIONS,
++)
+ @memoized
+ def security_group_list(request, **params):
+     return SecurityGroupManager(request).list(**params)
+@@ -2200,28 +2348,38 @@ def security_group_get(request, sg_id):
+ 
+ 
+ def security_group_create(request, name, desc):
+-    return SecurityGroupManager(request).create(name, desc)
++    result = SecurityGroupManager(request).create(name, desc)
++    bump_versions(request, _SECGROUP_VERSIONS)
++    return result
+ 
+ 
+ def security_group_delete(request, sg_id):
+-    return SecurityGroupManager(request).delete(sg_id)
++    result = SecurityGroupManager(request).delete(sg_id)
++    bump_versions(request, _SECGROUP_VERSIONS)
++    return result
+ 
+ 
+ def security_group_update(request, sg_id, name, desc):
+-    return SecurityGroupManager(request).update(sg_id, name, desc)
++    result = SecurityGroupManager(request).update(sg_id, name, desc)
++    bump_versions(request, _SECGROUP_VERSIONS)
++    return result
+ 
+ 
+ def security_group_rule_create(request, parent_group_id,
+                                direction, ethertype,
+                                ip_protocol, from_port, to_port,
+                                cidr, group_id, description=None):
+-    return SecurityGroupManager(request).rule_create(
++    result = SecurityGroupManager(request).rule_create(
+         parent_group_id, direction, ethertype, ip_protocol,
+         from_port, to_port, cidr, group_id, description)
++    bump_versions(request, _SECGROUP_VERSIONS)
++    return result
+ 
+ 
+ def security_group_rule_delete(request, sgr_id):
+-    return SecurityGroupManager(request).rule_delete(sgr_id)
++    result = SecurityGroupManager(request).rule_delete(sgr_id)
++    bump_versions(request, _SECGROUP_VERSIONS)
++    return result
+ 
+ 
+ def server_security_groups(request, instance_id):
+@@ -2344,6 +2502,10 @@ def _server_get_addresses(request, server, ports, floating_ips, network_names):
+     return dict(addresses)
+ 
+ 
++# Extensions per neutron endpoint; they only change on upgrades.
++_extensions = ProcessTTLCache(600)
++
++
+ @profiler.trace
+ @memoized
+ def list_extensions(request):
+@@ -2351,13 +2513,19 @@ def list_extensions(request):
+ 
+     :param request: django request object
+     """
++    neutron_url = base.url_for(request, 'network')
++    cached_extensions = _extensions.get(neutron_url)
++    if cached_extensions is not None:
++        return cached_extensions
+     neutron_api = neutronclient(request)
+     try:
+         extensions_list = neutron_api.list_extensions()
+     except exceptions.ServiceCatalogException:
+         return {}
+     if 'extensions' in extensions_list:
+-        return tuple(extensions_list['extensions'])
++        result = tuple(extensions_list['extensions'])
++        _extensions.set(neutron_url, result)
++        return result
+     return ()
+ 
+ 
+diff --git a/openstack_dashboard/api/nova.py b/openstack_dashboard/api/nova.py
+index f90ec88..0bdd7bd 100644
+--- a/openstack_dashboard/api/nova.py
++++ b/openstack_dashboard/api/nova.py
+@@ -30,11 +30,13 @@ from novaclient.v2 import instance_action as nova_instance_action
+ from novaclient.v2 import servers as nova_servers
+ 
+ from horizon import exceptions as horizon_exceptions
++from horizon.utils.cached import bump_versions, cached_api
+ from horizon.utils import memoized
+ 
+ from openstack_dashboard.api import _nova
+ from openstack_dashboard.api import base
+ from openstack_dashboard.api import cinder
++from openstack_dashboard.api import glance
+ from openstack_dashboard.contrib.developer.profiler import api as profiler
+ from openstack_dashboard.utils import settings as utils
+ 
+@@ -229,6 +231,9 @@ def server_mks_console(request, instance_id):
+     return MKSConsole(console['remote_console'])
+ 
+ 
++_FLAVOR_VERSIONS = ('flavor:global',)
++
++
+ @profiler.trace
+ def flavor_create(request, name, memory, vcpu, disk, flavorid='auto',
+                   ephemeral=0, swap=0, metadata=None, is_public=True,
+@@ -241,12 +246,14 @@ def flavor_create(request, name, memory, vcpu, disk, flavorid='auto',
+                                                       rxtx_factor=rxtx_factor)
+     if (metadata):
+         flavor_extra_set(request, flavor.id, metadata)
++    bump_versions(request, _FLAVOR_VERSIONS)
+     return flavor
+ 
+ 
+ @profiler.trace
+ def flavor_delete(request, flavor_id):
+     _nova.novaclient(request).flavors.delete(flavor_id)
++    bump_versions(request, _FLAVOR_VERSIONS)
+ 
+ 
+ @profiler.trace
+@@ -257,6 +264,11 @@ def flavor_get(request, flavor_id, get_extras=False):
+     return flavor
+ 
+ 
++@cached_api(
++    ttl=1800,
++    scope=('token', 'project'),
++    versions=_FLAVOR_VERSIONS,
++)
+ @profiler.trace
+ @memoized.memoized
+ def flavor_list(request, is_public=None, get_extras=False):
+@@ -373,28 +385,45 @@ def flavor_extra_set(request, flavor_id, metadata):
+ 
+ @profiler.trace
+ def snapshot_create(request, instance_id, name):
+-    return _nova.novaclient(request).servers.create_image(instance_id, name)
++    image_id = _nova.novaclient(request).servers.create_image(instance_id,
++                                                               name)
++    # The snapshot is a new glance image.
++    bump_versions(request, glance._IMAGE_VERSIONS)
++    return image_id
++
++
++_KEYPAIR_VERSIONS = ('keypair:user',)
+ 
+ 
+ @profiler.trace
+ def keypair_create(request, name, key_type='ssh'):
+     microversion = get_microversion(request, 'key_types')
+-    return _nova.novaclient(request, microversion).\
++    result = _nova.novaclient(request, microversion).\
+         keypairs.create(name, key_type=key_type)
++    bump_versions(request, _KEYPAIR_VERSIONS)
++    return result
+ 
+ 
+ @profiler.trace
+ def keypair_import(request, name, public_key, key_type='ssh'):
+     microversion = get_microversion(request, 'key_types')
+-    return _nova.novaclient(request, microversion).\
++    result = _nova.novaclient(request, microversion).\
+         keypairs.create(name, public_key, key_type)
++    bump_versions(request, _KEYPAIR_VERSIONS)
++    return result
+ 
+ 
+ @profiler.trace
+ def keypair_delete(request, name):
+     _nova.novaclient(request).keypairs.delete(name)
++    bump_versions(request, _KEYPAIR_VERSIONS)
+ 
+ 
++@cached_api(
++    ttl=1800,
++    scope=('token', 'user'),
++    versions=_KEYPAIR_VERSIONS,
++)
+ @profiler.trace
+ def keypair_list(request):
+     microversion = get_microversion(request, 'key_type_list')
+@@ -434,7 +463,7 @@ def server_create(request, name, image, flavor, key_name, user_data,
+     if description is not None:
+         kwargs['description'] = description
+ 
+-    return Server(nova_client.servers.create(
++    result = Server(nova_client.servers.create(
+         name.strip(), image, flavor, userdata=user_data,
+         security_groups=security_groups,
+         key_name=key_name, block_device_mapping=block_device_mapping,
+@@ -443,11 +472,14 @@ def server_create(request, name, image, flavor, key_name, user_data,
+         min_count=instance_count, admin_pass=admin_pass,
+         disk_config=disk_config, config_drive=config_drive,
+         meta=meta, scheduler_hints=scheduler_hints, **kwargs), request)
++    bump_versions(request, _SERVER_VERSIONS)
++    return result
+ 
+ 
+ @profiler.trace
+ def server_delete(request, instance_id):
+     _nova.novaclient(request).servers.delete(instance_id)
++    bump_versions(request, _SERVER_VERSIONS)
+     # Session is available and consistent for the current view
+     # among Horizon django servers even in load-balancing setup,
+     # so only the view listing the servers will recognize it as
+@@ -533,6 +565,20 @@ def server_list_paged(request,
+     return (servers, has_more_data, has_prev_data)
+ 
+ 
++_SERVER_VERSIONS = ('server:project', 'server:global')
++
++
++# Short TTL — server status changes during boot/build/active transitions.
++# Pagination through ``server_list_paged`` stays uncached so the project
++# instances list stays live for status polling. Only the unpaged
++# ``server_list`` (used by admin volumes/floating-ips/etc. to look up
++# names) benefits from caching, and 10s is short enough that a user
++# refreshing after CLI-creating a VM sees it within a click.
++@cached_api(
++    ttl=10,
++    scope=('token', 'project'),
++    versions=_SERVER_VERSIONS,
++)
+ @profiler.trace
+ def server_list(request, search_opts=None, detailed=True):
+     (servers, has_more_data, _) = server_list_paged(request,
+@@ -734,6 +780,9 @@ def _merge_usage_list(usages, next_usage_list):
+             usages[next_usage.tenant_id] = next_usage
+ 
+ 
++# Usage over the selected period (day granularity); computing it in nova
++# takes seconds on a large cloud.
++@cached_api(ttl=300, scope=('authz',))
+ @profiler.trace
+ def usage_get(request, tenant_id, start, end):
+     client = upgrade_api(request, _nova.novaclient(request), '2.40')
+@@ -751,6 +800,7 @@ def usage_get(request, tenant_id, start, end):
+     return NovaUsage(usage)
+ 
+ 
++@cached_api(ttl=300, scope=('authz',))
+ @profiler.trace
+ def usage_list(request, start, end):
+     client = upgrade_api(request, _nova.novaclient(request), '2.40')
+@@ -791,14 +841,18 @@ def instance_volume_attach(request, volume_id, instance_id, device):
+                 _('Multiattach volumes are not yet supported.'))
+     else:
+         client = _nova.novaclient(request)
+-    return client.volumes.create_server_volume(
++    result = client.volumes.create_server_volume(
+         instance_id, volume_id, device)
++    bump_versions(request, ('volume:project',))
++    return result
+ 
+ 
+ @profiler.trace
+ def instance_volume_detach(request, instance_id, att_id):
+-    return _nova.novaclient(request).volumes.delete_server_volume(instance_id,
+-                                                                  att_id)
++    result = _nova.novaclient(request).volumes.delete_server_volume(
++        instance_id, att_id)
++    bump_versions(request, ('volume:project',))
++    return result
+ 
+ 
+ @profiler.trace
+@@ -916,6 +970,10 @@ def tenant_absolute_limits(request, reserved=False, tenant_id=None):
+     return limits_dict
+ 
+ 
++@cached_api(
++    ttl=3600,
++    scope=('token', 'project'),
++)
+ @profiler.trace
+ def availability_zone_list(request, detailed=False):
+     nc = _nova.novaclient(request)
+diff --git a/openstack_dashboard/api/placement.py b/openstack_dashboard/api/placement.py
+index 94ef4b9..e2775df 100644
+--- a/openstack_dashboard/api/placement.py
++++ b/openstack_dashboard/api/placement.py
+@@ -10,6 +10,8 @@
+ #    License for the specific language governing permissions and limitations
+ #    under the License.
+ 
++from concurrent import futures
++
+ from django.conf import settings
+ from keystoneauth1 import adapter
+ from keystoneauth1 import identity
+@@ -17,6 +19,7 @@ from keystoneauth1 import session
+ 
+ from openstack_dashboard.api import base
+ 
++from horizon.utils.cached import cached_api
+ from horizon.utils.memoized import memoized
+ 
+ 
+@@ -96,19 +99,35 @@ def resource_provider_traits(request, uuid):
+     return _get_json(request, f'/resource_providers/{uuid}/traits')['traits']
+ 
+ 
++# Four placement calls per resource provider; run them in parallel.
++_PROVIDER_DETAIL_WORKERS = 16
++
++
++def _provider_details(request, uuid):
++    return (resource_provider_inventories(request, uuid),
++            resource_provider_usages(request, uuid),
++            resource_provider_aggregates(request, uuid),
++            resource_provider_traits(request, uuid))
++
++
++@cached_api(ttl=60, scope=('token',))
++@memoized
+ def get_providers(request):
+     providers = resource_providers(request)
+-    for p in providers:
+-        inventories = resource_provider_inventories(request, p['uuid'])
+-        usages = resource_provider_usages(request, p['uuid'])
++    workers = min(_PROVIDER_DETAIL_WORKERS, max(1, len(providers)))
++    with futures.ThreadPoolExecutor(max_workers=workers) as executor:
++        details = list(executor.map(
++            lambda p: _provider_details(request, p['uuid']), providers))
++    for p, (inventories, usages, aggregates, traits) in zip(providers,
++                                                             details):
+         vcpus = inventories.get('VCPU')
+         pcpus = inventories.get('PCPU')
+         memory = inventories.get('MEMORY_MB')
+         disk = inventories.get('DISK_GB')
+         p['inventories'] = inventories
+         p['usages'] = usages
+-        p['aggregates'] = resource_provider_aggregates(request, p['uuid'])
+-        p['traits'] = resource_provider_traits(request, p['uuid'])
++        p['aggregates'] = aggregates
++        p['traits'] = traits
+ 
+         p['vcpus_used'] = usages.get('VCPU')
+         # Reserved:
+diff --git a/openstack_dashboard/dashboards/admin/floating_ips/views.py b/openstack_dashboard/dashboards/admin/floating_ips/views.py
+index 7855e9f..164a513 100644
+--- a/openstack_dashboard/dashboards/admin/floating_ips/views.py
++++ b/openstack_dashboard/dashboards/admin/floating_ips/views.py
+@@ -27,6 +27,7 @@ from horizon.utils import memoized
+ from horizon import views
+ 
+ from openstack_dashboard import api
++from openstack_dashboard.utils import futurist_utils
+ 
+ from openstack_dashboard.dashboards.admin.floating_ips \
+     import forms as fip_forms
+@@ -61,6 +62,46 @@ class IndexView(tables.DataTableView):
+     table_class = fip_tables.FloatingIPsTable
+     page_title = _("Floating IPs")
+ 
++    # Up to this many servers are fetched one by one (in parallel batches);
++    # above it one list of all servers is cheaper.
++    _SERVER_LOOKUP_MAX = 50
++
++    def _get_instance_names(self, instance_ids):
++        """Names of the servers the floating IPs are associated with.
++
++        Listing every server of every project only to name a few takes
++        seconds on a large cloud.
++        """
++        ids = sorted(set(instance_ids))
++        if not ids:
++            return {}
++        try:
++            if len(ids) > self._SERVER_LOOKUP_MAX:
++                instances, has_more = api.nova.server_list(
++                    self.request,
++                    search_opts={'all_tenants': True},
++                    detailed=False)
++                return dict((obj.id, obj.name) for obj in instances)
++
++            def _get(server_id):
++                try:
++                    return api.nova.server_get(self.request, server_id)
++                except Exception:
++                    # Deleted, or not a server: shown without a name.
++                    return None
++
++            names = {}
++            for start in range(0, len(ids), 10):
++                for server in futurist_utils.call_functions_parallel(
++                        *[(_get, [i]) for i in ids[start:start + 10]]):
++                    if server:
++                        names[server.id] = server.name
++            return names
++        except Exception:
++            exceptions.handle(self.request,
++                              _('Unable to retrieve instance list.'))
++            return {}
++
+     @memoized.memoized_method
+     def get_data(self):
+         floating_ips = []
+@@ -75,17 +116,9 @@ class IndexView(tables.DataTableView):
+                               _('Unable to retrieve floating IP list.'))
+ 
+         if floating_ips:
+-            instances = []
+-            try:
+-                instances, has_more = api.nova.server_list(
+-                    self.request,
+-                    search_opts={'all_tenants': True},
+-                    detailed=False)
+-            except Exception:
+-                exceptions.handle(
+-                    self.request,
+-                    _('Unable to retrieve instance list.'))
+-            instances_dict = dict((obj.id, obj.name) for obj in instances)
++            instances_dict = self._get_instance_names(
++                [ip.instance_id for ip in floating_ips
++                 if ip.instance_id and ip.instance_type == 'compute'])
+ 
+             tenants = get_tenant_list(self.request)
+             tenant_dict = OrderedDict([(t.id, t) for t in tenants])
+diff --git a/openstack_dashboard/dashboards/admin/instances/views.py b/openstack_dashboard/dashboards/admin/instances/views.py
+index efa28dd..33e3e0f 100644
+--- a/openstack_dashboard/dashboards/admin/instances/views.py
++++ b/openstack_dashboard/dashboards/admin/instances/views.py
+@@ -118,6 +118,16 @@ class AdminIndexView(tables.PagedTableMixin, tables.DataTableView):
+             exceptions.handle(self.request, ignore=True)
+             return {}
+ 
++    def _get_images_for(self, instances, volume_dict):
++        # Only the images of the listed instances, not the whole catalogue.
++        try:
++            return views.get_images_by_ids(
++                self.request,
++                views.image_ids_for_instances(instances, volume_dict))
++        except Exception:
++            exceptions.handle(self.request, ignore=True)
++            return {}
++
+     def _get_images_by_name(self, image_name):
+         result = api.glance.image_list_detailed(
+             self.request, filters={'name': image_name})
+@@ -177,11 +187,10 @@ class AdminIndexView(tables.PagedTableMixin, tables.DataTableView):
+         self._needs_filter_first = False
+ 
+         results = futurist_utils.call_functions_parallel(
+-            self._get_images,
+             self._get_volumes,
+             self._get_flavors,
+             self._get_tenants)
+-        image_dict, volume_dict, flavor_dict, tenant_dict = results
++        volume_dict, flavor_dict, tenant_dict = results
+ 
+         non_api_filter_info = [
+             ('project', 'tenant_id', tenant_dict.values()),
+@@ -202,7 +211,7 @@ class AdminIndexView(tables.PagedTableMixin, tables.DataTableView):
+         instances = self._get_instances(search_opts, sort_dir)
+ 
+         if not filter_by_image_name:
+-            image_dict = self._get_images()
++            image_dict = self._get_images_for(instances, volume_dict)
+ 
+         # Loop through instances to get image, flavor and tenant info.
+         for inst in instances:
+diff --git a/openstack_dashboard/dashboards/admin/networks/views.py b/openstack_dashboard/dashboards/admin/networks/views.py
+index c4c671f..78c7bb8 100644
+--- a/openstack_dashboard/dashboards/admin/networks/views.py
++++ b/openstack_dashboard/dashboards/admin/networks/views.py
+@@ -63,21 +63,14 @@ class IndexView(tables.PagedTableMixin, tables.DataTableView):
+         tenant_dict = OrderedDict([(t.id, t) for t in tenants])
+         return tenant_dict
+ 
+-    def _get_agents_data(self, network):
+-        agents = []
+-        data = _("Unknown")
+-
++    def _get_agent_counts(self):
++        # One call per DHCP agent instead of one per listed network.
+         try:
+-            # This method is called for each network. If agent-list cannot
+-            # be retrieved, we will see many pop-ups. So the error message
+-            # will be popup-ed in get_data() below.
+-            agents = api.neutron.list_dhcp_agent_hosting_networks(
+-                self.request, network)
+-            data = len(agents)
++            return api.neutron.dhcp_agent_network_counts(self.request)
+         except Exception:
+             msg = _('Unable to list dhcp agents hosting network.')
+             exceptions.handle(self.request, msg)
+-        return data
++            return None
+ 
+     def needs_filter_first(self, table):
+         return getattr(self, "_needs_filter_first", False)
+@@ -127,11 +120,13 @@ class IndexView(tables.PagedTableMixin, tables.DataTableView):
+                 admin_utils.is_dhcp_agent_scheduler_supported(self.request)):
+             self.exception = False
+             tenant_dict = self._get_tenant_list()
++            agent_counts = self._get_agent_counts()
+             for n in networks:
+                 # Set tenant name
+                 tenant = tenant_dict.get(n.tenant_id, None)
+                 n.tenant_name = getattr(tenant, 'name', None)
+-                n.num_agents = self._get_agents_data(n.id)
++                n.num_agents = (_("Unknown") if agent_counts is None
++                                else agent_counts.get(n.id, 0))
+         return networks
+ 
+     def get_filters(self, filters=None, filters_map=None):
+diff --git a/openstack_dashboard/dashboards/admin/volumes/views.py b/openstack_dashboard/dashboards/admin/volumes/views.py
+index 2fb812f..a643d56 100644
+--- a/openstack_dashboard/dashboards/admin/volumes/views.py
++++ b/openstack_dashboard/dashboards/admin/volumes/views.py
+@@ -78,20 +78,6 @@ class VolumesView(tables.PagedTableMixin, volumes_views.VolumeTableMixIn,
+                 msg = _('Unable to retrieve volume project information.')
+                 exceptions.handle(self.request, msg)
+ 
+-        def _task_get_instances():
+-            # As long as Nova API does not allow passing attached_instance_ids
+-            # to nova.server_list, this call can be forged to pass anything
+-            # != None
+-            instances.extend(self._get_instances(
+-                search_opts={'all_tenants': True}))
+-
+-            # In volumes tab we don't need to know about the assignment
+-            # instance-image, therefore fixing it to an empty value
+-            for instance in instances:
+-                if hasattr(instance, 'image'):
+-                    if isinstance(instance.image, dict):
+-                        instance.image['name'] = "-"
+-
+         def _task_get_volumes_snapshots():
+             volume_ids_with_snapshots.extend(
+                 self._get_volumes_ids_with_snapshots(
+@@ -108,7 +94,6 @@ class VolumesView(tables.PagedTableMixin, volumes_views.VolumeTableMixIn,
+         if 'project' in filters:
+             futurist_utils.call_functions_parallel(
+                 _task_get_tenants,
+-                _task_get_instances,
+                 _task_get_volumes_snapshots
+             )
+ 
+@@ -127,9 +112,9 @@ class VolumesView(tables.PagedTableMixin, volumes_views.VolumeTableMixIn,
+             futurist_utils.call_functions_parallel(
+                 _task_get_volumes,
+                 _task_get_tenants,
+-                _task_get_instances,
+                 _task_get_volumes_snapshots
+             )
++        instances.extend(self._get_attached_instances(attached_instance_ids))
+ 
+         self._set_volume_attributes(
+             volumes, instances, volume_ids_with_snapshots)
+diff --git a/openstack_dashboard/dashboards/project/instances/views.py b/openstack_dashboard/dashboards/project/instances/views.py
+index ca7e633..0f5bd9a 100644
+--- a/openstack_dashboard/dashboards/project/instances/views.py
++++ b/openstack_dashboard/dashboards/project/instances/views.py
+@@ -60,6 +60,54 @@ from openstack_dashboard.views import get_url_with_pagination
+ 
+ LOG = logging.getLogger(__name__)
+ 
++# Image ids per glance list call; keeps the URL short.
++_IMAGE_ID_CHUNK = 40
++
++
++def image_ids_for_instances(instances, volume_dict):
++    """Ids of the images shown for ``instances``: the image of an
++    image-backed instance, or the source image of a volume-backed
++    instance's boot volume (first attachment by device name)."""
++    attachments = {}
++    for volume in volume_dict.values():
++        for attachment in getattr(volume, 'attachments', None) or []:
++            attachments.setdefault(attachment.get('server_id'), []).append(
++                (attachment.get('device') or '', volume))
++    ids = set()
++    for instance in instances:
++        image = getattr(instance, 'image', None)
++        if isinstance(image, dict):
++            if image.get('id'):
++                ids.add(image['id'])
++            continue
++        boot = sorted(attachments.get(instance.id, []), key=lambda a: a[0])
++        if boot:
++            metadata = getattr(boot[0][1], 'volume_image_metadata', None)
++            if (metadata or {}).get('image_id'):
++                ids.add(metadata['image_id'])
++    return ids
++
++
++def get_images_by_ids(request, image_ids):
++    """Fetch the given images only, instead of the whole image catalogue.
++
++    Community images are only listed when asked for explicitly, so ids not
++    found in the default listing are looked up once more with
++    ``visibility=community``.
++    """
++    image_map = {}
++    for visibility in (None, 'community'):
++        missing = sorted(i for i in image_ids if i not in image_map)
++        for start in range(0, len(missing), _IMAGE_ID_CHUNK):
++            id_filter = {
++                'id': 'in:' + ','.join(missing[start:start + _IMAGE_ID_CHUNK])}
++            if visibility:
++                id_filter['visibility'] = visibility
++            images = api.glance.image_list_detailed(
++                request, filters=id_filter)[0]
++            image_map.update((image.id, image) for image in images)
++    return image_map
++
+ 
+ class IndexView(tables.PagedTableMixin, tables.DataTableView):
+     table_class = project_tables.InstancesTable
+@@ -148,17 +196,34 @@ class IndexView(tables.PagedTableMixin, tables.DataTableView):
+             exceptions.handle(self.request, ignore=True)
+             return {}
+ 
++    def _get_images_for(self, instances, volume_dict):
++        try:
++            return get_images_by_ids(
++                self.request, image_ids_for_instances(instances, volume_dict))
++        except Exception:
++            exceptions.handle(self.request, ignore=True)
++            return {}
++
+     def get_data(self):
+         marker, sort_dir = self._get_marker()
+         search_opts = self.get_filters({'marker': marker, 'paginate': True})
+ 
+-        image_dict, flavor_dict, volume_dict = \
+-            futurist_utils.call_functions_parallel(
+-                self._get_images, self._get_flavors, self._get_volumes
+-            )
++        # Only a filter by image name needs the whole image catalogue; the
++        # table itself needs just the images of the listed instances.
++        if 'image_name' in search_opts:
++            image_dict, flavor_dict, volume_dict = \
++                futurist_utils.call_functions_parallel(
++                    self._get_images, self._get_flavors, self._get_volumes
++                )
++        else:
++            image_dict = None
++            flavor_dict, volume_dict = \
++                futurist_utils.call_functions_parallel(
++                    self._get_flavors, self._get_volumes
++                )
+ 
+         non_api_filter_info = (
+-            ('image_name', 'image', image_dict.values()),
++            ('image_name', 'image', (image_dict or {}).values()),
+             ('flavor_name', 'flavor', flavor_dict.values()),
+         )
+         if not process_non_api_filters(search_opts, non_api_filter_info):
+@@ -166,6 +231,8 @@ class IndexView(tables.PagedTableMixin, tables.DataTableView):
+             return []
+ 
+         instances = self._get_instances(search_opts, sort_dir)
++        if image_dict is None:
++            image_dict = self._get_images_for(instances, volume_dict)
+ 
+         # Loop through instances to get flavor info.
+         for instance in instances:
+diff --git a/openstack_dashboard/dashboards/project/volumes/views.py b/openstack_dashboard/dashboards/project/volumes/views.py
+index 03f43f9..94090e3 100644
+--- a/openstack_dashboard/dashboards/project/volumes/views.py
++++ b/openstack_dashboard/dashboards/project/volumes/views.py
+@@ -79,6 +79,33 @@ class VolumeTableMixIn(object):
+                                 "attachment information"))
+             return []
+ 
++    def _get_attached_instances(self, instance_ids):
++        """Fetch only the servers attached to the listed volumes.
++
++        Listing every server (for an admin: of every project) to name a
++        page of attachments takes seconds on a large cloud.
++        """
++        def _get(server_id):
++            try:
++                return nova.server_get(self.request, server_id)
++            except Exception:
++                # Deleted, or not visible to this user: the attachment is
++                # shown without an instance name, as before.
++                return None
++
++        ids = sorted(set(instance_ids))
++        instances = []
++        for start in range(0, len(ids), 10):
++            batch = ids[start:start + 10]
++            instances.extend(s for s in futurist_utils.call_functions_parallel(
++                *[(_get, [server_id]) for server_id in batch]) if s)
++        # In volumes tab we don't need to know about the assignment
++        # instance-image, therefore fixing it to an empty value
++        for instance in instances:
++            if isinstance(getattr(instance, 'image', None), dict):
++                instance.image['name'] = "-"
++        return instances
++
+     def _get_volumes_ids_with_snapshots(self, search_opts=None):
+         try:
+             volume_ids = []
+@@ -156,19 +183,8 @@ class VolumesView(tables.PagedTableMixin, VolumeTableMixIn,
+             volumes.extend(self._get_volumes(search_opts=filters))
+             attached_instance_ids.extend(
+                 self._get_attached_instance_ids(volumes))
+-
+-        def _task_get_instances():
+-            # As long as Nova API does not allow passing attached_instance_ids
+-            # to nova.server_list, this call can be forged to pass anything
+-            # != None
+-            instances.extend(self._get_instances())
+-
+-            # In volumes tab we don't need to know about the assignment
+-            # instance-image, therefore fixing it to an empty value
+-            for instance in instances:
+-                if hasattr(instance, 'image'):
+-                    if isinstance(instance.image, dict):
+-                        instance.image['name'] = "-"
++            instances.extend(
++                self._get_attached_instances(attached_instance_ids))
+ 
+         def _task_get_volumes_snapshots():
+             volume_ids_with_snapshots.extend(
+@@ -176,7 +192,6 @@ class VolumesView(tables.PagedTableMixin, VolumeTableMixIn,
+ 
+         futurist_utils.call_functions_parallel(
+             _task_get_volumes,
+-            _task_get_instances,
+             _task_get_volumes_snapshots)
+ 
+         self._set_volume_attributes(
+@@ -214,9 +229,27 @@ class DetailView(tabs.TabbedTableView):
+                 self.request, search_opts=search_opts)
+             if snapshots:
+                 setattr(volume, 'has_snapshot', True)
++            # Resolve attached instance objects in a single batched call
++            # rather than one server_get() per attachment (was N+1 on
++            # multi-attached volumes).
++            attached_ids = [att['server_id'] for att in volume.attachments]
++            instance_map = {}
++            if attached_ids:
++                try:
++                    servers, _more = nova.server_list(
++                        self.request,
++                        search_opts={'uuid': attached_ids,
++                                     'all_tenants': False})
++                    instance_map = {s.id: s for s in servers}
++                except Exception:
++                    # Fall back to per-attachment lookup if filtered list
++                    # is unsupported by the deployed nova microversion.
++                    instance_map = {
++                        sid: nova.server_get(self.request, sid)
++                        for sid in attached_ids
++                    }
+             for att in volume.attachments:
+-                att['instance'] = nova.server_get(self.request,
+-                                                  att['server_id'])
++                att['instance'] = instance_map.get(att['server_id'])
+             if getattr(volume, 'group_id', None):
+                 volume.group = cinder.group_get(self.request, volume.group_id)
+             else:
+-- 
+2.45.1.windows.1
+
