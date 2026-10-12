@@ -1,0 +1,428 @@
+commit 2ee4087da90a2bdfdef40e220512d98a8b917a7b
+Author: Michael Still <mikal@stillhq.com>
+Date:   Mon Oct 12 19:05:11 2026 +1100
+
+    Support image digests in kolla_container.
+    
+    An operator can pin a service to an exact image by giving its
+    <service>_image_full as a digest reference, repository@sha256:<hex>.
+    Podman pulls such an image, but the Docker worker cannot, and would not
+    recognise it once pulled:
+    
+    * parse_image splits an image at its last colon, which falls inside the
+      digest, so pull_image asked docker-py for the repository
+      "repository@sha256" with the tag "<hex>". docker-py strips the
+      "@sha256" and the daemon is asked for a tag named after the bare hex
+      string, which does not exist.
+    * check_image only compares an image's RepoTags. With Docker's classic
+      image store an image pulled by digest has no tags, only RepoDigests, so
+      compare_image would report every such container as differing from its
+      image, and it would be recreated on every run.
+    
+    The Docker worker now splits a digest reference at the "@" and passes
+    the digest as the tag, which the Engine API accepts in place of one, and
+    looks a digest reference up in RepoDigests. A tag given alongside a
+    digest is dropped, as Docker ignores it. The shared parse_image is
+    unchanged, because podman-py rebuilds the reference by joining the
+    repository and tag with a colon, which is why Podman already worked.
+    
+    get_image_id is unchanged: its images(name=...) filter matches a digest
+    reference with both the classic and the containerd image stores.
+    
+    Assisted-By: Claude Opus 5.5 (1M context, high effort) <noreply@anthropic.com>
+    Co-Authored-By: Claude Opus 5.5 (1M context, high effort) <noreply@anthropic.com>
+    Change-Id: If0363f9d97763b1fe5f74c1596074e76b91ef4cd
+    Signed-off-by: Michael Still <mikal@stillhq.com>
+
+diff --git a/ansible/module_utils/kolla_docker_worker.py b/ansible/module_utils/kolla_docker_worker.py
+index f31c77f9e..f8ef06da8 100644
+--- a/ansible/module_utils/kolla_docker_worker.py
++++ b/ansible/module_utils/kolla_docker_worker.py
+@@ -68,13 +68,43 @@ class DockerWorker(ContainerWorker):
+                 msg='Permission denied for file at "{}"'.format(path)
+             )
+ 
++    def parse_image(self):
++        """Return the image's repository, and its tag or digest.
++
++        The generic parse_image splits at the last colon, which falls
++        inside the digest of a reference like repository@sha256:<hex>.
++        The Docker API takes a digest wherever it takes a tag, so such a
++        reference is split at the "@" instead. A tag given alongside the
++        digest is dropped, because Docker ignores it.
++        """
++        full_image = self.params.get('image')
++        if '@' not in full_image:
++            return super().parse_image()
++
++        repository, digest = full_image.split('@', 1)
++        name, _, tag = repository.rpartition(':')
++        if name and '/' not in tag:
++            repository = name
++        return repository, digest
++
++    def image_reference(self):
++        """Return the image as Docker lists it, by tag or by digest."""
++        separator = '@' if '@' in self.params.get('image') else ':'
++        return separator.join(self.parse_image())
++
+     def check_image(self):
+-        find_image = ':'.join(self.parse_image())
++        # NOTE: An image pulled by digest need not have a tag, so a digest
++        # reference is found among the image's digests rather than its tags.
++        find_image = self.image_reference()
++        if '@' in find_image:
++            field = 'RepoDigests'
++        else:
++            field = 'RepoTags'
+         for image in self.dc.images():
+-            repo_tags = image.get('RepoTags')
+-            if not repo_tags:
++            image_names = image.get(field)
++            if not image_names:
+                 continue
+-            for image_name in repo_tags:
++            for image_name in image_names:
+                 if image_name == find_image:
+                     return image
+         return dict()
+@@ -221,8 +251,8 @@ class DockerWorker(ContainerWorker):
+             if 'error' in status:
+                 if status['error'].endswith('not found'):
+                     self.module.fail_json(
+-                        msg="The requested image does not exist: {}:{}".format(
+-                            image, tag),
++                        msg="The requested image does not exist: {}".format(
++                            self.image_reference()),
+                         failed=True
+                     )
+                 else:
+diff --git a/releasenotes/notes/kolla-container-image-digests-410e068985c1ba8d.yaml b/releasenotes/notes/kolla-container-image-digests-410e068985c1ba8d.yaml
+new file mode 100644
+index 000000000..4ff3ec245
+--- /dev/null
++++ b/releasenotes/notes/kolla-container-image-digests-410e068985c1ba8d.yaml
+@@ -0,0 +1,13 @@
++---
++fixes:
++  - |
++    The ``kolla_container`` module now accepts an image given by digest,
++    such as ``quay.io/openstack.kolla/keystone@sha256:<hex>``, for example
++    in a ``<service>_image_full`` variable. With Docker, pulling such an
++    image failed, because the digest was sent to the Docker API as a tag
++    named after its hexadecimal part. Docker's classic image store also
++    lists an image pulled by digest without a tag, so a container using one
++    was found to differ from its image, and was recreated, on every run.
++    Podman already pulled images by digest. Changing a container's image
++    from a tag to a digest recreates the container once, as any change to
++    its image does.
+diff --git a/tests/kolla_container_tests/test_docker_worker.py b/tests/kolla_container_tests/test_docker_worker.py
+index e912bf5d7..f0b6a0de2 100644
+--- a/tests/kolla_container_tests/test_docker_worker.py
++++ b/tests/kolla_container_tests/test_docker_worker.py
+@@ -20,6 +20,7 @@ import os
+ import sys
+ from unittest import mock
+ 
++import docker
+ from docker import errors as docker_error
+ from docker.types import Ulimit
+ from oslotest import base
+@@ -36,6 +37,11 @@ kc = SourceFileLoader('kolla_container', kolla_container_file).load_module()
+ dwm = SourceFileLoader('kolla_docker_worker', docker_worker_file).load_module()
+ 
+ 
++FAKE_DIGEST = ('sha256:4a1c4b21597c1b4415bdbecb28a3296c'
++               '6b5e23ca4f9feeb599860a1dac6a0108')
++OTHER_DIGEST = ('sha256:b7f3d86d6e84fc17718c48bcde145080'
++                '7faa2d56704205c697b4bd5df7b9e29f')
++
+ FAKE_DATA = {
+ 
+     'params': {
+@@ -1037,6 +1043,187 @@ class TestImage(base.BaseTestCase):
+             msg="Unknown error message: unexpected error",
+             failed=True)
+ 
++    def test_parse_image_digest(self):
++        self.dw = get_DockerWorker(
++            {'image': 'myregistrydomain.com:5000/ubuntu@' + FAKE_DIGEST})
++
++        self.assertEqual(('myregistrydomain.com:5000/ubuntu', FAKE_DIGEST),
++                         tuple(self.dw.parse_image()))
++
++    def test_parse_image_tag_and_digest(self):
++        self.dw = get_DockerWorker(
++            {'image': 'myregistrydomain.com:5000/ubuntu:16.04@' +
++             FAKE_DIGEST})
++
++        self.assertEqual(('myregistrydomain.com:5000/ubuntu', FAKE_DIGEST),
++                         tuple(self.dw.parse_image()))
++
++    def test_parse_image_digest_no_registry(self):
++        self.dw = get_DockerWorker({'image': 'ubuntu@' + FAKE_DIGEST})
++
++        self.assertEqual(('ubuntu', FAKE_DIGEST),
++                         tuple(self.dw.parse_image()))
++
++    def test_check_image_digest_only(self):
++        # An image pulled by digest has no tags with the classic image store.
++        self.dw = get_DockerWorker(
++            {'image': 'myregistrydomain.com:5000/ubuntu@' + FAKE_DIGEST})
++        self.fake_data['images'][0]['RepoTags'] = []
++        self.fake_data['images'][0]['RepoDigests'] = [
++            'myregistrydomain.com:5000/ubuntu@' + FAKE_DIGEST]
++        self.dw.dc.images.return_value = self.fake_data['images']
++
++        return_data = self.dw.check_image()
++        self.assertFalse(self.dw.changed)
++        self.dw.dc.images.assert_called_once_with()
++        self.assertEqual(self.fake_data['images'][0], return_data)
++
++    def test_check_image_digest_containerd_store(self):
++        # The containerd image store lists a digest reference as a tag too.
++        self.dw = get_DockerWorker(
++            {'image': 'myregistrydomain.com:5000/ubuntu@' + FAKE_DIGEST})
++        self.fake_data['images'][0]['RepoTags'] = [
++            'myregistrydomain.com:5000/ubuntu@' + FAKE_DIGEST]
++        self.fake_data['images'][0]['RepoDigests'] = [
++            'myregistrydomain.com:5000/ubuntu@' + FAKE_DIGEST]
++        self.dw.dc.images.return_value = self.fake_data['images']
++
++        return_data = self.dw.check_image()
++        self.assertEqual(self.fake_data['images'][0], return_data)
++
++    def test_check_image_digest_and_tag(self):
++        self.dw = get_DockerWorker(
++            {'image': 'myregistrydomain.com:5000/ubuntu:16.04@' +
++             FAKE_DIGEST})
++        self.fake_data['images'][0]['RepoDigests'] = [
++            'myregistrydomain.com:5000/ubuntu@' + FAKE_DIGEST]
++        self.dw.dc.images.return_value = self.fake_data['images']
++
++        return_data = self.dw.check_image()
++        self.assertEqual(self.fake_data['images'][0], return_data)
++
++    def test_check_image_digest_not_present(self):
++        # The tag is present, but not the digest which was asked for.
++        self.dw = get_DockerWorker(
++            {'image': 'myregistrydomain.com:5000/ubuntu@' + FAKE_DIGEST})
++        self.fake_data['images'][0]['RepoDigests'] = [
++            'myregistrydomain.com:5000/ubuntu@' + OTHER_DIGEST]
++        self.dw.dc.images.return_value = self.fake_data['images']
++
++        return_data = self.dw.check_image()
++        self.assertEqual({}, return_data)
++
++    def test_check_image_tag_ignores_digests(self):
++        self.dw = get_DockerWorker(
++            {'image': 'myregistrydomain.com:5000/ubuntu:16.04'})
++        self.fake_data['images'][0]['RepoTags'] = []
++        self.fake_data['images'][0]['RepoDigests'] = [
++            'myregistrydomain.com:5000/ubuntu@' + FAKE_DIGEST]
++        self.dw.dc.images.return_value = self.fake_data['images']
++
++        return_data = self.dw.check_image()
++        self.assertEqual({}, return_data)
++
++    def test_compare_image_digest_unchanged(self):
++        image = 'myregistrydomain.com:5000/ubuntu@' + FAKE_DIGEST
++        self.dw = get_DockerWorker({'image': image})
++        self.fake_data['images'][0]['RepoTags'] = []
++        self.fake_data['images'][0]['RepoDigests'] = [image]
++        self.dw.dc.images.return_value = self.fake_data['images']
++        container_info = {'Image': self.fake_data['images'][0]['Id'],
++                          'Config': {'Image': image}}
++
++        self.assertFalse(self.dw.compare_image(container_info))
++
++    def test_compare_image_digest_changed(self):
++        image = 'myregistrydomain.com:5000/ubuntu@' + FAKE_DIGEST
++        self.dw = get_DockerWorker({'image': image})
++        self.fake_data['images'][0]['RepoTags'] = []
++        self.fake_data['images'][0]['RepoDigests'] = [image]
++        self.dw.dc.images.return_value = self.fake_data['images']
++        container_info = {
++            'Image': 'sha256:0ld1mage',
++            'Config': {
++                'Image': 'myregistrydomain.com:5000/ubuntu@' + OTHER_DIGEST}}
++
++        self.assertTrue(self.dw.compare_image(container_info))
++
++    def test_compare_image_tag_to_digest(self):
++        # The same image, but the container was created from its tag.
++        image = 'myregistrydomain.com:5000/ubuntu@' + FAKE_DIGEST
++        self.dw = get_DockerWorker({'image': image})
++        self.fake_data['images'][0]['RepoDigests'] = [image]
++        self.dw.dc.images.return_value = self.fake_data['images']
++        container_info = {
++            'Image': self.fake_data['images'][0]['Id'],
++            'Config': {'Image': 'myregistrydomain.com:5000/ubuntu:16.04'}}
++
++        self.assertTrue(self.dw.compare_image(container_info))
++
++    def test_get_image_id_digest(self):
++        image = 'myregistrydomain.com:5000/ubuntu@' + FAKE_DIGEST
++        self.dw = get_DockerWorker({'image': image})
++        self.dw.dc.images.return_value = ['sha256:47c3bdbcf99f0c1a36e4db']
++
++        return_data = self.dw.get_image_id()
++        self.dw.dc.images.assert_called_once_with(name=image, quiet=True)
++        self.assertEqual('sha256:47c3bdbcf99f0c1a36e4db', return_data)
++
++    def test_pull_image_digest(self):
++        self.dw = get_DockerWorker(
++            {'image': 'myregistrydomain.com:5000/ubuntu@' + FAKE_DIGEST})
++        self.dw.dc.pull.return_value = [
++            b'{"status":"Pull complete","progressDetail":{},"id":"22f7"}\r\n',
++            b'{"status":"Digest: ' + FAKE_DIGEST.encode() + b'"}\r\n',
++        ]
++        self.dw.dc.images.side_effect = [
++            [],
++            ['sha256:47c3bdbcf99f0c1a36e4db']
++        ]
++
++        self.dw.pull_image()
++        self.dw.dc.pull.assert_called_once_with(
++            repository='myregistrydomain.com:5000/ubuntu',
++            tag=FAKE_DIGEST,
++            stream=True)
++        self.assertTrue(self.dw.changed)
++        self.dw.module.fail_json.assert_not_called()
++
++    def test_pull_image_digest_docker_api(self):
++        # Check the request docker-py makes, which is what was wrong when a
++        # digest reference was split at its last colon.
++        self.dw = get_DockerWorker(
++            {'image': 'myregistrydomain.com:5000/ubuntu@' + FAKE_DIGEST})
++        client = docker.APIClient(version='1.40')
++        self.dw.dc.pull.side_effect = client.pull
++        self.dw.dc.images.return_value = []
++        with mock.patch.object(client, '_post') as mock_post, \
++                mock.patch.object(client, '_raise_for_status'), \
++                mock.patch.object(client, '_stream_helper',
++                                  return_value=iter([])):
++            self.dw.pull_image()
++
++        mock_post.assert_called_once()
++        self.assertEqual(
++            {'tag': FAKE_DIGEST,
++             'fromImage': 'myregistrydomain.com:5000/ubuntu'},
++            mock_post.call_args.kwargs['params'])
++
++    def test_pull_image_digest_not_exists(self):
++        self.dw = get_DockerWorker({'image': 'unknown@' + FAKE_DIGEST})
++        self.dw.dc.pull.return_value = [
++            b'{"error": "manifest for unknown not found"}\r\n']
++
++        self.dw.pull_image()
++        self.dw.dc.pull.assert_called_once_with(
++            repository='unknown',
++            tag=FAKE_DIGEST,
++            stream=True)
++        self.assertFalse(self.dw.changed)
++        self.dw.module.fail_json.assert_called_once_with(
++            msg="The requested image does not exist: unknown@" + FAKE_DIGEST,
++            failed=True)
++
+     def test_remove_image(self):
+         self.dw = get_DockerWorker(
+             {'image': 'myregistrydomain.com:5000/ubuntu:16.04',
+diff --git a/tests/kolla_container_tests/test_podman_worker.py b/tests/kolla_container_tests/test_podman_worker.py
+index f05088981..9d8c63ec5 100644
+--- a/tests/kolla_container_tests/test_podman_worker.py
++++ b/tests/kolla_container_tests/test_podman_worker.py
+@@ -21,6 +21,7 @@ import unittest
+ from unittest import mock
+ 
+ from oslotest import base
++from podman.domain import images_manager
+ from podman import errors as podman_error
+ 
+ sys.modules['dbus'] = mock.MagicMock()
+@@ -34,6 +35,9 @@ podman_worker_file = os.path.join(ansible_dir,
+ kc = SourceFileLoader('kolla_container', kolla_container_file).load_module()
+ pwm = SourceFileLoader('kolla_podman_worker', podman_worker_file).load_module()
+ 
++FAKE_DIGEST = ('sha256:4a1c4b21597c1b4415bdbecb28a3296c'
++               '6b5e23ca4f9feeb599860a1dac6a0108')
++
+ FAKE_DATA = {
+     'params': {
+         'container_engine': 'podman',
+@@ -930,6 +934,75 @@ class TestImage(base.BaseTestCase):
+             msg="Unknown error message: unexpected error",
+             failed=True)
+ 
++    def test_check_image_digest(self):
++        image = 'myregistrydomain.com:5000/ubuntu@' + FAKE_DIGEST
++        self.pw = get_PodmanWorker({'image': image})
++        self.fake_data['images'][0]['RepoTags'] = []
++        self.fake_data['images'][0]['RepoDigests'] = [image]
++        self.pw.pc.images.get.return_value = construct_image(
++            self.fake_data['images'][0])
++
++        return_data = self.pw.check_image()
++        self.pw.pc.images.get.assert_called_once_with(image)
++        self.assertEqual(self.fake_data['images'][0], return_data)
++
++    def test_compare_image_digest_unchanged(self):
++        image = 'myregistrydomain.com:5000/ubuntu@' + FAKE_DIGEST
++        self.pw = get_PodmanWorker({'image': image})
++        self.pw.pc.images.get.return_value = construct_image(
++            self.fake_data['images'][0])
++        container_info = {'Image': self.fake_data['images'][0]['Id'],
++                          'Config': {'Image': image}}
++
++        self.assertFalse(self.pw.compare_image(container_info))
++
++    def test_compare_image_tag_to_digest(self):
++        # The same image, but the container was created from its tag.
++        image = 'myregistrydomain.com:5000/ubuntu@' + FAKE_DIGEST
++        self.pw = get_PodmanWorker({'image': image})
++        self.pw.pc.images.get.return_value = construct_image(
++            self.fake_data['images'][0])
++        container_info = {
++            'Image': self.fake_data['images'][0]['Id'],
++            'Config': {'Image': 'myregistrydomain.com:5000/ubuntu:16.04'}}
++
++        self.assertTrue(self.pw.compare_image(container_info))
++
++    def test_pull_image_digest(self):
++        image = 'myregistrydomain.com:5000/ubuntu@' + FAKE_DIGEST
++        self.pw = get_PodmanWorker({'image': image})
++        self.pw.pc.images.pull.return_value = construct_image(
++            self.fake_data['images'][0])
++        self.pw.pc.images.get.return_value = construct_image({})
++
++        self.pw.pull_image()
++        self.pw.pc.images.pull.assert_called_once_with(
++            repository='myregistrydomain.com:5000/ubuntu@sha256',
++            tag=FAKE_DIGEST.split(':', 1)[1],
++            tls_verify=False,
++            stream=False,
++        )
++        self.assertTrue(self.pw.changed)
++        self.pw.module.fail_json.assert_not_called()
++
++    def test_pull_image_digest_podman_api(self):
++        # podman-py joins the repository and tag with a colon, which puts a
++        # digest reference split at its last colon back together.
++        image = 'myregistrydomain.com:5000/ubuntu@' + FAKE_DIGEST
++        self.pw = get_PodmanWorker({'image': image})
++        manager = images_manager.ImagesManager(client=mock.MagicMock())
++        manager.client.post.return_value.iter_lines.return_value = [
++            b'{"id": "7528a4009573"}']
++        manager.get = mock.Mock(
++            return_value=construct_image(self.fake_data['images'][0]))
++        self.pw.pc.images = manager
++
++        self.pw.pull_image()
++        manager.client.post.assert_called_once()
++        self.assertEqual(
++            image, manager.client.post.call_args.kwargs['params']['reference'])
++        self.pw.module.fail_json.assert_not_called()
++
+     def test_remove_image(self):
+         self.pw = get_PodmanWorker(
+             {'image': 'myregistrydomain.com:5000/ubuntu:16.04',
