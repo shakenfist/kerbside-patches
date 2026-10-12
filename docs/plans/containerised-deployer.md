@@ -363,8 +363,8 @@ against `develop`.
 | 2. Launcher | Complete | #1812 (`b97361853`) |
 | 3. The localhost connection | Complete | #1831 (`f2dd038ab`) |
 | 4. Bootstrapping the deploy host | Complete | #1854 (`78c6e79c7`), #1857 (`af2474d4f`); shakenfist/actions#150 |
-| 5. Version safeguards | In progress | |
-| 6. Build manifest | Not started | |
+| 5. Version safeguards | Complete | #1867 (`b38293652`) |
+| 6. Build manifest | In progress | |
 | 7. Make the prototype entry voting | Not started | |
 | 8. Documentation and upstream proposal | Not started | |
 | 9. Push audit | Not started | |
@@ -2909,6 +2909,16 @@ We will know this plan has succeeded when the following are true:
   files, but the job captures neither `getenforce` nor the audit
   log. Add both to `tools/check-deployer-launcher` if it matters to
   the proposal.
+* The Phase 5 rules that CI never ran through Ansible (Phase 5's
+  Outcome): the upgrade and SLURP rules, a record newer by release,
+  a host with no record under a deployer image, `bifrost`, the
+  MariaDB and RabbitMQ playbooks, and multinode with the launcher.
+  The rules are unit-tested in patch206; an upgrade CI entry and a
+  multinode launcher entry would prove the rest, at a cost this plan
+  did not take.
+* `tools/check-deployer-guards` prints only `PASS:` lines, so a job
+  log never shows a refusal's text. Printing the matched message on
+  success is a one-line change if the proposal wants it quoted.
 
 ### Bugs fixed during this work
 
