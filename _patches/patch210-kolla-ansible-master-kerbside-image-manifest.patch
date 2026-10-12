@@ -1,0 +1,43 @@
+commit db4f811b6e02a48e2e012452a9ca18e8314f4865
+Author: Michael Still <mikal@stillhq.com>
+Date:   Mon Oct 12 19:27:13 2026 +1100
+
+    Resolve the kerbside images through the manifest.
+    
+    The kerbside role's three image variables do not follow the
+    <service>_image_full pattern which the build manifest change rewrote
+    upstream, because they share kerbside_tag, so that change left them
+    pulling by tag. Resolve them through the kolla_image_full lookup too, so
+    a deployer image with a build manifest pulls the Kerbside images by
+    digest like every other.
+    
+    kerbside_base_image_full still names kerbside_api_image, as it did
+    before. That is an existing mistake in the kerbside role, kept here so
+    that this change alters only how the images are pulled.
+    
+    This is a separate change rather than an amendment to the kerbside role
+    so that the kerbside series does not depend on the manifest change.
+    
+    Assisted-By: Claude Opus 5.5 (1M context, high effort) <noreply@anthropic.com>
+    Co-Authored-By: Claude Opus 5.5 (1M context, high effort) <noreply@anthropic.com>
+    Signed-off-by: Michael Still <mikal@stillhq.com>
+
+diff --git a/ansible/roles/kerbside/defaults/main.yml b/ansible/roles/kerbside/defaults/main.yml
+index 68ab4724a..1797a5feb 100644
+--- a/ansible/roles/kerbside/defaults/main.yml
++++ b/ansible/roles/kerbside/defaults/main.yml
+@@ -84,11 +84,11 @@ kerbside_services:
+ 
+ kerbside_tag: "{{ openstack_tag }}"
+ kerbside_base_image: "{{ docker_image_url }}kerbside-base"
+-kerbside_base_image_full: "{{ kerbside_api_image }}:{{ kerbside_tag }}"
++kerbside_base_image_full: "{{ lookup('kolla_image_full', kerbside_api_image, kerbside_tag) }}"
+ kerbside_api_image: "{{ docker_image_url }}kerbside-api"
+-kerbside_api_image_full: "{{ kerbside_api_image }}:{{ kerbside_tag }}"
++kerbside_api_image_full: "{{ lookup('kolla_image_full', kerbside_api_image, kerbside_tag) }}"
+ kerbside_proxy_image: "{{ docker_image_url }}kerbside-proxy"
+-kerbside_proxy_image_full: "{{ kerbside_proxy_image }}:{{ kerbside_tag }}"
++kerbside_proxy_image_full: "{{ lookup('kolla_image_full', kerbside_proxy_image, kerbside_tag) }}"
+ kerbside_dimensions: "{{ default_container_dimensions }}"
+ 
+ kerbside_enable_healthchecks: "{{ enable_container_healthchecks }}"
