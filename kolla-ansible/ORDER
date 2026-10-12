@@ -13,3 +13,4 @@
 ../_patches/patch201-kolla-ansible-master-check-config-deployer-conf.patch
 ../_patches/patch206-kolla-ansible-master-deployer-guards.patch
 ../_patches/patch208-kolla-ansible-master-kolla-container-digests.patch
+../_patches/patch209-kolla-ansible-master-image-build-manifest.patch
