@@ -322,7 +322,6 @@ manifest_label="kolla_build_manifest"
 manifest_tool() {
     REGISTRY_TOKEN="${registry_token}" /srv/kerbside/venv-tools/bin/python3 \
         "${topdir}/tools/write-build-manifest" \
-        --gitlab-url "${ci_gitlab}" \
         --registry "${ci_registry}" \
         --project "${registry_project}" \
         --username "${registry_username}" \
@@ -363,12 +362,20 @@ write_build_manifest() {
             ;;
     esac
 
+    # The image list is kolla-build's record of what this run built. Without
+    # it (a run that skipped the build) there is nothing to enumerate from.
+    if [ ! -s "${topdir}/archive/images" ]; then
+        echo "Cannot build the manifest for ${tag}: this run built no images, so there is no image list"
+        echo "(archive/images), and kolla-ansible:${tag} carries no manifest."
+        exit 1
+    fi
+
     rm -rf "${workdir}"
     mkdir -p "${workdir}"
     rm -f "${topdir}/archive/manifest-${tag}.json"
 
     echo -e "${H3}Reading image digests from ${ci_registry}${Color_Off}"
-    manifest_tool write "${tag}" "${workdir}/manifest.json"
+    manifest_tool write "${tag}" "${workdir}/manifest.json" --images-file "${topdir}/archive/images"
     cp "${workdir}/manifest.json" "${topdir}/archive/manifest-${tag}.json"
 
     cat > "${workdir}/Dockerfile" <<EOF

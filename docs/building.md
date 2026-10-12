@@ -155,9 +155,13 @@ sudo kolla-ansible -i /etc/kolla/inventory deploy
 When a build pushes to the CI registry (`--use-ci-registry`), the last
 thing `build-containers.sh` does, once every push has landed, is record
 which image digests that build produced. `tools/write-build-manifest`
-lists the repositories in `openstack/kolla-images` that carry the build's
-tag through the GitLab API, and reads each one's digest from the registry
-with a `HEAD /v2/<repo>/manifests/<tag>`. The digests come from the
+takes the image names `kolla-build` recorded as built (`archive/images`),
+and reads each one's digest from the registry with a
+`HEAD /v2/<repo>/manifests/<tag>`; an image that was built but is missing
+from the registry fails the build. It does not use the GitLab API, which the
+CI registry token cannot be relied on for. The names equal the repository
+names only for a build with no image prefix, as in CI; otherwise pass
+`--image-prefix`. The digests come from the
 registry, not from `kolla-build`, because the push filters rewrite every
 image on its way in.
 

@@ -3,11 +3,18 @@
 
 Phase 6 of docs/plans/containerised-deployer.md pins every service image by
 digest through a manifest carried in the deployer image. This tool is the
-read-back half of that: after the push has drained, it asks the GitLab API
-which repositories in the registry project carry the build's tag, then reads
-each one's digest from the registry itself with the Docker v2 schema 2
-Accept header, which is the digest a pull uses. GitLab's own digest field is
-deliberately not trusted.
+read-back half of that: after the push has drained, it reads each built
+image's digest from the registry itself with the Docker v2 schema 2 Accept
+header, which is the digest a pull uses.
+
+Which images to read comes from kolla-build's own record of what it built
+(archive/images, one kolla image name per line, written by _build/imagebuild.sh
+from build.json), not from the GitLab API: the registry token CI holds cannot
+be relied on for the GitLab REST API. Those are kolla image names, which equal
+the repository name within the project only when the build used no image
+prefix, which is what our CI does. A prefixed build must pass --image-prefix,
+which is prepended to each name to form both the repository path and the key
+in the manifest.
 
 Two subcommands, both used by _build/build-containers.sh:
 
@@ -16,16 +23,15 @@ Two subcommands, both used by _build/build-containers.sh:
                           the kolla_build_manifest label, and otherwise the
                           deployer's digest (sha256:...), which is what the
                           thin manifest image is built FROM.
-    write TAG OUTPUT      writes manifest.json for TAG to OUTPUT, or fails
-                          without writing anything if any digest cannot be
-                          read.
+    write TAG OUTPUT --images-file PATH
+                          writes manifest.json for TAG to OUTPUT, or fails
+                          without writing anything if the image list is
+                          missing or empty, or any listed image's digest
+                          cannot be read (an image that was built but did
+                          not land is never silently dropped).
 
 The registry token is read from the REGISTRY_TOKEN environment variable rather
 than the command line, and is never printed.
-
-This deliberately does not import tools/find_images: that tool treats every
-API failure as "no repositories", which here would produce a partial manifest.
-It follows the same GitLab API calls, but fails on any unexpected answer.
 """
 
 import json
@@ -33,7 +39,6 @@ import os
 import re
 import sys
 import tempfile
-import urllib.parse
 
 import click
 import requests
@@ -61,58 +66,6 @@ def make_session():
     session.mount('http://', adapter)
     session.mount('https://', adapter)
     return session
-
-
-class GitLab:
-    """The few GitLab API calls needed to list a project's tagged repositories."""
-
-    def __init__(self, session, url, token):
-        self.session = session
-        # Handle a URL that already includes /api/v4, as tools/find_images does.
-        base = url.rstrip('/')
-        if not base.endswith('/api/v4'):
-            base = f'{base}/api/v4'
-        self.api = base
-        self.headers = {'Private-Token': token} if token else {}
-
-    def _get(self, path, params=None):
-        url = f'{self.api}{path}'
-        try:
-            return self.session.get(url, headers=self.headers, params=params, timeout=TIMEOUT)
-        except requests.RequestException as e:
-            raise ManifestError(f'GitLab API request to {url} failed: {e.__class__.__name__}')
-
-    def project_id(self, project_path):
-        quoted = urllib.parse.quote(project_path, safe='')
-        r = self._get(f'/projects/{quoted}')
-        if r.status_code != 200:
-            raise ManifestError(f'GitLab project {project_path} could not be read (HTTP {r.status_code})')
-        return r.json()['id']
-
-    def repositories(self, project_id):
-        """Return every container registry repository in the project, following pagination."""
-        repos = []
-        page = 1
-        per_page = 100
-        while True:
-            r = self._get(f'/projects/{project_id}/registry/repositories',
-                          params={'page': page, 'per_page': per_page})
-            if r.status_code != 200:
-                raise ManifestError(
-                    f'Registry repositories of project {project_id} could not be listed (HTTP {r.status_code})')
-            batch = r.json()
-            repos.extend(batch)
-            if len(batch) < per_page:
-                return repos
-            page += 1
-
-    def has_tag(self, project_id, repo_id, tag):
-        r = self._get(f'/projects/{project_id}/registry/repositories/{repo_id}/tags/{urllib.parse.quote(tag)}')
-        if r.status_code == 200:
-            return True
-        if r.status_code == 404:
-            return False
-        raise ManifestError(f'Tag {tag} of registry repository {repo_id} could not be checked (HTTP {r.status_code})')
 
 
 def parse_challenge(header):
@@ -239,31 +192,36 @@ def deployer_state(registry, project_path, tag):
     return digest
 
 
-def build_manifest(gitlab, registry, project_path, tag, log=None):
-    """Return the manifest document for every image in the project carrying tag, except the deployer."""
-    project_id = gitlab.project_id(project_path)
-    prefix = f'{project_path}/'
+def read_images_file(path):
+    """Return the sorted, de-duplicated kolla image names listed in path, without the deployer."""
+    try:
+        with open(path) as f:
+            lines = f.read().splitlines()
+    except OSError as e:
+        raise ManifestError(f'Image list {path} could not be read: {e.strerror}')
+    names = {line.strip() for line in lines if line.strip()}
+    # The deployer carries the manifest, so it cannot name its own digest.
+    names.discard(DEPLOYER_IMAGE)
+    if not names:
+        raise ManifestError(f'Image list {path} names no images other than {DEPLOYER_IMAGE}')
+    return sorted(names)
+
+
+def build_manifest(registry, project_path, tag, names, prefix='', log=None):
+    """Return the manifest document for the named images, which must all carry tag."""
     images = {}
-    for repo in gitlab.repositories(project_id):
-        path = repo.get('path', '')
-        if not path.startswith(prefix):
-            # The project's root repository, which kolla-build never pushes to.
-            continue
-        name = path[len(prefix):]
-        if name == DEPLOYER_IMAGE:
-            # The deployer carries the manifest, so it cannot name its own digest.
-            continue
-        if not gitlab.has_tag(project_id, repo['id'], tag):
-            continue
-        digest = registry.manifest_digest(path, tag)
+    for name in names:
+        key = f'{prefix}{name}'
+        repo = f'{project_path}/{key}'
+        digest = registry.manifest_digest(repo, tag)
         if digest is None:
-            raise ManifestError(f'GitLab lists {path}:{tag}, but the registry has no such manifest')
-        images[name] = digest
+            raise ManifestError(f'{repo}:{tag} was built but the registry has no such manifest')
+        images[key] = digest
         if log:
-            log(f'{name} {digest}')
+            log(f'{key} {digest}')
 
     if not images:
-        raise ManifestError(f'No image in {project_path} carries the tag {tag}')
+        raise ManifestError(f'No images to record for {tag}')
     return {'format_version': FORMAT_VERSION, 'tag': tag, 'images': dict(sorted(images.items()))}
 
 
@@ -284,20 +242,20 @@ def write_atomically(document, output):
 
 
 @click.group()
-@click.option('--gitlab-url', default='http://192.168.1.12', show_default=True, help='GitLab URL.')
 @click.option('--registry', default='gitlab.home.stillhq.com:5050', show_default=True,
               help='Registry host, with an optional scheme (https is assumed).')
 @click.option('--project', default='openstack/kolla-images', show_default=True,
               help='GitLab project, and registry namespace, the images are pushed to.')
 @click.option('--username', default='', help='Registry username.')
+@click.option('--image-prefix', default='', help='Prefix kolla-build gave its images, prepended to each listed name.')
 @click.pass_context
-def cli(ctx, gitlab_url, registry, project, username):
+def cli(ctx, registry, project, username, image_prefix):
     """Read back the digests of the images a build pushed."""
     token = os.environ.get('REGISTRY_TOKEN', '')
     session = make_session()
     ctx.obj = {
         'project': project,
-        'gitlab': GitLab(session, gitlab_url, token),
+        'prefix': image_prefix,
         'registry': Registry(session, registry, username, token),
     }
 
@@ -321,14 +279,18 @@ def deployer_state_cmd(ctx, tag):
 @cli.command(name='write')
 @click.argument('tag')
 @click.argument('output', type=click.Path(dir_okay=False))
+@click.option('--images-file', required=True, type=click.Path(dir_okay=False),
+              help='File of kolla image names, one per line, as kolla-build built them (archive/images).')
 @click.pass_context
-def write_cmd(ctx, tag, output):
-    """Write the manifest for TAG to OUTPUT."""
+def write_cmd(ctx, tag, output, images_file):
+    """Write the manifest for TAG to OUTPUT, covering the images listed in the images file."""
     def log(line):
         click.echo(f'    {line}', err=True)
 
     try:
-        document = build_manifest(ctx.obj['gitlab'], ctx.obj['registry'], ctx.obj['project'], tag, log=log)
+        names = read_images_file(images_file)
+        document = build_manifest(ctx.obj['registry'], ctx.obj['project'], tag, names,
+                                  prefix=ctx.obj['prefix'], log=log)
     except ManifestError as e:
         _fail(e)
     write_atomically(document, output)
