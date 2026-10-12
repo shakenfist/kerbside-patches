@@ -9,7 +9,6 @@ if [ ! -z ${registry_username} ]; then
     echo
     echo -e "${H1}==================================================${Color_Off}"
     echo -e "${H1}Registry configuration${Color_Off}"
-    echo -e "${H1}    CI gitlab: ${ci_gitlab}"
     echo -e "${H1}    Use CI registry: ${use_ci_registry}"
     echo -e "${H1}    CI registry: ${ci_registry}"
     echo -e "${H1}    Registry username: ${registry_username}"
@@ -97,6 +96,72 @@ stop_occystrap_proxy() {
 }
 
 ##############################################################################
+# Registry helper functions                                                  #
+##############################################################################
+
+# Run tools/write-build-manifest with this build's registry settings. The
+# token goes in the environment, not on the command line, and is never
+# printed.
+manifest_tool() {
+    REGISTRY_TOKEN="${registry_token}" /srv/kerbside/venv-tools/bin/python3 \
+        "${topdir}/tools/write-build-manifest" \
+        --registry "${ci_registry}" \
+        --project "${registry_project}" \
+        --username "${registry_username}" \
+        "$@"
+}
+
+# The image tag covers the source and the date, but not which images were
+# asked for, so the build marker records a hash of the selection as well.
+build_selection=$(printf '%s' "${build_images}" | sha256sum | cut -d ' ' -f 1)
+
+# Push one local image to the CI registry with the same transforming filters
+# as the sequential push below. The inspect filters are left out: they record
+# layer data for kolla-build's images, which is already packaged by now.
+push_image() {
+    local local_image="${1}"
+    local remote="${2}"
+
+    if [ ! -x /tmp/occystrap/bin/occystrap ]; then
+        echo -e "${H3}Install occystrap for registry push${Color_Off}"
+        python3 -mvenv /tmp/occystrap
+        /tmp/occystrap/bin/pip3 install occystrap
+    fi
+
+    echo -e "    ${local_image} ${Arrow} occystrap ${Arrow} ${remote}"
+    http_proxy='' HTTP_PROXY='' https_proxy='' HTTPS_PROXY='' all_proxy='' ALL_PROXY='' /tmp/occystrap/bin/occystrap \
+        --parallel 8 \
+        --compression zstd \
+        --username "${registry_username}" \
+        --password "${registry_token}" \
+        --layer-cache "${topdir}/archive/occystrap-layer-cache.json" \
+        process \
+        "dockerpush://${local_image}" \
+        "registry://${remote}" \
+        -f normalize-timestamps \
+        -f "exclude:pattern=**/.git"
+}
+
+# Pull every image of a finished build, as recorded by its build marker, and
+# tag each locally as ${registry_project}/<image>:<tag>.
+pull_built_images() {
+    local tag="${1}"
+    local images
+    local image
+    local remote
+
+    images=$(manifest_tool built-images "${tag}")
+    for image in ${images}; do
+        remote="${ci_registry}/${registry_project}/${image}:${tag}"
+        echo -e "    ${image}..."
+        docker pull "${remote}"
+
+        echo -e "    ${remote} ${Arrow} ${registry_project}/${image}:${tag}"
+        docker image tag "${remote}" "${registry_project}/${image}:${tag}"
+    done
+}
+
+##############################################################################
 # Install occystrap and start proxy if requested                             #
 ##############################################################################
 
@@ -151,6 +216,10 @@ echo -e "${H1}Contents of src directory${Color_Off}"
 ls -lrth ${topsrcdir}
 echo -e "${H1}==================================================${Color_Off}"
 
+# The tags this run built, rather than found already built, and so must mark
+# as built once everything else has succeeded.
+built_tags=""
+
 for target in ${build_targets}; do
     complete_image_tag="${target}-${distro}-${distro_version}-${image_tag}"
 
@@ -164,40 +233,45 @@ for target in ${build_targets}; do
     echo -e "${H1}==================================================${Color_Off}"
 
     have_images="false"
-    if [ ${use_ci_registry} == "true" ]; then
+    if [ "${use_ci_registry}" == "true" ] && [ -z "${registry_token}" ]; then
+        echo -e "${H2}No registry credentials, so cannot check for an earlier build of this tag${Color_Off}"
+    elif [ "${use_ci_registry}" == "true" ]; then
         echo -e "${H2}Check if we already have built images${Color_Off}"
 
-        if [ ! -z ${registry_username} ]; then
-            images=$(/srv/kerbside/venv-tools/bin/python3 ${topdir}/tools/find_images \
-                --gitlab-url ${ci_gitlab} --username ${registry_username} --token ${registry_token} \
-                find ${complete_image_tag} || true)
-        else
-            images=$(/srv/kerbside/venv-tools/bin/python3 ${topdir}/tools/find_images \
-                --gitlab-url ${ci_gitlab} find ${complete_image_tag} || true)
+        # A tag counts as built only when its build marker (see "Build
+        # marker" below) is in the registry for this image selection. A
+        # registry that cannot be asked stops the build rather than being
+        # taken for one with nothing in it: the push needs it too.
+        if ! build_state=$(manifest_tool build-state --selection "${build_selection}" "${complete_image_tag}"); then
+            echo "Could not ask ${ci_registry} whether ${complete_image_tag} is already built."
+            exit 1
         fi
 
-        if [ $(echo ${images} | grep -c kolla || true) -gt 0 ]; then
-            if [ ${dont_fetch_images} == "true" ]; then
-                echo "Found existing images, but configured not to pull them."
+        case "${build_state}" in
+            complete)
                 have_images="true"
-            else
-                echo "Found existing images. Pulling them."
-
-                for image in $(echo ${images}); do
-                    echo -e "    ${image}..."
-                    docker pull ${ci_registry}/${image}:${complete_image_tag}
-
-                    echo -e "    ${image}:${complete_image_tag} ${Arrow} ${image}:${complete_image_tag}"
-                    docker image tag ${ci_registry}/${image}:${complete_image_tag} \
-                        ${image}:${complete_image_tag}
-                done
-                have_images="true"
-            fi
-        fi
+                if [ "${dont_fetch_images}" == "true" ]; then
+                    echo "${complete_image_tag} is already built, but configured not to pull it."
+                else
+                    echo "${complete_image_tag} is already built. Pulling it."
+                    pull_built_images "${complete_image_tag}"
+                fi
+                ;;
+            stale)
+                echo "${complete_image_tag} was built for a different image selection."
+                ;;
+            missing)
+                echo "${complete_image_tag} has not been built before."
+                ;;
+            *)
+                echo "Unexpected build state '${build_state}' for ${complete_image_tag}."
+                exit 1
+                ;;
+        esac
     fi
 
     if [ ${have_images} == "false" ]; then
-        echo "No existing images found. Building them."
+        echo "Building ${complete_image_tag}."
 
         mkdir -p ${topdir}/archive/
         rm -f ${topdir}/archive/images
@@ -234,6 +308,11 @@ for target in ${build_targets}; do
 
         cat ${topdir}/archive/images | sort | uniq > ${topdir}/archive/images.uniq
         mv ${topdir}/archive/images.uniq ${topdir}/archive/images
+
+        # archive/images is reset for each target, so keep this target's list
+        # for the manifest and marker steps after the loop.
+        cp ${topdir}/archive/images ${topdir}/archive/images-${complete_image_tag}
+        built_tags="${built_tags} ${complete_image_tag}"
 
         echo
         echo -e "${H2}Built images${Color_Off}"
@@ -316,18 +395,6 @@ fi
 
 manifest_label="kolla_build_manifest"
 
-# Run tools/write-build-manifest with this build's registry settings. The
-# token goes in the environment, not on the command line, and is never
-# printed.
-manifest_tool() {
-    REGISTRY_TOKEN="${registry_token}" /srv/kerbside/venv-tools/bin/python3 \
-        "${topdir}/tools/write-build-manifest" \
-        --registry "${ci_registry}" \
-        --project "${registry_project}" \
-        --username "${registry_username}" \
-        "$@"
-}
-
 # Build and push the manifest image for one complete image tag. Do not call
 # this from a condition (if, ||, &&): errexit is what makes a failure here
 # fail the build.
@@ -336,6 +403,7 @@ write_build_manifest() {
     local deployer_repo="${ci_registry}/${registry_project}/kolla-ansible"
     local workdir="${topdir}/archive/build-manifest-${tag}"
     local local_image="kolla-build-manifest/kolla-ansible:${tag}"
+    local images_file="${topdir}/archive/images-${tag}"
     local state
 
     echo
@@ -364,9 +432,9 @@ write_build_manifest() {
 
     # The image list is kolla-build's record of what this run built. Without
     # it (a run that skipped the build) there is nothing to enumerate from.
-    if [ ! -s "${topdir}/archive/images" ]; then
+    if [ ! -s "${images_file}" ]; then
         echo "Cannot build the manifest for ${tag}: this run built no images, so there is no image list"
-        echo "(archive/images), and kolla-ansible:${tag} carries no manifest."
+        echo "(archive/images-${tag}), and kolla-ansible:${tag} carries no manifest."
         exit 1
     fi
 
@@ -375,7 +443,7 @@ write_build_manifest() {
     rm -f "${topdir}/archive/manifest-${tag}.json"
 
     echo -e "${H3}Reading image digests from ${ci_registry}${Color_Off}"
-    manifest_tool write "${tag}" "${workdir}/manifest.json" --images-file "${topdir}/archive/images"
+    manifest_tool write "${tag}" "${workdir}/manifest.json" --images-file "${images_file}"
     cp "${workdir}/manifest.json" "${topdir}/archive/manifest-${tag}.json"
 
     cat > "${workdir}/Dockerfile" <<EOF
@@ -387,27 +455,7 @@ EOF
     echo -e "${H3}Building ${local_image} from ${deployer_repo}@${state}${Color_Off}"
     docker build --provenance=false -t "${local_image}" "${workdir}"
 
-    if [ ! -x /tmp/occystrap/bin/occystrap ]; then
-        echo -e "${H3}Install occystrap for registry push${Color_Off}"
-        python3 -mvenv /tmp/occystrap
-        /tmp/occystrap/bin/pip3 install occystrap
-    fi
-
-    # The same push, and the same transforming filters, as the sequential
-    # fallback above. The inspect filters are left out: they record layer
-    # data for kolla-build's images, which is already packaged by now.
-    echo -e "    ${local_image} ${Arrow} occystrap ${Arrow} ${deployer_repo}:${tag}"
-    http_proxy='' HTTP_PROXY='' https_proxy='' HTTPS_PROXY='' all_proxy='' ALL_PROXY='' /tmp/occystrap/bin/occystrap \
-        --parallel 8 \
-        --compression zstd \
-        --username "${registry_username}" \
-        --password "${registry_token}" \
-        --layer-cache "${topdir}/archive/occystrap-layer-cache.json" \
-        process \
-        "dockerpush://${local_image}" \
-        "registry://${deployer_repo}:${tag}" \
-        -f normalize-timestamps \
-        -f "exclude:pattern=**/.git"
+    push_image "${local_image}" "${deployer_repo}:${tag}"
 
     # Keep the debsecan scan below, which lists local images by tag, off
     # this image: it is the deployer again, plus one JSON file.
@@ -460,6 +508,69 @@ if [ "${skip_debsecan}" != "true" ]; then
             --image-tag "${image_tag}" \
             ${debsecan_args} || true
     fi
+fi
+
+##############################################################################
+# Build marker                                                               #
+##############################################################################
+
+# The last thing a build does, once every image has landed, the deployer
+# carries its manifest and the scan above has passed, is say that it
+# finished: it pushes kolla-build-complete:<tag>, a one file image (the
+# digest manifest of everything built) labelled with the image names and a
+# hash of the image selection. The check at the top of the build loop skips
+# a tag only when that marker exists for the same selection, so a build that
+# failed part way, or was asked for different images, is built again. The
+# marker does not depend on the deployer image.
+
+# Build and push the marker for one complete image tag. Do not call this from
+# a condition (if, ||, &&): errexit is what makes a failure here fail the
+# build.
+write_build_marker() {
+    local tag="${1}"
+    local marker_repo="${ci_registry}/${registry_project}/kolla-build-complete"
+    local workdir="${topdir}/archive/build-marker-${tag}"
+    local local_image="kolla-build-marker/kolla-build-complete:${tag}"
+    local images_file="${topdir}/archive/images-${tag}"
+    local images
+    local state
+
+    echo
+    echo -e "${H2}Build marker for ${tag}${Color_Off}"
+
+    rm -rf "${workdir}"
+    mkdir -p "${workdir}"
+
+    # Fails, and so fails the build, if any image this run built is not in
+    # the registry under the tag.
+    echo -e "${H3}Checking every built image is in ${ci_registry}${Color_Off}"
+    manifest_tool write "${tag}" "${workdir}/manifest.json" --images-file "${images_file}"
+    images=$(sort -u "${images_file}" | paste -sd, -)
+
+    cat > "${workdir}/Dockerfile" <<EOF
+FROM scratch
+COPY manifest.json /manifest.json
+LABEL kolla_build_complete="1" \\
+      kolla_build_selection="${build_selection}" \\
+      kolla_build_images="${images}"
+EOF
+
+    docker build --provenance=false -t "${local_image}" "${workdir}"
+    push_image "${local_image}" "${marker_repo}:${tag}"
+    docker image rm "${local_image}"
+
+    state=$(manifest_tool build-state --selection "${build_selection}" "${tag}")
+    if [ "${state}" != "complete" ]; then
+        echo "kolla-build-complete:${tag} does not mark this build after the push (state '${state}')."
+        exit 1
+    fi
+    echo -e "${H3}${tag} is marked as built${Color_Off}"
+}
+
+if [ "${use_ci_registry}" == "true" ] && [ -n "${registry_token}" ]; then
+    for tag in ${built_tags}; do
+        write_build_marker "${tag}"
+    done
 fi
 
 echo

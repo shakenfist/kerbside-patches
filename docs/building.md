@@ -187,13 +187,45 @@ The step:
 * does nothing when `kolla-ansible:<tag>` is not in the registry, because
   the build did not include the deployer;
 * does nothing when `kolla-ansible:<tag>` already carries the label, so a
-  rerun that skipped the build because its images exist is a no-op; and
+  rerun that skipped the build because it is already built is a no-op; and
 * fails the build if any image's digest cannot be read, rather than
   writing a partial manifest, and if the label is not there after the
   push.
 
 The design is Phase 6 of
 [the containerised deployer plan](plans/containerised-deployer.md).
+
+## Skipping a tag that is already built
+
+A CI image tag is `<release>-<distro>-<version>-<hash>`, where the hash
+covers the patched source, `_build`, `tools` and the date. A rerun, or a
+second run on the same day with the same patches, computes the same tag,
+and `build-containers.sh` skips the build when that tag is already built.
+
+"Already built" is recorded explicitly. The last thing a successful build
+does, after every push has landed, the deployer has its manifest and the
+`debsecan` scan has passed, is push a marker image,
+`kolla-build-complete:<tag>`. It is a single-file image (the digest
+manifest of everything built) with three labels:
+
+* `kolla_build_complete="1"`;
+* `kolla_build_selection`, a SHA-256 of the `--build-images` selection,
+  because the tag does not cover which images were asked for; and
+* `kolla_build_images`, the comma separated image names the build made.
+
+Before building a tag, `tools/write-build-manifest build-state` reads the
+marker's labels from the registry (a manifest and a config blob, through
+the registry's bearer-token handshake, which works with the CI registry
+token where the GitLab REST API does not). The build is skipped only when
+the marker exists for the same selection. A build that failed part way
+pushed no marker and is built again, as is a tag built for another
+selection. If the registry cannot be asked at all, the job fails rather
+than guessing, since the push that follows needs the same registry.
+
+When the build is skipped, CI (`--dont-fetch-images`) pulls nothing. A
+manual run without that flag pulls every image the marker names and tags
+it locally as `openstack/kolla-images/<image>:<tag>`. Without registry
+credentials there is no check, and the tag is always built.
 
 ## Security vulnerability scanning
 

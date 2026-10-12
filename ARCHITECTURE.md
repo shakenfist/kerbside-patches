@@ -42,8 +42,7 @@ kerbside-patches/
     docs/                    # Additional documentation
     tools/                   # Utility scripts
         summarize_layers.py  # Layer data analysis
-        find_images           # GitLab registry image finder
-        write-build-manifest  # Image digests for the deployer
+        write-build-manifest  # Image digests, build marker
         gerrit-pre-push-lint  # Gerrit pre-push linter
     ansible-collection-kolla/ # Kolla collection pin (no patches)
     kolla/                   # Kolla master patches
@@ -124,6 +123,10 @@ assemble-source.sh (clone + patch)
 build-containers.sh starts occystrap proxy (background)
     |
     v
+tools/write-build-manifest build-state <tag>
+    kolla-build-complete:<tag> for this selection -> skip build
+    |
+    v
 imagebuild.sh (kolla-build --push --registry 127.0.0.1:5050)
     images pushed to proxy as they finish building
     |
@@ -187,6 +190,26 @@ docker build FROM kolla-ansible@<digest>
     v
 occystrap process -> kolla-ansible:<tag> (same filters)
 ```
+
+**Build marker** (once the manifest and the debsecan scan pass):
+
+```
+tools/write-build-manifest write <tag> ... (every built image landed?)
+    |
+    v
+docker build FROM scratch + manifest.json
+    + LABEL kolla_build_complete, kolla_build_selection,
+            kolla_build_images
+    |
+    v
+occystrap process -> kolla-build-complete:<tag>
+```
+
+The marker is what the skip check at the start of the next run
+with the same tag reads. It is pushed last, so a build that
+failed part way is never skipped, and it does not depend on the
+deployer image. See
+[docs/building.md](docs/building.md#skipping-a-tag-that-is-already-built).
 
 The digests are read back from the registry rather than taken
 from kolla-build, because the push filters rewrite every

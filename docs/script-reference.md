@@ -116,8 +116,7 @@ PRs and issues with the `DAILY_REBASE_TOKEN` secret.
 
 | Script | Description |
 |--------|-------------|
-| `find_images` | Python CLI tool for finding images in GitLab Container Registry. Searches by tag patterns and lists available images. |
-| `write-build-manifest` | Reads back the registry digest of every image a build pushed and writes `manifest.json`; also reports whether `kolla-ansible:<tag>` already carries one. Run by `build-containers.sh` after the push. See [building.md](building.md#the-build-manifest). |
+| `write-build-manifest` | Reads back the registry digest of every image a build pushed and writes `manifest.json`; also reports whether `kolla-ansible:<tag>` already carries one, and reads the `kolla-build-complete:<tag>` marker that decides whether a build can be skipped. Run by `build-containers.sh`. See [building.md](building.md#the-build-manifest) and [skipping a built tag](building.md#skipping-a-tag-that-is-already-built). |
 | `test-write-build-manifest.py` | Test suite for `write-build-manifest`, against a fake registry, so it needs no network or credentials. Run by pre-commit. |
 
 ### Security Scanning

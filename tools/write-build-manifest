@@ -16,13 +16,31 @@ prefix, which is what our CI does. A prefixed build must pass --image-prefix,
 which is prepended to each name to form both the repository path and the key
 in the manifest.
 
-Two subcommands, both used by _build/build-containers.sh:
+It also reads the marker that says a build finished. Once every image of a
+build has landed (and the deployer carries its manifest), build-containers.sh
+pushes kolla-build-complete:TAG, a one file image whose labels name the images
+the build made and a hash of the image selection it was asked for. A later run
+computing the same tag skips the build only when that marker exists for the
+same selection. The marker does not depend on the deployer image, so builds
+that do not include it can still be skipped.
+
+Subcommands, all used by _build/build-containers.sh:
 
     deployer-state TAG    prints "missing" when kolla-ansible:TAG is not in
                           the registry, "manifested" when it already carries
                           the kolla_build_manifest label, and otherwise the
                           deployer's digest (sha256:...), which is what the
                           thin manifest image is built FROM.
+    build-state TAG --selection HASH
+                          prints "complete" when kolla-build-complete:TAG
+                          exists for that image selection, "stale" when it
+                          exists for another one, and "missing" otherwise.
+                          A registry it cannot ask is an error, never
+                          "missing", so a lookup failure never looks like a
+                          build that needs doing.
+    built-images TAG      prints the image names the marker records, one per
+                          line, for a run that pulls a finished build rather
+                          than building it.
     write TAG OUTPUT --images-file PATH
                           writes manifest.json for TAG to OUTPUT, or fails
                           without writing anything if the image list is
@@ -49,6 +67,10 @@ from urllib3.util.retry import Retry
 FORMAT_VERSION = 1
 DEPLOYER_IMAGE = 'kolla-ansible'
 MANIFEST_LABEL = 'kolla_build_manifest'
+MARKER_IMAGE = 'kolla-build-complete'
+COMPLETE_LABEL = 'kolla_build_complete'
+SELECTION_LABEL = 'kolla_build_selection'
+IMAGES_LABEL = 'kolla_build_images'
 SCHEMA2_MEDIA_TYPE = 'application/vnd.docker.distribution.manifest.v2+json'
 TIMEOUT = 60
 
@@ -172,24 +194,56 @@ class Registry:
         return r.json()
 
 
-def deployer_state(registry, project_path, tag):
-    """Return 'missing', 'manifested', or the digest of an unmanifested kolla-ansible:<tag>.
+def image_labels(registry, repo, tag):
+    """Return (digest, labels) for repo:tag, or (None, None) if it does not exist.
 
-    The label is read from the image's config blob in the registry: two small
-    requests, where a pull would fetch the whole deployer image.
+    The labels are read from the image's config blob in the registry: two
+    small requests, where a pull would fetch the whole image.
     """
-    repo = f'{project_path}/{DEPLOYER_IMAGE}'
     digest, manifest = registry.manifest(repo, tag)
     if digest is None:
-        return 'missing'
+        return None, None
     config_digest = manifest.get('config', {}).get('digest')
     if not config_digest:
         raise ManifestError(f'Manifest {repo}:{tag} names no config blob')
     config = registry.blob_json(repo, config_digest)
-    labels = (config.get('config') or {}).get('Labels') or {}
+    return digest, (config.get('config') or {}).get('Labels') or {}
+
+
+def deployer_state(registry, project_path, tag):
+    """Return 'missing', 'manifested', or the digest of an unmanifested kolla-ansible:<tag>."""
+    digest, labels = image_labels(registry, f'{project_path}/{DEPLOYER_IMAGE}', tag)
+    if digest is None:
+        return 'missing'
     if labels.get(MANIFEST_LABEL) == '1':
         return 'manifested'
     return digest
+
+
+def build_state(registry, project_path, tag, selection):
+    """Return 'complete', 'stale' or 'missing' for the build marker of tag and an image selection.
+
+    A marker for another selection is stale: the tag does not cover which
+    images were asked for, so the same tag can name a build that lacks some.
+    """
+    digest, labels = image_labels(registry, f'{project_path}/{MARKER_IMAGE}', tag)
+    if digest is None:
+        return 'missing'
+    if labels.get(COMPLETE_LABEL) != '1' or labels.get(SELECTION_LABEL) != selection:
+        return 'stale'
+    return 'complete'
+
+
+def built_images(registry, project_path, tag):
+    """Return the image names the build marker for tag records."""
+    repo = f'{project_path}/{MARKER_IMAGE}'
+    digest, labels = image_labels(registry, repo, tag)
+    if digest is None:
+        raise ManifestError(f'{repo}:{tag} is not in the registry')
+    names = [n for n in labels.get(IMAGES_LABEL, '').split(',') if n]
+    if not names:
+        raise ManifestError(f'{repo}:{tag} records no images')
+    return names
 
 
 def read_images_file(path):
@@ -250,7 +304,7 @@ def write_atomically(document, output):
 @click.option('--image-prefix', default='', help='Prefix kolla-build gave its images, prepended to each listed name.')
 @click.pass_context
 def cli(ctx, registry, project, username, image_prefix):
-    """Read back the digests of the images a build pushed."""
+    """Read back what a build pushed to the registry."""
     token = os.environ.get('REGISTRY_TOKEN', '')
     session = make_session()
     ctx.obj = {
@@ -272,6 +326,30 @@ def deployer_state_cmd(ctx, tag):
     """Print missing, manifested, or the digest of kolla-ansible:TAG."""
     try:
         click.echo(deployer_state(ctx.obj['registry'], ctx.obj['project'], tag))
+    except ManifestError as e:
+        _fail(e)
+
+
+@cli.command(name='build-state')
+@click.argument('tag')
+@click.option('--selection', required=True, help='Hash of the image selection this run builds.')
+@click.pass_context
+def build_state_cmd(ctx, tag, selection):
+    """Print complete, stale, or missing for the build marker of TAG."""
+    try:
+        click.echo(build_state(ctx.obj['registry'], ctx.obj['project'], tag, selection))
+    except ManifestError as e:
+        _fail(e)
+
+
+@cli.command(name='built-images')
+@click.argument('tag')
+@click.pass_context
+def built_images_cmd(ctx, tag):
+    """Print the image names the build marker of TAG records, one per line."""
+    try:
+        for name in built_images(ctx.obj['registry'], ctx.obj['project'], tag):
+            click.echo(name)
     except ManifestError as e:
         _fail(e)
 
