@@ -361,6 +361,77 @@ recorded about having used it.
 refuse a record claiming a Kolla-Ansible of 9999.0.0, then pass with
 the override, and restores the record afterwards.
 
+## The build manifest
+
+A deployer image built by `_build/build-containers.sh` carries a
+manifest of every image its build pushed, at
+`/etc/kolla-ansible/manifest.json` (`kolla_image_manifest_path`), and
+Kolla-Ansible pulls those images by digest instead of by tag. The
+rules are in the Kolla-Ansible patches `patch208` (digest references
+in `kolla_container`) and `patch209` (the manifest), and are described
+in Kolla-Ansible's `doc/source/user/operating-kolla.rst`, which is
+the source of truth for this section.
+
+**What it is.** `format_version`, the build `tag`, and `images`, a map
+from each image's repository within `docker_namespace` to its digest.
+The key is kolla-build's name for the image plus any
+`docker_image_name_prefix`, with no registry, so a manifest still
+applies to images mirrored unchanged to another registry. It lists
+every image the build pushed except the deployer itself, which cannot
+name its own digest: 85 on Debian and Ubuntu and 81 on Rocky, about
+8 KiB. Digests are read back from the registry after the push, not
+taken from `kolla-build`, because the push filters rewrite each image.
+
+**Where it lives.** After the push, `build-containers.sh` builds a
+second image on top of the pushed deployer, with the manifest copied
+in and a `kolla_build_manifest` label, and pushes it to
+`kolla-ansible:<tag>`. So the deployer's tag moves, and a
+`launcher pin` taken after the build records the digest of the
+manifest-bearing image. Nothing in the launcher knows about the
+manifest. The build artifact keeps a copy as
+`archive/manifest-<tag>.json`.
+
+**Digest or tag.** Every `<service>_image_full` is resolved by the
+`kolla_image_full` lookup. It gives `<image>@<digest>` when the
+manifest names the image **and** the service's tag is the manifest's
+`tag`, and `<image>:<tag>` otherwise. So a per-service
+`<service>_tag` override is used as written, as is an image outside
+`docker_registry` and `docker_namespace` and an image the manifest
+does not name (such as the versioned RabbitMQ image of a RabbitMQ
+upgrade). Overriding `openstack_tag` alone changes every tag and so
+makes every image fall back to its tag.
+
+**Without a manifest.** A deployer image with no manifest, for
+example one built locally and never pushed, warns once per action,
+"This deployer image has no build manifest at *path*, so images will
+be pulled by tag", and pulls everything by tag. A virtualenv install
+has neither `deployer.json` nor a manifest and says nothing. To pull
+by tag on purpose, set `kolla_image_manifest_path` to a path that
+does not exist.
+
+**It fails closed.** A manifest which cannot be read, or whose
+`format_version` this Kolla-Ansible does not understand, is refused
+by the deployer checks and by the lookup, and
+`--override-deployer-checks` does not change that, because falling
+back to tags is what the manifest exists to prevent. A manifest whose
+`tag` differs from the deployer's is refused too, but that one the
+override turns into a warning.
+
+**Switching recreates every container once.** Moving a deployment
+between tag and digest references changes each container's image
+string, so every container, MariaDB and RabbitMQ included, is
+recreated. Do it during an upgrade. A fresh deployment, as in CI, never
+sees this. A second run of the same deployer recreates nothing, as far
+as CI checks (the `common` and `cron` roles).
+
+`tools/check-deployer-manifest` shows it in CI, on the launcher
+entries: the pinned image has the label and a usable manifest, every
+Kolla container runs `<name>@<digest>` with that digest from the
+manifest, `deploy-containers --tags common,cron` leaves the container
+IDs unchanged, and a nonexistent manifest path produces the warning
+once. It passed on Docker's classic image store (Debian) and its
+containerd store (Rocky).
+
 ## What it refuses
 
 * A `kolla-ansible` distribution in the same environment.
@@ -380,6 +451,6 @@ the override, and restores the record afterwards.
 Each error is one line on stderr, prefixed with the tool name, and
 exit status 1.
 
-The deployer checks above are refusals too, but come from
-Kolla-Ansible, not from the launcher, and are written to the output
-of the run.
+The deployer checks above and the build manifest's refusals are
+refusals too, but come from Kolla-Ansible, not from the launcher, and
+are written to the output of the run.

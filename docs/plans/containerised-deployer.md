@@ -2945,6 +2945,17 @@ it is corrected there, at its source, in this planning commit.
    already write a digest into `<svc>_image_full`, and today it
    fails), so it goes first and does not depend on the manifest.
 
+   *Corrected in 6e.* Built as written (patch208): the docker worker
+   splits a digest reference at the `@` and passes the digest as
+   the tag, and `check_image` also reads `RepoDigests`; the shared
+   `parse_image` is unchanged. A tag given beside a digest is
+   dropped. `get_image_id` needed nothing, because its
+   `images(name=)` filter accepts a digest reference on both image
+   stores. The deployer image installs no docker or podman library
+   at all, so the versions that matter are the target's: the
+   collection installs docker >= 7.0.0 and podman >= 4.7.0 there
+   (7.2.0 and 5.8.0 today), and 6a tested against those.
+
 2. **Every `<svc>_image_full` resolves through one lookup plugin**,
    `"{{ lookup('kolla_image_full', <p>_image, <p>_tag) }}"`, with its
    rules in `kolla_ansible/image_manifest.py` beside patch206's
@@ -2966,6 +2977,19 @@ it is corrected there, at its source, in this planning commit.
    would then silently skip the libvirt version check. A reviewer
    should be able to see what will be pulled by reading the variables.
 
+   *Corrected in 6e.* The lookup reads `docker_registry`,
+   `docker_namespace` and `kolla_image_manifest_path`, not
+   `openstack_tag`: the tag it compares is the one passed to it, the
+   service's own `<p>_tag`. An image outside `docker_registry` and
+   `docker_namespace` is used as written. The rules are in
+   `kolla_ansible/image_manifest.py`, and a new filter plugin,
+   `ansible/filter_plugins/image_manifest.py`, serves the check in
+   `deployer-checks.yml`. The rewrite is **50 files**, not 51, and
+   152 upstream lines (the other 3 of the 155 are patch147's, in
+   Decision 5). One line was folded with `>-` to stay inside
+   ansible-lint's 160 columns. tox's `ANSIBLE_LOOKUP_PLUGINS` and the
+   zuul all-in-one regex also had to learn about the plugin.
+
 3. **The manifest is `/etc/kolla-ansible/manifest.json`**, beside
    `deployer.json`, read through a new `kolla_image_manifest_path` in
    `group_vars/all/common.yml`:
@@ -2976,11 +3000,31 @@ it is corrected there, at its source, in this planning commit.
    mirrored verbatim. A name missing from the manifest falls back to
    its tag, which covers the computed `rabbitmq-<version>` names.
 
+   *Corrected in 6e.* The keys are the image's repository **within
+   `docker_namespace`**: kolla-build's name plus any
+   `docker_image_name_prefix`, derived as `image[len(base):]` with
+   `base = registry/ + namespace/`. That is the property that lets a
+   mirror keep a manifest valid. A real manifest has 85 entries on
+   Debian and Ubuntu and 81 on Rocky and is 8 KiB (see the Outcome).
+   A manifest which is malformed, or whose `format_version` is
+   unknown, **fails closed**: the lookup raises an `AnsibleError`,
+   and `deployer-checks.yml` refuses up front. Neither is bypassed by
+   `--override-deployer-checks`, because a tag fallback is what the
+   manifest exists to prevent; `kolla_image_manifest_path` pointing
+   at a file that does not exist is the way to ask for tags.
+
 4. **Warn once when a deployer image has no manifest**, in
    `ansible/deployer-checks.yml` (patch206's play, already run once
    per action): when `deployer.json` exists and the manifest does
    not. A venv, which has neither, stays silent, as in Phase 5. The
    lookup itself never warns, or every image on every host would.
+
+   *Corrected in 6e.* The play also refuses a manifest whose tag
+   differs from `deployer.json`'s, a mismatch `--override-deployer-checks`
+   turns into a warning like the other mismatches, and the
+   malformed-manifest refusal of Decision 3. The warning reads "This
+   deployer image has no build manifest at *path*, so images will be
+   pulled by tag".
 
 5. **patch147's three kerbside lines are converted by a small
    downstream patch** listed after both in `kolla-ansible/ORDER` only.
@@ -2991,6 +3035,12 @@ it is corrected there, at its source, in this planning commit.
    whichever name it holds. But that line's hunk has patch147's line
    as context, so the upstream patch will not apply to pristine
    Kolla-Ansible there; Phase 8 rebases it, as it does patch199.
+
+   *Corrected in 6e.* Confirmed by 6b: exactly one hunk of patch209
+   (`nova-cell`'s defaults, near line 300) has patch147's
+   `nova_libvirt_image` line as context; every other rewrite applies
+   to pristine upstream. patch210 is the downstream patch, after
+   patch209 in the main `ORDER` only.
 
 6. **The manifest is a second image, built after the proxy drains.**
    A new `tools/write-build-manifest` (Python, in the tools venv)
@@ -3014,6 +3064,21 @@ it is corrected there, at its source, in this planning commit.
    is whatever the registry held when it was read, and both builds had
    identical inputs.
 
+   *Corrected in 6e.* **There is no GitLab API in it.** The first
+   CI run (38227709502, on `6bbfcb8a1`) failed in "Images for master
+   on debian trixie": `write-build-manifest` could not read the
+   GitLab project (HTTP 503 after its retries), and in the same job
+   `tools/find_images` printed "GitLab authentication failed". The
+   CI registry token works against the registry but cannot be relied
+   on for the REST API. `4efc3dcc2` lists the images from
+   kolla-build's own `archive/images` instead, and keeps the
+   registry `HEAD` for each digest. `write-build-manifest` also gained
+   `--image-prefix`. Only the listing changed: the digests are still
+   read from the registry, which is what Open question 4 requires.
+   The consequence is that `find_images` has never been able to
+   authenticate in CI, so the "skip the build if the images exist"
+   path never fires; see Future work.
+
 7. **CI proves it on the launcher entries** with a new
    `tools/check-deployer-manifest`, run on the target after
    `check-deployer-guards`:
@@ -3030,6 +3095,13 @@ it is corrected there, at its source, in this planning commit.
      prints the missing-manifest warning once.
    The venv entries are the "without it" half: their containers keep
    tag references, through the same patched lookup.
+
+   *Corrected in 6e.* Check 3 runs `deploy-containers --tags
+   common,cron`, not `--tags common`: `common` alone re-checks only
+   `kolla_toolbox`, and `cron` is the other container of that role
+   family. The ID comparison covers all 36 containers, but only those
+   two roles are re-checked, so a recreate elsewhere would not be
+   caught by it.
 
 #### Risks
 
@@ -3049,9 +3121,15 @@ it is corrected there, at its source, in this planning commit.
   Our build hosts turn it off; deploy targets use the collection's
   default. Step 6a checks which store the CI targets run, and the
   Outcome records it.
+
+  *Corrected in 6e.* 6a could not check, because it ran before any CI;
+  the clingwrap bundles do record it, and the Outcome has the answer:
+  the Debian target uses the classic `overlay2` store and the Rocky
+  target the containerd store (`overlayfs`), so both were exercised.
 * **The lookup's cost.** 155 variables are templated many times per
   task. The cache in Decision 2 keeps that to a `stat`; the Outcome
-  compares deploy durations with Phase 5's.
+  compares deploy durations with Phase 5's. *Corrected in 6e:* no
+  cost is measurable (Outcome).
 * **The deployer's tag moves.** Between the mid-run push and the
   manifest image, `kolla-ansible:<tag>` has no manifest. Nothing
   consumes it in that window in CI. An operator who resolved the tag
@@ -3066,7 +3144,8 @@ it is corrected there, at its source, in this planning commit.
   deployer skips it.
 * **docker-py and podman-py versions in the image** may differ from
   the 7.2.0 and 5.8.0 checked here. Step 6a reads the versions the
-  deployer image installs and tests against those.
+  deployer image installs and tests against those. *Corrected in
+  6e:* the image installs neither library; see Decision 1.
 
 | Step | Effort | Model | Isolation | Brief for sub-agent |
 |------|--------|-------|-----------|---------------------|
@@ -3086,17 +3165,246 @@ schema as the rules read it, the exact warning text, and the rewrite
 script's before-and-after counts. Fifty-one files are cheap to propose
 and expensive to redo.
 
-Exit:
-* On both launcher entries, every running Kolla container's image is a
-  digest reference matching the manifest, and a second run recreates
-  no container (`tools/check-deployer-manifest`).
-* The venv entries are green with tag references, running the same
-  patched Kolla-Ansible.
-* A deployer image without a manifest warns once and falls back to
-  tags.
-* `kolla-ansible:<tag>` in the registry carries the
-  `kolla_build_manifest` label, and its manifest lists every image the
-  build pushed except the deployer.
+Exit (status as of CI run 38237936810 on `4efc3dcc2`, attempt 1; the
+earlier run 38227709502 on `6bbfcb8a1` failed, see the Outcome):
+* Met with a qualification. On both launcher entries (jobs
+  114827495594, Debian 13, and 114827495719, Rocky 10),
+  `tools/check-deployer-manifest` passed all four checks: all 36
+  Kolla containers run `<name>@<digest>` matching the manifest, and
+  `deploy-containers --tags common,cron` left all 36 container IDs
+  unchanged. The qualification is the one in Decision 7: only
+  `kolla_toolbox` and `cron` were re-checked, so "a second run
+  recreates no container" is shown for those two and not for the
+  other 34. Both image stores were covered (Debian `overlay2`, Rocky
+  containerd).
+* Met. All six venv entries are green (Debian 13, Rocky 10 with
+  Debian images, Rocky-on-Rocky, Ubuntu 24.04, no-kerbside, and
+  multinode), with no digest reference and 937 (2106 on multinode)
+  tag-reference lines in each log, and no manifest warning. The
+  Debian 13 entry passed on a rerun (attempt 2, job 114943204196)
+  after attempt 1 failed in "Setup test environment" (see the
+  Outcome).
+* Met. Check 4 passed on both launcher entries: with
+  `kolla_image_manifest_path=/nonexistent`, `gather-facts` succeeded
+  and printed the warning exactly once. The script prints only its
+  verdict, so the log does not show the text (as with the guards).
+  No other entry printed it.
+* Met with a qualification. The image jobs' post-push check printed
+  "now carries the build manifest" for all three distributions, and
+  check 1 found the label and a usable manifest on the image each
+  launcher host had pinned. The manifest names 85 images (Debian and
+  Ubuntu) and 81 (Rocky), which is the 86 and 82 the survey counted
+  as pushed, less the deployer. The qualification is that the list
+  comes from kolla-build's own `archive/images` (Decision 6,
+  corrected), so an image that was pushed but missing from that file
+  would not be noticed. The registry was not enumerated
+  independently, because the GitLab API is not usable in CI.
+
+#### Outcome
+
+Written after CI run 38237936810 (pull request #1881, head
+`4efc3dcc2`, attempt 1). Fourteen of its fifteen jobs passed at
+attempt 1; the fifteenth was infrastructure (below) and passed on a
+rerun. An earlier run, 38227709502 on
+`6bbfcb8a1`, is used only for the first deviation.
+
+*History.*
+* `9f66f2cfa` closed out Phase 5 and `fe3a6d545` planned this phase.
+  6a (`bcd75a230`, patch208) fixed digest references in the docker
+  worker. 6b (`69b16aa8a`, patch209; `14fa90194`, patch210) added the
+  lookup, the manifest rules and the warning, and converted the
+  kerbside lines. 6c (`cc620fe35`) builds the manifest image; it was
+  done in a side worktree in parallel with 6a and cherry-picked. 6d
+  (`6bbfcb8a1`) added `tools/check-deployer-manifest`, and
+  `4efc3dcc2` fixed the CI failure below.
+* **The first CI run failed in 6c.** "Images for master on debian
+  trixie" failed because `write-build-manifest` could not read the
+  GitLab project (HTTP 503 after its retries), and in the same job
+  `tools/find_images` printed "GitLab authentication failed". The
+  registry token cannot be relied on for the GitLab REST API.
+  `4efc3dcc2` lists images from `archive/images` instead (Decision 6
+  is corrected). Every image job in the second run still prints
+  "GitLab authentication failed" once, from `find_images`, which means
+  the "skip the build if the images exist" path has never fired in CI
+  and every run rebuilds. That is pre-existing and not fixed here
+  (Future work).
+* **The one red job in the second run is not this change.** "master
+  debian 13 images on debian 13 all-in-one using debian containers"
+  (114827495789, the Debian venv control) failed in "Setup test
+  environment": the test cloud left the instance in `preflight` until
+  the 596s timeout. Its rerun (attempt 2, job 114943204196) passed,
+  with 937 tag references, no digest reference and no warning; its
+  deploy step took 37m01s against Phase 5's 33m15s. The timings below
+  were taken before the rerun and leave it out.
+* The 6b back brief changed Decisions 2 to 4 (corrected in place):
+  the lookup's inputs, the manifest keys, failing closed on a bad
+  manifest, a tag-mismatch refusal, the filter plugin, and the tox
+  and zuul changes. 152 upstream lines were rewritten in 50 files.
+
+*The manifest.* `archive/manifest-<tag>.json` in each build artifact:
+
+| Distribution | Tag | Images | Size |
+|--------------|-----|--------|------|
+| Debian trixie | `master-debian-trixie-edb991f6` | 85 | 8415 B |
+| Ubuntu noble | `master-ubuntu-noble-edb991f6` | 85 | 8414 B |
+| Rocky 10 | `master-rocky-10-edb991f6` | 81 | 8033 B |
+
+All have `format_version` 1 and none lists `kolla-ansible` (the
+deployer cannot name its own digest). A sample from the Debian
+manifest:
+
+```
+{
+  "format_version": 1,
+  "images": {
+    "base": "sha256:795c9ea322b36c5590c02116719bac9e92ba5a80b31f9ce64e1a1ad8c6e462be",
+    "cron": "sha256:55a249fd7833e10c13fa84515a8a3e633bd5b6060cbc1f1761fcba81f89617f9",
+    "kerbside-api": "sha256:3280fa53f1c7dab4848c943eb16b7245ecdd1634279fde01c02e563feb0e04fc",
+    "kolla-toolbox": "sha256:2c61ac9a5b7287bb6a2354b9bb48a1d30a05cf89446008e66f08b0fdd0d8beb3",
+    "nova-api": "sha256:95e204d02a4a49b98c293113e5c2778903f242636d4a826c0662b745394bbf8b",
+    ...
+  },
+  "tag": "master-debian-trixie-edb991f6"
+}
+```
+
+It holds the `-base` images, `grafana` and the like that are never
+deployed, and both `nova-libvirt` and `nova-libvirt-spice`. It has no
+`ironic-neutron-agent`, which is not built, so that disabled service
+keeps a tag reference on the launcher hosts (five `skipping` log lines
+name it); that is the designed fallback for a name the manifest lacks.
+
+*The build step.* "Build manifest for <tag>" in
+`_build/build-containers.sh`, section header to "now carries the build
+manifest", from the log timestamps:
+
+| Job | Duration | Digest reads | Images | Docker build | occystrap push |
+|-----|----------|--------------|--------|--------------|----------------|
+| Debian trixie | 56s | 6s | 85 | about 20s | 29.1s |
+| Rocky 10 | 53s | 6s | 81 | about 20s | 27.0s |
+| Ubuntu noble | 69s | 6s | 85 | about 25s | 37.6s |
+
+The Debian job's "Build container images" step took 22m43s, so the
+step is about 4% of it. The push moved no layer bytes ("Summary: 0
+layers, 0 B ... verified OK"), because the layer cache already held
+all of them; the time is the fetch from the daemon, the filters and the
+manifest `PUT`. The first line of the section says
+`kolla-ansible:<tag> is sha256:404980f..., without a manifest`, and the
+last says the tag "now carries the build manifest". The two digests
+differ, as Open question 4 predicted: the deployer's tag moves. The
+launcher hosts pinned `kolla-ansible@sha256:941aa0e0...`, the
+manifest-bearing image, with no launcher change, so bootstrap ran
+after the move.
+
+*The checks, on each launcher host.* Identical on both apart from
+timing:
+
+```
+Check 1: the pinned deployer image carries the build manifest
+  /etc/kolla/deployer.conf pins '.../kolla-ansible@sha256:941aa0e0...' (docker)
+PASS: ... has the kolla_build_manifest label
+  manifest tag master-debian-trixie-edb991f6 lists 85 images
+PASS: ... has a usable /etc/kolla-ansible/manifest.json
+Check 2: every Kolla container runs by digest from the manifest
+  36 Kolla containers checked, 0 wrong
+PASS: every Kolla container runs <name>@<digest> matching the manifest
+Check 3: deploy-containers recreates nothing
+PASS: deploy-containers --tags common,cron left all 36 container IDs unchanged
+Check 4: a missing manifest warns once
+PASS: gather-facts succeeded and warned about the missing manifest once
+OK: the build manifest pins every image.
+```
+
+The script took 11s on Debian and 17s on Rocky. Check 3 itself took 7s
+and 11s. The lookup therefore works end to end: 36 containers, none of
+them wrong, on both hosts.
+
+*The containerd image store question.* Answered by the clingwrap
+bundles (`_commands/docker-info`), not by the job logs, which record
+nothing about the store (the collection's "Determine if Docker uses
+containerd image store" task runs but its result is not printed).
+Both targets ran Docker 29.9.0:
+
+| Host | `Storage Driver` | Store |
+|------|------------------|-------|
+| Debian 13 | `overlay2` | classic |
+| Rocky 10 | `overlayfs`, `driver-type: io.containerd.snapshotter.v1` | containerd |
+
+So Check 2 and Check 3 passed on both stores. 6a found that on the
+containerd store the old `check_image` matched by accident, and that
+the recreate-every-run bug is real on the classic store, which is the
+Debian host here.
+
+*The venv entries.* Five entries run the patched Kolla-Ansible with no
+deployer image: Rocky 10 with Debian images (114827495724),
+Rocky-on-Rocky (114827495672), Ubuntu 24.04 (114827495812),
+no-kerbside (114827495430) and multinode (114827495725). Each log
+has 937 lines naming `kolla-images/<name>:master-...` (2106 on
+multinode), none naming `kolla-images/<name>@sha256`, no "has no
+build manifest" warning, and nine "Warn about the deployer's build
+manifest" tasks per run that all report `skipping`. The launcher
+entry for comparison has 906 `@sha256` lines and 11 tag lines (the
+disabled `ironic-neutron-agent`, and `bootstrap-kolla-ansible`'s own
+`pin` of the `kolla-ansible` tag, which resolves it to a digest).
+
+*Durations.* The "Deploy Kolla-Ansible" step, against Phase 5's table.
+
+| Host | Entry | Job | Phase 6 | Phase 5 |
+|------|-------|-----|---------|---------|
+| debian 13 | launcher | 114827495594 | 25m10s | 24m06s |
+| debian 13 | control | 114827495789 | failed (infra) | 33m15s |
+| rocky 10 | launcher | 114827495719 | 36m26s | 36m39s |
+| rocky 10 | control | 114827495724 | 36m36s | 27m11s |
+
+Per action, in seconds (Phase 5 in brackets):
+
+| Action | deb launcher | rocky launcher | rocky control |
+|--------|--------------|----------------|---------------|
+| Bootstrap | 92 (84) | 156 (156) | 660 (133) |
+| Pre-checks | 52 (50) | 59 (63) | 52 (46) |
+| Pull | 116 (102) | 121 (121) | 101 (91) |
+| Deploy | 644 (618) | 975 (975) | 764 (750) |
+| Validate config | 129 (125) | 186 (184) | 129 (125) |
+| Reconfigure | 405 (401) | 594 (602) | 428 (419) |
+
+The lookup's cost is not measurable. Deploy, the action that templates
+the most, is within 4% of Phase 5 on the Debian launcher and equal on
+the Rocky launcher, and the venv control moved by the same couple of
+percent. The one outlier is the Rocky control's bootstrap, 660s
+against 133s, which is a venv install; the lookup does not run in
+bootstrap. As in Phases 3 to 5 the whole-step differences (Rocky
+control 9m slower than Phase 5, Debian launcher 1m slower) are different
+runners at different times, so I would not read anything into them. No
+Debian venv control is available in this run for a same-run
+comparison; the other Debian venv entries (no-kerbside 36m09s,
+Ubuntu 35m05s) are different configurations and only indicative. The
+unpack lines were `with docker ... in 3.9s, 1172 MiB` and `with podman
+... in 7.3s, 1172 MiB`, against Phase 5's 3.3s and 5.9s at 1170 MiB.
+
+*Anything that behaved differently from this section.*
+* The listing comes from `archive/images`, not the GitLab API
+  (Decision 6).
+* The manifest's keys, the lookup's inputs, failing closed and the
+  tag-mismatch refusal (Decisions 2 to 4).
+* Check 3 uses `--tags common,cron` (Decision 7).
+* `_build/test-apply.sh` can report "All patches applied correctly"
+  while applying and testing nothing, if the worktree's
+  `src/kolla-ansible` has a stale `master-patches` branch checked out.
+  6b ran its tests in a fresh clone because of this.
+* 6a found the deployer image installs no docker or podman library.
+* The containerd store is on the Rocky target and not the Debian one.
+
+*Not exercised by CI.* The "label already present, do nothing" path
+of the build step (every tag here was new). The skip for a local
+build and for a run that did not push `kolla-ansible`. The failure on
+an unreadable digest. A concurrent push of one tag. kerbside's
+downstream CI, which runs the same script. Switching a running
+deployment from tags to digests, so the one-time recreate in the
+release note is not demonstrated: CI deploys fresh. A manifest with a
+mismatched tag or an unknown `format_version` through Ansible (they
+are unit-tested in patch209). Digest references on podman as the
+*target* engine: the Rocky launcher unpacked the image with podman,
+but its targets' containers ran under Docker.
 
 ### Phase 7: Make the prototype entry voting
 
@@ -3122,6 +3430,13 @@ Phase 1's patch199 does not apply to pristine Kolla. Its
 context. Before a push, rebase it onto the upstream `source_sha`
 alone, and check its `zuul.d/base.yaml` `override-checkout: master`
 for the collection, which has to change when Kolla branches.
+
+Phase 6's patch209 has one hunk (`nova-cell`'s defaults, near line
+300) whose context includes patch147's `nova_libvirt_image` line, so
+it does not apply to pristine upstream either; every other hunk does.
+Rebase that hunk the same way. patch208 and the upstream parts of
+patch209 are otherwise upstream-ready, and the upstream half of the
+manifest, a change to Kolla's Zuul publish jobs, is drafted here.
 
 Raise these `community.docker.nsenter` problems found in Phase 3:
 the plugin assumes `remote_user` is root, and it leaks the caller's
@@ -3232,6 +3547,22 @@ We will know this plan has succeeded when the following are true:
 * `tools/check-deployer-guards` prints only `PASS:` lines, so a job
   log never shows a refusal's text. Printing the matched message on
   success is a one-line change if the proposal wants it quoted.
+  `tools/check-deployer-manifest` is the same for the missing-manifest
+  warning.
+* **`tools/find_images` cannot authenticate in CI** (Phase 6's
+  Outcome). Every "Images for ..." job prints "GitLab authentication
+  failed" once, so the `--dont-fetch-images` path that skips a build
+  when its images already exist never fires, and every run rebuilds.
+  Pre-existing, found when 6c's first CI run hit the same wall; the
+  build manifest no longer depends on it. Filed as #1885, to be fixed
+  in its own pull request.
+* **A stale `master-patches` branch in a worktree's `src/kolla-ansible`
+  makes `_build/test-apply.sh` report "All patches applied correctly"
+  while applying and testing nothing.** Phase 6b ran its tests in a
+  fresh clone. The script should refuse, or reset the branch.
+* `_build/build-containers.sh:16` echoes the registry token in its
+  banner. GitHub Actions masks it, so nothing leaks in CI; a local run
+  prints it. Pre-existing.
 
 ### Bugs fixed during this work
 
