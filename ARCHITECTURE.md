@@ -43,6 +43,7 @@ kerbside-patches/
     tools/                   # Utility scripts
         summarize_layers.py  # Layer data analysis
         find_images           # GitLab registry image finder
+        write-build-manifest  # Image digests for the deployer
         gerrit-pre-push-lint  # Gerrit pre-push linter
     ansible-collection-kolla/ # Kolla collection pin (no patches)
     kolla/                   # Kolla master patches
@@ -166,6 +167,33 @@ build-containers.sh pushes each image via occystrap process:
     inspect (post-exclude)
         -> registry push
 ```
+
+**Build manifest** (both modes, once every push has landed):
+
+```
+tools/write-build-manifest deployer-state <tag>
+    kolla-ansible:<tag> missing or already labelled -> stop
+    |
+    v
+tools/write-build-manifest write <tag> manifest.json
+    GitLab API: repositories carrying <tag>
+    registry: HEAD /v2/<repo>/manifests/<tag> -> digest
+    |
+    v
+docker build FROM kolla-ansible@<digest>
+    + /etc/kolla-ansible/manifest.json
+    + LABEL kolla_build_manifest="1"
+    |
+    v
+occystrap process -> kolla-ansible:<tag> (same filters)
+```
+
+The digests are read back from the registry rather than taken
+from kolla-build, because the push filters rewrite every
+image. The manifest image takes the deployer's tag, so a
+deployer pinned by tag or digest pins every image of its build
+(Phase 6 of
+[docs/plans/containerised-deployer.md](docs/plans/containerised-deployer.md)).
 
 ### Layer Data Collection
 

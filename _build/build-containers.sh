@@ -304,6 +304,129 @@ if [ "${proxy_running}" == "true" ]; then
     fi
 fi
 
+##############################################################################
+# Build manifest                                                             #
+##############################################################################
+
+# Phase 6 of docs/plans/containerised-deployer.md. Once every image of a
+# build has landed in the registry, read each one's digest back into a
+# manifest.json, and push that as a thin layer on top of the deployer under
+# the deployer's own tag. This has to wait for the proxy to drain: the digest
+# kolla-build saw is not the one the proxy's filters wrote to the registry.
+
+manifest_label="kolla_build_manifest"
+
+# Run tools/write-build-manifest with this build's registry settings. The
+# token goes in the environment, not on the command line, and is never
+# printed.
+manifest_tool() {
+    REGISTRY_TOKEN="${registry_token}" /srv/kerbside/venv-tools/bin/python3 \
+        "${topdir}/tools/write-build-manifest" \
+        --gitlab-url "${ci_gitlab}" \
+        --registry "${ci_registry}" \
+        --project "${registry_project}" \
+        --username "${registry_username}" \
+        "$@"
+}
+
+# Build and push the manifest image for one complete image tag. Do not call
+# this from a condition (if, ||, &&): errexit is what makes a failure here
+# fail the build.
+write_build_manifest() {
+    local tag="${1}"
+    local deployer_repo="${ci_registry}/${registry_project}/kolla-ansible"
+    local workdir="${topdir}/archive/build-manifest-${tag}"
+    local local_image="kolla-build-manifest/kolla-ansible:${tag}"
+    local state
+
+    echo
+    echo -e "${H2}Build manifest for ${tag}${Color_Off}"
+
+    # Prints "missing", "manifested", or the digest of kolla-ansible:<tag>
+    # as it is now, before the manifest layer.
+    state=$(manifest_tool deployer-state "${tag}")
+    case "${state}" in
+        missing)
+            echo -e "${H3}kolla-ansible:${tag} is not in the registry, so this build has no deployer to carry a manifest. Skipping.${Color_Off}"
+            return 0
+            ;;
+        manifested)
+            echo -e "${H3}kolla-ansible:${tag} already carries a manifest. Nothing to do.${Color_Off}"
+            return 0
+            ;;
+        sha256:*)
+            echo -e "${H3}kolla-ansible:${tag} is ${state}, without a manifest${Color_Off}"
+            ;;
+        *)
+            echo "Unexpected deployer state '${state}' for kolla-ansible:${tag}."
+            exit 1
+            ;;
+    esac
+
+    rm -rf "${workdir}"
+    mkdir -p "${workdir}"
+    rm -f "${topdir}/archive/manifest-${tag}.json"
+
+    echo -e "${H3}Reading image digests from ${ci_registry}${Color_Off}"
+    manifest_tool write "${tag}" "${workdir}/manifest.json"
+    cp "${workdir}/manifest.json" "${topdir}/archive/manifest-${tag}.json"
+
+    cat > "${workdir}/Dockerfile" <<EOF
+FROM ${deployer_repo}@${state}
+COPY manifest.json /etc/kolla-ansible/manifest.json
+LABEL ${manifest_label}="1"
+EOF
+
+    echo -e "${H3}Building ${local_image} from ${deployer_repo}@${state}${Color_Off}"
+    docker build --provenance=false -t "${local_image}" "${workdir}"
+
+    if [ ! -x /tmp/occystrap/bin/occystrap ]; then
+        echo -e "${H3}Install occystrap for registry push${Color_Off}"
+        python3 -mvenv /tmp/occystrap
+        /tmp/occystrap/bin/pip3 install occystrap
+    fi
+
+    # The same push, and the same transforming filters, as the sequential
+    # fallback above. The inspect filters are left out: they record layer
+    # data for kolla-build's images, which is already packaged by now.
+    echo -e "    ${local_image} ${Arrow} occystrap ${Arrow} ${deployer_repo}:${tag}"
+    http_proxy='' HTTP_PROXY='' https_proxy='' HTTPS_PROXY='' all_proxy='' ALL_PROXY='' /tmp/occystrap/bin/occystrap \
+        --parallel 8 \
+        --compression zstd \
+        --username "${registry_username}" \
+        --password "${registry_token}" \
+        --layer-cache "${topdir}/archive/occystrap-layer-cache.json" \
+        process \
+        "dockerpush://${local_image}" \
+        "registry://${deployer_repo}:${tag}" \
+        -f normalize-timestamps \
+        -f "exclude:pattern=**/.git"
+
+    # Keep the debsecan scan below, which lists local images by tag, off
+    # this image: it is the deployer again, plus one JSON file.
+    docker image rm "${local_image}"
+
+    # Prove the label survived the push.
+    state=$(manifest_tool deployer-state "${tag}")
+    if [ "${state}" != "manifested" ]; then
+        echo "kolla-ansible:${tag} has no ${manifest_label} label after the push (state '${state}')."
+        exit 1
+    fi
+    echo -e "${H3}kolla-ansible:${tag} now carries the build manifest${Color_Off}"
+}
+
+if [ "${use_ci_registry}" != "true" ]; then
+    echo
+    echo -e "${H2}No CI registry in use, so no build manifest${Color_Off}"
+elif [ -z "${registry_token}" ]; then
+    echo
+    echo -e "${H2}No registry credentials, so no build manifest${Color_Off}"
+else
+    for target in ${build_targets}; do
+        write_build_manifest "${target}-${distro}-${distro_version}-${image_tag}"
+    done
+fi
+
 # Run debsecan vulnerability scan on the built images. This extracts the
 # dpkg database from each image and scans it externally, so the pushed
 # images are never modified.

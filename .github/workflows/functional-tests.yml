@@ -350,6 +350,11 @@ jobs:
           if [ -d kerbside-patches/archive/debsecan ]; then
               cp -r kerbside-patches/archive/debsecan ${archive_path}/
           fi
+          for manifest in kerbside-patches/archive/manifest-*.json; do
+              if [ -e "${manifest}" ]; then
+                  cp "${manifest}" ${archive_path}/
+              fi
+          done
 
           # System details for debugging
           docker info > ${archive_path}/docker-info.txt
