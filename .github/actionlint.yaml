@@ -10,6 +10,8 @@ self-hosted-runner:
     - xl
     - m
     - s
+    - s-cloud
+    - s-cluster
     - claude-code
     - static
 
