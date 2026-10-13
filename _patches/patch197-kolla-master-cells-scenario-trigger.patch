@@ -1,6 +1,6 @@
-commit b79756830e77fb1e422b94be8d5180495b1f9bc5
+commit 5e7c7916c2539cd9efd0b04a0fd4629f9552666b
 Author: Michael Still <mikal@stillhq.com>
-Date:   Tue Oct 6 16:55:04 2026 +1100
+Date:   Tue Oct 13 18:33:51 2026 +1100
 
     CI: fix the cells scenario file trigger.
     

@@ -1,6 +1,6 @@
-commit f365d24dc9b4a67850b50abf2842db7d043ab53c
+commit 38e1481575ab65d5eac30cdad3bf18ebad177df0
 Author: Michael Still <mikal@stillhq.com>
-Date:   Tue Oct 6 17:00:25 2026 +1100
+Date:   Tue Oct 13 18:39:02 2026 +1100
 
     Wait for fluentd to tail late log files.
     
