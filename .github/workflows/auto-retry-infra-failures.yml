@@ -80,6 +80,14 @@ jobs:
             # a bare "internal error" is a plausible thing for a test under
             # test to print. This one only ever appears as an annotation.
             "GitHub Actions has encountered an internal error"
+            # The Shaken Fist cluster could not place a test cloud's
+            # instance, either refusing the create outright (a 507 which
+            # sfcbr itself marks "transient": true) or leaving it queued in
+            # preflight until the wait timed out. Seen 2026-10-12 on runs
+            # 38177402085 and 38237936810, both failing in "Setup test
+            # environment" before any change under test had run.
+            "No nodes remaining at scheduling stage"
+            "second timeout (last state: preflight)"
           )
 
           # Get PR number if this was a PR-triggered run
