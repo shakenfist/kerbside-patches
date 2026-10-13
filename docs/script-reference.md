@@ -118,6 +118,8 @@ PRs and issues with the `DAILY_REBASE_TOKEN` secret.
 |--------|-------------|
 | `write-build-manifest` | Reads back the registry digest of every image a build pushed and writes `manifest.json`; also reports whether `kolla-ansible:<tag>` already carries one, and reads the `kolla-build-complete:<tag>` marker that decides whether a build can be skipped. Run by `build-containers.sh`. See [building.md](building.md#the-build-manifest) and [skipping a built tag](building.md#skipping-a-tag-that-is-already-built). |
 | `test-write-build-manifest.py` | Test suite for `write-build-manifest`, against a fake registry, so it needs no network or credentials. Run by pre-commit. |
+| `measure-deployer-bootstrap` | Measures bootstrap from the "Build test clouds" job logs, through the `gh` CLI. `timings --since DATE` pairs each containerised-deployer entry with its venv control in the same run and attempt and prints median and range of the "Deploy Kolla-Ansible" step, its nine composite sub-steps (bootstrap, prechecks, pull, deploy, ...), the sections of `bootstrap-kolla-ansible`, the deployer image pull and unpack, so the time the launcher saves in bootstrap can be followed to where it is spent. `galaxy-failures --since DATE` counts venv jobs whose bootstrap failed fetching Ansible collections, and separately those that recovered by retrying. `record --since D --until D` applies the rules for the launcher entries to become voting (every launcher job in the window passes or fails for a reason that is not the launcher's; at least 5 passing jobs and 2 daily rebases per entry) and prints MET or NOT MET, exiting 1 when not met. `timings --logs-dir DIR` reads already downloaded job logs instead of GitHub; `--cache-dir` keeps downloaded zips. Durations are noisy. See [containerised-deployer.md](plans/containerised-deployer.md) Phase 7. |
+| `test-measure-deployer-bootstrap.py` | Test suite for `measure-deployer-bootstrap`, on logs built in memory and a fake `gh`, so it needs no network. Run by pre-commit. |
 
 ### Security Scanning
 
@@ -146,8 +148,8 @@ The configured hooks include:
 | `shellcheck` | Static analysis tool for shell scripts. Checks scripts in `_build/` and `tools/` directories for common issues. Configuration is in `.shellcheckrc`. |
 | `recount-patch` | Checks that every `@@` hunk header in `_patches/` matches its body. A too-large count makes git reject the patch; a too-small one makes git silently truncate the hunk and apply the wrong content. |
 | `check-depends-on` | Runs the offline half of `check-depends-on.py`: every `Depends-On` value is a review.opendev.org change URL, and a committed `<patch>-message` still matches the message in its patch. The Gerrit-backed checks (does the change exist, is it abandoned) need the network, so they run in `test-apply.sh` instead. |
-| `flake8` | Lints the Python under `deployer/` and `tools/write-build-manifest`. |
-| `deployer-launcher-tests`, `write-build-manifest-tests` | Run the unit tests of the deployer launcher and of `write-build-manifest`. |
+| `flake8` | Lints the Python under `deployer/`, `tools/write-build-manifest` and `tools/measure-deployer-bootstrap`. |
+| `deployer-launcher-tests`, `write-build-manifest-tests`, `measure-deployer-bootstrap-tests` | Run the unit tests of the deployer launcher, of `write-build-manifest` and of `measure-deployer-bootstrap`. |
 | `skillsaw` | Lints the agent context in this repository -- `AGENTS.md` and the skills under `.claude/` -- for malformed skills, smuggled unicode and pasted credentials. The pin is kept current by renovate's pre-commit manager. |
 
 ### Git Hooks and Utilities
