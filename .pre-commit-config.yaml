@@ -16,7 +16,7 @@ repos:
         name: shellcheck (extensionless scripts)
         files: ^(_build/|tools/|upstream/)[^/.]+$
         types: [text]
-        exclude: '(find_images|spice-connect\.py|extract-commit-message|summarize_layers\.py|analyze-shared-patches\.py|analyze-gerrit-new-roles|analyze-gerrit-patch-size|analyze-gerrit-review-times|gerrit-pre-push-lint)$'
+        exclude: '(find_images|spice-connect\.py|extract-commit-message|summarize_layers\.py|analyze-shared-patches\.py|analyze-gerrit-new-roles|analyze-gerrit-patch-size|analyze-gerrit-review-times|gerrit-pre-push-lint|write-build-manifest)$'
         args: ['-x']
 
   # skillsaw lints the agent context in this repository -- AGENTS.md
@@ -58,14 +58,15 @@ repos:
         language: system
         files: ^_patches/.*\.patch(-message)?$
 
-  # The launcher under deployer/ is Python, and the only Python this
-  # repository lints. It is also unit tested here: the tests need no
-  # container engine.
+  # The launcher under deployer/ and tools/write-build-manifest are the
+  # Python this repository lints. Both are also unit tested here: the
+  # launcher's tests need no container engine, and the manifest tool's
+  # need no registry.
   - repo: https://github.com/pycqa/flake8
     rev: 7.4.1
     hooks:
       - id: flake8
-        files: ^deployer/
+        files: ^(deployer/|tools/(write-build-manifest|test-write-build-manifest\.py)$)
         args: ['--max-line-length=120']
 
   - repo: local
@@ -76,3 +77,15 @@ repos:
         language: system
         pass_filenames: false
         files: ^deployer/
+
+  # The manifest tool imports requests and click, which the system Python
+  # of a pre-commit runner need not have, so this hook gets its own venv.
+  - repo: local
+    hooks:
+      - id: write-build-manifest-tests
+        name: write-build-manifest unit tests
+        entry: python tools/test-write-build-manifest.py
+        language: python
+        additional_dependencies: ['click', 'requests']
+        pass_filenames: false
+        files: ^tools/(write-build-manifest|test-write-build-manifest\.py)$

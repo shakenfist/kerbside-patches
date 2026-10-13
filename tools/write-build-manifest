@@ -1,0 +1,301 @@
+#!/usr/bin/python3
+"""Record the registry digest of every image a build pushed.
+
+Phase 6 of docs/plans/containerised-deployer.md pins every service image by
+digest through a manifest carried in the deployer image. This tool is the
+read-back half of that: after the push has drained, it reads each built
+image's digest from the registry itself with the Docker v2 schema 2 Accept
+header, which is the digest a pull uses.
+
+Which images to read comes from kolla-build's own record of what it built
+(archive/images, one kolla image name per line, written by _build/imagebuild.sh
+from build.json), not from the GitLab API: the registry token CI holds cannot
+be relied on for the GitLab REST API. Those are kolla image names, which equal
+the repository name within the project only when the build used no image
+prefix, which is what our CI does. A prefixed build must pass --image-prefix,
+which is prepended to each name to form both the repository path and the key
+in the manifest.
+
+Two subcommands, both used by _build/build-containers.sh:
+
+    deployer-state TAG    prints "missing" when kolla-ansible:TAG is not in
+                          the registry, "manifested" when it already carries
+                          the kolla_build_manifest label, and otherwise the
+                          deployer's digest (sha256:...), which is what the
+                          thin manifest image is built FROM.
+    write TAG OUTPUT --images-file PATH
+                          writes manifest.json for TAG to OUTPUT, or fails
+                          without writing anything if the image list is
+                          missing or empty, or any listed image's digest
+                          cannot be read (an image that was built but did
+                          not land is never silently dropped).
+
+The registry token is read from the REGISTRY_TOKEN environment variable rather
+than the command line, and is never printed.
+"""
+
+import json
+import os
+import re
+import sys
+import tempfile
+
+import click
+import requests
+from requests.adapters import HTTPAdapter
+from urllib3.util.retry import Retry
+
+
+FORMAT_VERSION = 1
+DEPLOYER_IMAGE = 'kolla-ansible'
+MANIFEST_LABEL = 'kolla_build_manifest'
+SCHEMA2_MEDIA_TYPE = 'application/vnd.docker.distribution.manifest.v2+json'
+TIMEOUT = 60
+
+
+class ManifestError(Exception):
+    """A failure that must stop the build, with a message fit for its log."""
+
+
+def make_session():
+    """Return a requests session that retries transient failures."""
+    retry = Retry(total=4, backoff_factor=2, status_forcelist=[429, 500, 502, 503, 504],
+                  allowed_methods=['GET', 'HEAD'], raise_on_status=False)
+    session = requests.Session()
+    adapter = HTTPAdapter(max_retries=retry)
+    session.mount('http://', adapter)
+    session.mount('https://', adapter)
+    return session
+
+
+def parse_challenge(header):
+    """Split a WWW-Authenticate header into its scheme and parameters."""
+    if not header:
+        return None, {}
+    scheme, _, rest = header.partition(' ')
+    return scheme.lower(), dict(re.findall(r'(\w+)="([^"]*)"', rest))
+
+
+class Registry:
+    """A Docker registry v2 client that does the standard bearer-token handshake.
+
+    A request is first sent anonymously. A 401 names a token realm, service and
+    scope; a token is fetched from the realm with Basic auth and the request is
+    retried with it. Tokens are cached per realm, service and scope, so each
+    repository costs one token request.
+    """
+
+    def __init__(self, session, host, username, token):
+        self.session = session
+        self.base = host if '://' in host else f'https://{host}'
+        self.base = self.base.rstrip('/')
+        self.auth = (username, token) if username and token else None
+        self.tokens = {}
+
+    def _send(self, method, url, headers):
+        try:
+            return self.session.request(method, url, headers=headers, timeout=TIMEOUT)
+        except requests.RequestException as e:
+            raise ManifestError(f'Registry request {method} {url} failed: {e.__class__.__name__}')
+
+    def _token(self, params):
+        key = (params.get('realm'), params.get('service'), params.get('scope'))
+        if key in self.tokens:
+            return self.tokens[key]
+        if not params.get('realm'):
+            raise ManifestError('Registry asked for a bearer token but named no realm')
+        query = {k: v for k, v in (('service', key[1]), ('scope', key[2])) if v}
+        try:
+            r = self.session.get(params['realm'], params=query, auth=self.auth, timeout=TIMEOUT)
+        except requests.RequestException as e:
+            raise ManifestError(f'Registry token request to {params["realm"]} failed: {e.__class__.__name__}')
+        if r.status_code != 200:
+            raise ManifestError(
+                f'Registry token request to {params["realm"]} for {key[2]} was refused (HTTP {r.status_code})')
+        body = r.json()
+        token = body.get('token') or body.get('access_token')
+        if not token:
+            raise ManifestError(f'Registry token response from {params["realm"]} carried no token')
+        self.tokens[key] = token
+        return token
+
+    def request(self, method, path, headers=None):
+        url = f'{self.base}{path}'
+        headers = dict(headers or {})
+        r = self._send(method, url, headers)
+        if r.status_code != 401:
+            return r
+
+        scheme, params = parse_challenge(r.headers.get('WWW-Authenticate'))
+        if scheme == 'bearer':
+            headers['Authorization'] = f'Bearer {self._token(params)}'
+            return self._send(method, url, headers)
+        if scheme == 'basic' and self.auth:
+            try:
+                return self.session.request(method, url, headers=headers, auth=self.auth, timeout=TIMEOUT)
+            except requests.RequestException as e:
+                raise ManifestError(f'Registry request {method} {url} failed: {e.__class__.__name__}')
+        return r
+
+    def _check_manifest_response(self, r, repo, tag):
+        """Return the digest from a manifest response, or None for a missing manifest."""
+        if r.status_code == 404:
+            return None
+        if r.status_code != 200:
+            raise ManifestError(f'Manifest {repo}:{tag} could not be read (HTTP {r.status_code})')
+        content_type = r.headers.get('Content-Type', '').split(';')[0].strip()
+        if content_type != SCHEMA2_MEDIA_TYPE:
+            raise ManifestError(
+                f'Manifest {repo}:{tag} is {content_type or "of no media type"}, not a Docker v2 schema 2 manifest')
+        digest = r.headers.get('Docker-Content-Digest', '')
+        if not re.fullmatch(r'sha256:[0-9a-f]{64}', digest):
+            raise ManifestError(f'Manifest {repo}:{tag} came back without a usable Docker-Content-Digest')
+        return digest
+
+    def manifest_digest(self, repo, tag):
+        """Return the digest a pull of repo:tag would get, or None if the tag does not exist."""
+        r = self.request('HEAD', f'/v2/{repo}/manifests/{tag}', {'Accept': SCHEMA2_MEDIA_TYPE})
+        return self._check_manifest_response(r, repo, tag)
+
+    def manifest(self, repo, tag):
+        """Return (digest, parsed manifest) for repo:tag, or (None, None) if it does not exist."""
+        r = self.request('GET', f'/v2/{repo}/manifests/{tag}', {'Accept': SCHEMA2_MEDIA_TYPE})
+        digest = self._check_manifest_response(r, repo, tag)
+        if digest is None:
+            return None, None
+        return digest, r.json()
+
+    def blob_json(self, repo, digest):
+        r = self.request('GET', f'/v2/{repo}/blobs/{digest}')
+        if r.status_code != 200:
+            raise ManifestError(f'Blob {digest} of {repo} could not be read (HTTP {r.status_code})')
+        return r.json()
+
+
+def deployer_state(registry, project_path, tag):
+    """Return 'missing', 'manifested', or the digest of an unmanifested kolla-ansible:<tag>.
+
+    The label is read from the image's config blob in the registry: two small
+    requests, where a pull would fetch the whole deployer image.
+    """
+    repo = f'{project_path}/{DEPLOYER_IMAGE}'
+    digest, manifest = registry.manifest(repo, tag)
+    if digest is None:
+        return 'missing'
+    config_digest = manifest.get('config', {}).get('digest')
+    if not config_digest:
+        raise ManifestError(f'Manifest {repo}:{tag} names no config blob')
+    config = registry.blob_json(repo, config_digest)
+    labels = (config.get('config') or {}).get('Labels') or {}
+    if labels.get(MANIFEST_LABEL) == '1':
+        return 'manifested'
+    return digest
+
+
+def read_images_file(path):
+    """Return the sorted, de-duplicated kolla image names listed in path, without the deployer."""
+    try:
+        with open(path) as f:
+            lines = f.read().splitlines()
+    except OSError as e:
+        raise ManifestError(f'Image list {path} could not be read: {e.strerror}')
+    names = {line.strip() for line in lines if line.strip()}
+    # The deployer carries the manifest, so it cannot name its own digest.
+    names.discard(DEPLOYER_IMAGE)
+    if not names:
+        raise ManifestError(f'Image list {path} names no images other than {DEPLOYER_IMAGE}')
+    return sorted(names)
+
+
+def build_manifest(registry, project_path, tag, names, prefix='', log=None):
+    """Return the manifest document for the named images, which must all carry tag."""
+    images = {}
+    for name in names:
+        key = f'{prefix}{name}'
+        repo = f'{project_path}/{key}'
+        digest = registry.manifest_digest(repo, tag)
+        if digest is None:
+            raise ManifestError(f'{repo}:{tag} was built but the registry has no such manifest')
+        images[key] = digest
+        if log:
+            log(f'{key} {digest}')
+
+    if not images:
+        raise ManifestError(f'No images to record for {tag}')
+    return {'format_version': FORMAT_VERSION, 'tag': tag, 'images': dict(sorted(images.items()))}
+
+
+def write_atomically(document, output):
+    """Write document as JSON to output, so a reader never sees a partial file."""
+    directory = os.path.dirname(os.path.abspath(output))
+    fd, tmp = tempfile.mkstemp(dir=directory, prefix='.manifest-', suffix='.json')
+    try:
+        with os.fdopen(fd, 'w') as f:
+            json.dump(document, f, indent=2, sort_keys=True)
+            f.write('\n')
+        os.chmod(tmp, 0o644)
+        os.replace(tmp, output)
+    except BaseException:
+        if os.path.exists(tmp):
+            os.unlink(tmp)
+        raise
+
+
+@click.group()
+@click.option('--registry', default='gitlab.home.stillhq.com:5050', show_default=True,
+              help='Registry host, with an optional scheme (https is assumed).')
+@click.option('--project', default='openstack/kolla-images', show_default=True,
+              help='GitLab project, and registry namespace, the images are pushed to.')
+@click.option('--username', default='', help='Registry username.')
+@click.option('--image-prefix', default='', help='Prefix kolla-build gave its images, prepended to each listed name.')
+@click.pass_context
+def cli(ctx, registry, project, username, image_prefix):
+    """Read back the digests of the images a build pushed."""
+    token = os.environ.get('REGISTRY_TOKEN', '')
+    session = make_session()
+    ctx.obj = {
+        'project': project,
+        'prefix': image_prefix,
+        'registry': Registry(session, registry, username, token),
+    }
+
+
+def _fail(e):
+    click.echo(f'ERROR: {e}', err=True)
+    sys.exit(1)
+
+
+@cli.command(name='deployer-state')
+@click.argument('tag')
+@click.pass_context
+def deployer_state_cmd(ctx, tag):
+    """Print missing, manifested, or the digest of kolla-ansible:TAG."""
+    try:
+        click.echo(deployer_state(ctx.obj['registry'], ctx.obj['project'], tag))
+    except ManifestError as e:
+        _fail(e)
+
+
+@cli.command(name='write')
+@click.argument('tag')
+@click.argument('output', type=click.Path(dir_okay=False))
+@click.option('--images-file', required=True, type=click.Path(dir_okay=False),
+              help='File of kolla image names, one per line, as kolla-build built them (archive/images).')
+@click.pass_context
+def write_cmd(ctx, tag, output, images_file):
+    """Write the manifest for TAG to OUTPUT, covering the images listed in the images file."""
+    def log(line):
+        click.echo(f'    {line}', err=True)
+
+    try:
+        names = read_images_file(images_file)
+        document = build_manifest(ctx.obj['registry'], ctx.obj['project'], tag, names,
+                                  prefix=ctx.obj['prefix'], log=log)
+    except ManifestError as e:
+        _fail(e)
+    write_atomically(document, output)
+    click.echo(f'Wrote {len(document["images"])} image digests for {tag} to {output}', err=True)
+
+
+if __name__ == '__main__':
+    cli()

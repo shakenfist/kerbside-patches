@@ -117,6 +117,8 @@ PRs and issues with the `DAILY_REBASE_TOKEN` secret.
 | Script | Description |
 |--------|-------------|
 | `find_images` | Python CLI tool for finding images in GitLab Container Registry. Searches by tag patterns and lists available images. |
+| `write-build-manifest` | Reads back the registry digest of every image a build pushed and writes `manifest.json`; also reports whether `kolla-ansible:<tag>` already carries one. Run by `build-containers.sh` after the push. See [building.md](building.md#the-build-manifest). |
+| `test-write-build-manifest.py` | Test suite for `write-build-manifest`, against a fake registry, so it needs no network or credentials. Run by pre-commit. |
 
 ### Security Scanning
 
@@ -145,6 +147,8 @@ The configured hooks include:
 | `shellcheck` | Static analysis tool for shell scripts. Checks scripts in `_build/` and `tools/` directories for common issues. Configuration is in `.shellcheckrc`. |
 | `recount-patch` | Checks that every `@@` hunk header in `_patches/` matches its body. A too-large count makes git reject the patch; a too-small one makes git silently truncate the hunk and apply the wrong content. |
 | `check-depends-on` | Runs the offline half of `check-depends-on.py`: every `Depends-On` value is a review.opendev.org change URL, and a committed `<patch>-message` still matches the message in its patch. The Gerrit-backed checks (does the change exist, is it abandoned) need the network, so they run in `test-apply.sh` instead. |
+| `flake8` | Lints the Python under `deployer/` and `tools/write-build-manifest`. |
+| `deployer-launcher-tests`, `write-build-manifest-tests` | Run the unit tests of the deployer launcher and of `write-build-manifest`. |
 | `skillsaw` | Lints the agent context in this repository -- `AGENTS.md` and the skills under `.claude/` -- for malformed skills, smuggled unicode and pasted credentials. The pin is kept current by renovate's pre-commit manager. |
 
 ### Git Hooks and Utilities

@@ -1,0 +1,19 @@
+Resolve the kerbside images through the manifest.
+
+The kerbside role's three image variables do not follow the
+<service>_image_full pattern which the build manifest change rewrote
+upstream, because they share kerbside_tag, so that change left them
+pulling by tag. Resolve them through the kolla_image_full lookup too, so
+a deployer image with a build manifest pulls the Kerbside images by
+digest like every other.
+
+kerbside_base_image_full still names kerbside_api_image, as it did
+before. That is an existing mistake in the kerbside role, kept here so
+that this change alters only how the images are pulled.
+
+This is a separate change rather than an amendment to the kerbside role
+so that the kerbside series does not depend on the manifest change.
+
+Assisted-By: Claude Opus 5.5 (1M context, high effort) <noreply@anthropic.com>
+Co-Authored-By: Claude Opus 5.5 (1M context, high effort) <noreply@anthropic.com>
+Signed-off-by: Michael Still <mikal@stillhq.com>

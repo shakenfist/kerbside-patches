@@ -150,6 +150,51 @@ documentation for more details. Then I deploy like this:
 sudo kolla-ansible -i /etc/kolla/inventory deploy
 ```
 
+## The build manifest
+
+When a build pushes to the CI registry (`--use-ci-registry`), the last
+thing `build-containers.sh` does, once every push has landed, is record
+which image digests that build produced. `tools/write-build-manifest`
+takes the image names `kolla-build` recorded as built (`archive/images`),
+and reads each one's digest from the registry with a
+`HEAD /v2/<repo>/manifests/<tag>`; an image that was built but is missing
+from the registry fails the build. It does not use the GitLab API, which the
+CI registry token cannot be relied on for. The names equal the repository
+names only for a build with no image prefix, as in CI; otherwise pass
+`--image-prefix`. The digests come from the
+registry, not from `kolla-build`, because the push filters rewrite every
+image on its way in.
+
+The result is a `manifest.json`:
+
+```
+{"format_version": 1, "tag": "<build tag>",
+ "images": {"nova-api": "sha256:...", "keystone": "sha256:...", ...}}
+```
+
+It names every image the build pushed except the deployer
+(`kolla-ansible`), which cannot name its own digest. It is copied into a
+thin image built `FROM` the deployer's digest, at
+`/etc/kolla-ansible/manifest.json`, with the label
+`kolla_build_manifest="1"`, and pushed with `occystrap process` back to
+`kolla-ansible:<tag>`. A deployer pinned by tag or by digest therefore pins
+every image of its build. A copy of the manifest is left at
+`archive/manifest-<tag>.json`, and CI keeps it with the build's artifacts.
+
+The step:
+
+* does nothing when no CI registry is in use, as in a local build;
+* does nothing when `kolla-ansible:<tag>` is not in the registry, because
+  the build did not include the deployer;
+* does nothing when `kolla-ansible:<tag>` already carries the label, so a
+  rerun that skipped the build because its images exist is a no-op; and
+* fails the build if any image's digest cannot be read, rather than
+  writing a partial manifest, and if the label is not there after the
+  push.
+
+The design is Phase 6 of
+[the containerised deployer plan](plans/containerised-deployer.md).
+
 ## Security vulnerability scanning
 
 After container images are built, `debsecan` is run against each image

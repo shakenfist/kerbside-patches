@@ -1,0 +1,2003 @@
+commit bd46b40a9446115f9e1f434386d7924a2ba24db4
+Author: Michael Still <mikal@stillhq.com>
+Date:   Mon Oct 12 19:26:56 2026 +1100
+
+    Pull images by digest from a build manifest.
+    
+    A tag can be pushed again, so a deployment pulling by tag may run images
+    other than the ones its deployer was built and tested with: a node added
+    months later, or a pull during a publish window, gets whatever the tag
+    names at that moment. A containerised deployer image can say exactly
+    which images it was built with.
+    
+    When the deployer image carries a build manifest,
+    /etc/kolla-ansible/manifest.json (kolla_image_manifest_path), naming the
+    digest of every image built with it, each image it names is now pulled
+    by digest:
+    
+        {"format_version": 1, "tag": "<build tag>",
+         "images": {"nova-api": "sha256:<hex>", ...}}
+    
+    Each key is the image's repository within docker_namespace, that is the
+    kolla-build name with any docker_image_name_prefix, so a manifest still
+    applies when the images are mirrored unchanged to another registry.
+    
+    Every <service>_image_full now resolves through a new kolla_image_full
+    lookup plugin, whose rules are in kolla_ansible/image_manifest.py. It
+    returns <image>@<digest> when the manifest names the image and the
+    image's tag is the manifest's tag, and <image>:<tag> otherwise, so an
+    overridden <service>_tag, an image outside docker_registry and
+    docker_namespace, and an image the manifest does not name, such as
+    rabbitmq-upgrade.yml's versioned RabbitMQ image, are pulled by tag as
+    before. A lookup, unlike a filter, can read the play's variables, so the
+    variables need not repeat the registry, namespace and manifest path. The
+    parsed manifest is cached by path, and re-read only if the file changes,
+    because these variables are templated on every use.
+    
+    The deployer checks also check the manifest. A deployer image without
+    one warns once, and pulls every image by tag. A manifest built with a
+    tag other than the deployer's is refused unless
+    --override-deployer-checks is given. A manifest which cannot be read, or
+    whose format_version is not understood, fails both the checks and the
+    lookup, whatever the override, because pulling by tag is what the
+    manifest exists to prevent; pointing kolla_image_manifest_path at a path
+    which does not exist pulls by tag instead.
+    
+    Switching a deployment between tag and digest references changes every
+    container's image, so every container is recreated once. The release
+    note says so.
+    
+    This depends on kolla_container accepting digest references with
+    Docker, which an earlier change in this series adds.
+    
+    Assisted-By: Claude Opus 5.5 (1M context, high effort) <noreply@anthropic.com>
+    Co-Authored-By: Claude Opus 5.5 (1M context, high effort) <noreply@anthropic.com>
+    Change-Id: I5d6e93ad1df4f5d95d85d7a8e8f46b1d06f86196
+    Signed-off-by: Michael Still <mikal@stillhq.com>
+
+diff --git a/ansible/deployer-checks.yml b/ansible/deployer-checks.yml
+index f1b28b6d6..0396afacc 100644
+--- a/ansible/deployer-checks.yml
++++ b/ansible/deployer-checks.yml
+@@ -4,7 +4,11 @@
+ # a deployer against a configuration naming images it was not built with,
+ # against a target last changed by a newer deployer, or as an upgrade which
+ # is not supported. Without it, as in a virtualenv, the play does nothing.
+-# kolla-ansible --override-deployer-checks turns each refusal into a warning.
++# It also warns when the deployer image has no build manifest, at
++# kolla_image_manifest_path, and refuses one which cannot be used or which was
++# built with another tag.
++# kolla-ansible --override-deployer-checks turns each refusal into a warning,
++# apart from a build manifest which cannot be used.
+ #
+ # Every playbook imports this before anything changes a host, apart from
+ # destroy.yml, which must work whatever the versions so that a mistake can
+@@ -45,6 +49,26 @@
+               any_errors_fatal: true
+               when: kolla_deployer_config_check_result.errors | length > 0
+ 
++        - name: Check the deployer's build manifest
++          vars:
++            kolla_image_manifest_check_result: >-
++              {{ kolla_deployer_info |
++                 kolla_image_manifest_check(kolla_image_manifest_path,
++                                            kolla_override_deployer_checks | bool) }}
++          block:
++            - name: Warn about the deployer's build manifest  # noqa: run-once[task]
++              ansible.builtin.debug:
++                msg: "{{ kolla_image_manifest_check_result.warnings }}"
++              run_once: true
++              when: kolla_image_manifest_check_result.warnings | length > 0
++
++            - name: Refuse a build manifest which cannot be used  # noqa: run-once[task]
++              ansible.builtin.fail:
++                msg: "{{ kolla_image_manifest_check_result.errors | join(' ') }}"
++              run_once: true
++              any_errors_fatal: true
++              when: kolla_image_manifest_check_result.errors | length > 0
++
+         - name: Check the deployer against the deployment
+           when: kolla_deployer_checks_records | default(true) | bool
+           block:
+diff --git a/ansible/filter_plugins/image_manifest.py b/ansible/filter_plugins/image_manifest.py
+new file mode 100644
+index 000000000..7d21a41a4
+--- /dev/null
++++ b/ansible/filter_plugins/image_manifest.py
+@@ -0,0 +1,22 @@
++# Licensed under the Apache License, Version 2.0 (the "License"); you may
++# not use this file except in compliance with the License. You may obtain
++# a copy of the License at
++#
++#      http://www.apache.org/licenses/LICENSE-2.0
++#
++# Unless required by applicable law or agreed to in writing, software
++# distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
++# WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
++# License for the specific language governing permissions and limitations
++# under the License.
++
++from kolla_ansible import image_manifest
++
++
++class FilterModule(object):
++    """Build manifest filters"""
++
++    def filters(self):
++        return {
++            'kolla_image_manifest_check': image_manifest.manifest_check,
++        }
+diff --git a/ansible/group_vars/all/common.yml b/ansible/group_vars/all/common.yml
+index fb81264ce..1c4d879a9 100644
+--- a/ansible/group_vars/all/common.yml
++++ b/ansible/group_vars/all/common.yml
+@@ -316,6 +316,10 @@ openstack_tag_suffix: ""
+ # what last changed each target. See deployer-checks.yml.
+ kolla_deployer_info_path: "/etc/kolla-ansible/deployer.json"
+ kolla_deployer_info: "{{ lookup('ansible.builtin.file', kolla_deployer_info_path) | from_json if kolla_deployer_info_path is file else {} }}"
++# A deployer image may also carry a build manifest naming the digest of every
++# image built with it. When it does, images with the build's tag are pulled
++# by digest. See the kolla_image_full lookup plugin.
++kolla_image_manifest_path: "/etc/kolla-ansible/manifest.json"
+ # What last deployed, reconfigured or upgraded a host is recorded here.
+ kolla_deployment_record_path: "{{ node_config_directory }}/kolla-ansible-deployment.json"
+ # Set by kolla-ansible --override-deployer-checks to turn every refusal of the
+diff --git a/ansible/lookup_plugins/kolla_image_full.py b/ansible/lookup_plugins/kolla_image_full.py
+new file mode 100644
+index 000000000..e079e3ced
+--- /dev/null
++++ b/ansible/lookup_plugins/kolla_image_full.py
+@@ -0,0 +1,58 @@
++# Licensed under the Apache License, Version 2.0 (the "License"); you may
++# not use this file except in compliance with the License. You may obtain
++# a copy of the License at
++#
++#      http://www.apache.org/licenses/LICENSE-2.0
++#
++# Unless required by applicable law or agreed to in writing, software
++# distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
++# WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
++# License for the specific language governing permissions and limitations
++# under the License.
++
++from ansible.errors import AnsibleError
++from ansible.plugins.lookup import LookupBase
++
++from kolla_ansible import image_manifest
++
++DOCUMENTATION = """
++name: kolla_image_full
++short_description: The reference to pull a Kolla image by
++description:
++  - Returns <image>@<digest> when the build manifest at
++    kolla_image_manifest_path names the image and the tag is the manifest's
++    tag, and <image>:<tag> otherwise.
++  - Reads docker_registry, docker_namespace and kolla_image_manifest_path
++    from the play's variables. If any is undefined, returns <image>:<tag>.
++  - Fails if the manifest exists but cannot be used.
++options:
++  _terms:
++    description: The image, without a tag, and its tag.
++    required: true
++"""
++
++EXAMPLES = """
++nova_api_image_full: "{{ lookup('kolla_image_full', nova_api_image,
++                                 nova_api_tag) }}"
++"""
++
++
++class LookupModule(LookupBase):
++
++    def run(self, terms, variables=None, **kwargs):
++        if len(terms) != 2:
++            raise AnsibleError('kolla_image_full takes an image and a tag, '
++                               'not %r' % (terms,))
++        image, tag = terms
++        variables = variables or {}
++        names = ('docker_registry', 'docker_namespace',
++                 'kolla_image_manifest_path')
++        if not all(name in variables for name in names):
++            return ['%s:%s' % (image, tag)]
++        registry, namespace, path = (
++            self._templar.template(variables[name]) for name in names)
++        base = image_manifest.image_base(registry, namespace)
++        try:
++            return [image_manifest.image_full(image, tag, base, path)]
++        except image_manifest.ManifestError as e:
++            raise AnsibleError(str(e))
+diff --git a/ansible/roles/aodh/defaults/main.yml b/ansible/roles/aodh/defaults/main.yml
+index d616fed20..5ca00a148 100644
+--- a/ansible/roles/aodh/defaults/main.yml
++++ b/ansible/roles/aodh/defaults/main.yml
+@@ -110,19 +110,19 @@ aodh_tag: "{{ openstack_tag }}"
+ 
+ aodh_api_image: "{{ docker_image_url }}aodh-api"
+ aodh_api_tag: "{{ aodh_tag }}"
+-aodh_api_image_full: "{{ aodh_api_image }}:{{ aodh_api_tag }}"
++aodh_api_image_full: "{{ lookup('kolla_image_full', aodh_api_image, aodh_api_tag) }}"
+ 
+ aodh_evaluator_image: "{{ docker_image_url }}aodh-evaluator"
+ aodh_evaluator_tag: "{{ aodh_tag }}"
+-aodh_evaluator_image_full: "{{ aodh_evaluator_image }}:{{ aodh_evaluator_tag }}"
++aodh_evaluator_image_full: "{{ lookup('kolla_image_full', aodh_evaluator_image, aodh_evaluator_tag) }}"
+ 
+ aodh_listener_image: "{{ docker_image_url }}aodh-listener"
+ aodh_listener_tag: "{{ aodh_tag }}"
+-aodh_listener_image_full: "{{ aodh_listener_image }}:{{ aodh_listener_tag }}"
++aodh_listener_image_full: "{{ lookup('kolla_image_full', aodh_listener_image, aodh_listener_tag) }}"
+ 
+ aodh_notifier_image: "{{ docker_image_url }}aodh-notifier"
+ aodh_notifier_tag: "{{ aodh_tag }}"
+-aodh_notifier_image_full: "{{ aodh_notifier_image }}:{{ aodh_notifier_tag }}"
++aodh_notifier_image_full: "{{ lookup('kolla_image_full', aodh_notifier_image, aodh_notifier_tag) }}"
+ 
+ aodh_api_dimensions: "{{ default_container_dimensions }}"
+ aodh_evaluator_dimensions: "{{ default_container_dimensions }}"
+diff --git a/ansible/roles/barbican/defaults/main.yml b/ansible/roles/barbican/defaults/main.yml
+index aeca544d4..00d63d32c 100644
+--- a/ansible/roles/barbican/defaults/main.yml
++++ b/ansible/roles/barbican/defaults/main.yml
+@@ -86,15 +86,15 @@ barbican_tag: "{{ openstack_tag }}"
+ 
+ barbican_api_image: "{{ docker_image_url }}barbican-api"
+ barbican_api_tag: "{{ barbican_tag }}"
+-barbican_api_image_full: "{{ barbican_api_image }}:{{ barbican_api_tag }}"
++barbican_api_image_full: "{{ lookup('kolla_image_full', barbican_api_image, barbican_api_tag) }}"
+ 
+ barbican_keystone_listener_image: "{{ docker_image_url }}barbican-keystone-listener"
+ barbican_keystone_listener_tag: "{{ barbican_tag }}"
+-barbican_keystone_listener_image_full: "{{ barbican_keystone_listener_image }}:{{ barbican_keystone_listener_tag }}"
++barbican_keystone_listener_image_full: "{{ lookup('kolla_image_full', barbican_keystone_listener_image, barbican_keystone_listener_tag) }}"
+ 
+ barbican_worker_image: "{{ docker_image_url }}barbican-worker"
+ barbican_worker_tag: "{{ barbican_tag }}"
+-barbican_worker_image_full: "{{ barbican_worker_image }}:{{ barbican_worker_tag }}"
++barbican_worker_image_full: "{{ lookup('kolla_image_full', barbican_worker_image, barbican_worker_tag) }}"
+ 
+ barbican_api_dimensions: "{{ default_container_dimensions }}"
+ barbican_keystone_listener_dimensions: "{{ default_container_dimensions }}"
+diff --git a/ansible/roles/bifrost/defaults/main.yml b/ansible/roles/bifrost/defaults/main.yml
+index b597e784a..9842d2264 100644
+--- a/ansible/roles/bifrost/defaults/main.yml
++++ b/ansible/roles/bifrost/defaults/main.yml
+@@ -6,7 +6,7 @@ bifrost_tag: "{{ openstack_tag }}"
+ 
+ bifrost_deploy_image: "{{ docker_image_url }}bifrost-deploy"
+ bifrost_deploy_tag: "{{ bifrost_tag }}"
+-bifrost_deploy_image_full: "{{ bifrost_deploy_image }}:{{ bifrost_deploy_tag }}"
++bifrost_deploy_image_full: "{{ lookup('kolla_image_full', bifrost_deploy_image, bifrost_deploy_tag) }}"
+ 
+ bifrost_deploy_container_proxy: "{{ container_proxy }}"
+ 
+diff --git a/ansible/roles/blazar/defaults/main.yml b/ansible/roles/blazar/defaults/main.yml
+index dc4eb4942..4b530b058 100644
+--- a/ansible/roles/blazar/defaults/main.yml
++++ b/ansible/roles/blazar/defaults/main.yml
+@@ -86,11 +86,11 @@ blazar_tag: "{{ openstack_tag }}"
+ 
+ blazar_manager_image: "{{ docker_image_url }}blazar-manager"
+ blazar_manager_tag: "{{ blazar_tag }}"
+-blazar_manager_image_full: "{{ blazar_manager_image }}:{{ blazar_manager_tag }}"
++blazar_manager_image_full: "{{ lookup('kolla_image_full', blazar_manager_image, blazar_manager_tag) }}"
+ 
+ blazar_api_image: "{{ docker_image_url }}blazar-api"
+ blazar_api_tag: "{{ blazar_tag }}"
+-blazar_api_image_full: "{{ blazar_api_image }}:{{ blazar_api_tag }}"
++blazar_api_image_full: "{{ lookup('kolla_image_full', blazar_api_image, blazar_api_tag) }}"
+ 
+ blazar_api_dimensions: "{{ default_container_dimensions }}"
+ blazar_manager_dimensions: "{{ default_container_dimensions }}"
+diff --git a/ansible/roles/ceilometer/defaults/main.yml b/ansible/roles/ceilometer/defaults/main.yml
+index 6a62a5f8b..3f7551f57 100644
+--- a/ansible/roles/ceilometer/defaults/main.yml
++++ b/ansible/roles/ceilometer/defaults/main.yml
+@@ -48,19 +48,19 @@ ceilometer_tag: "{{ openstack_tag }}"
+ 
+ ceilometer_notification_image: "{{ docker_image_url }}ceilometer-notification"
+ ceilometer_notification_tag: "{{ ceilometer_tag }}"
+-ceilometer_notification_image_full: "{{ ceilometer_notification_image }}:{{ ceilometer_notification_tag }}"
++ceilometer_notification_image_full: "{{ lookup('kolla_image_full', ceilometer_notification_image, ceilometer_notification_tag) }}"
+ 
+ ceilometer_central_image: "{{ docker_image_url }}ceilometer-central"
+ ceilometer_central_tag: "{{ ceilometer_tag }}"
+-ceilometer_central_image_full: "{{ ceilometer_central_image }}:{{ ceilometer_central_tag }}"
++ceilometer_central_image_full: "{{ lookup('kolla_image_full', ceilometer_central_image, ceilometer_central_tag) }}"
+ 
+ ceilometer_compute_image: "{{ docker_image_url }}ceilometer-compute"
+ ceilometer_compute_tag: "{{ ceilometer_tag }}"
+-ceilometer_compute_image_full: "{{ ceilometer_compute_image }}:{{ ceilometer_compute_tag }}"
++ceilometer_compute_image_full: "{{ lookup('kolla_image_full', ceilometer_compute_image, ceilometer_compute_tag) }}"
+ 
+ ceilometer_ipmi_image: "{{ docker_image_url }}ceilometer-ipmi"
+ ceilometer_ipmi_tag: "{{ ceilometer_tag }}"
+-ceilometer_ipmi_image_full: "{{ ceilometer_ipmi_image }}:{{ ceilometer_ipmi_tag }}"
++ceilometer_ipmi_image_full: "{{ lookup('kolla_image_full', ceilometer_ipmi_image, ceilometer_ipmi_tag) }}"
+ 
+ ceilometer_notification_dimensions: "{{ default_container_dimensions }}"
+ ceilometer_central_dimensions: "{{ default_container_dimensions }}"
+diff --git a/ansible/roles/cinder/defaults/main.yml b/ansible/roles/cinder/defaults/main.yml
+index 99cf9e4a6..b130c7c73 100644
+--- a/ansible/roles/cinder/defaults/main.yml
++++ b/ansible/roles/cinder/defaults/main.yml
+@@ -105,19 +105,19 @@ cinder_tag: "{{ openstack_tag }}"
+ 
+ cinder_volume_image: "{{ docker_image_url }}cinder-volume"
+ cinder_volume_tag: "{{ cinder_tag }}"
+-cinder_volume_image_full: "{{ cinder_volume_image }}:{{ cinder_volume_tag }}"
++cinder_volume_image_full: "{{ lookup('kolla_image_full', cinder_volume_image, cinder_volume_tag) }}"
+ 
+ cinder_scheduler_image: "{{ docker_image_url }}cinder-scheduler"
+ cinder_scheduler_tag: "{{ cinder_tag }}"
+-cinder_scheduler_image_full: "{{ cinder_scheduler_image }}:{{ cinder_scheduler_tag }}"
++cinder_scheduler_image_full: "{{ lookup('kolla_image_full', cinder_scheduler_image, cinder_scheduler_tag) }}"
+ 
+ cinder_backup_image: "{{ docker_image_url }}cinder-backup"
+ cinder_backup_tag: "{{ cinder_tag }}"
+-cinder_backup_image_full: "{{ cinder_backup_image }}:{{ cinder_backup_tag }}"
++cinder_backup_image_full: "{{ lookup('kolla_image_full', cinder_backup_image, cinder_backup_tag) }}"
+ 
+ cinder_api_image: "{{ docker_image_url }}cinder-api"
+ cinder_api_tag: "{{ cinder_tag }}"
+-cinder_api_image_full: "{{ cinder_api_image }}:{{ cinder_api_tag }}"
++cinder_api_image_full: "{{ lookup('kolla_image_full', cinder_api_image, cinder_api_tag) }}"
+ 
+ cinder_api_dimensions: "{{ default_container_dimensions }}"
+ cinder_backup_dimensions: "{{ default_container_dimensions }}"
+diff --git a/ansible/roles/cloudkitty/defaults/main.yml b/ansible/roles/cloudkitty/defaults/main.yml
+index fd56a5e79..2cf9e4b69 100644
+--- a/ansible/roles/cloudkitty/defaults/main.yml
++++ b/ansible/roles/cloudkitty/defaults/main.yml
+@@ -88,11 +88,11 @@ cloudkitty_tag: "{{ openstack_tag }}"
+ 
+ cloudkitty_api_image: "{{ docker_image_url }}cloudkitty-api"
+ cloudkitty_api_tag: "{{ cloudkitty_tag }}"
+-cloudkitty_api_image_full: "{{ cloudkitty_api_image }}:{{ cloudkitty_api_tag }}"
++cloudkitty_api_image_full: "{{ lookup('kolla_image_full', cloudkitty_api_image, cloudkitty_api_tag) }}"
+ 
+ cloudkitty_processor_image: "{{ docker_image_url }}cloudkitty-processor"
+ cloudkitty_processor_tag: "{{ cloudkitty_tag }}"
+-cloudkitty_processor_image_full: "{{ cloudkitty_processor_image }}:{{ cloudkitty_processor_tag }}"
++cloudkitty_processor_image_full: "{{ lookup('kolla_image_full', cloudkitty_processor_image, cloudkitty_processor_tag) }}"
+ 
+ cloudkitty_processor_dimensions: "{{ default_container_dimensions }}"
+ cloudkitty_api_dimensions: "{{ default_container_dimensions }}"
+diff --git a/ansible/roles/collectd/defaults/main.yml b/ansible/roles/collectd/defaults/main.yml
+index 96f2a9f50..b8bed5553 100644
+--- a/ansible/roles/collectd/defaults/main.yml
++++ b/ansible/roles/collectd/defaults/main.yml
+@@ -14,7 +14,7 @@ collectd_services:
+ ####################
+ collectd_image: "{{ docker_image_url }}collectd"
+ collectd_tag: "{{ openstack_tag }}"
+-collectd_image_full: "{{ collectd_image }}:{{ collectd_tag }}"
++collectd_image_full: "{{ lookup('kolla_image_full', collectd_image, collectd_tag) }}"
+ 
+ collectd_dimensions: "{{ default_container_dimensions }}"
+ 
+diff --git a/ansible/roles/cron/defaults/main.yml b/ansible/roles/cron/defaults/main.yml
+index 34bc15d93..1d8f665f7 100644
+--- a/ansible/roles/cron/defaults/main.yml
++++ b/ansible/roles/cron/defaults/main.yml
+@@ -17,7 +17,7 @@ cron_dimensions: "{{ default_container_dimensions }}"
+ 
+ cron_image: "{{ docker_image_url }}cron"
+ cron_tag: "{{ openstack_tag }}"
+-cron_image_full: "{{ cron_image }}:{{ cron_tag }}"
++cron_image_full: "{{ lookup('kolla_image_full', cron_image, cron_tag) }}"
+ 
+ cron_default_volumes:
+   - "{{ node_config_directory }}/cron/:{{ container_config_directory }}/:ro"
+diff --git a/ansible/roles/cyborg/defaults/main.yml b/ansible/roles/cyborg/defaults/main.yml
+index 1290da1b2..73ae6a553 100644
+--- a/ansible/roles/cyborg/defaults/main.yml
++++ b/ansible/roles/cyborg/defaults/main.yml
+@@ -85,15 +85,15 @@ cyborg_tag: "{{ openstack_tag }}"
+ 
+ cyborg_api_image: "{{ docker_image_url }}cyborg-api"
+ cyborg_api_tag: "{{ cyborg_tag }}"
+-cyborg_api_image_full: "{{ cyborg_api_image }}:{{ cyborg_api_tag }}"
++cyborg_api_image_full: "{{ lookup('kolla_image_full', cyborg_api_image, cyborg_api_tag) }}"
+ 
+ cyborg_agent_image: "{{ docker_image_url }}cyborg-agent"
+ cyborg_agent_tag: "{{ cyborg_tag }}"
+-cyborg_agent_image_full: "{{ cyborg_agent_image }}:{{ cyborg_agent_tag }}"
++cyborg_agent_image_full: "{{ lookup('kolla_image_full', cyborg_agent_image, cyborg_agent_tag) }}"
+ 
+ cyborg_conductor_image: "{{ docker_image_url }}cyborg-conductor"
+ cyborg_conductor_tag: "{{ cyborg_tag }}"
+-cyborg_conductor_image_full: "{{ cyborg_conductor_image }}:{{ cyborg_conductor_tag }}"
++cyborg_conductor_image_full: "{{ lookup('kolla_image_full', cyborg_conductor_image, cyborg_conductor_tag) }}"
+ 
+ cyborg_api_dimensions: "{{ default_container_dimensions }}"
+ cyborg_agent_dimensions: "{{ default_container_dimensions }}"
+diff --git a/ansible/roles/designate/defaults/main.yml b/ansible/roles/designate/defaults/main.yml
+index e8e317de1..7ce6b2b00 100644
+--- a/ansible/roles/designate/defaults/main.yml
++++ b/ansible/roles/designate/defaults/main.yml
+@@ -118,31 +118,31 @@ designate_tag: "{{ openstack_tag }}"
+ 
+ designate_central_image: "{{ docker_image_url }}designate-central"
+ designate_central_tag: "{{ designate_tag }}"
+-designate_central_image_full: "{{ designate_central_image }}:{{ designate_central_tag }}"
++designate_central_image_full: "{{ lookup('kolla_image_full', designate_central_image, designate_central_tag) }}"
+ 
+ designate_producer_image: "{{ docker_image_url }}designate-producer"
+ designate_producer_tag: "{{ designate_tag }}"
+-designate_producer_image_full: "{{ designate_producer_image }}:{{ designate_producer_tag }}"
++designate_producer_image_full: "{{ lookup('kolla_image_full', designate_producer_image, designate_producer_tag) }}"
+ 
+ designate_api_image: "{{ docker_image_url }}designate-api"
+ designate_api_tag: "{{ designate_tag }}"
+-designate_api_image_full: "{{ designate_api_image }}:{{ designate_api_tag }}"
++designate_api_image_full: "{{ lookup('kolla_image_full', designate_api_image, designate_api_tag) }}"
+ 
+ designate_backend_bind9_image: "{{ docker_image_url }}designate-backend-bind9"
+ designate_backend_bind9_tag: "{{ designate_tag }}"
+-designate_backend_bind9_image_full: "{{ designate_backend_bind9_image }}:{{ designate_backend_bind9_tag }}"
++designate_backend_bind9_image_full: "{{ lookup('kolla_image_full', designate_backend_bind9_image, designate_backend_bind9_tag) }}"
+ 
+ designate_mdns_image: "{{ docker_image_url }}designate-mdns"
+ designate_mdns_tag: "{{ designate_tag }}"
+-designate_mdns_image_full: "{{ designate_mdns_image }}:{{ designate_mdns_tag }}"
++designate_mdns_image_full: "{{ lookup('kolla_image_full', designate_mdns_image, designate_mdns_tag) }}"
+ 
+ designate_sink_image: "{{ docker_image_url }}designate-sink"
+ designate_sink_tag: "{{ designate_tag }}"
+-designate_sink_image_full: "{{ designate_sink_image }}:{{ designate_sink_tag }}"
++designate_sink_image_full: "{{ lookup('kolla_image_full', designate_sink_image, designate_sink_tag) }}"
+ 
+ designate_worker_image: "{{ docker_image_url }}designate-worker"
+ designate_worker_tag: "{{ designate_tag }}"
+-designate_worker_image_full: "{{ designate_worker_image }}:{{ designate_worker_tag }}"
++designate_worker_image_full: "{{ lookup('kolla_image_full', designate_worker_image, designate_worker_tag) }}"
+ 
+ designate_api_dimensions: "{{ default_container_dimensions }}"
+ designate_backend_bind9_dimensions: "{{ default_container_dimensions }}"
+diff --git a/ansible/roles/etcd/defaults/main.yml b/ansible/roles/etcd/defaults/main.yml
+index 6de390b2c..2384241fe 100644
+--- a/ansible/roles/etcd/defaults/main.yml
++++ b/ansible/roles/etcd/defaults/main.yml
+@@ -85,7 +85,7 @@ etcd_bootstrap_cluster_environment:
+ ####################
+ etcd_image: "{{ docker_image_url }}etcd"
+ etcd_tag: "{{ openstack_tag }}"
+-etcd_image_full: "{{ etcd_image }}:{{ etcd_tag }}"
++etcd_image_full: "{{ lookup('kolla_image_full', etcd_image, etcd_tag) }}"
+ etcd_dimensions: "{{ default_container_dimensions }}"
+ 
+ etcd_enable_healthchecks: "{{ enable_container_healthchecks }}"
+diff --git a/ansible/roles/fluentd/defaults/main.yml b/ansible/roles/fluentd/defaults/main.yml
+index b462027d4..7f6ba399e 100644
+--- a/ansible/roles/fluentd/defaults/main.yml
++++ b/ansible/roles/fluentd/defaults/main.yml
+@@ -36,7 +36,7 @@ fluentd_tag: "{{ openstack_tag }}"
+ fluentd_dimensions: "{{ default_container_dimensions }}"
+ 
+ fluentd_image: "{{ docker_image_url }}fluentd"
+-fluentd_image_full: "{{ fluentd_image }}:{{ fluentd_tag }}"
++fluentd_image_full: "{{ lookup('kolla_image_full', fluentd_image, fluentd_tag) }}"
+ 
+ syslog_haproxy_facility: "local1"
+ 
+diff --git a/ansible/roles/glance/defaults/main.yml b/ansible/roles/glance/defaults/main.yml
+index e05708e16..61513bff2 100644
+--- a/ansible/roles/glance/defaults/main.yml
++++ b/ansible/roles/glance/defaults/main.yml
+@@ -136,7 +136,7 @@ glance_tag: "{{ openstack_tag }}"
+ 
+ glance_api_image: "{{ docker_image_url }}glance-api"
+ glance_api_tag: "{{ glance_tag }}"
+-glance_api_image_full: "{{ glance_api_image }}:{{ glance_api_tag }}"
++glance_api_image_full: "{{ lookup('kolla_image_full', glance_api_image, glance_api_tag) }}"
+ 
+ glance_api_dimensions: "{{ default_container_dimensions }}"
+ 
+diff --git a/ansible/roles/gnocchi/defaults/main.yml b/ansible/roles/gnocchi/defaults/main.yml
+index 45e779ddf..cff1d7598 100644
+--- a/ansible/roles/gnocchi/defaults/main.yml
++++ b/ansible/roles/gnocchi/defaults/main.yml
+@@ -84,15 +84,15 @@ gnocchi_tag: "{{ openstack_tag }}"
+ 
+ gnocchi_api_image: "{{ docker_image_url }}gnocchi-api"
+ gnocchi_api_tag: "{{ gnocchi_tag }}"
+-gnocchi_api_image_full: "{{ gnocchi_api_image }}:{{ gnocchi_api_tag }}"
++gnocchi_api_image_full: "{{ lookup('kolla_image_full', gnocchi_api_image, gnocchi_api_tag) }}"
+ 
+ gnocchi_statsd_image: "{{ docker_image_url }}gnocchi-statsd"
+ gnocchi_statsd_tag: "{{ gnocchi_tag }}"
+-gnocchi_statsd_image_full: "{{ gnocchi_statsd_image }}:{{ gnocchi_statsd_tag }}"
++gnocchi_statsd_image_full: "{{ lookup('kolla_image_full', gnocchi_statsd_image, gnocchi_statsd_tag) }}"
+ 
+ gnocchi_metricd_image: "{{ docker_image_url }}gnocchi-metricd"
+ gnocchi_metricd_tag: "{{ gnocchi_tag }}"
+-gnocchi_metricd_image_full: "{{ gnocchi_metricd_image }}:{{ gnocchi_metricd_tag }}"
++gnocchi_metricd_image_full: "{{ lookup('kolla_image_full', gnocchi_metricd_image, gnocchi_metricd_tag) }}"
+ 
+ gnocchi_api_dimensions: "{{ default_container_dimensions }}"
+ gnocchi_metricd_dimensions: "{{ default_container_dimensions }}"
+diff --git a/ansible/roles/grafana/defaults/main.yml b/ansible/roles/grafana/defaults/main.yml
+index e4d7d471d..b0b06972c 100644
+--- a/ansible/roles/grafana/defaults/main.yml
++++ b/ansible/roles/grafana/defaults/main.yml
+@@ -91,7 +91,7 @@ grafana_data_sources:
+ ##########
+ grafana_image: "{{ docker_image_url }}grafana"
+ grafana_tag: "{{ openstack_tag }}"
+-grafana_image_full: "{{ grafana_image }}:{{ grafana_tag }}"
++grafana_image_full: "{{ lookup('kolla_image_full', grafana_image, grafana_tag) }}"
+ grafana_admin_username: "admin"
+ 
+ grafana_enable_healthchecks: "{{ enable_container_healthchecks }}"
+diff --git a/ansible/roles/hacluster/defaults/main.yml b/ansible/roles/hacluster/defaults/main.yml
+index 250e28e6e..d452a837e 100644
+--- a/ansible/roles/hacluster/defaults/main.yml
++++ b/ansible/roles/hacluster/defaults/main.yml
+@@ -44,15 +44,15 @@ hacluster_services:
+ hacluster_tag: "{{ openstack_tag }}"
+ hacluster_corosync_image: "{{ docker_image_url }}hacluster-corosync"
+ hacluster_corosync_tag: "{{ hacluster_tag }}"
+-hacluster_corosync_image_full: "{{ hacluster_corosync_image }}:{{ hacluster_corosync_tag }}"
++hacluster_corosync_image_full: "{{ lookup('kolla_image_full', hacluster_corosync_image, hacluster_corosync_tag) }}"
+ 
+ hacluster_pacemaker_image: "{{ docker_image_url }}hacluster-pacemaker"
+ hacluster_pacemaker_tag: "{{ hacluster_tag }}"
+-hacluster_pacemaker_image_full: "{{ hacluster_pacemaker_image }}:{{ hacluster_pacemaker_tag }}"
++hacluster_pacemaker_image_full: "{{ lookup('kolla_image_full', hacluster_pacemaker_image, hacluster_pacemaker_tag) }}"
+ 
+ hacluster_pacemaker_remote_image: "{{ docker_image_url }}hacluster-pacemaker-remote"
+ hacluster_pacemaker_remote_tag: "{{ hacluster_tag }}"
+-hacluster_pacemaker_remote_image_full: "{{ hacluster_pacemaker_remote_image }}:{{ hacluster_pacemaker_remote_tag }}"
++hacluster_pacemaker_remote_image_full: "{{ lookup('kolla_image_full', hacluster_pacemaker_remote_image, hacluster_pacemaker_remote_tag) }}"
+ 
+ hacluster_corosync_dimensions: "{{ default_container_dimensions }}"
+ hacluster_pacemaker_dimensions: "{{ default_container_dimensions }}"
+diff --git a/ansible/roles/heat/defaults/main.yml b/ansible/roles/heat/defaults/main.yml
+index dbc869a71..d5f302c7a 100644
+--- a/ansible/roles/heat/defaults/main.yml
++++ b/ansible/roles/heat/defaults/main.yml
+@@ -109,15 +109,15 @@ heat_tag: "{{ openstack_tag }}"
+ 
+ heat_api_image: "{{ docker_image_url }}heat-api"
+ heat_api_tag: "{{ heat_tag }}"
+-heat_api_image_full: "{{ heat_api_image }}:{{ heat_api_tag }}"
++heat_api_image_full: "{{ lookup('kolla_image_full', heat_api_image, heat_api_tag) }}"
+ 
+ heat_api_cfn_image: "{{ docker_image_url }}heat-api-cfn"
+ heat_api_cfn_tag: "{{ heat_tag }}"
+-heat_api_cfn_image_full: "{{ heat_api_cfn_image }}:{{ heat_api_cfn_tag }}"
++heat_api_cfn_image_full: "{{ lookup('kolla_image_full', heat_api_cfn_image, heat_api_cfn_tag) }}"
+ 
+ heat_engine_image: "{{ docker_image_url }}heat-engine"
+ heat_engine_tag: "{{ heat_tag }}"
+-heat_engine_image_full: "{{ heat_engine_image }}:{{ heat_engine_tag }}"
++heat_engine_image_full: "{{ lookup('kolla_image_full', heat_engine_image, heat_engine_tag) }}"
+ 
+ heat_api_dimensions: "{{ default_container_dimensions }}"
+ heat_api_cfn_dimensions: "{{ default_container_dimensions }}"
+diff --git a/ansible/roles/horizon/defaults/main.yml b/ansible/roles/horizon/defaults/main.yml
+index 11c692f12..c91a5a0e1 100644
+--- a/ansible/roles/horizon/defaults/main.yml
++++ b/ansible/roles/horizon/defaults/main.yml
+@@ -108,7 +108,7 @@ horizon_database_shard:
+ ####################
+ horizon_image: "{{ docker_image_url }}horizon"
+ horizon_tag: "{{ openstack_tag }}"
+-horizon_image_full: "{{ horizon_image }}:{{ horizon_tag }}"
++horizon_image_full: "{{ lookup('kolla_image_full', horizon_image, horizon_tag) }}"
+ 
+ horizon_dimensions: "{{ default_container_dimensions }}"
+ 
+diff --git a/ansible/roles/ironic/defaults/main.yml b/ansible/roles/ironic/defaults/main.yml
+index 5c3abaacb..1102d3572 100644
+--- a/ansible/roles/ironic/defaults/main.yml
++++ b/ansible/roles/ironic/defaults/main.yml
+@@ -123,31 +123,31 @@ ironic_tag: "{{ openstack_tag }}"
+ 
+ ironic_api_image: "{{ docker_image_url }}ironic-api"
+ ironic_api_tag: "{{ ironic_tag }}"
+-ironic_api_image_full: "{{ ironic_api_image }}:{{ ironic_api_tag }}"
++ironic_api_image_full: "{{ lookup('kolla_image_full', ironic_api_image, ironic_api_tag) }}"
+ 
+ ironic_conductor_image: "{{ docker_image_url }}ironic-conductor"
+ ironic_conductor_tag: "{{ ironic_tag }}"
+-ironic_conductor_image_full: "{{ ironic_conductor_image }}:{{ ironic_conductor_tag }}"
++ironic_conductor_image_full: "{{ lookup('kolla_image_full', ironic_conductor_image, ironic_conductor_tag) }}"
+ 
+ ironic_pxe_image: "{{ docker_image_url }}ironic-pxe"
+ ironic_pxe_tag: "{{ ironic_tag }}"
+-ironic_pxe_image_full: "{{ ironic_pxe_image }}:{{ ironic_pxe_tag }}"
++ironic_pxe_image_full: "{{ lookup('kolla_image_full', ironic_pxe_image, ironic_pxe_tag) }}"
+ 
+ ironic_dnsmasq_image: "{{ docker_image_url }}dnsmasq"
+ ironic_dnsmasq_tag: "{{ ironic_tag }}"
+-ironic_dnsmasq_image_full: "{{ ironic_dnsmasq_image }}:{{ ironic_dnsmasq_tag }}"
++ironic_dnsmasq_image_full: "{{ lookup('kolla_image_full', ironic_dnsmasq_image, ironic_dnsmasq_tag) }}"
+ 
+ ironic_pxe_filter_image: "{{ docker_image_url }}ironic-pxe-filter"
+ ironic_pxe_filter_tag: "{{ ironic_tag }}"
+-ironic_pxe_filter_image_full: "{{ ironic_pxe_filter_image }}:{{ ironic_pxe_filter_tag }}"
++ironic_pxe_filter_image_full: "{{ lookup('kolla_image_full', ironic_pxe_filter_image, ironic_pxe_filter_tag) }}"
+ 
+ ironic_prometheus_exporter_image: "{{ docker_image_url }}ironic-prometheus-exporter"
+ ironic_prometheus_exporter_tag: "{{ ironic_tag }}"
+-ironic_prometheus_exporter_image_full: "{{ ironic_prometheus_exporter_image }}:{{ ironic_prometheus_exporter_tag }}"
++ironic_prometheus_exporter_image_full: "{{ lookup('kolla_image_full', ironic_prometheus_exporter_image, ironic_prometheus_exporter_tag) }}"
+ 
+ ironic_http_image: "{{ docker_image_url }}httpd"
+ ironic_http_tag: "{{ ironic_tag }}"
+-ironic_http_image_full: "{{ ironic_http_image }}:{{ ironic_http_tag }}"
++ironic_http_image_full: "{{ lookup('kolla_image_full', ironic_http_image, ironic_http_tag) }}"
+ 
+ ironic_api_dimensions: "{{ default_container_dimensions }}"
+ ironic_conductor_dimensions: "{{ default_container_dimensions }}"
+diff --git a/ansible/roles/iscsi/defaults/main.yml b/ansible/roles/iscsi/defaults/main.yml
+index 1477e131c..13923ff46 100644
+--- a/ansible/roles/iscsi/defaults/main.yml
++++ b/ansible/roles/iscsi/defaults/main.yml
+@@ -28,11 +28,11 @@ iscsi_tag: "{{ openstack_tag }}"
+ 
+ iscsid_image: "{{ docker_image_url }}iscsid"
+ iscsid_tag: "{{ iscsi_tag }}"
+-iscsid_image_full: "{{ iscsid_image }}:{{ iscsid_tag }}"
++iscsid_image_full: "{{ lookup('kolla_image_full', iscsid_image, iscsid_tag) }}"
+ 
+ tgtd_image: "{{ docker_image_url }}tgtd"
+ tgtd_tag: "{{ iscsi_tag }}"
+-tgtd_image_full: "{{ tgtd_image }}:{{ tgtd_tag }}"
++tgtd_image_full: "{{ lookup('kolla_image_full', tgtd_image, tgtd_tag) }}"
+ 
+ iscsid_dimensions: "{{ default_container_dimensions }}"
+ tgtd_dimensions: "{{ default_container_dimensions }}"
+diff --git a/ansible/roles/keystone/defaults/main.yml b/ansible/roles/keystone/defaults/main.yml
+index 6c092357a..9bb5bcee2 100644
+--- a/ansible/roles/keystone/defaults/main.yml
++++ b/ansible/roles/keystone/defaults/main.yml
+@@ -109,19 +109,19 @@ keystone_tag: "{{ openstack_tag }}"
+ 
+ keystone_api_image: "{{ docker_image_url }}keystone-api"
+ keystone_api_tag: "{{ keystone_tag }}"
+-keystone_api_image_full: "{{ keystone_api_image }}:{{ keystone_api_tag }}"
++keystone_api_image_full: "{{ lookup('kolla_image_full', keystone_api_image, keystone_api_tag) }}"
+ 
+ keystone_httpd_image: "{{ docker_image_url }}httpd"
+ keystone_httpd_tag: "{{ keystone_tag }}"
+-keystone_httpd_image_full: "{{ keystone_httpd_image }}:{{ keystone_httpd_tag }}"
++keystone_httpd_image_full: "{{ lookup('kolla_image_full', keystone_httpd_image, keystone_httpd_tag) }}"
+ 
+ keystone_fernet_image: "{{ docker_image_url }}keystone-fernet"
+ keystone_fernet_tag: "{{ keystone_tag }}"
+-keystone_fernet_image_full: "{{ keystone_fernet_image }}:{{ keystone_fernet_tag }}"
++keystone_fernet_image_full: "{{ lookup('kolla_image_full', keystone_fernet_image, keystone_fernet_tag) }}"
+ 
+ keystone_ssh_image: "{{ docker_image_url }}keystone-ssh"
+ keystone_ssh_tag: "{{ keystone_tag }}"
+-keystone_ssh_image_full: "{{ keystone_ssh_image }}:{{ keystone_ssh_tag }}"
++keystone_ssh_image_full: "{{ lookup('kolla_image_full', keystone_ssh_image, keystone_ssh_tag) }}"
+ 
+ keystone_api_dimensions: "{{ default_container_dimensions }}"
+ keystone_httpd_dimensions: "{{ default_container_dimensions }}"
+diff --git a/ansible/roles/kolla_toolbox/defaults/main.yml b/ansible/roles/kolla_toolbox/defaults/main.yml
+index 6d806fd31..12b20c7f8 100644
+--- a/ansible/roles/kolla_toolbox/defaults/main.yml
++++ b/ansible/roles/kolla_toolbox/defaults/main.yml
+@@ -20,7 +20,7 @@ kolla_toolbox_dimensions: "{{ default_container_dimensions }}"
+ 
+ kolla_toolbox_image: "{{ docker_image_url }}kolla-toolbox"
+ kolla_toolbox_tag: "{{ openstack_tag }}"
+-kolla_toolbox_image_full: "{{ kolla_toolbox_image }}:{{ kolla_toolbox_tag }}"
++kolla_toolbox_image_full: "{{ lookup('kolla_image_full', kolla_toolbox_image, kolla_toolbox_tag) }}"
+ 
+ kolla_toolbox_default_volumes:
+   - "{{ node_config_directory }}/kolla-toolbox/:{{ container_config_directory }}/:ro"
+diff --git a/ansible/roles/letsencrypt/defaults/main.yml b/ansible/roles/letsencrypt/defaults/main.yml
+index 52e9f0729..8dbbc94cb 100644
+--- a/ansible/roles/letsencrypt/defaults/main.yml
++++ b/ansible/roles/letsencrypt/defaults/main.yml
+@@ -23,11 +23,11 @@ letsencrypt_logging_debug: "{{ openstack_logging_debug }}"
+ 
+ letsencrypt_lego_image: "{{ docker_image_url }}letsencrypt-lego"
+ letsencrypt_lego_tag: "{{ letsencrypt_tag }}"
+-letsencrypt_lego_image_full: "{{ letsencrypt_lego_image }}:{{ letsencrypt_lego_tag }}"
++letsencrypt_lego_image_full: "{{ lookup('kolla_image_full', letsencrypt_lego_image, letsencrypt_lego_tag) }}"
+ 
+ letsencrypt_webserver_image: "{{ docker_image_url }}httpd"
+ letsencrypt_webserver_tag: "{{ letsencrypt_tag }}"
+-letsencrypt_webserver_image_full: "{{ letsencrypt_webserver_image }}:{{ letsencrypt_webserver_tag }}"
++letsencrypt_webserver_image_full: "{{ lookup('kolla_image_full', letsencrypt_webserver_image, letsencrypt_webserver_tag) }}"
+ 
+ letsencrypt_lego_dimensions: "{{ default_container_dimensions }}"
+ letsencrypt_webserver_dimensions: "{{ default_container_dimensions }}"
+diff --git a/ansible/roles/loadbalancer/defaults/main.yml b/ansible/roles/loadbalancer/defaults/main.yml
+index a4e9910fa..ab76a139c 100644
+--- a/ansible/roles/loadbalancer/defaults/main.yml
++++ b/ansible/roles/loadbalancer/defaults/main.yml
+@@ -41,19 +41,19 @@ loadbalancer_services:
+ ####################
+ keepalived_image: "{{ docker_image_url }}keepalived"
+ keepalived_tag: "{{ openstack_tag }}"
+-keepalived_image_full: "{{ keepalived_image }}:{{ keepalived_tag }}"
++keepalived_image_full: "{{ lookup('kolla_image_full', keepalived_image, keepalived_tag) }}"
+ 
+ haproxy_image: "{{ docker_image_url }}haproxy"
+ haproxy_tag: "{{ openstack_tag }}"
+-haproxy_image_full: "{{ haproxy_image }}:{{ haproxy_tag }}"
++haproxy_image_full: "{{ lookup('kolla_image_full', haproxy_image, haproxy_tag) }}"
+ 
+ proxysql_image: "{{ docker_image_url }}proxysql"
+ proxysql_tag: "{{ openstack_tag }}"
+-proxysql_image_full: "{{ proxysql_image }}:{{ proxysql_tag }}"
++proxysql_image_full: "{{ lookup('kolla_image_full', proxysql_image, proxysql_tag) }}"
+ 
+ haproxy_ssh_image: "{{ docker_image_url }}haproxy-ssh"
+ haproxy_ssh_tag: "{{ haproxy_tag }}"
+-haproxy_ssh_image_full: "{{ haproxy_ssh_image }}:{{ haproxy_ssh_tag }}"
++haproxy_ssh_image_full: "{{ lookup('kolla_image_full', haproxy_ssh_image, haproxy_ssh_tag) }}"
+ 
+ syslog_server: "{{ api_interface_address }}"
+ syslog_haproxy_facility: "local1"
+diff --git a/ansible/roles/magnum/defaults/main.yml b/ansible/roles/magnum/defaults/main.yml
+index e360c0ca0..59abf8999 100644
+--- a/ansible/roles/magnum/defaults/main.yml
++++ b/ansible/roles/magnum/defaults/main.yml
+@@ -90,11 +90,11 @@ magnum_tag: "{{ openstack_tag }}"
+ 
+ magnum_api_image: "{{ docker_image_url }}magnum-api"
+ magnum_api_tag: "{{ magnum_tag }}"
+-magnum_api_image_full: "{{ magnum_api_image }}:{{ magnum_api_tag }}"
++magnum_api_image_full: "{{ lookup('kolla_image_full', magnum_api_image, magnum_api_tag) }}"
+ 
+ magnum_conductor_image: "{{ docker_image_url }}magnum-conductor"
+ magnum_conductor_tag: "{{ magnum_tag }}"
+-magnum_conductor_image_full: "{{ magnum_conductor_image }}:{{ magnum_conductor_tag }}"
++magnum_conductor_image_full: "{{ lookup('kolla_image_full', magnum_conductor_image, magnum_conductor_tag) }}"
+ 
+ magnum_api_dimensions: "{{ default_container_dimensions }}"
+ magnum_conductor_dimensions: "{{ default_container_dimensions }}"
+diff --git a/ansible/roles/manila/defaults/main.yml b/ansible/roles/manila/defaults/main.yml
+index fe1108f6a..b30304064 100644
+--- a/ansible/roles/manila/defaults/main.yml
++++ b/ansible/roles/manila/defaults/main.yml
+@@ -94,19 +94,19 @@ manila_tag: "{{ openstack_tag }}"
+ 
+ manila_share_image: "{{ docker_image_url }}manila-share"
+ manila_share_tag: "{{ manila_tag }}"
+-manila_share_image_full: "{{ manila_share_image }}:{{ manila_share_tag }}"
++manila_share_image_full: "{{ lookup('kolla_image_full', manila_share_image, manila_share_tag) }}"
+ 
+ manila_scheduler_image: "{{ docker_image_url }}manila-scheduler"
+ manila_scheduler_tag: "{{ manila_tag }}"
+-manila_scheduler_image_full: "{{ manila_scheduler_image }}:{{ manila_scheduler_tag }}"
++manila_scheduler_image_full: "{{ lookup('kolla_image_full', manila_scheduler_image, manila_scheduler_tag) }}"
+ 
+ manila_api_image: "{{ docker_image_url }}manila-api"
+ manila_api_tag: "{{ manila_tag }}"
+-manila_api_image_full: "{{ manila_api_image }}:{{ manila_api_tag }}"
++manila_api_image_full: "{{ lookup('kolla_image_full', manila_api_image, manila_api_tag) }}"
+ 
+ manila_data_image: "{{ docker_image_url }}manila-data"
+ manila_data_tag: "{{ manila_tag }}"
+-manila_data_image_full: "{{ manila_data_image }}:{{ manila_data_tag }}"
++manila_data_image_full: "{{ lookup('kolla_image_full', manila_data_image, manila_data_tag) }}"
+ 
+ manila_share_dimensions: "{{ default_container_dimensions }}"
+ manila_scheduler_dimensions: "{{ default_container_dimensions }}"
+diff --git a/ansible/roles/mariadb/defaults/main.yml b/ansible/roles/mariadb/defaults/main.yml
+index 62f6a4aa9..23c83bc49 100644
+--- a/ansible/roles/mariadb/defaults/main.yml
++++ b/ansible/roles/mariadb/defaults/main.yml
+@@ -40,7 +40,7 @@ external_haproxy_members: >-
+ ####################
+ mariadb_image: "{{ docker_image_url }}mariadb-server"
+ mariadb_tag: "{{ openstack_tag }}"
+-mariadb_image_full: "{{ mariadb_image }}:{{ mariadb_tag }}"
++mariadb_image_full: "{{ lookup('kolla_image_full', mariadb_image, mariadb_tag) }}"
+ 
+ mariadb_dimensions: "{{ default_container_dimensions }}"
+ 
+diff --git a/ansible/roles/masakari/defaults/main.yml b/ansible/roles/masakari/defaults/main.yml
+index 7f33651ee..6e0c0dba3 100644
+--- a/ansible/roles/masakari/defaults/main.yml
++++ b/ansible/roles/masakari/defaults/main.yml
+@@ -91,15 +91,15 @@ masakari_tag: "{{ openstack_tag }}"
+ 
+ masakari_api_image: "{{ docker_image_url }}masakari-api"
+ masakari_api_tag: "{{ masakari_tag }}"
+-masakari_api_image_full: "{{ masakari_api_image }}:{{ masakari_api_tag }}"
++masakari_api_image_full: "{{ lookup('kolla_image_full', masakari_api_image, masakari_api_tag) }}"
+ 
+ masakari_engine_image: "{{ docker_image_url }}masakari-engine"
+ masakari_engine_tag: "{{ masakari_tag }}"
+-masakari_engine_image_full: "{{ masakari_engine_image }}:{{ masakari_engine_tag }}"
++masakari_engine_image_full: "{{ lookup('kolla_image_full', masakari_engine_image, masakari_engine_tag) }}"
+ 
+ masakari_monitors_image: "{{ docker_image_url }}masakari-monitors"
+ masakari_monitors_tag: "{{ masakari_tag }}"
+-masakari_monitors_image_full: "{{ masakari_monitors_image }}:{{ masakari_monitors_tag }}"
++masakari_monitors_image_full: "{{ lookup('kolla_image_full', masakari_monitors_image, masakari_monitors_tag) }}"
+ 
+ masakari_api_dimensions: "{{ default_container_dimensions }}"
+ masakari_engine_dimensions: "{{ default_container_dimensions }}"
+diff --git a/ansible/roles/memcached/defaults/main.yml b/ansible/roles/memcached/defaults/main.yml
+index d1ae3e00a..e92d7c712 100644
+--- a/ansible/roles/memcached/defaults/main.yml
++++ b/ansible/roles/memcached/defaults/main.yml
+@@ -14,7 +14,7 @@ memcached_services:
+ ####################
+ memcached_image: "{{ docker_image_url }}memcached"
+ memcached_tag: "{{ openstack_tag }}"
+-memcached_image_full: "{{ memcached_image }}:{{ memcached_tag }}"
++memcached_image_full: "{{ lookup('kolla_image_full', memcached_image, memcached_tag) }}"
+ memcached_dimensions: "{{ default_container_dimensions }}"
+ 
+ memcached_enable_healthchecks: "{{ enable_container_healthchecks }}"
+diff --git a/ansible/roles/mistral/defaults/main.yml b/ansible/roles/mistral/defaults/main.yml
+index 657d5c20f..d746022b3 100644
+--- a/ansible/roles/mistral/defaults/main.yml
++++ b/ansible/roles/mistral/defaults/main.yml
+@@ -92,19 +92,19 @@ mistral_tag: "{{ openstack_tag }}"
+ 
+ mistral_engine_image: "{{ docker_image_url }}mistral-engine"
+ mistral_engine_tag: "{{ mistral_tag }}"
+-mistral_engine_image_full: "{{ mistral_engine_image }}:{{ mistral_engine_tag }}"
++mistral_engine_image_full: "{{ lookup('kolla_image_full', mistral_engine_image, mistral_engine_tag) }}"
+ 
+ mistral_event_engine_image: "{{ docker_image_url }}mistral-event-engine"
+ mistral_event_engine_tag: "{{ mistral_tag }}"
+-mistral_event_engine_image_full: "{{ mistral_event_engine_image }}:{{ mistral_event_engine_tag }}"
++mistral_event_engine_image_full: "{{ lookup('kolla_image_full', mistral_event_engine_image, mistral_event_engine_tag) }}"
+ 
+ mistral_executor_image: "{{ docker_image_url }}mistral-executor"
+ mistral_executor_tag: "{{ mistral_tag }}"
+-mistral_executor_image_full: "{{ mistral_executor_image }}:{{ mistral_executor_tag }}"
++mistral_executor_image_full: "{{ lookup('kolla_image_full', mistral_executor_image, mistral_executor_tag) }}"
+ 
+ mistral_api_image: "{{ docker_image_url }}mistral-api"
+ mistral_api_tag: "{{ mistral_tag }}"
+-mistral_api_image_full: "{{ mistral_api_image }}:{{ mistral_api_tag }}"
++mistral_api_image_full: "{{ lookup('kolla_image_full', mistral_api_image, mistral_api_tag) }}"
+ 
+ mistral_engine_dimensions: "{{ default_container_dimensions }}"
+ mistral_event_engine_dimensions: "{{ default_container_dimensions }}"
+diff --git a/ansible/roles/multipathd/defaults/main.yml b/ansible/roles/multipathd/defaults/main.yml
+index d0903fd9e..d1cc4156b 100644
+--- a/ansible/roles/multipathd/defaults/main.yml
++++ b/ansible/roles/multipathd/defaults/main.yml
+@@ -15,7 +15,7 @@ multipathd_services:
+ ####################
+ multipathd_image: "{{ docker_image_url }}multipathd"
+ multipathd_tag: "{{ openstack_tag }}"
+-multipathd_image_full: "{{ multipathd_image }}:{{ multipathd_tag }}"
++multipathd_image_full: "{{ lookup('kolla_image_full', multipathd_image, multipathd_tag) }}"
+ 
+ multipathd_default_volumes:
+   - "{{ node_config_directory }}/multipathd/:{{ container_config_directory }}/:ro"
+diff --git a/ansible/roles/neutron/defaults/main.yml b/ansible/roles/neutron/defaults/main.yml
+index 93ec57321..7c0d80946 100644
+--- a/ansible/roles/neutron/defaults/main.yml
++++ b/ansible/roles/neutron/defaults/main.yml
+@@ -299,71 +299,71 @@ neutron_tag: "{{ openstack_tag }}"
+ 
+ neutron_dhcp_agent_image: "{{ docker_image_url }}neutron-dhcp-agent"
+ neutron_dhcp_agent_tag: "{{ neutron_tag }}"
+-neutron_dhcp_agent_image_full: "{{ neutron_dhcp_agent_image }}:{{ neutron_dhcp_agent_tag }}"
++neutron_dhcp_agent_image_full: "{{ lookup('kolla_image_full', neutron_dhcp_agent_image, neutron_dhcp_agent_tag) }}"
+ 
+ neutron_l3_agent_image: "{{ docker_image_url }}neutron-l3-agent"
+ neutron_l3_agent_tag: "{{ neutron_tag }}"
+-neutron_l3_agent_image_full: "{{ neutron_l3_agent_image }}:{{ neutron_l3_agent_tag }}"
++neutron_l3_agent_image_full: "{{ lookup('kolla_image_full', neutron_l3_agent_image, neutron_l3_agent_tag) }}"
+ 
+ neutron_sriov_agent_image: "{{ docker_image_url }}neutron-sriov-agent"
+ neutron_sriov_agent_tag: "{{ neutron_tag }}"
+-neutron_sriov_agent_image_full: "{{ neutron_sriov_agent_image }}:{{ neutron_sriov_agent_tag }}"
++neutron_sriov_agent_image_full: "{{ lookup('kolla_image_full', neutron_sriov_agent_image, neutron_sriov_agent_tag) }}"
+ 
+ neutron_mlnx_agent_image: "{{ docker_image_url }}neutron-mlnx-agent"
+ neutron_mlnx_agent_tag: "{{ neutron_tag }}"
+-neutron_mlnx_agent_image_full: "{{ neutron_mlnx_agent_image }}:{{ neutron_mlnx_agent_tag }}"
++neutron_mlnx_agent_image_full: "{{ lookup('kolla_image_full', neutron_mlnx_agent_image, neutron_mlnx_agent_tag) }}"
+ 
+ neutron_eswitchd_image: "{{ docker_image_url }}neutron-mlnx-agent"
+ neutron_eswitchd_tag: "{{ neutron_mlnx_agent_tag }}"
+-neutron_eswitchd_image_full: "{{ neutron_eswitchd_image }}:{{ neutron_eswitchd_tag }}"
++neutron_eswitchd_image_full: "{{ lookup('kolla_image_full', neutron_eswitchd_image, neutron_eswitchd_tag) }}"
+ 
+ neutron_metadata_agent_image: "{{ docker_image_url }}neutron-metadata-agent"
+ neutron_metadata_agent_tag: "{{ neutron_tag }}"
+-neutron_metadata_agent_image_full: "{{ neutron_metadata_agent_image }}:{{ neutron_metadata_agent_tag }}"
++neutron_metadata_agent_image_full: "{{ lookup('kolla_image_full', neutron_metadata_agent_image, neutron_metadata_agent_tag) }}"
+ 
+ neutron_ovn_maintenance_worker_image: "{{ neutron_server_image }}"
+ neutron_ovn_maintenance_worker_tag: "{{ neutron_tag }}"
+-neutron_ovn_maintenance_worker_image_full: "{{ neutron_ovn_maintenance_worker_image }}:{{ neutron_ovn_maintenance_worker_tag }}"
++neutron_ovn_maintenance_worker_image_full: "{{ lookup('kolla_image_full', neutron_ovn_maintenance_worker_image, neutron_ovn_maintenance_worker_tag) }}"
+ 
+ neutron_ovn_metadata_agent_image: "{{ docker_image_url }}neutron-metadata-agent"
+ neutron_ovn_metadata_agent_tag: "{{ neutron_tag }}"
+-neutron_ovn_metadata_agent_image_full: "{{ neutron_ovn_metadata_agent_image }}:{{ neutron_ovn_metadata_agent_tag }}"
++neutron_ovn_metadata_agent_image_full: "{{ lookup('kolla_image_full', neutron_ovn_metadata_agent_image, neutron_ovn_metadata_agent_tag) }}"
+ 
+ neutron_openvswitch_agent_image: "{{ docker_image_url }}neutron-openvswitch-agent"
+ neutron_openvswitch_agent_tag: "{{ neutron_tag }}"
+-neutron_openvswitch_agent_image_full: "{{ neutron_openvswitch_agent_image }}:{{ neutron_openvswitch_agent_tag }}"
++neutron_openvswitch_agent_image_full: "{{ lookup('kolla_image_full', neutron_openvswitch_agent_image, neutron_openvswitch_agent_tag) }}"
+ 
+ neutron_periodic_worker_image: "{{ neutron_server_image }}"
+ neutron_periodic_worker_tag: "{{ neutron_tag }}"
+-neutron_periodic_worker_image_full: "{{ neutron_periodic_worker_image }}:{{ neutron_periodic_worker_tag }}"
++neutron_periodic_worker_image_full: "{{ lookup('kolla_image_full', neutron_periodic_worker_image, neutron_periodic_worker_tag) }}"
+ 
+ neutron_rpc_server_image: "{{ neutron_server_image }}"
+ neutron_rpc_server_tag: "{{ neutron_tag }}"
+-neutron_rpc_server_image_full: "{{ neutron_rpc_server_image }}:{{ neutron_rpc_server_tag }}"
++neutron_rpc_server_image_full: "{{ lookup('kolla_image_full', neutron_rpc_server_image, neutron_rpc_server_tag) }}"
+ 
+ neutron_server_image: "{{ docker_image_url }}neutron-server"
+ neutron_server_tag: "{{ neutron_tag }}"
+-neutron_server_image_full: "{{ neutron_server_image }}:{{ neutron_server_tag }}"
++neutron_server_image_full: "{{ lookup('kolla_image_full', neutron_server_image, neutron_server_tag) }}"
+ 
+ neutron_bgp_dragent_image: "{{ docker_image_url }}neutron-bgp-dragent"
+ neutron_bgp_dragent_tag: "{{ neutron_tag }}"
+-neutron_bgp_dragent_image_full: "{{ neutron_bgp_dragent_image }}:{{ neutron_bgp_dragent_tag }}"
++neutron_bgp_dragent_image_full: "{{ lookup('kolla_image_full', neutron_bgp_dragent_image, neutron_bgp_dragent_tag) }}"
+ 
+ neutron_metering_agent_image: "{{ docker_image_url }}neutron-metering-agent"
+ neutron_metering_agent_tag: "{{ neutron_tag }}"
+-neutron_metering_agent_image_full: "{{ neutron_metering_agent_image }}:{{ neutron_metering_agent_tag }}"
++neutron_metering_agent_image_full: "{{ lookup('kolla_image_full', neutron_metering_agent_image, neutron_metering_agent_tag) }}"
+ 
+ ironic_neutron_agent_image: "{{ docker_image_url }}ironic-neutron-agent"
+ ironic_neutron_agent_tag: "{{ neutron_tag }}"
+-ironic_neutron_agent_image_full: "{{ ironic_neutron_agent_image }}:{{ ironic_neutron_agent_tag }}"
++ironic_neutron_agent_image_full: "{{ lookup('kolla_image_full', ironic_neutron_agent_image, ironic_neutron_agent_tag) }}"
+ 
+ neutron_ovn_agent_image: "{{ docker_image_url }}neutron-ovn-agent"
+ neutron_ovn_agent_tag: "{{ neutron_tag }}"
+-neutron_ovn_agent_image_full: "{{ neutron_ovn_agent_image }}:{{ neutron_ovn_agent_tag }}"
++neutron_ovn_agent_image_full: "{{ lookup('kolla_image_full', neutron_ovn_agent_image, neutron_ovn_agent_tag) }}"
+ 
+ neutron_ovn_vpn_agent_image: "{{ docker_image_url }}neutron-ovn-vpn-agent"
+ neutron_ovn_vpn_agent_tag: "{{ neutron_tag }}"
+-neutron_ovn_vpn_agent_image_full: "{{ neutron_ovn_vpn_agent_image }}:{{ neutron_ovn_vpn_agent_tag }}"
++neutron_ovn_vpn_agent_image_full: "{{ lookup('kolla_image_full', neutron_ovn_vpn_agent_image, neutron_ovn_vpn_agent_tag) }}"
+ 
+ neutron_agent_dimensions: "{{ default_container_dimensions }}"
+ 
+diff --git a/ansible/roles/nova-cell/defaults/main.yml b/ansible/roles/nova-cell/defaults/main.yml
+index 7cbd48811..7fac5e2bc 100644
+--- a/ansible/roles/nova-cell/defaults/main.yml
++++ b/ansible/roles/nova-cell/defaults/main.yml
+@@ -300,36 +300,36 @@ nova_tag: "{{ openstack_tag }}"
+ 
+ nova_libvirt_image: "{{ docker_image_url }}{{ 'nova-libvirt-spice' if enable_kerbside else 'nova-libvirt' }}"
+ nova_libvirt_tag: "{{ nova_tag }}"
+-nova_libvirt_image_full: "{{ nova_libvirt_image }}:{{ nova_libvirt_tag }}"
++nova_libvirt_image_full: "{{ lookup('kolla_image_full', nova_libvirt_image, nova_libvirt_tag) }}"
+ nova_libvirt_cpu_mode: "{{ 'host-passthrough' if ansible_facts.architecture == 'aarch64' else '' }}"
+ 
+ nova_ssh_image: "{{ docker_image_url }}nova-ssh"
+ nova_ssh_tag: "{{ nova_tag }}"
+-nova_ssh_image_full: "{{ nova_ssh_image }}:{{ nova_ssh_tag }}"
++nova_ssh_image_full: "{{ lookup('kolla_image_full', nova_ssh_image, nova_ssh_tag) }}"
+ 
+ nova_novncproxy_image: "{{ docker_image_url }}nova-novncproxy"
+ nova_novncproxy_tag: "{{ nova_tag }}"
+-nova_novncproxy_image_full: "{{ nova_novncproxy_image }}:{{ nova_novncproxy_tag }}"
++nova_novncproxy_image_full: "{{ lookup('kolla_image_full', nova_novncproxy_image, nova_novncproxy_tag) }}"
+ 
+ nova_spicehtml5proxy_image: "{{ docker_image_url }}nova-spicehtml5proxy"
+ nova_spicehtml5proxy_tag: "{{ nova_tag }}"
+-nova_spicehtml5proxy_image_full: "{{ nova_spicehtml5proxy_image }}:{{ nova_spicehtml5proxy_tag }}"
++nova_spicehtml5proxy_image_full: "{{ lookup('kolla_image_full', nova_spicehtml5proxy_image, nova_spicehtml5proxy_tag) }}"
+ 
+ nova_serialproxy_image: "{{ docker_image_url }}nova-serialproxy"
+ nova_serialproxy_tag: "{{ nova_tag }}"
+-nova_serialproxy_image_full: "{{ nova_serialproxy_image }}:{{ nova_serialproxy_tag }}"
++nova_serialproxy_image_full: "{{ lookup('kolla_image_full', nova_serialproxy_image, nova_serialproxy_tag) }}"
+ 
+ nova_conductor_image: "{{ docker_image_url }}nova-conductor"
+ nova_conductor_tag: "{{ nova_tag }}"
+-nova_conductor_image_full: "{{ nova_conductor_image }}:{{ nova_conductor_tag }}"
++nova_conductor_image_full: "{{ lookup('kolla_image_full', nova_conductor_image, nova_conductor_tag) }}"
+ 
+ nova_compute_image: "{{ docker_image_url }}nova-compute"
+ nova_compute_tag: "{{ nova_tag }}"
+-nova_compute_image_full: "{{ nova_compute_image }}:{{ nova_compute_tag }}"
++nova_compute_image_full: "{{ lookup('kolla_image_full', nova_compute_image, nova_compute_tag) }}"
+ 
+ nova_compute_ironic_image: "{{ docker_image_url }}nova-compute-ironic"
+ nova_compute_ironic_tag: "{{ nova_tag }}"
+-nova_compute_ironic_image_full: "{{ nova_compute_ironic_image }}:{{ nova_compute_ironic_tag }}"
++nova_compute_ironic_image_full: "{{ lookup('kolla_image_full', nova_compute_ironic_image, nova_compute_ironic_tag) }}"
+ 
+ nova_libvirt_default_dimensions:
+   ulimits:
+diff --git a/ansible/roles/nova/defaults/main.yml b/ansible/roles/nova/defaults/main.yml
+index 88549c2d3..3334672fa 100644
+--- a/ansible/roles/nova/defaults/main.yml
++++ b/ansible/roles/nova/defaults/main.yml
+@@ -117,15 +117,15 @@ nova_tag: "{{ openstack_tag }}"
+ 
+ nova_super_conductor_image: "{{ docker_image_url }}nova-conductor"
+ nova_super_conductor_tag: "{{ nova_tag }}"
+-nova_super_conductor_image_full: "{{ nova_super_conductor_image }}:{{ nova_super_conductor_tag }}"
++nova_super_conductor_image_full: "{{ lookup('kolla_image_full', nova_super_conductor_image, nova_super_conductor_tag) }}"
+ 
+ nova_scheduler_image: "{{ docker_image_url }}nova-scheduler"
+ nova_scheduler_tag: "{{ nova_tag }}"
+-nova_scheduler_image_full: "{{ nova_scheduler_image }}:{{ nova_scheduler_tag }}"
++nova_scheduler_image_full: "{{ lookup('kolla_image_full', nova_scheduler_image, nova_scheduler_tag) }}"
+ 
+ nova_api_image: "{{ docker_image_url }}nova-api"
+ nova_api_tag: "{{ nova_tag }}"
+-nova_api_image_full: "{{ nova_api_image }}:{{ nova_api_tag }}"
++nova_api_image_full: "{{ lookup('kolla_image_full', nova_api_image, nova_api_tag) }}"
+ 
+ nova_api_dimensions: "{{ default_container_dimensions }}"
+ nova_metadata_dimensions: "{{ default_container_dimensions }}"
+diff --git a/ansible/roles/octavia/defaults/main.yml b/ansible/roles/octavia/defaults/main.yml
+index 90457b1af..dc8ce08b7 100644
+--- a/ansible/roles/octavia/defaults/main.yml
++++ b/ansible/roles/octavia/defaults/main.yml
+@@ -123,23 +123,23 @@ octavia_tag: "{{ openstack_tag }}"
+ 
+ octavia_api_image: "{{ docker_image_url }}octavia-api"
+ octavia_api_tag: "{{ octavia_tag }}"
+-octavia_api_image_full: "{{ octavia_api_image }}:{{ octavia_api_tag }}"
++octavia_api_image_full: "{{ lookup('kolla_image_full', octavia_api_image, octavia_api_tag) }}"
+ 
+ octavia_driver_agent_image: "{{ docker_image_url }}octavia-driver-agent"
+ octavia_driver_agent_tag: "{{ octavia_tag }}"
+-octavia_driver_agent_image_full: "{{ octavia_driver_agent_image }}:{{ octavia_driver_agent_tag }}"
++octavia_driver_agent_image_full: "{{ lookup('kolla_image_full', octavia_driver_agent_image, octavia_driver_agent_tag) }}"
+ 
+ octavia_health_manager_image: "{{ docker_image_url }}octavia-health-manager"
+ octavia_health_manager_tag: "{{ octavia_tag }}"
+-octavia_health_manager_image_full: "{{ octavia_health_manager_image }}:{{ octavia_health_manager_tag }}"
++octavia_health_manager_image_full: "{{ lookup('kolla_image_full', octavia_health_manager_image, octavia_health_manager_tag) }}"
+ 
+ octavia_housekeeping_image: "{{ docker_image_url }}octavia-housekeeping"
+ octavia_housekeeping_tag: "{{ octavia_tag }}"
+-octavia_housekeeping_image_full: "{{ octavia_housekeeping_image }}:{{ octavia_housekeeping_tag }}"
++octavia_housekeeping_image_full: "{{ lookup('kolla_image_full', octavia_housekeeping_image, octavia_housekeeping_tag) }}"
+ 
+ octavia_worker_image: "{{ docker_image_url }}octavia-worker"
+ octavia_worker_tag: "{{ octavia_tag }}"
+-octavia_worker_image_full: "{{ octavia_worker_image }}:{{ octavia_worker_tag }}"
++octavia_worker_image_full: "{{ lookup('kolla_image_full', octavia_worker_image, octavia_worker_tag) }}"
+ 
+ octavia_api_dimensions: "{{ default_container_dimensions }}"
+ octavia_driver_agent_dimensions: "{{ default_container_dimensions }}"
+diff --git a/ansible/roles/opensearch/defaults/main.yml b/ansible/roles/opensearch/defaults/main.yml
+index dff894d54..00fefd6a5 100644
+--- a/ansible/roles/opensearch/defaults/main.yml
++++ b/ansible/roles/opensearch/defaults/main.yml
+@@ -137,11 +137,11 @@ opensearch_dashboards_opensearch_ssl_verify: true
+ ####################
+ opensearch_image: "{{ docker_image_url }}opensearch"
+ opensearch_tag: "{{ openstack_tag }}"
+-opensearch_image_full: "{{ opensearch_image }}:{{ opensearch_tag }}"
++opensearch_image_full: "{{ lookup('kolla_image_full', opensearch_image, opensearch_tag) }}"
+ 
+ opensearch_dashboards_image: "{{ docker_image_url }}opensearch-dashboards"
+ opensearch_dashboards_tag: "{{ opensearch_tag }}"
+-opensearch_dashboards_image_full: "{{ opensearch_dashboards_image }}:{{ opensearch_dashboards_tag }}"
++opensearch_dashboards_image_full: "{{ lookup('kolla_image_full', opensearch_dashboards_image, opensearch_dashboards_tag) }}"
+ 
+ opensearch_dimensions: "{{ default_container_dimensions }}"
+ opensearch_dashboards_dimensions: "{{ default_container_dimensions }}"
+diff --git a/ansible/roles/openvswitch/defaults/main.yml b/ansible/roles/openvswitch/defaults/main.yml
+index 0e1383a7f..9baed4138 100644
+--- a/ansible/roles/openvswitch/defaults/main.yml
++++ b/ansible/roles/openvswitch/defaults/main.yml
+@@ -42,11 +42,11 @@ openvswitch_tag: "{{ openstack_tag }}"
+ 
+ openvswitch_db_image: "{{ docker_image_url }}openvswitch-db-server"
+ openvswitch_db_tag: "{{ openvswitch_tag }}"
+-openvswitch_db_image_full: "{{ openvswitch_db_image }}:{{ openvswitch_db_tag }}"
++openvswitch_db_image_full: "{{ lookup('kolla_image_full', openvswitch_db_image, openvswitch_db_tag) }}"
+ 
+ openvswitch_vswitchd_image: "{{ docker_image_url }}openvswitch-vswitchd"
+ openvswitch_vswitchd_tag: "{{ openvswitch_tag }}"
+-openvswitch_vswitchd_image_full: "{{ openvswitch_vswitchd_image }}:{{ openvswitch_vswitchd_tag }}"
++openvswitch_vswitchd_image_full: "{{ lookup('kolla_image_full', openvswitch_vswitchd_image, openvswitch_vswitchd_tag) }}"
+ 
+ openvswitch_db_dimensions: "{{ default_container_dimensions }}"
+ openvswitch_vswitchd_dimensions: "{{ default_container_dimensions }}"
+diff --git a/ansible/roles/ovn-controller/defaults/main.yml b/ansible/roles/ovn-controller/defaults/main.yml
+index 59eaf8904..eefff4b81 100644
+--- a/ansible/roles/ovn-controller/defaults/main.yml
++++ b/ansible/roles/ovn-controller/defaults/main.yml
+@@ -15,7 +15,7 @@ ovn_tag: "{{ openstack_tag }}"
+ 
+ ovn_controller_image: "{{ docker_image_url }}ovn-controller"
+ ovn_controller_tag: "{{ ovn_tag }}"
+-ovn_controller_image_full: "{{ ovn_controller_image }}:{{ ovn_controller_tag }}"
++ovn_controller_image_full: "{{ lookup('kolla_image_full', ovn_controller_image, ovn_controller_tag) }}"
+ 
+ ovn_controller_dimensions: "{{ default_container_dimensions }}"
+ 
+diff --git a/ansible/roles/ovn-db/defaults/main.yml b/ansible/roles/ovn-db/defaults/main.yml
+index 169fc203c..29198f5c1 100644
+--- a/ansible/roles/ovn-db/defaults/main.yml
++++ b/ansible/roles/ovn-db/defaults/main.yml
+@@ -48,19 +48,19 @@ ovn_tag: "{{ openstack_tag }}"
+ 
+ ovn_northd_image: "{{ docker_image_url }}ovn-northd"
+ ovn_northd_tag: "{{ ovn_tag }}"
+-ovn_northd_image_full: "{{ ovn_northd_image }}:{{ ovn_northd_tag }}"
++ovn_northd_image_full: "{{ lookup('kolla_image_full', ovn_northd_image, ovn_northd_tag) }}"
+ 
+ ovn_nb_db_image: "{{ docker_image_url }}ovn-nb-db-server"
+ ovn_nb_db_tag: "{{ ovn_tag }}"
+-ovn_nb_db_image_full: "{{ ovn_nb_db_image }}:{{ ovn_nb_db_tag }}"
++ovn_nb_db_image_full: "{{ lookup('kolla_image_full', ovn_nb_db_image, ovn_nb_db_tag) }}"
+ 
+ ovn_sb_db_image: "{{ docker_image_url }}ovn-sb-db-server"
+ ovn_sb_db_tag: "{{ ovn_tag }}"
+-ovn_sb_db_image_full: "{{ ovn_sb_db_image }}:{{ ovn_sb_db_tag }}"
++ovn_sb_db_image_full: "{{ lookup('kolla_image_full', ovn_sb_db_image, ovn_sb_db_tag) }}"
+ 
+ ovn_sb_db_relay_image: "{{ docker_image_url }}ovn-sb-db-relay"
+ ovn_sb_db_relay_tag: "{{ ovn_tag }}"
+-ovn_sb_db_relay_image_full: "{{ ovn_sb_db_relay_image }}:{{ ovn_sb_db_relay_tag }}"
++ovn_sb_db_relay_image_full: "{{ lookup('kolla_image_full', ovn_sb_db_relay_image, ovn_sb_db_relay_tag) }}"
+ 
+ ovn_northd_dimensions: "{{ default_container_dimensions }}"
+ ovn_nb_db_dimensions: "{{ default_container_dimensions }}"
+diff --git a/ansible/roles/ovs-dpdk/defaults/main.yml b/ansible/roles/ovs-dpdk/defaults/main.yml
+index 47d822539..23eb20c8e 100644
+--- a/ansible/roles/ovs-dpdk/defaults/main.yml
++++ b/ansible/roles/ovs-dpdk/defaults/main.yml
+@@ -66,11 +66,11 @@ ovsdpdk_tag: "{{ openstack_tag }}"
+ 
+ ovsdpdk_db_image: "{{ docker_image_url }}ovsdpdk-db"
+ ovsdpdk_db_tag: "{{ ovsdpdk_tag }}"
+-ovsdpdk_db_image_full: "{{ ovsdpdk_db_image }}:{{ ovsdpdk_db_tag }}"
++ovsdpdk_db_image_full: "{{ lookup('kolla_image_full', ovsdpdk_db_image, ovsdpdk_db_tag) }}"
+ 
+ ovsdpdk_vswitchd_image: "{{ docker_image_url }}ovsdpdk-vswitchd"
+ ovsdpdk_vswitchd_tag: "{{ ovsdpdk_tag }}"
+-ovsdpdk_vswitchd_image_full: "{{ ovsdpdk_vswitchd_image }}:{{ ovsdpdk_vswitchd_tag }}"
++ovsdpdk_vswitchd_image_full: "{{ lookup('kolla_image_full', ovsdpdk_vswitchd_image, ovsdpdk_vswitchd_tag) }}"
+ ovsdpdk_db_dimensions: "{{ default_container_dimensions }}"
+ ovsdpdk_vswitchd_dimensions: "{{ default_container_dimensions }}"
+ 
+diff --git a/ansible/roles/placement/defaults/main.yml b/ansible/roles/placement/defaults/main.yml
+index 3ec14461e..e4158a521 100644
+--- a/ansible/roles/placement/defaults/main.yml
++++ b/ansible/roles/placement/defaults/main.yml
+@@ -70,7 +70,7 @@ placement_tag: "{{ openstack_tag }}"
+ 
+ placement_api_image: "{{ docker_image_url }}placement-api"
+ placement_api_tag: "{{ placement_tag }}"
+-placement_api_image_full: "{{ placement_api_image }}:{{ placement_api_tag }}"
++placement_api_image_full: "{{ lookup('kolla_image_full', placement_api_image, placement_api_tag) }}"
+ 
+ placement_api_dimensions: "{{ default_container_dimensions }}"
+ 
+diff --git a/ansible/roles/prometheus-node-exporters/defaults/main.yml b/ansible/roles/prometheus-node-exporters/defaults/main.yml
+index 7816c1b39..e1651b7ae 100644
+--- a/ansible/roles/prometheus-node-exporters/defaults/main.yml
++++ b/ansible/roles/prometheus-node-exporters/defaults/main.yml
+@@ -26,11 +26,11 @@ prometheus_tag: "{{ openstack_tag }}"
+ 
+ prometheus_node_exporter_image: "{{ docker_image_url }}prometheus-node-exporter"
+ prometheus_node_exporter_tag: "{{ prometheus_tag }}"
+-prometheus_node_exporter_image_full: "{{ prometheus_node_exporter_image }}:{{ prometheus_node_exporter_tag }}"
++prometheus_node_exporter_image_full: "{{ lookup('kolla_image_full', prometheus_node_exporter_image, prometheus_node_exporter_tag) }}"
+ 
+ prometheus_cadvisor_image: "{{ docker_image_url }}prometheus-cadvisor"
+ prometheus_cadvisor_tag: "{{ prometheus_tag }}"
+-prometheus_cadvisor_image_full: "{{ prometheus_cadvisor_image }}:{{ prometheus_cadvisor_tag }}"
++prometheus_cadvisor_image_full: "{{ lookup('kolla_image_full', prometheus_cadvisor_image, prometheus_cadvisor_tag) }}"
+ 
+ prometheus_node_exporter_dimensions: "{{ default_container_dimensions }}"
+ prometheus_cadvisor_dimensions: "{{ default_container_dimensions }}"
+diff --git a/ansible/roles/prometheus/defaults/main.yml b/ansible/roles/prometheus/defaults/main.yml
+index 293cc413c..5aa1f6c28 100644
+--- a/ansible/roles/prometheus/defaults/main.yml
++++ b/ansible/roles/prometheus/defaults/main.yml
+@@ -383,44 +383,46 @@ prometheus_tag: "{{ openstack_tag }}"
+ 
+ prometheus_server_image: "{{ docker_image_url }}prometheus-server"
+ prometheus_server_tag: "{{ prometheus_tag }}"
+-prometheus_server_image_full: "{{ prometheus_server_image }}:{{ prometheus_server_tag }}"
++prometheus_server_image_full: "{{ lookup('kolla_image_full', prometheus_server_image, prometheus_server_tag) }}"
+ 
+ prometheus_mysqld_exporter_image: "{{ docker_image_url }}prometheus-mysqld-exporter"
+ prometheus_mysqld_exporter_tag: "{{ prometheus_tag }}"
+-prometheus_mysqld_exporter_image_full: "{{ prometheus_mysqld_exporter_image }}:{{ prometheus_mysqld_exporter_tag }}"
++prometheus_mysqld_exporter_image_full: "{{ lookup('kolla_image_full', prometheus_mysqld_exporter_image, prometheus_mysqld_exporter_tag) }}"
+ 
+ prometheus_memcached_exporter_image: "{{ docker_image_url }}prometheus-memcached-exporter"
+ prometheus_memcached_exporter_tag: "{{ prometheus_tag }}"
+-prometheus_memcached_exporter_image_full: "{{ prometheus_memcached_exporter_image }}:{{ prometheus_memcached_exporter_tag }}"
++prometheus_memcached_exporter_image_full: "{{ lookup('kolla_image_full', prometheus_memcached_exporter_image, prometheus_memcached_exporter_tag) }}"
+ 
+ prometheus_alertmanager_image: "{{ docker_image_url }}prometheus-alertmanager"
+ prometheus_alertmanager_tag: "{{ prometheus_tag }}"
+-prometheus_alertmanager_image_full: "{{ prometheus_alertmanager_image }}:{{ prometheus_alertmanager_tag }}"
++prometheus_alertmanager_image_full: "{{ lookup('kolla_image_full', prometheus_alertmanager_image, prometheus_alertmanager_tag) }}"
+ 
+ # Prometheus openstack_exporter
+ prometheus_openstack_exporter_image: "{{ docker_image_url }}prometheus-openstack-exporter"
+ prometheus_openstack_exporter_tag: "{{ prometheus_tag }}"
+-prometheus_openstack_exporter_image_full: "{{ prometheus_openstack_exporter_image }}:{{ prometheus_openstack_exporter_tag }}"
++prometheus_openstack_exporter_image_full: "{{ lookup('kolla_image_full', prometheus_openstack_exporter_image, prometheus_openstack_exporter_tag) }}"
+ 
+ prometheus_elasticsearch_exporter_image: "{{ docker_image_url }}prometheus-elasticsearch-exporter"
+ prometheus_elasticsearch_exporter_tag: "{{ prometheus_tag }}"
+-prometheus_elasticsearch_exporter_image_full: "{{ prometheus_elasticsearch_exporter_image }}:{{ prometheus_elasticsearch_exporter_tag }}"
++prometheus_elasticsearch_exporter_image_full: "{{ lookup('kolla_image_full', prometheus_elasticsearch_exporter_image, prometheus_elasticsearch_exporter_tag) }}"
+ 
+ prometheus_blackbox_exporter_image: "{{ docker_image_url }}prometheus-blackbox-exporter"
+ prometheus_blackbox_exporter_tag: "{{ prometheus_tag }}"
+-prometheus_blackbox_exporter_image_full: "{{ prometheus_blackbox_exporter_image }}:{{ prometheus_blackbox_exporter_tag }}"
++prometheus_blackbox_exporter_image_full: "{{ lookup('kolla_image_full', prometheus_blackbox_exporter_image, prometheus_blackbox_exporter_tag) }}"
+ 
+ prometheus_libvirt_exporter_image: "{{ docker_image_url }}prometheus-libvirt-exporter"
+ prometheus_libvirt_exporter_tag: "{{ prometheus_tag }}"
+-prometheus_libvirt_exporter_image_full: "{{ prometheus_libvirt_exporter_image }}:{{ prometheus_libvirt_exporter_tag }}"
++prometheus_libvirt_exporter_image_full: "{{ lookup('kolla_image_full', prometheus_libvirt_exporter_image, prometheus_libvirt_exporter_tag) }}"
+ 
+ prometheus_openstack_network_exporter_image: "{{ docker_image_url }}prometheus-openstack-network-exporter"
+ prometheus_openstack_network_exporter_tag: "{{ prometheus_tag }}"
+-prometheus_openstack_network_exporter_image_full: "{{ prometheus_openstack_network_exporter_image }}:{{ prometheus_openstack_network_exporter_tag }}"
++prometheus_openstack_network_exporter_image_full: >-
++  {{ lookup('kolla_image_full', prometheus_openstack_network_exporter_image,
++            prometheus_openstack_network_exporter_tag) }}
+ 
+ prometheus_valkey_exporter_image: "{{ docker_image_url }}prometheus-valkey-exporter"
+ prometheus_valkey_exporter_tag: "{{ prometheus_tag }}"
+-prometheus_valkey_exporter_image_full: "{{ prometheus_valkey_exporter_image }}:{{ prometheus_valkey_exporter_tag }}"
++prometheus_valkey_exporter_image_full: "{{ lookup('kolla_image_full', prometheus_valkey_exporter_image, prometheus_valkey_exporter_tag) }}"
+ 
+ prometheus_server_dimensions: "{{ default_container_dimensions }}"
+ prometheus_mysqld_exporter_dimensions: "{{ default_container_dimensions }}"
+diff --git a/ansible/roles/rabbitmq/defaults/main.yml b/ansible/roles/rabbitmq/defaults/main.yml
+index 4f403ad40..ea7a69965 100644
+--- a/ansible/roles/rabbitmq/defaults/main.yml
++++ b/ansible/roles/rabbitmq/defaults/main.yml
+@@ -34,7 +34,7 @@ rabbitmq_services:
+ ####################
+ rabbitmq_image: "{{ docker_image_url }}rabbitmq"
+ rabbitmq_tag: "{{ openstack_tag }}"
+-rabbitmq_image_full: "{{ rabbitmq_image }}:{{ rabbitmq_tag }}"
++rabbitmq_image_full: "{{ lookup('kolla_image_full', rabbitmq_image, rabbitmq_tag) }}"
+ rabbitmq_dimensions: "{{ default_container_dimensions }}"
+ 
+ rabbitmq_enable_healthchecks: "{{ enable_container_healthchecks }}"
+diff --git a/ansible/roles/skyline/defaults/main.yml b/ansible/roles/skyline/defaults/main.yml
+index f14637c64..86b45dfaf 100644
+--- a/ansible/roles/skyline/defaults/main.yml
++++ b/ansible/roles/skyline/defaults/main.yml
+@@ -87,11 +87,11 @@ skyline_tag: "{{ openstack_tag }}"
+ 
+ skyline_apiserver_image: "{{ docker_image_url }}skyline-apiserver"
+ skyline_apiserver_tag: "{{ skyline_tag }}"
+-skyline_apiserver_image_full: "{{ skyline_apiserver_image }}:{{ skyline_apiserver_tag }}"
++skyline_apiserver_image_full: "{{ lookup('kolla_image_full', skyline_apiserver_image, skyline_apiserver_tag) }}"
+ 
+ skyline_console_image: "{{ docker_image_url }}skyline-console"
+ skyline_console_tag: "{{ skyline_tag }}"
+-skyline_console_image_full: "{{ skyline_console_image }}:{{ skyline_console_tag }}"
++skyline_console_image_full: "{{ lookup('kolla_image_full', skyline_console_image, skyline_console_tag) }}"
+ 
+ skyline_apiserver_dimensions: "{{ default_container_dimensions }}"
+ skyline_console_dimensions: "{{ default_container_dimensions }}"
+diff --git a/ansible/roles/tacker/defaults/main.yml b/ansible/roles/tacker/defaults/main.yml
+index 69df6390c..f1e8fe819 100644
+--- a/ansible/roles/tacker/defaults/main.yml
++++ b/ansible/roles/tacker/defaults/main.yml
+@@ -79,11 +79,11 @@ tacker_tag: "{{ openstack_tag }}"
+ 
+ tacker_server_image: "{{ docker_image_url }}tacker-server"
+ tacker_server_tag: "{{ tacker_tag }}"
+-tacker_server_image_full: "{{ tacker_server_image }}:{{ tacker_server_tag }}"
++tacker_server_image_full: "{{ lookup('kolla_image_full', tacker_server_image, tacker_server_tag) }}"
+ 
+ tacker_conductor_image: "{{ docker_image_url }}tacker-conductor"
+ tacker_conductor_tag: "{{ tacker_tag }}"
+-tacker_conductor_image_full: "{{ tacker_conductor_image }}:{{ tacker_conductor_tag }}"
++tacker_conductor_image_full: "{{ lookup('kolla_image_full', tacker_conductor_image, tacker_conductor_tag) }}"
+ 
+ tacker_server_dimensions: "{{ default_container_dimensions }}"
+ tacker_conductor_dimensions: "{{ default_container_dimensions }}"
+diff --git a/ansible/roles/trove/defaults/main.yml b/ansible/roles/trove/defaults/main.yml
+index 667470dd9..d43caad26 100644
+--- a/ansible/roles/trove/defaults/main.yml
++++ b/ansible/roles/trove/defaults/main.yml
+@@ -86,15 +86,15 @@ trove_tag: "{{ openstack_tag }}"
+ 
+ trove_conductor_image: "{{ docker_image_url }}trove-conductor"
+ trove_conductor_tag: "{{ trove_tag }}"
+-trove_conductor_image_full: "{{ trove_conductor_image }}:{{ trove_conductor_tag }}"
++trove_conductor_image_full: "{{ lookup('kolla_image_full', trove_conductor_image, trove_conductor_tag) }}"
+ 
+ trove_api_image: "{{ docker_image_url }}trove-api"
+ trove_api_tag: "{{ trove_tag }}"
+-trove_api_image_full: "{{ trove_api_image }}:{{ trove_api_tag }}"
++trove_api_image_full: "{{ lookup('kolla_image_full', trove_api_image, trove_api_tag) }}"
+ 
+ trove_taskmanager_image: "{{ docker_image_url }}trove-taskmanager"
+ trove_taskmanager_tag: "{{ trove_tag }}"
+-trove_taskmanager_image_full: "{{ trove_taskmanager_image }}:{{ trove_taskmanager_tag }}"
++trove_taskmanager_image_full: "{{ lookup('kolla_image_full', trove_taskmanager_image, trove_taskmanager_tag) }}"
+ 
+ trove_api_dimensions: "{{ default_container_dimensions }}"
+ trove_conductor_dimensions: "{{ default_container_dimensions }}"
+diff --git a/ansible/roles/valkey/defaults/main.yml b/ansible/roles/valkey/defaults/main.yml
+index 557c498c2..dc7121f73 100644
+--- a/ansible/roles/valkey/defaults/main.yml
++++ b/ansible/roles/valkey/defaults/main.yml
+@@ -25,11 +25,11 @@ valkey_services:
+ ####################
+ valkey_image: "{{ docker_image_url }}valkey-server"
+ valkey_tag: "{{ openstack_tag }}"
+-valkey_image_full: "{{ valkey_image }}:{{ valkey_tag }}"
++valkey_image_full: "{{ lookup('kolla_image_full', valkey_image, valkey_tag) }}"
+ 
+ valkey_sentinel_image: "{{ docker_image_url }}valkey-sentinel"
+ valkey_sentinel_tag: "{{ valkey_tag }}"
+-valkey_sentinel_image_full: "{{ valkey_sentinel_image }}:{{ valkey_sentinel_tag }}"
++valkey_sentinel_image_full: "{{ lookup('kolla_image_full', valkey_sentinel_image, valkey_sentinel_tag) }}"
+ valkey_dimensions: "{{ default_container_dimensions }}"
+ valkey_sentinel_dimensions: "{{ default_container_dimensions }}"
+ 
+diff --git a/ansible/roles/watcher/defaults/main.yml b/ansible/roles/watcher/defaults/main.yml
+index b60b480fa..a868d91aa 100644
+--- a/ansible/roles/watcher/defaults/main.yml
++++ b/ansible/roles/watcher/defaults/main.yml
+@@ -83,15 +83,15 @@ watcher_tag: "{{ openstack_tag }}"
+ 
+ watcher_engine_image: "{{ docker_image_url }}watcher-engine"
+ watcher_engine_tag: "{{ watcher_tag }}"
+-watcher_engine_image_full: "{{ watcher_engine_image }}:{{ watcher_engine_tag }}"
++watcher_engine_image_full: "{{ lookup('kolla_image_full', watcher_engine_image, watcher_engine_tag) }}"
+ 
+ watcher_api_image: "{{ docker_image_url }}watcher-api"
+ watcher_api_tag: "{{ watcher_tag }}"
+-watcher_api_image_full: "{{ watcher_api_image }}:{{ watcher_api_tag }}"
++watcher_api_image_full: "{{ lookup('kolla_image_full', watcher_api_image, watcher_api_tag) }}"
+ 
+ watcher_applier_image: "{{ docker_image_url }}watcher-applier"
+ watcher_applier_tag: "{{ watcher_tag }}"
+-watcher_applier_image_full: "{{ watcher_applier_image }}:{{ watcher_applier_tag }}"
++watcher_applier_image_full: "{{ lookup('kolla_image_full', watcher_applier_image, watcher_applier_tag) }}"
+ 
+ watcher_api_dimensions: "{{ default_container_dimensions }}"
+ watcher_applier_dimensions: "{{ default_container_dimensions }}"
+diff --git a/doc/source/user/operating-kolla.rst b/doc/source/user/operating-kolla.rst
+index 53e1868f8..41873bef3 100644
+--- a/doc/source/user/operating-kolla.rst
++++ b/doc/source/user/operating-kolla.rst
+@@ -231,6 +231,54 @@ record but does not check it.
+ ``--override-deployer-checks`` turns each refusal into a warning, for example
+ after an upgrade done by hand outside these rules.
+ 
++Build manifests
++---------------
++
++A deployer image may carry a build manifest at
++``/etc/kolla-ansible/manifest.json`` (``kolla_image_manifest_path``), naming
++the digest of every image built with it:
++
++.. code-block:: json
++
++   {
++       "format_version": 1,
++       "tag": "master-debian-trixie",
++       "images": {
++           "nova-api": "sha256:...",
++           "nova-compute": "sha256:..."
++       }
++   }
++
++Each key is an image's repository within ``docker_namespace``: the name
++kolla-build gives the image, with any ``docker_image_name_prefix``. So the key
++for ``quay.io/openstack.kolla/nova-api`` is ``nova-api``. Because the key does
++not include the registry, a manifest still applies when the images are
++mirrored unchanged to another registry and ``docker_registry`` names that.
++
++Every ``<service>_image_full`` variable resolves through the
++``kolla_image_full`` lookup plugin. It gives ``<image>@<digest>`` when the
++manifest names the image and the service's tag is the manifest's ``tag``, and
++``<image>:<tag>`` otherwise. So a service whose ``<service>_tag`` is
++overridden, an image outside ``docker_registry`` and ``docker_namespace``, and
++an image the manifest does not name are pulled by tag, as before. Pulling by
++digest means a deployment runs exactly the images its deployer was built with,
++even if the tag has been pushed again since, and a node added later gets the
++same images as the rest.
++
++The deployer checks above also check the manifest:
++
++* a deployer image without one warns once, and every image is pulled by tag;
++* a manifest built with a tag other than the deployer's is refused, unless
++  ``--override-deployer-checks`` is given; and
++* a manifest which cannot be read, or whose ``format_version`` this Kolla
++  Ansible does not understand, is refused, and ``--override-deployer-checks``
++  does not change that. Set ``kolla_image_manifest_path`` to a path which does
++  not exist to pull every image by tag instead.
++
++Switching between images given by tag and by digest changes every container's
++image reference, so every container is recreated once, including MariaDB and
++RabbitMQ. Do it during an upgrade.
++
+ 
+ CLI Command Completion
+ ~~~~~~~~~~~~~~~~~~~~~~
+diff --git a/kolla_ansible/image_manifest.py b/kolla_ansible/image_manifest.py
+new file mode 100644
+index 000000000..bb2d124d9
+--- /dev/null
++++ b/kolla_ansible/image_manifest.py
+@@ -0,0 +1,184 @@
++# Licensed under the Apache License, Version 2.0 (the "License"); you may
++# not use this file except in compliance with the License. You may obtain
++# a copy of the License at
++#
++#      http://www.apache.org/licenses/LICENSE-2.0
++#
++# Unless required by applicable law or agreed to in writing, software
++# distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
++# WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
++# License for the specific language governing permissions and limitations
++# under the License.
++
++"""Resolve service images through a build manifest.
++
++A Kolla Ansible deployer image may carry a build manifest, a JSON document
++naming the digest of every image built alongside it:
++
++    {"format_version": 1,
++     "tag": "<the tag the images were pushed with>",
++     "images": {"<repository>": "sha256:<hex>", ...}}
++
++Each key is an image's repository within the namespace: the name kolla-build
++gives the image, plus any image name prefix. For an image
++<docker_registry>/<docker_namespace>/<docker_image_name_prefix>nova-api that
++is <docker_image_name_prefix>nova-api.
++
++image_full() returns <image>@<digest> when the manifest names the image and
++the image's tag is the manifest's tag, and <image>:<tag> otherwise. An image
++outside docker_registry and docker_namespace, or with a tag other than the
++build's, is used as written. Without a manifest every image is pulled by tag.
++
++A manifest which cannot be read, or whose format this Kolla Ansible does not
++understand, is an error rather than a reason to pull by tag, because pulling
++by tag is what the manifest exists to prevent.
++"""
++
++import json
++import os
++import re
++import stat
++
++from kolla_ansible import deployer_checks
++
++FORMAT_VERSION = 1
++
++_DIGEST_RE = re.compile(r'^sha256:[0-9a-f]{64}$')
++
++# Parsed manifests by path, each with the (mtime, size, inode) it was read
++# at. Group and role variables are templated on every use, so the manifest
++# is read once per process and only stat()ed after that.
++_CACHE = {}
++
++
++class ManifestError(ValueError):
++    """A build manifest which cannot be used."""
++
++
++def _stat_key(path):
++    """Return the cache key for a regular file at path, or None."""
++    try:
++        st = os.stat(path)
++    except (FileNotFoundError, NotADirectoryError):
++        return None
++    if not stat.S_ISREG(st.st_mode):
++        return None
++    return (st.st_mtime_ns, st.st_size, st.st_ino)
++
++
++def validate_manifest(manifest, path):
++    """Raise ManifestError unless manifest is a usable build manifest."""
++    if not isinstance(manifest, dict):
++        raise ManifestError('The build manifest %s is not a JSON object.'
++                            % path)
++    version = manifest.get('format_version')
++    if isinstance(version, bool) or not isinstance(version, int):
++        raise ManifestError('The build manifest %s has no integer '
++                            'format_version.' % path)
++    if version != FORMAT_VERSION:
++        raise ManifestError(
++            'The build manifest %s has format_version %d, but this Kolla '
++            'Ansible understands only format_version %d.'
++            % (path, version, FORMAT_VERSION))
++    tag = manifest.get('tag')
++    if not isinstance(tag, str) or not tag:
++        raise ManifestError('The build manifest %s does not record its tag.'
++                            % path)
++    images = manifest.get('images')
++    if not isinstance(images, dict):
++        raise ManifestError('The build manifest %s has no images object.'
++                            % path)
++    for name, digest in images.items():
++        if not isinstance(digest, str) or not _DIGEST_RE.match(digest):
++            raise ManifestError(
++                'The build manifest %s gives image %s the digest %r, which is '
++                'not of the form sha256:<64 hex digits>.'
++                % (path, name, digest))
++
++
++def load_manifest(path):
++    """Return the build manifest at path, or None if there is none.
++
++    A path which is not a regular file counts as no manifest. Raises
++    ManifestError if the file cannot be read or parsed, or is not a usable
++    manifest.
++    """
++    if not path:
++        return None
++    key = _stat_key(path)
++    if key is None:
++        _CACHE.pop(path, None)
++        return None
++    cached = _CACHE.get(path)
++    if cached and cached[0] == key:
++        return cached[1]
++    try:
++        with open(path) as f:
++            manifest = json.load(f)
++    except (OSError, ValueError) as e:
++        raise ManifestError('The build manifest %s cannot be read: %s'
++                            % (path, e))
++    validate_manifest(manifest, path)
++    _CACHE[path] = (key, manifest)
++    return manifest
++
++
++def image_base(docker_registry, docker_namespace):
++    """Return the prefix the manifest's repository names are relative to."""
++    registry = '%s/' % docker_registry if docker_registry else ''
++    return '%s%s/' % (registry, docker_namespace)
++
++
++def image_full(image, tag, base, manifest_path):
++    """Return the reference to pull image at tag by.
++
++    base is image_base() of the configuration, or None if it is unknown, in
++    which case the image is pulled by tag.
++    """
++    tag = str(tag)
++    by_tag = '%s:%s' % (image, tag)
++    if base is None or not image.startswith(base):
++        return by_tag
++    manifest = load_manifest(manifest_path)
++    if manifest is None or tag != manifest['tag']:
++        return by_tag
++    digest = manifest['images'].get(image[len(base):])
++    if not digest:
++        return by_tag
++    return '%s@%s' % (image, digest)
++
++
++def manifest_check(deployer_info, manifest_path, override=False):
++    """Check a deployer image's build manifest.
++
++    Returns a dict of the refusals ('errors') and 'warnings'. With override,
++    a manifest built with another tag is a warning instead, but a manifest
++    which cannot be used is always refused.
++    """
++    errors = []
++    warnings = []
++    try:
++        manifest = load_manifest(manifest_path)
++    except ManifestError as e:
++        return {'errors': [
++            '%s Rebuild the deployer image, or set kolla_image_manifest_path '
++            'to a path which does not exist to pull every image by tag.'
++            % e], 'warnings': []}
++
++    if manifest is None:
++        warnings.append(
++            'This deployer image has no build manifest at %s, so images will '
++            'be pulled by tag rather than by digest, and a tag which has '
++            'moved since this deployer was built will not be noticed.'
++            % manifest_path)
++        return {'errors': errors, 'warnings': warnings}
++
++    tag = deployer_checks.deployer_identity(deployer_info)['tag']
++    if tag and tag != manifest['tag']:
++        errors.append(
++            'This deployer was built with tag %s, but its build manifest %s '
++            'lists the images built with tag %s, so no image would be pulled '
++            'by digest. Use a deployer whose manifest matches its tag. %s'
++            % (tag, manifest_path, manifest['tag'],
++               deployer_checks.OVERRIDE_HINT))
++    return deployer_checks._result(errors, warnings, override)
+diff --git a/kolla_ansible/tests/unit/test_image_manifest.py b/kolla_ansible/tests/unit/test_image_manifest.py
+new file mode 100644
+index 000000000..b4f721823
+--- /dev/null
++++ b/kolla_ansible/tests/unit/test_image_manifest.py
+@@ -0,0 +1,308 @@
++# Licensed under the Apache License, Version 2.0 (the "License"); you may
++# not use this file except in compliance with the License. You may obtain
++# a copy of the License at
++#
++#      http://www.apache.org/licenses/LICENSE-2.0
++#
++# Unless required by applicable law or agreed to in writing, software
++# distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
++# WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
++# License for the specific language governing permissions and limitations
++# under the License.
++
++from importlib.machinery import SourceFileLoader
++import json
++import os
++import shutil
++import tempfile
++import unittest
++from unittest import mock
++
++from ansible.errors import AnsibleError
++from ansible.parsing.dataloader import DataLoader
++from ansible.template import Templar
++from ansible.template import trust_as_template
++
++from kolla_ansible import image_manifest as im
++
++PROJECT_DIR = os.path.abspath(
++    os.path.join(os.path.dirname(__file__), '../../..'))
++LOOKUP_FILE = os.path.join(PROJECT_DIR,
++                           'ansible/lookup_plugins/kolla_image_full.py')
++kolla_image_full = SourceFileLoader('kolla_image_full',
++                                    LOOKUP_FILE).load_module()
++
++HINT = 'Pass --override-deployer-checks to override this check.'
++TAG = 'master-debian-trixie'
++NOVA_API = 'sha256:' + 'a' * 64
++PFX_NOVA_API = 'sha256:' + 'b' * 64
++BASE = 'quay.io/openstack.kolla/'
++
++
++class ManifestTestCase(unittest.TestCase):
++
++    def setUp(self):
++        super().setUp()
++        self.tmpdir = tempfile.mkdtemp()
++        self.addCleanup(shutil.rmtree, self.tmpdir)
++        self.addCleanup(im._CACHE.clear)
++        self.path = os.path.join(self.tmpdir, 'manifest.json')
++        self.missing = os.path.join(self.tmpdir, 'missing', 'manifest.json')
++
++    def write(self, manifest=None, text=None, **kwargs):
++        if manifest is None:
++            manifest = {
++                'format_version': 1,
++                'tag': TAG,
++                'images': {'nova-api': NOVA_API,
++                           'pfx-nova-api': PFX_NOVA_API},
++            }
++        manifest.update(kwargs)
++        with open(self.path, 'w') as f:
++            f.write(text if text is not None else json.dumps(manifest))
++        # Make sure the rewrite is seen even within mtime's granularity.
++        st = os.stat(self.path)
++        os.utime(self.path, ns=(st.st_atime_ns, st.st_mtime_ns + 1000))
++
++
++class TestImageFull(ManifestTestCase):
++
++    def test_digest(self):
++        self.write()
++        self.assertEqual(
++            BASE + 'nova-api@' + NOVA_API,
++            im.image_full(BASE + 'nova-api', TAG, BASE, self.path))
++
++    def test_no_manifest(self):
++        self.assertEqual(
++            BASE + 'nova-api:' + TAG,
++            im.image_full(BASE + 'nova-api', TAG, BASE, self.missing))
++        self.assertEqual(
++            BASE + 'nova-api:' + TAG,
++            im.image_full(BASE + 'nova-api', TAG, BASE, None))
++
++    def test_directory_is_no_manifest(self):
++        self.assertEqual(
++            BASE + 'nova-api:' + TAG,
++            im.image_full(BASE + 'nova-api', TAG, BASE, self.tmpdir))
++
++    def test_other_tag(self):
++        self.write()
++        self.assertEqual(
++            BASE + 'nova-api:mine',
++            im.image_full(BASE + 'nova-api', 'mine', BASE, self.path))
++
++    def test_tag_not_a_string(self):
++        self.write(tag='2026.1')
++        self.assertEqual(
++            BASE + 'nova-api@' + NOVA_API,
++            im.image_full(BASE + 'nova-api', 2026.1, BASE, self.path))
++
++    def test_image_not_in_manifest(self):
++        self.write()
++        self.assertEqual(
++            BASE + 'rabbitmq-4-1:' + TAG,
++            im.image_full(BASE + 'rabbitmq-4-1', TAG, BASE, self.path))
++
++    def test_image_elsewhere(self):
++        self.write()
++        self.assertEqual(
++            'registry.example/mine/nova-api:' + TAG,
++            im.image_full('registry.example/mine/nova-api', TAG, BASE,
++                          self.path))
++
++    def test_unknown_base(self):
++        self.write()
++        self.assertEqual(
++            BASE + 'nova-api:' + TAG,
++            im.image_full(BASE + 'nova-api', TAG, None, self.path))
++
++    def test_image_name_prefix(self):
++        # The key is the repository within the namespace, prefix included.
++        self.write()
++        self.assertEqual(
++            BASE + 'pfx-nova-api@' + PFX_NOVA_API,
++            im.image_full(BASE + 'pfx-nova-api', TAG, BASE, self.path))
++
++    def test_image_base(self):
++        self.assertEqual(BASE, im.image_base('quay.io', 'openstack.kolla'))
++        self.assertEqual('kolla/', im.image_base('', 'kolla'))
++        self.assertEqual('kolla/', im.image_base(None, 'kolla'))
++
++
++class TestLoadManifest(ManifestTestCase):
++
++    def assertRefused(self, message):
++        with self.assertRaises(im.ManifestError) as cm:
++            im.load_manifest(self.path)
++        self.assertIn(message, str(cm.exception))
++        self.assertIn(self.path, str(cm.exception))
++
++    def test_not_json(self):
++        self.write(text='{not json')
++        self.assertRefused('cannot be read')
++
++    def test_not_an_object(self):
++        self.write(text='[]')
++        self.assertRefused('is not a JSON object')
++
++    def test_no_format_version(self):
++        self.write(text=json.dumps({'tag': TAG, 'images': {}}))
++        self.assertRefused('no integer format_version')
++
++    def test_format_version_not_integer(self):
++        self.write(format_version='1')
++        self.assertRefused('no integer format_version')
++        self.write(format_version=True)
++        self.assertRefused('no integer format_version')
++
++    def test_newer_format_version(self):
++        self.write(format_version=2)
++        self.assertRefused('has format_version 2, but this Kolla Ansible '
++                           'understands only format_version 1')
++
++    def test_no_tag(self):
++        self.write(tag='')
++        self.assertRefused('does not record its tag')
++
++    def test_no_images(self):
++        self.write(images=[])
++        self.assertRefused('has no images object')
++
++    def test_bad_digest(self):
++        self.write(images={'nova-api': 'sha256:abc'})
++        self.assertRefused('gives image nova-api the digest')
++
++    def test_extra_keys_ignored(self):
++        self.write(built_by='ci')
++        self.assertEqual(TAG, im.load_manifest(self.path)['tag'])
++
++    def test_cache(self):
++        self.write()
++        with mock.patch('builtins.open', wraps=open) as m_open:
++            im.load_manifest(self.path)
++            im.load_manifest(self.path)
++            self.assertEqual(1, m_open.call_count)
++            self.write(tag='other')
++            self.assertEqual('other', im.load_manifest(self.path)['tag'])
++            self.assertEqual(3, m_open.call_count)
++
++    def test_removed_manifest_is_forgotten(self):
++        self.write()
++        im.load_manifest(self.path)
++        os.unlink(self.path)
++        self.assertIsNone(im.load_manifest(self.path))
++        self.assertNotIn(self.path, im._CACHE)
++
++
++class TestManifestCheck(ManifestTestCase):
++
++    def test_missing(self):
++        result = im.manifest_check({'tag': TAG}, self.missing)
++        self.assertEqual([], result['errors'])
++        self.assertEqual(
++            ['This deployer image has no build manifest at %s, so images '
++             'will be pulled by tag rather than by digest, and a tag which '
++             'has moved since this deployer was built will not be noticed.'
++             % self.missing], result['warnings'])
++
++    def test_matching(self):
++        self.write()
++        self.assertEqual({'errors': [], 'warnings': []},
++                         im.manifest_check({'tag': TAG}, self.path))
++
++    def test_deployer_without_tag(self):
++        self.write()
++        self.assertEqual({'errors': [], 'warnings': []},
++                         im.manifest_check({}, self.path))
++
++    def test_other_tag(self):
++        self.write(tag='other')
++        result = im.manifest_check({'tag': TAG}, self.path)
++        self.assertEqual(
++            ['This deployer was built with tag %s, but its build manifest %s '
++             'lists the images built with tag other, so no image would be '
++             'pulled by digest. Use a deployer whose manifest matches its '
++             'tag. %s' % (TAG, self.path, HINT)], result['errors'])
++
++    def test_other_tag_override(self):
++        self.write(tag='other')
++        result = im.manifest_check({'tag': TAG}, self.path, True)
++        self.assertEqual([], result['errors'])
++        self.assertEqual(1, len(result['warnings']))
++        self.assertTrue(result['warnings'][0].startswith(
++            'Overriding this refusal because --override-deployer-checks was '
++            'given: This deployer was built with tag'))
++
++    def test_malformed_not_overridable(self):
++        self.write(format_version=2)
++        for override in (False, True):
++            result = im.manifest_check({'tag': TAG}, self.path, override)
++            self.assertEqual([], result['warnings'])
++            self.assertEqual(1, len(result['errors']))
++            self.assertIn('format_version 2', result['errors'][0])
++            self.assertIn('set kolla_image_manifest_path to a path which '
++                          'does not exist', result['errors'][0])
++
++
++class TestLookup(ManifestTestCase):
++
++    def run_lookup(self, terms, **variables):
++        templar = Templar(loader=DataLoader(), variables=variables)
++        lookup = kolla_image_full.LookupModule(templar=templar)
++        return lookup.run(terms, variables=variables)
++
++    def config(self, **kwargs):
++        variables = {
++            'docker_registry': 'quay.io',
++            'docker_namespace': 'openstack.kolla',
++            # Variables from the inventory and group_vars are templates.
++            'kolla_image_manifest_path': trust_as_template(
++                '{{ manifest_dir }}/manifest.json'),
++            'manifest_dir': self.tmpdir,
++        }
++        variables.update(kwargs)
++        return variables
++
++    def test_digest(self):
++        self.write()
++        self.assertEqual(
++            [BASE + 'nova-api@' + NOVA_API],
++            self.run_lookup([BASE + 'nova-api', TAG], **self.config()))
++
++    def test_prefix(self):
++        self.write()
++        self.assertEqual(
++            [BASE + 'pfx-nova-api@' + PFX_NOVA_API],
++            self.run_lookup([BASE + 'pfx-nova-api', TAG], **self.config()))
++
++    def test_no_registry(self):
++        self.write()
++        self.assertEqual(
++            ['openstack.kolla/nova-api@' + NOVA_API],
++            self.run_lookup(['openstack.kolla/nova-api', TAG],
++                            **self.config(docker_registry='')))
++
++    def test_undefined_variables(self):
++        self.write()
++        for name in ('docker_registry', 'docker_namespace',
++                     'kolla_image_manifest_path'):
++            variables = self.config()
++            del variables[name]
++            self.assertEqual(
++                [BASE + 'nova-api:' + TAG],
++                self.run_lookup([BASE + 'nova-api', TAG], **variables))
++
++    def test_no_manifest(self):
++        self.assertEqual(
++            [BASE + 'nova-api:' + TAG],
++            self.run_lookup([BASE + 'nova-api', TAG], **self.config()))
++
++    def test_malformed(self):
++        self.write(text='{')
++        self.assertRaises(AnsibleError, self.run_lookup,
++                          [BASE + 'nova-api', TAG], **self.config())
++
++    def test_wrong_arguments(self):
++        self.assertRaises(AnsibleError, self.run_lookup,
++                          [BASE + 'nova-api'], **self.config())
+diff --git a/releasenotes/notes/image-build-manifest-99ad22b32ba0b6ac.yaml b/releasenotes/notes/image-build-manifest-99ad22b32ba0b6ac.yaml
+new file mode 100644
+index 000000000..386780217
+--- /dev/null
++++ b/releasenotes/notes/image-build-manifest-99ad22b32ba0b6ac.yaml
+@@ -0,0 +1,37 @@
++---
++features:
++  - |
++    When Kolla Ansible runs from a containerised deployer image which
++    carries a build manifest, ``/etc/kolla-ansible/manifest.json``, every
++    image the manifest names is pulled by digest rather than by tag, as
++    long as its tag is the build's. The manifest is a JSON object with a
++    ``format_version`` of 1, the ``tag`` the images were pushed with, and
++    ``images``, mapping each image's repository within
++    ``docker_namespace`` (its name, with any ``docker_image_name_prefix``)
++    to its ``sha256:`` digest. A deployment then runs exactly the images the
++    deployer was built with, even if their tag has since been pushed again.
++    Every ``<service>_image_full`` variable now resolves through the new
++    ``kolla_image_full`` lookup plugin, so a service whose ``<service>_tag``
++    is overridden, an image outside ``docker_registry`` and
++    ``docker_namespace``, and an image the manifest does not name are still
++    pulled by tag. The manifest's location is ``kolla_image_manifest_path``.
++  - |
++    A deployer image without a build manifest warns once and pulls every
++    image by tag, as before. Kolla Ansible installed with ``pip`` has no
++    manifest and is silent. A manifest built with a tag other than the
++    deployer's is refused, unless ``--override-deployer-checks`` is given.
++upgrade:
++  - |
++    Switching a deployment between images given by tag and by digest
++    changes every container's image reference, so every container is
++    recreated once, including MariaDB and RabbitMQ. This happens the first
++    time a deployer image with a build manifest deploys or upgrades a
++    deployment last deployed by tag, and again if a later deployer has no
++    manifest. Do it during an upgrade, which restarts every container
++    anyway.
++  - |
++    A build manifest which cannot be read, or whose ``format_version`` this
++    Kolla Ansible does not understand, is an error rather than a reason to
++    pull by tag, and ``--override-deployer-checks`` does not change that.
++    To pull every image by tag regardless, set ``kolla_image_manifest_path``
++    to a path which does not exist.
+diff --git a/tox.ini b/tox.ini
+index 30271d8a2..dbde79f81 100644
+--- a/tox.ini
++++ b/tox.ini
+@@ -94,6 +94,7 @@ setenv =
+   ANSIBLE_LIBRARY = {toxinidir}/ansible/library
+   ANSIBLE_ACTION_PLUGINS = {toxinidir}/ansible/action_plugins
+   ANSIBLE_FILTER_PLUGINS = {toxinidir}/ansible/filter_plugins
++  ANSIBLE_LOOKUP_PLUGINS = {toxinidir}/ansible/lookup_plugins
+   ANSIBLE_ROLES_PATH = {toxinidir}/ansible/roles
+ 
+ deps =
+diff --git a/zuul.d/scenarios/aio.yaml b/zuul.d/scenarios/aio.yaml
+index 512acc6e9..c4fab6ae6 100644
+--- a/zuul.d/scenarios/aio.yaml
++++ b/zuul.d/scenarios/aio.yaml
+@@ -6,7 +6,7 @@
+       - ^ansible/post-deploy.yml
+       - ^ansible/group_vars/all/(common|cron|fluentd|glance|haproxy|heat|horizon|keepalived|keystone|loadbalancer|neutron|nova|nova-cell|openvswitch|placement|proxysql|rabbitmq).yml
+       - ^ansible/group_vars/baremetal/ansible-python-interpreter.yml
+-      - ^ansible/(action_plugins|filter_plugins|library|module_utils)/
++      - ^ansible/(action_plugins|filter_plugins|library|lookup_plugins|module_utils)/
+       - ^ansible/roles/(cron|fluentd|glance|haproxy-config|heat|horizon|keystone|kolla_toolbox|loadbalancer|loadbalancer-config|neutron|nova|nova-cell|openvswitch|placement|proxysql-config|rabbitmq|service.*)/
+       - ^ansible/templates/
+       - ^kolla_ansible/

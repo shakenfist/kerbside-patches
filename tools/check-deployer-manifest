@@ -1,0 +1,207 @@
+#!/bin/bash
+# Assert that the deployer's build manifest pins every image on a deployed
+# cloud (see docs/plans/containerised-deployer.md, Phase 6, Decision 7). Run on
+# the target, as the base user, from the kerbside-patches checkout, after the
+# cloud is deployed:
+#
+#   tools/check-deployer-manifest
+#
+# It checks that:
+#   1. the deployer image pinned in deployer.conf carries the
+#      kolla_build_manifest label and /etc/kolla-ansible/manifest.json;
+#   2. every running Kolla container (one whose image is under
+#      <docker_registry>/<docker_namespace>/) was created from <name>@<digest>
+#      and that digest is the manifest's entry for <name>; a Kolla container
+#      created from a tag is a failure;
+#   3. deploy-containers recreates nothing: the container IDs are the same
+#      before and after it runs the common and cron roles, which reach
+#      service-check-containers (kolla_toolbox and cron, in site.yml); and
+#   4. gather-facts with kolla_image_manifest_path pointing at a file which
+#      does not exist succeeds and prints the missing-manifest warning once.
+#
+# Nothing on the target is changed except by check 3's deploy-containers,
+# which should be a no-op.
+#
+# The CHECK_* variables exist so this can be tested.
+
+configdir=${CHECK_CONFIGDIR:-/etc/kolla}
+inventory=${CHECK_INVENTORY:-${configdir}/inventory}
+ka=${CHECK_KA:-./tools/ka}
+sudo=${CHECK_SUDO:-sudo}
+python=${CHECK_PYTHON:-python3}
+manifest_in_image=${CHECK_MANIFEST_IN_IMAGE:-/etc/kolla-ansible/manifest.json}
+missing_path=${CHECK_MISSING_PATH:-/nonexistent/manifest.json}
+tags=${CHECK_TAGS:-common,cron}
+tail_lines=${CHECK_TAIL_LINES:-60}
+
+globals_value() {
+    sed -n "s/^$1: *\"\{0,1\}\([^\"]*\)\"\{0,1\} *\$/\1/p" "${configdir}/globals.yml" 2> /dev/null
+}
+
+# The engine the launcher ran the deployer with: bootstrap-kolla-ansible picks
+# docker if it is installed, else podman.
+if [ -n "${CHECK_DEPLOYER_ENGINE:-}" ]; then
+    deployer_engine=${CHECK_DEPLOYER_ENGINE}
+elif command -v docker > /dev/null 2>&1; then
+    deployer_engine=docker
+else
+    deployer_engine=podman
+fi
+# The engine Kolla-Ansible deploys the containers with.
+engine=${CHECK_ENGINE:-$(globals_value kolla_container_engine)}
+engine=${engine:-docker}
+registry=${CHECK_REGISTRY-$(globals_value docker_registry)}
+namespace=${CHECK_NAMESPACE-$(globals_value docker_namespace)}
+base=${namespace}/
+if [ -n "${registry}" ]; then
+    base=${registry}/${base}
+fi
+
+failed=0
+fail() {
+    echo "FAIL: $*"
+    failed=1
+}
+pass() {
+    echo "PASS: $*"
+}
+
+work=$(mktemp -d)
+
+cleanup() {
+    rm -rf "${work}"
+    if [ "${failed}" -ne 0 ]; then
+        exit 1
+    fi
+}
+trap cleanup EXIT
+
+show() {
+    echo "  last ${tail_lines} lines of output:"
+    tail -n "${tail_lines}" "$1" | sed 's/^/    /'
+}
+
+# list_containers <file> writes "<name> <image reference> <full ID>" for every
+# running container to <file>, sorted.
+list_containers() {
+    local ids
+    ids=$(${sudo} "${engine}" ps --no-trunc -q) || return 1
+    if [ -z "${ids}" ]; then
+        : > "$1"
+        return 0
+    fi
+    # shellcheck disable=SC2086
+    ${sudo} "${engine}" container inspect --format '{{.Name}} {{.Config.Image}} {{.Id}}' ${ids} |
+        sed 's|^/||' | sort > "$1"
+}
+
+echo "Check 1: the pinned deployer image carries the build manifest"
+image=$(${sudo} sed -n 's/^image *= *//p' "${configdir}/deployer.conf" 2> /dev/null)
+echo "  ${configdir}/deployer.conf pins '${image}' (${deployer_engine})"
+manifest=${work}/manifest.json
+if [ -z "${image}" ]; then
+    fail "${configdir}/deployer.conf names no deployer image"
+else
+    label=$(${sudo} "${deployer_engine}" image inspect --format '{{index .Config.Labels "kolla_build_manifest"}}' \
+        "${image}" 2> /dev/null)
+    if [ "${label}" == "1" ]; then
+        pass "${image} has the kolla_build_manifest label"
+    else
+        fail "${image} lacks the kolla_build_manifest=1 label (it reads '${label}')"
+    fi
+    # The image's entrypoint is dumb-init running kolla-ansible, so replace it with cat. "run" rather than
+    # create and cp, because it is one engine call that behaves identically with docker and podman, and the
+    # file is world readable so the image's USER does not matter.
+    if ${sudo} "${deployer_engine}" run --rm --entrypoint cat "${image}" "${manifest_in_image}" > "${manifest}" &&
+        "${python}" -c '
+import json, sys
+with open(sys.argv[1]) as f:
+    m = json.load(f)
+assert m["format_version"] == 1, "format_version is %r" % m["format_version"]
+assert m["tag"] and m["images"], "no tag or no images"
+print("  manifest tag %s lists %d images" % (m["tag"], len(m["images"])))
+' "${manifest}"; then
+        pass "${image} has a usable ${manifest_in_image}"
+    else
+        fail "could not read a usable ${manifest_in_image} from ${image}"
+        : > "${manifest}"
+    fi
+fi
+
+echo "Check 2: every Kolla container runs by digest from the manifest"
+if [ -z "${base%/}" ]; then
+    fail "no docker_namespace in ${configdir}/globals.yml, so Kolla containers cannot be identified"
+elif ! list_containers "${work}/before"; then
+    fail "could not list containers with ${engine}"
+elif [ ! -s "${manifest}" ]; then
+    fail "no manifest to compare with (check 1 failed)"
+else
+    if "${python}" -c '
+import json, sys
+base, manifest_path, containers_path = sys.argv[1:4]
+with open(manifest_path) as f:
+    images = json.load(f)["images"]
+checked = 0
+bad = []
+with open(containers_path) as f:
+    for line in f:
+        name, ref, _ = line.split()
+        if not ref.startswith(base):
+            continue
+        repo, sep, digest = ref[len(base):].partition("@")
+        if not sep:
+            bad.append("%s runs %s, a tag reference" % (name, ref))
+        elif images.get(repo) != digest:
+            bad.append("%s runs %s but the manifest has %s for %s" % (name, ref, images.get(repo), repo))
+        else:
+            checked += 1
+for b in bad:
+    print("  " + b)
+print("  %d Kolla containers checked, %d wrong" % (checked, len(bad)))
+sys.exit(1 if bad or not checked else 0)
+' "${base}" "${manifest}" "${work}/before"; then
+        pass "every Kolla container runs <name>@<digest> matching the manifest"
+    else
+        fail "Kolla containers do not all run by the manifest's digests (or none were found under ${base})"
+    fi
+fi
+
+echo "Check 3: deploy-containers recreates nothing"
+if [ ! -s "${work}/before" ]; then
+    fail "no containers were recorded to compare against"
+else
+    if ${sudo} "${ka}" deploy-containers -i "${inventory}" --tags "${tags}" > "${work}/deploy.out" 2>&1; then
+        if ! list_containers "${work}/after"; then
+            fail "could not list containers after deploy-containers"
+        elif diff "${work}/before" "${work}/after" > "${work}/ids.diff"; then
+            pass "deploy-containers --tags ${tags} left all $(wc -l < "${work}/before") container IDs unchanged"
+        else
+            fail "container IDs changed across deploy-containers --tags ${tags}"
+            sed 's/^/    /' "${work}/ids.diff"
+        fi
+    else
+        fail "deploy-containers --tags ${tags} failed"
+        show "${work}/deploy.out"
+    fi
+fi
+
+echo "Check 4: a missing manifest warns once"
+if ${sudo} "${ka}" gather-facts -i "${inventory}" -e "kolla_image_manifest_path=${missing_path}" \
+    > "${work}/missing.out" 2>&1; then
+    count=$(grep -o "This deployer image has no build manifest at ${missing_path}, so images will be pulled by tag" \
+        "${work}/missing.out" | wc -l)
+    if [ "${count}" -eq 1 ]; then
+        pass "gather-facts succeeded and warned about the missing manifest once"
+    else
+        fail "gather-facts printed the missing-manifest warning ${count} times, expected once"
+        show "${work}/missing.out"
+    fi
+else
+    fail "gather-facts with kolla_image_manifest_path=${missing_path} failed"
+    show "${work}/missing.out"
+fi
+
+if [ "${failed}" -ne 0 ]; then
+    exit 1
+fi
+echo "OK: the build manifest pins every image."
