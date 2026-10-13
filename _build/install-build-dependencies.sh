@@ -116,7 +116,7 @@ echo -e "${H2}Setup a tools venv${Color_Off}"
 sudo mkdir -p /srv/kerbside
 sudo chown -R $(whoami):$(whoami) /srv/kerbside
 python3 -mvenv /srv/kerbside/venv-tools
-/srv/kerbside/venv-tools/bin/pip3 install click requests python-gitlab
+/srv/kerbside/venv-tools/bin/pip3 install click requests
 
 trap - EXIT
 

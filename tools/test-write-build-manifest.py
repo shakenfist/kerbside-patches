@@ -57,12 +57,14 @@ class FakeResponse:
 class FakeRegistrySession:
     """Registry v2 fake, keyed by URL."""
 
-    def __init__(self, tagged, missing_manifests=(), labels=None, deployer=True, prefix=''):
-        # tagged: image names (without prefix) carrying TAG.
+    def __init__(self, tagged, missing_manifests=(), labels=None, deployer=True, prefix='', marker_labels=None):
+        # tagged: image names (without prefix) carrying TAG. labels are the
+        # deployer's; the build marker exists only when marker_labels is given.
         self.tagged = [prefix + n for n in tagged]
         self.missing_manifests = {prefix + n for n in missing_manifests}
         self.labels = labels
         self.deployer = deployer
+        self.marker_labels = marker_labels
         self.calls = []
         self.token_requests = []
 
@@ -106,7 +108,8 @@ class FakeRegistrySession:
         name = repo[len(PROJECT) + 1:]
         if kind == 'manifests':
             assert headers.get('Accept') == wbm.SCHEMA2_MEDIA_TYPE
-            known = self.tagged + ([wbm.DEPLOYER_IMAGE] if self.deployer else [])
+            known = (self.tagged + ([wbm.DEPLOYER_IMAGE] if self.deployer else [])
+                     + ([wbm.MARKER_IMAGE] if self.marker_labels is not None else []))
             if rest != TAG or name not in known or name in self.missing_manifests:
                 return FakeResponse(404, {'errors': [{'code': 'MANIFEST_UNKNOWN'}]})
             body = {'schemaVersion': 2, 'mediaType': wbm.SCHEMA2_MEDIA_TYPE,
@@ -114,10 +117,11 @@ class FakeRegistrySession:
             return FakeResponse(200, body if method == 'GET' else None,
                                 {'Content-Type': wbm.SCHEMA2_MEDIA_TYPE, 'Docker-Content-Digest': digest_of(name)})
 
-        assert name == wbm.DEPLOYER_IMAGE and rest == digest_of(f'{name}-config')
+        assert name in (wbm.DEPLOYER_IMAGE, wbm.MARKER_IMAGE) and rest == digest_of(f'{name}-config')
+        labels = self.labels if name == wbm.DEPLOYER_IMAGE else self.marker_labels
         config = {'config': {'User': 'kolla'}}
-        if self.labels is not None:
-            config['config']['Labels'] = self.labels
+        if labels is not None:
+            config['config']['Labels'] = labels
         return FakeResponse(200, config)
 
 
@@ -285,6 +289,58 @@ class DeployerStateTests(unittest.TestCase):
             self.assertEqual(digest_of(wbm.DEPLOYER_IMAGE), wbm.deployer_state(registry, PROJECT, TAG))
 
 
+SELECTION = 'a' * 64
+
+
+def marker(selection=SELECTION, images='kolla-ansible,keystone,nova-api'):
+    return {wbm.COMPLETE_LABEL: '1', wbm.SELECTION_LABEL: selection, wbm.IMAGES_LABEL: images}
+
+
+class BuildStateTests(unittest.TestCase):
+    def state(self, session):
+        return wbm.build_state(make_registry(session), PROJECT, TAG, SELECTION)
+
+    def test_missing(self):
+        self.assertEqual('missing', self.state(FakeRegistrySession(['nova-api'])))
+
+    def test_complete(self):
+        self.assertEqual('complete', self.state(FakeRegistrySession(['nova-api'], marker_labels=marker())))
+
+    def test_the_marker_does_not_need_the_deployer(self):
+        session = FakeRegistrySession(['nova-api'], deployer=False, marker_labels=marker())
+        self.assertEqual('complete', self.state(session))
+
+    def test_a_marker_for_another_selection_or_without_the_label_is_stale(self):
+        for labels in (marker(selection='b' * 64), {}, {wbm.SELECTION_LABEL: SELECTION}):
+            self.assertEqual('stale', self.state(FakeRegistrySession(['nova-api'], marker_labels=labels)))
+
+    def test_a_registry_error_fails_rather_than_reporting_missing(self):
+        session = mock.Mock()
+        session.request.return_value = FakeResponse(503)
+        with self.assertRaisesRegex(wbm.ManifestError, 'HTTP 503'):
+            wbm.build_state(make_registry(session), PROJECT, TAG, SELECTION)
+
+    def test_a_refused_token_fails_rather_than_reporting_missing(self):
+        registry = wbm.Registry(FakeRegistrySession(['nova-api'], marker_labels=marker()), REGISTRY, USERNAME, 'x')
+        with self.assertRaisesRegex(wbm.ManifestError, 'refused'):
+            wbm.build_state(registry, PROJECT, TAG, SELECTION)
+
+
+class BuiltImagesTests(unittest.TestCase):
+    def test_names_come_from_the_marker_label(self):
+        registry = make_registry(FakeRegistrySession(['nova-api'], marker_labels=marker()))
+        self.assertEqual(['kolla-ansible', 'keystone', 'nova-api'], wbm.built_images(registry, PROJECT, TAG))
+
+    def test_a_missing_marker_fails(self):
+        with self.assertRaisesRegex(wbm.ManifestError, 'not in the registry'):
+            wbm.built_images(make_registry(FakeRegistrySession(['nova-api'])), PROJECT, TAG)
+
+    def test_a_marker_without_images_fails(self):
+        registry = make_registry(FakeRegistrySession(['nova-api'], marker_labels=marker(images='')))
+        with self.assertRaisesRegex(wbm.ManifestError, 'records no images'):
+            wbm.built_images(registry, PROJECT, TAG)
+
+
 class CommandLineTests(unittest.TestCase):
     def run_cli(self, session, args, prefix=None):
         runner = CliRunner()
@@ -347,6 +403,25 @@ class CommandLineTests(unittest.TestCase):
                               ['deployer-state', TAG])
         self.assertEqual(0, result.exit_code, result.output)
         self.assertEqual('manifested\n', result.output)
+
+    def test_build_state(self):
+        result = self.run_cli(FakeRegistrySession(['nova-api'], marker_labels=marker()),
+                              ['build-state', TAG, '--selection', SELECTION])
+        self.assertEqual(0, result.exit_code, result.output)
+        self.assertEqual('complete\n', result.output)
+
+    def test_build_state_fails_when_the_registry_cannot_be_asked(self):
+        session = mock.Mock()
+        session.request.return_value = FakeResponse(503)
+        result = self.run_cli(session, ['build-state', TAG, '--selection', SELECTION])
+        self.assertEqual(1, result.exit_code)
+        self.assertIn('ERROR:', result.output)
+        self.assertNotIn('missing', result.output)
+
+    def test_built_images(self):
+        result = self.run_cli(FakeRegistrySession(['nova-api'], marker_labels=marker()), ['built-images', TAG])
+        self.assertEqual(0, result.exit_code, result.output)
+        self.assertEqual('kolla-ansible\nkeystone\nnova-api\n', result.output)
 
 
 if __name__ == '__main__':

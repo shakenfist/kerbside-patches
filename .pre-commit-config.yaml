@@ -16,7 +16,7 @@ repos:
         name: shellcheck (extensionless scripts)
         files: ^(_build/|tools/|upstream/)[^/.]+$
         types: [text]
-        exclude: '(find_images|spice-connect\.py|extract-commit-message|summarize_layers\.py|analyze-shared-patches\.py|analyze-gerrit-new-roles|analyze-gerrit-patch-size|analyze-gerrit-review-times|gerrit-pre-push-lint|write-build-manifest)$'
+        exclude: '(spice-connect\.py|extract-commit-message|summarize_layers\.py|analyze-shared-patches\.py|analyze-gerrit-new-roles|analyze-gerrit-patch-size|analyze-gerrit-review-times|gerrit-pre-push-lint|write-build-manifest)$'
         args: ['-x']
 
   # skillsaw lints the agent context in this repository -- AGENTS.md

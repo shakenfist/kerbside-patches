@@ -63,7 +63,6 @@ skip_depends_on_check="false"
 # Should we use the CI environment's OCI registry to avoid rebuilding images?
 use_ci_patches="false"
 use_ci_registry="false"
-ci_gitlab="http://192.168.1.12"
 ci_registry="gitlab.home.stillhq.com:5050"
 registry_project="openstack/kolla-images"
 registry_username=""
@@ -182,12 +181,6 @@ while [[ ${found_arg} -gt 0 ]]; do
         --test-patch)
             export test_patch="$2"
             echo "Will only test patch: ${test_patch}"
-            shift; shift
-            found_arg=1
-            ;;
-        --ci-gitlab)
-            export ci_gitlab="$2"
-            echo "Set CI gitlab to ${ci_gitlab}"
             shift; shift
             found_arg=1
             ;;
