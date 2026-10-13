@@ -365,7 +365,7 @@ against `develop`.
 | 4. Bootstrapping the deploy host | Complete | #1854 (`78c6e79c7`), #1857 (`af2474d4f`); shakenfist/actions#150 |
 | 5. Version safeguards | Complete | #1867 (`b38293652`) |
 | 6. Build manifest | Complete | #1881 (`784e95d9e`) |
-| 7. Make the prototype entry voting | Not started | |
+| 7. Make the prototype entry voting | In progress | |
 | 8. Documentation and upstream proposal | Not started | |
 | 9. Push audit | Not started | |
 
@@ -3408,7 +3408,10 @@ but its targets' containers ran under Docker.
 
 ### Phase 7: Make the prototype entry voting
 
-Planning effort: medium.
+Planning effort: medium. It changes no deploy code. The judgement is
+in what counts as evidence: what the measurement compares, and what
+"green for a week" means when a daily rebase does not always run the
+tests.
 
 By now both prototype entries have been exercising each phase as
 it landed. Take the measurement worth recording here: the time
@@ -3418,8 +3421,215 @@ make the entries voting. Keep the venv entries: the old path
 stays supported for as long as upstream supports it, and this
 plan does not change that.
 
-Exit: both prototype entries green for a week of daily rebases,
-then voting.
+*Corrected at planning (see the survey below).* "A week of daily
+rebases" cannot be counted as seven runs: a daily rebase runs these
+tests only when it changes a path the workflow does not ignore, so
+some days have no run at all. Decision 3 replaces it with a record
+counted over all runs in a dated window. The phase lands as two
+pull requests, because the voting change cannot be made before the
+window closes.
+
+**In scope:**
+* a committed tool that measures bootstrap from CI job logs, and
+  checks the launcher entries' record over a window;
+* the measurement, recorded in this phase's Outcome, including
+  where the launcher spends the time it saves in bootstrap; and
+* removing the non-voting mechanism from the workflow once the
+  record is met.
+
+**Out of scope:**
+* The venv entries. They stay, unchanged, as the controls and as the
+  supported path.
+* A launcher variant of the multinode entry. Phase 2 covered the
+  remote case; it is not one of the two prototype entries.
+* Adding Galaxy or registry errors to `auto-retry-infra-failures.yml`'s
+  patterns. Voting makes that workflow see launcher failures for the
+  first time (Risks); whether it then needs new patterns is a
+  question for the retries the window actually produces, not a guess
+  made now.
+* The always-rebuild bug (#1885). It inflates every run's image
+  builds, the launcher entries' no more than the controls'.
+
+#### What the survey found
+
+Surveyed on 2026-10-13 against this repository at `784e95d9e`
+(develop after #1881), using the jobs of the 38 "Build test clouds"
+runs since 2026-10-03 and the logs of run 38237936810, attempt 1.
+
+* **Non-voting is two matrix keys and one job key.**
+  `functional-tests.yml:487` and `:513` set `'non_voting': 'true'` on
+  `master-h-debian13-c-debian13-aio-launcher` and
+  `master-h-rocky10-c-debian-13-aio-launcher`, and `:557` sets
+  `continue-on-error: ${{ matrix.test.non_voting == 'true' }}` on
+  `test_installs`, with a comment saying this phase removes it. No
+  other entry uses the key.
+* **"Voting" means the run's conclusion, and nothing else.**
+  `develop` has no branch protection and no repository rulesets
+  (`gh api .../branches/develop/protection` is 404; `rulesets` is
+  empty). Daily rebases and phase pull requests are merged by hand.
+  The one automated consumer of the run's conclusion is
+  `auto-retry-infra-failures.yml`, which fires on
+  `workflow_run.conclusion == 'failure'`. Today a launcher-only
+  failure leaves the run green, so it is never retried; once voting,
+  it is.
+* **Daily rebases do not always run the tests.** The workflow has
+  `paths-ignore`, and #1887 (20261012) changed one ignored file, so
+  it ran only lint, CodeQL, secret scanning and rebase tests. Of the
+  rebases since 2026-10-03, those for 10-03, 10-05, 10-06, 10-07,
+  10-10 and 10-11 ran this workflow; 10-04, 10-08, 10-09 and 10-12
+  did not.
+* **The record so far is clean off the phase branches.** Every
+  launcher failure since 2026-10-03 is on a `deployer-phase-*`
+  branch, during development: four Rocky failures in Phase 3 (the
+  `nsenter` work) and both entries once in Phase 5 (the guard bug).
+  On every other branch, six daily rebases and eight other pull
+  requests, each launcher job passed, except one Rocky job cancelled
+  by its own superseded run (38169235756).
+* **The Galaxy cost is large and visible in the logs.**
+  `tools/bootstrap-kolla-ansible` prints a header before each
+  section, and the job log timestamps every line. For the venv path,
+  `ansible-galaxy collection install ansible.posix --upgrade` and
+  `kolla-ansible install-deps` are the run-time Galaxy fetches. In
+  run 38237936810, attempt 1:
+
+  | Job (venv) | Bootstrap | `ansible.posix` | `install-deps` |
+  |---|---|---|---|
+  | Debian 13 images on Rocky 10 | 617s | 85s | 492s |
+  | Ubuntu images on Debian 13 | 708s | 61s | 616s |
+  | Debian 13 multinode | 804s | 96s | 667s |
+  | Rocky on Rocky 10 | 741s | 72s | 631s |
+  | Debian 13, no kerbside | 745s | 107s | 608s |
+
+  The same section took 10s on the Debian launcher entry and 39s on
+  the Rocky one, which install the launcher and an engine, and fetch
+  nothing from Galaxy. `install-deps` downloads seven collections,
+  so most of its eight to eleven minutes is Galaxy's API, not the
+  bytes.
+* **But the deploy step is not ten minutes shorter.** Across the
+  runs since 2026-10-10, the launcher entries' "Deploy Kolla-Ansible"
+  step took 24-38 minutes and the controls' 26-43. So the launcher
+  spends most of what it saves somewhere else in that step, most
+  likely the deployer image's pull and unpack and the chroot
+  `bootstrap-servers`. The measurement has to find where, or the
+  number it reports is misleading.
+* **No Galaxy failure in our own CI was found in this sample.**
+  Upstream's Zuul has one (the `vexxhost-ca-ymq-1` "Failed to install
+  Ansible collections" flake), but it is specific to that provider's
+  IPv6. Whether ours ever fails is for 7a to count over the 90 days
+  of logs GitHub keeps.
+
+The master plan's own Phase 7 text above is corrected in place, in
+the italic note, rather than rewritten; nothing else in it was
+wrong.
+
+#### Decisions
+
+1. **The measurement is a committed tool, not a one-off script.**
+   `tools/measure-deployer-bootstrap` reads job logs through `gh`,
+   finds the bootstrap sections by their headers and timestamps, and
+   prints a table. Phase 8's proposal will quote these numbers, and
+   the first question a reviewer upstream asks is how they were
+   produced. A committed tool, with its parsing unit tested on log
+   fixtures, answers that; a scratchpad script does not survive the
+   session.
+
+2. **Compare each launcher entry with its own control, in the same
+   run and attempt.** Debian 13 launcher against
+   `master-h-debian13-c-debian13-aio`, and Rocky 10 launcher against
+   `master-h-rocky10-c-debian-13-aio` (Debian images on a Rocky
+   host, the same images as the launcher's). Pairing within a run
+   holds the images, the cluster's load and Galaxy's
+   responsiveness roughly constant. Durations are reported as
+   medians and ranges over runs since
+   2026-10-10 (Phase 4's `af2474d4f`, after which the launcher's
+   bootstrap took its final shape), and labelled as noisy, as
+   Phases 3 to 6 did. The failure count uses every retained venv
+   job, all 90 days, because it does not depend on the launcher
+   existing.
+
+3. **"Green for a week" means a dated window, counted over all
+   runs.** The window opens at #1881's merge (2026-10-13 10:13Z),
+   because Phase 6 changed how the launcher entries pull every
+   image; it closes seven days later. Every launcher job in it, on
+   any branch except `deployer-phase-*`, must pass, or fail for a
+   reason the run shows is not the launcher's: its control failed
+   the same step in the same attempt, or it failed before the deploy
+   in **Setup test environment** (cluster capacity, as on #1881).
+   There must be at least five such runs of each entry, and at
+   least two daily rebases among them. The tool's `record`
+   subcommand prints this, so the check is run rather than read.
+
+4. **Two pull requests.** The first lands the tool and the
+   measurement now (7a, 7b). The second, on a new branch after the
+   window closes, removes the non-voting mechanism and records the
+   window (7c, 7d). Holding one pull request open for a week would
+   leave the measurement unmerged, and nothing in it depends on the
+   window.
+
+5. **Remove the mechanism, not just the two keys.** 7c deletes the
+   `non_voting` keys and the `continue-on-error` line and its
+   comment. No other entry uses them, and a future prototype can add
+   two lines back. A key with nothing setting it is a puzzle for the
+   next reader.
+
+6. **If the record is not met, do not vote.** A launcher-attributable
+   failure in the window restarts the window from that failure's
+   fix, and 7c waits. The management session reports it and does
+   not relax Decision 3's rules to fit.
+
+#### Risks
+
+* **Voting makes the auto-retry workflow see launcher failures.** A
+  launcher-only infrastructure failure, a deployer image pull that
+  times out, say, now turns the run red and is retried only if it
+  matches an existing pattern. The window shows how often that
+  happens, because its failures are classified; 7d records any that
+  needed a manual rerun, and a pattern is added then if one recurs.
+* **The pairing hides the image pull.** Comparing only the bootstrap
+  section would credit the launcher with ten minutes it then spends
+  pulling the deployer image. 7a must report the whole "Deploy
+  Kolla-Ansible" step beside the sections, and 7b must account for
+  the difference. The management session checks the sum.
+* **Log formats move.** The section headers come from
+  `tools/bootstrap-kolla-ansible`, and the launcher's own output from
+  `deployer/launcher`. A renamed header would make the tool report
+  nothing rather than fail. The tool must fail when a job it was
+  asked about has none of the expected headers.
+* **Ninety-day retention.** Logs older than that are gone; the
+  failure count says which window it covers.
+* **Few runs.** If the window holds fewer than five runs of an
+  entry, Decision 3 is not met. The fix is to wait, or to ask
+  Michael for a manual dispatch of the workflow; it is not to count
+  a phase branch.
+
+| Step | Effort | Model | Isolation | Brief for sub-agent |
+|------|--------|-------|-----------|---------------------|
+| 7a | medium | sonnet | none | Write `tools/measure-deployer-bootstrap` (Python, single quotes, 120 columns, `click`, shelling out to `gh api` for job lists and `gh api repos/OWNER/REPO/actions/runs/RUN/attempts/N/logs` for attempt-specific logs: `gh run view --job` returns the latest attempt's log, not the one asked for). Two subcommands. `timings --since DATE`: for each "Build test clouds" run and attempt since DATE with both a launcher entry and its control (Decision 2 of Phase 7 in `docs/plans/containerised-deployer.md` names the pairs), print per job the "Deploy Kolla-Ansible" step duration from the jobs API and these sections from the log, measured from header to next header: for venv jobs the `tools/bootstrap-kolla-ansible` headers "Bootstrap Kolla-Ansible into a venv", "Upgrade the POSIX ansible collection", "Install patched Kolla-Ansible", "Install Kolla-Ansible dependencies", "Bootstrap inventory for topology"; for launcher jobs "Install the launcher into its own venv", "Install a container engine if there is none", and the launcher's own report of the deployer image pull and unpack (find its text in `deployer/launcher`). Then medians and ranges per entry. Strip ANSI codes; a log line is `<ISO timestamp> <text>`. Fail, naming the job, when an asked-for job has none of the headers. `galaxy-failures --since DATE`: count venv jobs whose log contains Galaxy failure text ("Failed to install Ansible collections", "ERROR! Failed to", HTTP errors from galaxy.ansible.com; read `kolla-ansible install-deps`' and `ansible-galaxy`'s failure output to choose), over all runs since DATE. `record --since DATE --until DATE`: Decision 3's rules, printing each launcher job with its verdict and why, the per-entry counts, and MET or NOT MET. Unit tests in `tools/test-measure-deployer-bootstrap.py` on small log fixtures (a venv log, a launcher log, a log missing its headers, a Setup test environment failure) and on the record rules, with no network; wire them and flake8 into `.pre-commit-config.yaml` beside `write-build-manifest`'s hooks, and add the tool to the shellcheck hook's exclude list. Document it in `docs/script-reference.md`. Commit subject: "Measure deployer bootstrap from CI logs." |
+| 7b | medium | sonnet | none | Run 7a's tool: `timings --since 2026-10-10`, `galaxy-failures` over all retained runs, and `record --since '2026-10-13T10:13Z'` as it stands. Add the first part of Phase 7's Outcome to `docs/plans/containerised-deployer.md`: the paired table (medians and ranges per entry and section, and the whole deploy step), the Galaxy failure count and the window it covers, and an account of where the launcher spends the bootstrap time it saves, with the sections that add up to the deploy-step difference. Label durations as noisy, as Phases 3-6 did. Say what the numbers would and would not support in Phase 8's proposal. Add a short "Bootstrap cost" paragraph to `docs/deployer-launcher.md` with the headline numbers and the command that produced them. Commit subject: "Record what bootstrap costs with and without Galaxy." |
+| 7c | low | sonnet | none | On a new branch from develop, after 2026-10-20 10:13Z: run `tools/measure-deployer-bootstrap record --since '2026-10-13T10:13Z' --until '2026-10-20T10:13Z'`. If it prints NOT MET, stop and report each failing job; change nothing. If MET, delete both `'non_voting': 'true'` keys and the `continue-on-error` line with its two-line comment from `.github/workflows/functional-tests.yml` (and the trailing comma the keys leave behind, so the matrix stays valid JSON), and confirm with `actionlint` and the repo's pre-commit. Say in `docs/deployer-launcher.md` that the launcher entries vote. Commit subject: "Make the containerised deployer entries vote." |
+| 7d | low | sonnet | none | After 7c's CI run, finish Phase 7's Outcome: the `record` output for the window, any failure it classified as not the launcher's and why, any run that needed a manual rerun (and whether a retry pattern is now warranted), and 7c's own run with both entries voting. Annotate the exit criteria. Commit subject: "Record the launcher entries' week." |
+
+Order: 7a, then 7b, pushed together as the first pull request. 7c
+and 7d, on a new branch after the window closes, are the second. The
+management session reviews each step before its commit, and checks
+7b's account against the deploy-step totals.
+
+**Back brief gate on 7a.** Before writing the tool, 7a's sub-agent
+reports the launcher's pull-and-unpack text it will parse, where in
+the log the deployer image is first pulled, and the Galaxy failure
+strings it chose and why. The tool is cheap to write and its numbers
+are expensive to retract once Phase 8 quotes them.
+
+Exit:
+* `tools/measure-deployer-bootstrap timings` reproduces the survey's
+  table for run 38237936810 within a second per section, and its
+  unit tests run in pre-commit.
+* Phase 7's Outcome accounts for the launcher's whole deploy step,
+  not only its bootstrap section.
+* `record` for 2026-10-13 10:13Z to 2026-10-20 10:13Z prints MET.
+* `.github/workflows/functional-tests.yml` has no `non_voting` and no
+  `continue-on-error`, and the first run after 7c lands is green
+  with both launcher entries counting.
 
 ### Phase 8: Documentation and upstream proposal
 
