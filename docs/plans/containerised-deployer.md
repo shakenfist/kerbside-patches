@@ -3505,6 +3505,10 @@ runs since 2026-10-03 and the logs of run 38237936810, attempt 1.
   nothing from Galaxy. `install-deps` downloads seven collections,
   so most of its eight to eleven minutes is Galaxy's API, not the
   bytes.
+
+  *Corrected in 7b:* that table is one run, at the long tail. Over 13
+  pairs `install-deps` is a median of 107s (Debian) and 131s (Rocky),
+  range 42 to 493s, and the venv bootstrap as a whole 231s and 239s.
 * **But the deploy step is not ten minutes shorter.** Across the
   runs since 2026-10-10, the launcher entries' "Deploy Kolla-Ansible"
   step took 24-38 minutes and the controls' 26-43. So the launcher
@@ -3512,6 +3516,12 @@ runs since 2026-10-03 and the logs of run 38237936810, attempt 1.
   likely the deployer image's pull and unpack and the chroot
   `bootstrap-servers`. The measurement has to find where, or the
   number it reports is misleading.
+
+  *Corrected in 7b:* the saving in bootstrap is a median of 132s on
+  Debian and 95s on Rocky, not ten minutes, so there is far less to
+  find. The deployer image's pull and unpack are 18 to 27s and
+  `bootstrap-servers` is 9 to 30s slower; the rest of the step's
+  variation is run-to-run noise (Outcome).
 * **No Galaxy failure in our own CI was found in this sample.**
   Upstream's Zuul has one (the `vexxhost-ca-ymq-1` "Failed to install
   Ansible collections" flake), but it is specific to that provider's
@@ -3624,12 +3634,278 @@ Exit:
 * `tools/measure-deployer-bootstrap timings` reproduces the survey's
   table for run 38237936810 within a second per section, and its
   unit tests run in pre-commit.
+  Met, for the one job the tool pairs. The Debian 13 venv control on
+  Rocky 10 comes out at 617.4s from first header to inventory, with
+  `ansible.posix` 85.0s and `install-deps` 492.6s, against the survey's
+  617, 85 and 492. The survey's other four venv rows have no launcher
+  pair, so `timings` does not print them. The unit tests are a
+  pre-commit hook (`measure-deployer-bootstrap-tests`).
 * Phase 7's Outcome accounts for the launcher's whole deploy step,
   not only its bootstrap section.
+  Met, with a limit. The Outcome's table of mean differences adds up
+  to the step on both hosts (-173 and -49 make -222 on Debian; -148 and
+  +213 make +65 on Rocky). What it cannot do is explain the part after
+  bootstrap: 25 to 75s of it is small consistent per-call costs, and
+  the rest is within the noise of 13 pairs a side, with a Rocky excess
+  (+213s mean) at about two standard errors.
 * `record` for 2026-10-13 10:13Z to 2026-10-20 10:13Z prints MET.
+  Not yet. Run on 2026-10-14 it prints "0 runs, 0 launcher jobs" and
+  NOT MET; the window has barely opened and 7d reports it.
 * `.github/workflows/functional-tests.yml` has no `non_voting` and no
   `continue-on-error`, and the first run after 7c lands is green
   with both launcher entries counting.
+
+#### Outcome
+
+Written after 7a (`453dd6e3f`, the tool) and its fix (`472f5b1a3`), as part
+one: the measurement. 7d adds the window. Everything below was measured on
+2026-10-14 with `tools/measure-deployer-bootstrap`, from the job logs
+GitHub still holds. Durations are noisy, and Phases 3 to 6 said so for the
+same reason: they depend on the cluster's load and on Galaxy's
+responsiveness, and the two jobs of a pair run on different runners,
+usually at different times.
+
+*What was measured.* `tools/measure-deployer-bootstrap timings --since
+2026-10-10`: 13 runs of "Build test clouds", created 2026-10-10 01:58Z to
+2026-10-13 07:43Z, 14 run attempts, giving 26 pairs, 13 of the Debian 13
+launcher against `master-h-debian13-c-debian13-aio` and 13 of the Rocky 10
+launcher against `master-h-rocky10-c-debian-13-aio`. A launcher job and a
+control that were carried over from an earlier attempt are not measured
+twice, and a pair with one side carried over is skipped with a note on
+stderr. Nine of the pairs (four Debian, five Rocky) come from
+`deployer-phase-*` branches. Leaving them out leaves 9 and 8 pairs, and
+does not change the picture: Debian's medians are the same (1583s against
+1866s for the step, and no difference after bootstrap), and Rocky's median
+per-pair difference after bootstrap is +135s against +144s with them. The
+tables use all 26.
+
+Medians and ranges, in seconds. "Diff" is the difference of the two
+medians; the per-pair differences used further down are a different
+quantity and are labelled as such.
+
+| Debian 13 host | Launcher | Control | Diff |
+|----------------|---------|---------|------|
+| Deploy Kolla-Ansible step | 1583 (1446-2059) | 1866 (1549-2471) | -283 |
+| bootstrap sub-step | 99 (82-137) | 231 (152-606) | -132 |
+| - first header to inventory | 12 (2.4-19) | 155 (88-535) | -143 |
+| - install the launcher | 2.4 (2.2-4.1) | - |  |
+| - install a container engine | 9.1 (0.0-16) | - |  |
+| - make venv | - | 1.5 (1.1-1.8) |  |
+| - upgrade ansible.posix | - | 9.7 (6.0-83) |  |
+| - install patched Kolla-Ansible | - | 6.8 (5.6-9.7) |  |
+| - kolla-ansible install-deps | - | 107 (42-407) |  |
+| - deployer image pull (pin as root) | 15 (8.2-26) | - |  |
+| - certificates | 17 (16-23) | 16 (15-21) | +1.0 |
+| - bootstrap-servers | 51 (41-70) | 42 (31-53) | +9.1 |
+| - deployer image unpack | 2.9 (1.9-8.4) | - |  |
+| - deployer image pull (pin as user) | 0.2 (0.2-8.4) | - |  |
+| prechecks | 51 (50-64) | 46 (44-57) | +5.4 |
+| pull images | 121 (84-161) | 112 (86-158) | +8.4 |
+| deploy | 700 (618-888) | 738 (619-889) | -38 |
+| validate-config | 134 (123-176) | 136 (110-203) | -2.3 |
+| check | 15 (14-22) | 16 (13-22) | -1.0 |
+| reconfigure | 413 (395-541) | 418 (396-648) | -4.3 |
+| install clients | 13 (11-19) | 14 (11-17) | -1.8 |
+| post-install | 40 (37-57) | 38 (35-52) | +1.7 |
+| all sub-steps after bootstrap | 1468 (1362-1923) | 1465 (1322-2011) | +3.0 |
+
+| Rocky 10 host | Launcher | Control | Diff |
+|---------------|---------|---------|------|
+| Deploy Kolla-Ansible step | 1875 (1675-2466) | 1841 (1593-2563) | +34 |
+| bootstrap sub-step | 144 (83-190) | 239 (130-660) | -95 |
+| - first header to inventory | 36 (5.5-51) | 184 (87-617) | -147 |
+| - install the launcher | 3.4 (2.8-4.8) | - |  |
+| - install a container engine | 31 (0.0-44) | - |  |
+| - make venv | - | 1.5 (1.4-2.2) |  |
+| - upgrade ansible.posix | - | 13 (4.7-85) |  |
+| - install patched Kolla-Ansible | - | 7.5 (6.5-10) |  |
+| - kolla-ansible install-deps | - | 131 (46-493) |  |
+| - deployer image pull (pin as root) | 11 (7.1-25) | - |  |
+| - certificates | 19 (16-23) | 16 (16-24) | +3.1 |
+| - bootstrap-servers | 54 (36-67) | 25 (20-32) | +30 |
+| - deployer image unpack | 5.3 (3.2-9.1) | - |  |
+| - deployer image pull (pin as user) | 11 (8.3-18) | - |  |
+| prechecks | 54 (51-66) | 48 (45-59) | +6.9 |
+| pull images | 116 (88-148) | 100 (83-156) | +15 |
+| deploy | 869 (791-1150) | 762 (691-965) | +107 |
+| validate-config | 159 (136-248) | 129 (119-177) | +30 |
+| check | 18 (15-26) | 14 (13-19) | +4.7 |
+| reconfigure | 487 (431-636) | 439 (419-614) | +48 |
+| install clients | 18 (13-20) | 15 (12-20) | +3.4 |
+| post-install | 43 (38-58) | 39 (36-56) | +4.5 |
+| all sub-steps after bootstrap | 1734 (1567-2316) | 1534 (1459-2012) | +200 |
+
+(The rows with a leading "-" are parts of the bootstrap sub-step. On the
+venv side, "first header to inventory" is the sum of "make venv",
+`ansible.posix`, the patched Kolla-Ansible and `install-deps`. On the
+launcher side it is the sum of "install the launcher" and "install a
+container engine"; the pulls, the unpack, "certificates" and
+"bootstrap-servers" all run after it. Medians do not add up exactly.)
+
+*The headline is smaller than the survey's.* The survey's ten minutes came
+from one run. Across 26 pairs the venv bootstrap's median is 231s (Debian)
+and 239s (Rocky), of which `kolla-ansible install-deps` is 107s and 131s,
+and the launcher's bootstrap sub-step is 99s and 144s. So the launcher
+saves a median of about 130s on Debian and 95s on Rocky in bootstrap (the
+median per-pair saving is 143s and 75s), not 500 to 600s. The Galaxy cost
+is a long tail, not a constant: `install-deps` ranges from 42s to 493s, and
+the survey's run sat near the top of that range. A phrase like "saves eight
+to eleven minutes" must not appear in Phase 8.
+
+*Where the saved time goes.* Over the whole deploy step the launcher saved
+283s of median on Debian and cost 34s on Rocky. Neither can be told from
+zero: the per-pair step differences have a standard deviation of 383s
+(Debian) and 429s (Rocky), and range from -947s to +777s. Means of the
+per-pair differences are additive, so these add up exactly (standard errors
+are about 106s and 119s for the step):
+
+| Mean of 13 pair differences | Debian | Rocky |
+|-----------------------------|--------|-------|
+| Deploy Kolla-Ansible step | -222 | +65 |
+| = bootstrap sub-step | -173 | -148 |
+| + all sub-steps after bootstrap | -49 | +213 |
+| of which prechecks, check, clients, post-install | +6 | +16 |
+| of which pull images, validate-config | +12 | +36 |
+| of which deploy, reconfigure | -66 | +162 |
+
+Inside the bootstrap sub-step the launcher also gives some time back:
+`bootstrap-servers` is +11s (Debian) and +28s (Rocky, mean) slower than the
+control's, because it includes the deployer image's pull and unpack and the
+chroot. The Rocky launcher's engine install (median 31s, podman) is dearer
+than Debian's (9s, docker), and Rocky pulls the deployer image twice (11s
+as root, 11s as user) where Debian pulls it once (15s). The pull and unpack
+together are about 27s on Rocky and 18s on Debian, so the survey's guess
+that they explain the missing time is true of a few seconds, not minutes.
+
+*Is the slowdown after bootstrap systematic?* In part. The small
+costs are; the large one on Rocky is not established.
+
+* **Small, consistent costs.** `bootstrap-servers` was slower than its
+  control in 22 of 26 pairs (13 of 13 on Rocky). `prechecks` was slower in
+  19 of 26, by 4 to 6s in the mean. On Rocky, `validate-config` (+30s, 10
+  of 13) and `check` (+4s, 10 of 13) are slower too; on Debian they are
+  not. Adding the steps that lean the same way gives about 25s on Debian
+  and 75s on Rocky. A per-call cost of about two seconds fits the short
+  ones: in run 38237936810 attempt 1, the Rocky launcher's seven calls took
+  3.2 to 4.6s from the step starting to the first Ansible play, against 1.4
+  to 2.8s for the control, which is about two seconds more per call and
+  under a second more at the end. That is 15 to 20s over seven calls, from
+  one run, not a measurement of the overhead.
+
+* **The long steps on Rocky: borderline, and not separable from noise.**
+  Deploy and reconfigure are 80% of the time after bootstrap. On Rocky the
+  launcher is slower after bootstrap in 10 of 13 pairs (a two-sided sign
+  test gives p of about 0.09), by a mean of +213s with a standard error of
+  100s, which is 2.1 standard errors; deploy alone is +108s (2.5 standard
+  errors, 10 of 13) and reconfigure +53s (1.5). The thirteenth pair (+782s)
+  moved the whole-step figure from 1.8 to 2.1 standard errors, and I looked
+  at about a dozen sub-steps, so one at 2.5 is less than it seems. On
+  Debian the same measure is -49s with a standard error of 91s (6 of 13
+  slower) and shows nothing. The per-pair deploy and reconfigure
+  differences move together (correlation 0.96 on Rocky, 0.93 on Debian): a
+  pair is slower or faster as a whole, which is what a shared cause such as
+  host load looks like and not what a fixed per-call cost looks like. The
+  two jobs of a pair ran at overlapping times in only 7 of the first 24
+  pairs, and the gap between their starts does not predict the difference,
+  so "load differed" can be neither confirmed nor excluded. A Rocky penalty
+  of 100 to 200s is plausible and now at the edge of what 13 pairs can
+  show; it is not established, and Phase 8 should not state it as a fact
+  about the launcher.
+
+* **The 494s of the 7a back brief is one draw from a wide distribution.**
+  Run 38237936810 attempt 1 (deploy +211s, reconfigure +167s,
+  validate-config +57s) is one of five Rocky pairs between +490s and +780s.
+  Three other Rocky pairs are between -260s and -310s, and the remaining
+  five between +80s and +170s. Debian swings as far the other way: five
+  pairs between -295s and -470s, two between +465s and +505s. A swing of
+  300 to 600s in either direction is ordinary for this measure, which is
+  what "noisy" means here.
+
+*Podman re-resolving the digest on every call.* Not supported. The Rocky
+launcher log of that run has five `Trying to pull ...` lines, all inside
+bootstrap, between 13:35:57 and 13:36:38: the tag pin as root, then digest
+pulls for the pin as user and for the calls that generate passwords, make
+certificates and run `bootstrap-servers`. There is none in the seven
+launcher calls of the next 34 minutes (prechecks, pull, deploy,
+validate-config, check, reconfigure, post-deploy). A digest pull whose
+layers are present took 0.17s in the one case that could be timed
+(13:36:12.19 to .36). So the registry is not where the per-call cost above
+comes from, and the Rocky symptom 7a saw is a bootstrap one; nothing is
+added to Future work for it.
+
+*Galaxy failures.* `tools/measure-deployer-bootstrap galaxy-failures
+--since 2026-07-16` counted 982 venv jobs whose bootstrap ran, in runs
+created since 2026-07-16. The oldest retained log is 2026-07-16T21:02Z, so
+this covers all of GitHub's 90 days: 2026-07-16 to 2026-10-13. Results:
+
+| Outcome | Jobs | Where |
+|---------|------|-------|
+| Failed the job | 1 | run 32833757983 attempt 3 (a daily rebase, 2026-08-26), Debian 13 images on Debian 12 multinode. See below |
+| Recovered by kolla-ansible's retry | 3 | run 33791915624 (a daily rebase, multinode), `The read operation timed out`; runs 36841853973 (deployer-phase-1, Rocky) and 38299246253 attempt 2 (Debian 13), both `KeyError: 'results'` |
+
+That is four of 982 (0.4%), one of which failed a job. The launcher entries
+cannot suffer any of it. "The old path is unreliable" is not what this data
+says: the cost it shows is minutes, in a fraction of a percent of jobs.
+
+The one job that failed did so because of the line the tool matched. In
+"Upgrade the POSIX ansible collection", which is a bare `ansible-galaxy
+collection install ansible.posix --upgrade` with no retry around it
+(kolla-ansible's retry covers only `install-deps`), ansible-galaxy logged
+`[WARNING]: Skipping Galaxy server https://galaxy.ansible.com. Got an
+unexpected error when getting available versions of collection
+ansible.posix`, then `[ERROR]: Unknown error when attempting to call Galaxy
+at 'https://galaxy.ansible.com/api/': <urlopen error [Errno -3] Temporary
+failure in name resolution>`, and `bootstrap-kolla-ansible` printed `***
+Failed ***` and exited 1, 36.5s into the action. Every later step of the
+job (pre-checks to post-install) shows as skipped. So the job ended there,
+on a name that did not resolve from the test host, which is the host's
+resolver and not Galaxy; what turned it into a failed job is that the venv
+path fetches from the network at run time.
+
+The `KeyError: 'results'` in run 38299246253 attempt 2 was a failure that
+kolla-ansible retried, and the log shows it. In `kolla-ansible
+install-deps` the first `ansible-galaxy collection install` of
+`requirements-core.yml` ran from 15:01:22 to 15:04:46 (205s), and then
+ansible-core crashed in `_call_galaxy` on `path_cache['results']`: Galaxy
+returned a response for `ansible.utils` with no `results` key (from Galaxy
+or from ansible's own cache of it; the log does not say which), which
+ansible-core did not handle and reported as "Unexpected Exception, this is
+probably a bug: 'results'". Kolla-ansible then printed `Failed to install
+Ansible collections from ... requirements-core.yml using Ansible Galaxy
+(error: ... exit status 250.) (retry: 1/5)`. The second attempt finished at
+15:07:11, installing all seven collections, and the job went on to pass. So
+`install-deps` took 351s (15:01:20 to 15:07:11) against a median of 107s on
+Debian. The 7a back brief described this log as having "no kolla retry
+line"; that was wrong, and the tool counts it as recovered because of that
+line, which is right.
+
+*What these numbers would and would not support in Phase 8.*
+
+* They support: the launcher removes `ansible-galaxy` and `kolla-ansible
+  install-deps` from bootstrap, which is about two minutes at the median
+  (107s and 131s for `install-deps`) and up to eight at the top of the
+  range; and removes a failure mode that is rare in our CI (0.4% of jobs,
+  one job failed in 90 days) but real. Upstream's Zuul has a Galaxy flake
+  specific to one provider (`vexxhost-ca-ymq-1`); this data says nothing
+  about it.
+
+* They do not support: a claim that a launcher deploy is faster. The whole
+  step is within noise of its control on both hosts, and Phase 8 should say
+  the bootstrap section is shorter and say no more about the step. They do
+  not support a claim about the launcher's per-call overhead beyond "a few
+  seconds per call, from one run", or a claim that the Rocky launcher is
+  slower: that is about two standard errors, from 13 pairs, with runners
+  that differ between the jobs of a pair.
+
+* The numbers are from this CI's runners and registry (a cluster of
+  test-cloud VMs, a private GitLab registry for the images, a devpi mirror
+  for Python). A reviewer upstream will run on neither.
+
+*The record.* `record --since '2026-10-13T10:13Z' --until
+'2026-10-20T10:13Z'` run on 2026-10-14 prints "0 runs, 0 launcher jobs",
+"No launcher jobs in the window" and `NOT MET`, exit 1. That is expected:
+no run of the workflow has been created since #1881 merged. 7d records the
+window when it closes.
 
 ### Phase 8: Documentation and upstream proposal
 

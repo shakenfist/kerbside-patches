@@ -432,6 +432,36 @@ IDs unchanged, and a nonexistent manifest path produces the warning
 once. It passed on Docker's classic image store (Debian) and its
 containerd store (Rocky).
 
+## Bootstrap cost
+
+The launcher takes `ansible-galaxy` and `kolla-ansible install-deps` out
+of bootstrap, but the whole deploy step is not reliably shorter for
+it. Over 26 pairs of launcher and venv entries in the same CI run,
+created 2026-10-10 to 2026-10-13, the bootstrap sub-step took a median of 99s
+(launcher) against 231s (venv) on a Debian 13 host, and 144s against
+239s on Rocky 10; the venv's `install-deps` alone ranged from 42s to
+493s. The "Deploy Kolla-Ansible" step as a whole took 1583s against
+1866s on Debian and 1875s against 1841s on Rocky, with per-pair
+differences of up to 900 seconds either way (the launcher was faster in
+9 of 13 Debian pairs and slower in 8 of 13 Rocky pairs). The launcher's
+own costs are small: about two seconds more per call before Ansible
+starts, and 18s (Debian) to 27s (Rocky) to pull and unpack the deployer
+image. Of the 982 venv jobs since 2026-07-16, four hit a Galaxy failure
+and one of them failed the job. Durations depend on the cluster's load
+and are noisy.
+
+The numbers come from:
+
+```
+tools/measure-deployer-bootstrap timings --since 2026-10-10
+tools/measure-deployer-bootstrap galaxy-failures --since 2026-07-16
+```
+
+Both need an authenticated `gh`; add `--cache-dir DIR` before the
+subcommand to keep the downloaded logs. The method, the full tables and
+what they do not show are in the Outcome of Phase 7 of
+[the containerised deployer plan](plans/containerised-deployer.md).
+
 ## What it refuses
 
 * A `kolla-ansible` distribution in the same environment.
