@@ -400,7 +400,55 @@ class RecordTest(unittest.TestCase):
         rerun = {LAUNCHER: dict(job(LAUNCHER), id=3), VENV: dict(job(VENV), id=4)}
         seen = set()
         self.assertEqual(1, len(mdb.pair_timings(jobs, logs, seen)))
-        self.assertEqual(0, len(mdb.pair_timings(rerun, logs, seen)))
+        with mock.patch.object(mdb, 'note'):
+            self.assertEqual(0, len(mdb.pair_timings(rerun, logs, seen)))
+
+    def test_a_job_carried_into_a_rerun_has_no_log_and_is_skipped(self):
+        launcher = dict(job(LAUNCHER), id=1)
+        first = {LAUNCHER: launcher, VENV: dict(job(VENV, 'failure', deploy='failure'), id=2)}
+        rerun = {LAUNCHER: dict(launcher, id=3),
+                 VENV: dict(job(VENV), id=4, started_at='later', completed_at='later')}
+        rerun[VENV]['steps'] = [dict(step, started_at='later') for step in rerun[VENV]['steps']]
+        rerun[VENV]['started_at'] = 'later'
+        seen = set()
+        self.assertEqual([], mdb.pair_timings(first, {LAUNCHER: launcher_log()}, seen))
+        with mock.patch.object(mdb, 'note') as note:
+            # The rerun's zip holds only the control, which ran again.
+            self.assertEqual([], mdb.pair_timings(rerun, {VENV: venv_log()}, seen))
+        self.assertIn('carried over', note.call_args[0][0])
+        # A job that ran in this attempt and has no log is still an error.
+        with self.assertRaises(mdb.ToolError):
+            mdb.pair_timings({LAUNCHER: job(LAUNCHER), VENV: job(VENV)}, {LAUNCHER: launcher_log()}, set())
+
+    def test_logs_before_the_substep_markers(self):
+        old = '\n'.join(line for line in venv_log().split('\n')
+                        if '##[start-action' not in line and '##[end-action' not in line) + '\n'
+        view = mdb.LogView(VENV, old)
+        self.assertFalse(view.has_markers)
+        # The Galaxy classification needs only the headers.
+        self.assertEqual({'hard': [], 'recovered': []}, view.galaxy())
+        retry = GalaxyTest.RETRY
+        found = mdb.LogView(VENV, old.replace('Bootstrap inventory for topology',
+                                              retry + '\n' + '2026-10-12T14:00:00.0000000Z \x1b[0;34m'
+                                              'Bootstrap inventory for topology')).galaxy()
+        self.assertEqual([], found['hard'])
+        # Timings skip it, naming the reason, instead of aborting the run.
+        jobs = {LAUNCHER: job(LAUNCHER), VENV: job(VENV)}
+        with mock.patch.object(mdb, 'note') as note:
+            self.assertEqual([], mdb.pair_timings(jobs, {LAUNCHER: launcher_log(), VENV: old}))
+        self.assertIn('no sub-step markers (predates them)', note.call_args[0][0])
+        self.assertEqual(0, len(mdb.offline_pairs({LAUNCHER: launcher_log(), VENV: old})))
+
+    def test_timings_skip_an_attempt_that_is_still_running(self):
+        runs = [{'id': 7, 'run_attempt': 1, 'head_branch': 'x'}]
+        running = [job(LAUNCHER, None, status='in_progress'), job(VENV)]
+        with mock.patch.object(mdb, 'list_runs', return_value=runs), \
+                mock.patch.object(mdb, 'list_jobs', return_value=running), \
+                mock.patch.object(mdb, 'download_logs') as download:
+            result = CliRunner().invoke(mdb.cli, ['timings', '--since', '2026-10-10'])
+        self.assertEqual(0, download.call_count)
+        self.assertIn('not completed, skipped', result.output)
+        self.assertEqual(1, result.exit_code)
 
     def test_galaxy_failures_count_a_carried_over_job_once(self):
         carried = dict(job(VENV), id=1)

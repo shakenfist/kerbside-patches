@@ -154,6 +154,10 @@ class ToolError(click.ClickException):
     pass
 
 
+def note(message):
+    click.echo(message, err=True)
+
+
 def parse_when(value):
     for form in ('%Y-%m-%d', '%Y-%m-%dT%H:%MZ', '%Y-%m-%dT%H:%M:%SZ'):
         try:
@@ -216,6 +220,9 @@ class LogView(object):
                 break
         self.substeps = {}
         self.bootstrap = None
+        # Logs from before the composite action's sub-step markers have only
+        # the section headers of tools/bootstrap-kolla-ansible.
+        self.has_markers = False
         if self.start is not None:
             self._find_substeps()
             self._find_bootstrap()
@@ -249,14 +256,21 @@ class LogView(object):
 
     def _find_bootstrap(self):
         if 'bootstrap' in self.substeps:
+            self.has_markers = True
             self.bootstrap = (self.substeps['bootstrap']['first'], self.substeps['bootstrap']['last'])
             return
         # A bootstrap that never finished has a start marker and no end.
         for i in range(self.start, len(self.lines)):
             match = START_ACTION.match(self.lines[i][2])
-            if match and match.group('display') == SUBSTEPS[0][1]:
-                self.bootstrap = (i, len(self.lines) - 1)
-                return
+            if match:
+                self.has_markers = True
+                if match.group('display') == SUBSTEPS[0][1]:
+                    self.bootstrap = (i, len(self.lines) - 1)
+                    return
+        if not self.has_markers:
+            # No way to say where bootstrap ends, so read the headers of
+            # everything after the action started.
+            self.bootstrap = (self.start, len(self.lines) - 1)
 
     def headers(self):
         """Return [(index, clean text)] of the section headers in bootstrap."""
@@ -499,6 +513,10 @@ def step_ran(job):
     return bool(step) and step.get('conclusion') not in (None, 'skipped')
 
 
+def attempt_complete(jobs):
+    return all(job.get('status') == 'completed' for job in jobs)
+
+
 def carried_key(job):
     """Identify a job across attempts.
 
@@ -526,8 +544,11 @@ def deploy_succeeded(job):
 def pair_timings(jobs_by_name, logs, seen=None):
     """Return [(launcher name, launcher values, control values)] for one attempt.
 
-    seen is the set of pairs already measured in earlier attempts of the run;
-    a pair carried over unchanged into a rerun is not measured again.
+    seen is the set of jobs listed by earlier attempts of the run. A job a
+    rerun carries over unchanged has no log in the later attempt, because it
+    did not run there, and was measured in its own; a pair with such a job is
+    skipped. Only a job that ran in this attempt and has no log is an error.
+    A log from before the sub-step markers is skipped with a note.
     """
     seen = seen if seen is not None else set()
     pairs = []
@@ -535,10 +556,12 @@ def pair_timings(jobs_by_name, logs, seen=None):
         control = control_name(name)
         if not control or control not in jobs_by_name:
             continue
-        key = (carried_key(jobs_by_name[name]), carried_key(jobs_by_name[control]))
-        if key in seen:
+        keys = [carried_key(jobs_by_name[name]), carried_key(jobs_by_name[control])]
+        carried = [each for each, key in zip((name, control), keys) if key in seen]
+        seen.update(keys)
+        if carried:
+            note('%s: skipped in this attempt, %s carried over from an earlier attempt' % (name, ' and '.join(carried)))
             continue
-        seen.add(key)
         values = []
         for each in (name, control):
             job = jobs_by_name[each]
@@ -548,6 +571,9 @@ def pair_timings(jobs_by_name, logs, seen=None):
                 raise ToolError('%s: the logs download has no log for this job' % each)
             view = LogView(each, logs[each])
             if not view.reached:
+                break
+            if not view.has_markers:
+                note('%s: no sub-step markers (predates them), skipped' % each)
                 break
             measured = view.timings()
             if step_seconds(job) is not None:
@@ -565,7 +591,7 @@ def offline_pairs(logs):
         if not control or control not in logs:
             continue
         views = [LogView(each, logs[each]) for each in (name, control)]
-        if all(view.reached and view.complete() for view in views):
+        if all(view.reached and view.has_markers and view.complete() for view in views):
             pairs.append((name, views[0].timings(), views[1].timings()))
     return pairs
 
@@ -689,8 +715,12 @@ def timings(obj, since, until, runs, attempt, logs_dir, as_json):
                              parse_when(until) if until else None, runs):
             seen = set()
             for number in list_attempts(run, attempt):
-                jobs = dict((job['name'], job) for job in list_jobs(obj['repo'], run['id'], number))
+                listed = list_jobs(obj['repo'], run['id'], number)
+                jobs = dict((job['name'], job) for job in listed)
                 if not any(is_launcher(name) for name in jobs):
+                    continue
+                if not attempt_complete(listed):
+                    note('run %s attempt %s: not completed, skipped' % (run['id'], number))
                     continue
                 try:
                     logs = download_logs(obj['repo'], run['id'], number, obj['cache_dir'])
