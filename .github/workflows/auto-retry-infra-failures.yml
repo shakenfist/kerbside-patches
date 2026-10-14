@@ -132,9 +132,23 @@ jobs:
             if [ -z "$matched" ]; then
               # Annotations didn't match — check the job log for in-job
               # transient errors (e.g. opendev.org clone failures).
-              # Tail to keep memory bounded.
-              LOG_TEXT=$(gh api "repos/$REPO/actions/jobs/$JOB_ID/logs" \
-                2>/dev/null | tail -n 2000 || echo "")
+              # Tail to keep memory bounded. Newer gh refuses to print a
+              # response containing terminal escape sequences, even into a
+              # pipe, and almost every job log has ANSI colour in it; with
+              # stderr discarded that made this fallback silently match
+              # nothing (run 38478931745's sfcbr 507 went unretried on
+              # 2026-10-14). Pass the flag when this gh knows it, and say
+              # when the log could not be read rather than hiding it.
+              LOG_ARGS=()
+              if gh api --help 2>/dev/null | grep -q -- '--allow-escape-sequences'; then
+                LOG_ARGS=(--allow-escape-sequences)
+              fi
+              LOG_TEXT=$(gh api "${LOG_ARGS[@]}" \
+                "repos/$REPO/actions/jobs/$JOB_ID/logs" \
+                2>"$RUNNER_TEMP/log-fetch.err" | tail -n 2000 || echo "")
+              if [ -z "$LOG_TEXT" ]; then
+                echo "  (could not read job log: $(head -c 300 "$RUNNER_TEMP/log-fetch.err"))"
+              fi
               for PATTERN in "${INFRA_PATTERNS[@]}"; do
                 if echo "$LOG_TEXT" | grep -qi "$PATTERN"; then
                   matched="$PATTERN"
