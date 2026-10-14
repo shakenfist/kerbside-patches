@@ -1,0 +1,14 @@
+fluentd: Collect the nova_libvirt virtlogd log
+
+nova_libvirt now writes virtlogd's log to
+/var/log/kolla/libvirt/virtlogd.log, but the libvirt tail source only
+follows libvirtd.log, so check-logs.sh reports the file as missing.
+Add it to the source; both files use libvirt's log format.
+
+Prompt: diagnose why Zuul failed every kolla-ansible deploy job on kolla
+change 1010516.
+
+Related-Bug: #2155214
+Change-Id: Idd0a221f53ea3cffc7c198e9f429c5f70b9b3b07
+Signed-off-by: Michael Still <mikal@stillhq.com>
+Assisted-By: Claude Opus 5.5 (1M context, low effort) <noreply@anthropic.com>
