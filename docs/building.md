@@ -192,8 +192,8 @@ The step:
   writing a partial manifest, and if the label is not there after the
   push.
 
-The design is Phase 6 of
-[the containerised deployer plan](plans/containerised-deployer.md).
+The design, and the alternatives it rejected, are in the build manifest
+section of [the containerised deployer plan](plans/containerised-deployer.md).
 
 ## Skipping a tag that is already built
 

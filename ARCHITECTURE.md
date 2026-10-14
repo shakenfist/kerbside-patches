@@ -61,10 +61,14 @@ kerbside-patches/
 
 This repository now holds one program alongside its patches:
 `deployer/launcher/`, a standard-library Python tool that runs
-Kolla-Ansible from a container image. It is here because it is young
-and there is no upstream file to patch (Decision 8 of
-[the plan](docs/plans/containerised-deployer.md)). Whether it moves
-upstream is a Phase 8 question. See
+Kolla-Ansible from a container image. It is here because there is no
+upstream file to patch, and it changes on nearly every commit while
+young, so carried as a patch every edit would be a regenerated patch.
+A repository of its own would take on the fleet's release machinery
+before the launcher has proved itself. Whether it moves upstream is
+still open: the
+[containerised deployer plan](docs/plans/containerised-deployer.md)
+ends with an upstream proposal. See
 [docs/deployer-launcher.md](docs/deployer-launcher.md).
 
 ## Patch System
@@ -214,9 +218,9 @@ deployer image. See
 The digests are read back from the registry rather than taken
 from kolla-build, because the push filters rewrite every
 image. The manifest image takes the deployer's tag, so a
-deployer pinned by tag or digest pins every image of its build
-(Phase 6 of
-[docs/plans/containerised-deployer.md](docs/plans/containerised-deployer.md)).
+deployer pinned by tag or digest pins every image of its build. The
+design, and the alternatives it rejected, are in
+[docs/plans/containerised-deployer.md](docs/plans/containerised-deployer.md).
 
 ### Layer Data Collection
 

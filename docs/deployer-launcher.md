@@ -459,8 +459,8 @@ tools/measure-deployer-bootstrap galaxy-failures --since 2026-07-16
 
 Both need an authenticated `gh`; add `--cache-dir DIR` before the
 subcommand to keep the downloaded logs. The method, the full tables and
-what they do not show are in the Outcome of Phase 7 of
-[the containerised deployer plan](plans/containerised-deployer.md).
+what they do not show are in the Outcome of making the prototype entry
+voting, in [the containerised deployer plan](plans/containerised-deployer.md).
 
 ## What it refuses
 
