@@ -10,8 +10,8 @@ self-hosted-runner:
     - xl
     - m
     - s
-    - s-cloud
-    - s-cluster
+    - bound-debian-13
+    - bound-s
     - claude-code
     - static
 
