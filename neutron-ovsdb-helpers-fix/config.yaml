@@ -5,6 +5,6 @@ shallow_clone: true
 directory: neutron
 release: master-neutron-ovsdb-helpers-fix
 depends_on: ''
-source_sha: dd92e47ab193ea1eda3f31463098e9e4e1375e48
-previous_source_sha: a9178db9826b10d1febab98624fb64b30fdd734b
+source_sha: e96a357ed774d821dbbe42c03d4e5b35099fe55c
+previous_source_sha: dd92e47ab193ea1eda3f31463098e9e4e1375e48
 repush: true
