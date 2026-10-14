@@ -429,7 +429,6 @@ jobs:
           #   'baseuser': 'debian',
           #   'topology': 'all-in-one',
           #   'runs_on': 'debian-13',
-          #   'runner_size': 's-cloud',
           #   'container_distro': 'debian',
           #   'container_distro_version': 'trixie',
           #   'enable_kerbside': 'true'
@@ -442,7 +441,6 @@ jobs:
             'baseuser': 'debian',
             'topology': 'all-in-one',
             'runs_on': 'debian-13',
-            'runner_size': 's-cloud',
             'container_distro': 'ubuntu',
             'container_distro_version': 'noble',
             'enable_kerbside': 'true'
@@ -455,7 +453,6 @@ jobs:
             'baseuser': 'debian',
             'topology': 'all-in-one',
             'runs_on': 'debian-13',
-            'runner_size': 's-cloud',
             'container_distro': 'debian',
             'container_distro_version': 'trixie',
             'enable_kerbside': 'false'
@@ -468,7 +465,6 @@ jobs:
             'baseuser': 'debian',
             'topology': 'all-in-one',
             'runs_on': 'debian-13',
-            'runner_size': 's-cloud',
             'container_distro': 'debian',
             'container_distro_version': 'trixie'
           },
@@ -480,7 +476,6 @@ jobs:
             'baseuser': 'debian',
             'topology': 'all-in-one',
             'runs_on': 'debian-13',
-            'runner_size': 's-cloud',
             'container_distro': 'debian',
             'container_distro_version': 'trixie',
             'deployer': 'launcher',
@@ -494,7 +489,6 @@ jobs:
             'baseuser': 'cloud-user',
             'topology': 'all-in-one',
             'runs_on': 'debian-13',
-            'runner_size': 's-cloud',
             'container_distro': 'debian',
             'container_distro_version': 'trixie'
           },
@@ -506,7 +500,6 @@ jobs:
             'baseuser': 'cloud-user',
             'topology': 'all-in-one',
             'runs_on': 'debian-13',
-            'runner_size': 's-cloud',
             'container_distro': 'debian',
             'container_distro_version': 'trixie',
             'deployer': 'launcher',
@@ -520,7 +513,6 @@ jobs:
             'baseuser': 'cloud-user',
             'topology': 'all-in-one',
             'runs_on': 'debian-13',
-            'runner_size': 's-cloud',
             'container_distro': 'rocky',
             'container_distro_version': '10'
           },
@@ -532,7 +524,6 @@ jobs:
             'baseuser': 'debian',
             'topology': 'multinode-2',
             'runs_on': 'debian-13',
-            'runner_size': 's-cluster',
             'container_distro': 'debian',
             'container_distro_version': 'trixie'
           },
@@ -541,15 +532,15 @@ jobs:
     # being deployed is built as instances on the Shaken Fist cluster by
     # the actions repository's kerbside-*-node playbooks, and the runner
     # only assembles source, copies it across and drives the deploy over
-    # ssh. The runner footprint is therefore still that of "s" -- cluster
-    # capacity belongs to the nested cloud, not to the runner
-    # orchestrating it. The runner_size token ("s-cloud" or "s-cluster")
-    # exists only to give these jobs a pending pool of their own, so
-    # their claim does not inflate the claims of lint runners (and vice
-    # versa). See shakenfist/private-ci docs/capacity-claims.md,
-    # "Cloud-building jobs".
-    # audit-ok: vm-runner-size
-    runs-on: [self-hosted, vm, '${{ matrix.test.runs_on }}', '${{ matrix.test.runner_size }}']
+    # ssh. The runner footprint is therefore that of "s".
+    #
+    # The job is bound to its own runner. The labels are prefixed
+    # "bound-" so that no unbound job's labels can be a subset of the
+    # runner's (an unbound [self-hosted, debian-13, s] job could
+    # otherwise take it), and the "bind-" token is unique per run,
+    # attempt and matrix row. See shakenfist/private-ci
+    # docs/capacity-claims.md, "Binding a job to its runner".
+    runs-on: [self-hosted, 'bound-${{ matrix.test.runs_on }}', bound-s, "bind-${{ github.run_id }}-${{ github.run_attempt }}-build-test-clouds-${{ strategy.job-index }}"]
     needs: [build_images, aggregate_results]
     timeout-minutes: 120
     # Non-voting entries are prototypes (see docs/plans/containerised-deployer.md).
