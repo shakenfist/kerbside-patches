@@ -1,0 +1,845 @@
+#!/usr/bin/env python3
+"""Measure bootstrap from "Build test clouds" CI job logs.
+
+Phase 7 of docs/plans/containerised-deployer.md asks two questions of the
+containerised deployer prototype entries: how long does bootstrap take with
+and without run-time Ansible Galaxy fetches, and have the entries been
+reliable enough to start voting. This tool answers both from the job logs
+GitHub keeps, so the numbers quoted in the plan and upstream come with the
+means of reproducing them.
+
+Three subcommands:
+
+    timings --since DATE     pairs each launcher entry with its venv control
+                             in the same run and attempt, and prints median
+                             and range of the "Deploy Kolla-Ansible" step, its
+                             nine composite sub-steps and the sections of
+                             tools/bootstrap-kolla-ansible, so that the time a
+                             launcher saves in bootstrap can be followed to
+                             where it is spent instead.
+    galaxy-failures --since DATE
+                             counts venv jobs whose bootstrap failed fetching
+                             Ansible collections, and separately those that
+                             hit a failure and recovered through
+                             kolla-ansible's own retries.
+    record --since D --until D
+                             applies the rules for the launcher entries to
+                             vote: prints every launcher job in the window
+                             with a verdict, and MET or NOT MET.
+
+Everything comes from the `gh` CLI. A log is `<ISO timestamp> <text>` per
+line and may carry ANSI colour and a leading byte order mark. Section
+headers are the coloured lines tools/bootstrap-kolla-ansible prints.
+Sub-steps are the `##[start-action display=...]` and `##[end-action ...
+duration_ms=...]` markers the runner writes around each step of the
+deploy-kolla-ansible composite action.
+
+DATE is YYYY-MM-DD or YYYY-MM-DDTHH:MMZ, in UTC.
+"""
+
+import datetime
+import io
+import json
+import os
+import re
+import statistics
+import subprocess
+import sys
+import time
+import urllib.parse
+import zipfile
+
+import click
+
+REPO = 'shakenfist/kerbside-patches'
+WORKFLOW = 'functional-tests.yml'
+DEPLOY_STEP = 'Deploy Kolla-Ansible'
+SETUP_STEP = 'Setup test environment'
+LAUNCHER_MARKER = ' with the containerised deployer'
+PHASE_BRANCH_PREFIX = 'deployer-phase-'
+REBASE_BRANCH_PREFIX = 'daily-rebase-'
+DOWNLOAD_ATTEMPTS = 3
+
+ANSI = re.compile(r'\x1b\[[0-9;]*m')
+LINE = re.compile(r'^\ufeff?(\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d)(?:\.(\d+))?Z ?(.*)$')
+START_ACTION = re.compile(r'^##\[start-action display=(?P<display>[^;]*);id=(?P<id>[^\]]+)\]')
+END_ACTION = re.compile(r'^##\[end-action id=(?P<id>[^;\]]+);(?P<rest>[^\]]*)\]')
+DURATION = re.compile(r'duration_ms=(\d+)')
+OUTCOME = re.compile(r'outcome=(\w+)')
+DEPLOY_ACTION = re.compile(r'^##\[group\]Run shakenfist/actions/deploy-kolla-ansible')
+UNPACKED = re.compile(r'^kolla-ansible: unpacked (\S+) with (docker|podman) into (\S+) in ([0-9.]+)s, '
+                      r'(\d+ MiB|unknown size) \(du -sx\)$')
+PULL_END = re.compile(r'^(Status: (Downloaded newer image|Image is up to date)|Writing manifest to image destination)')
+
+# The nine sub-steps of the deploy-kolla-ansible composite action, by the
+# display name the runner logs for them.
+SUBSTEPS = [
+    ('bootstrap', 'Bootstrap Kolla-Ansible'),
+    ('prechecks', 'Run pre-checks'),
+    ('pull', 'Pull images'),
+    ('deploy', 'Deploy'),
+    ('validate-config', 'Validate deployed config'),
+    ('check', 'Check deployed services'),
+    ('reconfigure', 'Reconfigure (idempotency check)'),
+    ('install-clients', 'Install patched OpenStack clients'),
+    ('post-install', 'Post install Kolla-Ansible setup'),
+]
+SUBSTEP_KEYS = dict((display, key) for key, display in SUBSTEPS)
+
+# Sections of tools/bootstrap-kolla-ansible, each measured from its header to
+# the next header. (key, which deployers print it, header pattern)
+SECTIONS = [
+    ('install-launcher', 'launcher', r'^Install the launcher into its own venv$'),
+    ('install-engine', 'launcher', r'^Install a container engine if there is none$'),
+    ('make-venv', 'venv', r'^Make venv$'),
+    ('posix', 'venv', r'^Upgrade the POSIX ansible collection$'),
+    ('install-patched', 'venv', r'^Install patched Kolla-Ansible$'),
+    ('install-deps', 'venv', r'^Install Kolla-Ansible dependencies$'),
+    ('certificates', 'both', r'^Make certificates$'),
+    ('bootstrap-servers', 'both', r'^Bootstrap servers$'),
+]
+FIRST_HEADER = re.compile(r'^Bootstrap Kolla-Ansible into a venv$')
+INVENTORY_HEADER = re.compile(r'^Bootstrap inventory for topology')
+PIN_AS_ROOT = re.compile(r'^Pin .* as root$')
+PIN_AS_USER = re.compile(r'^Give \S+ /etc/kolla and pin ')
+END_HEADER = re.compile(r'^Kolla-Ansible bootstrapped\.$')
+KNOWN_HEADERS = [FIRST_HEADER, INVENTORY_HEADER, PIN_AS_ROOT, PIN_AS_USER, END_HEADER] + [
+    re.compile(pattern) for _, _, pattern in SECTIONS]
+
+# What to report, in order: (key, label).
+ROWS = [
+    ('step', 'Deploy Kolla-Ansible step'),
+    ('bootstrap', '  bootstrap sub-step'),
+    ('to-inventory', '    first header to inventory'),
+    ('install-launcher', '    install the launcher'),
+    ('install-engine', '    install a container engine'),
+    ('make-venv', '    make venv'),
+    ('posix', '    upgrade ansible.posix'),
+    ('install-patched', '    install patched Kolla-Ansible'),
+    ('install-deps', '    kolla-ansible install-deps'),
+    ('pull-root', '    deployer image pull (pin as root)'),
+    ('certificates', '    certificates'),
+    ('bootstrap-servers', '    bootstrap-servers'),
+    ('unpack', '      deployer image unpack'),
+    ('pull-user', '    deployer image pull (pin as user)'),
+    ('prechecks', '  prechecks'),
+    ('pull', '  pull images'),
+    ('deploy', '  deploy'),
+    ('validate-config', '  validate-config'),
+    ('check', '  check'),
+    ('reconfigure', '  reconfigure'),
+    ('install-clients', '  install clients'),
+    ('post-install', '  post-install'),
+    ('after-bootstrap', '  all sub-steps after bootstrap'),
+]
+
+# Failure text from kolla-ansible install-deps and ansible-galaxy. Not
+# "ERROR! Failed to" or "[ERROR]:", which ansible prints for any failed task
+# and which successful deploys contain.
+KOLLA_GALAXY = 'Failed to install Ansible collections from'
+KOLLA_GIVE_UP = 'after 5 retries'
+KOLLA_RETRY = '(retry: '
+GALAXY_ERRORS = [
+    'Unknown error when attempting to call Galaxy at',
+    'Error when getting available collection versions for',
+    'Error when getting collection version metadata for',
+    'Failed to download collection tar',
+    'Failed to resolve the requested dependencies map',
+    "KeyError: 'results'",
+    '(HTTP Code: ',
+]
+
+
+class ToolError(click.ClickException):
+    pass
+
+
+def note(message):
+    click.echo(message, err=True)
+
+
+def parse_when(value):
+    for form in ('%Y-%m-%d', '%Y-%m-%dT%H:%MZ', '%Y-%m-%dT%H:%M:%SZ'):
+        try:
+            return datetime.datetime.strptime(value, form).replace(tzinfo=datetime.timezone.utc)
+        except ValueError:
+            continue
+    raise click.BadParameter('%r is not YYYY-MM-DD or YYYY-MM-DDTHH:MMZ' % value)
+
+
+def api_time(when):
+    return when.strftime('%Y-%m-%dT%H:%M:%SZ')
+
+
+def parse_api_time(value):
+    return datetime.datetime.strptime(value, '%Y-%m-%dT%H:%M:%SZ').replace(tzinfo=datetime.timezone.utc)
+
+
+def control_name(name):
+    """Return the name of the venv control for a launcher entry, or None."""
+    if LAUNCHER_MARKER not in name:
+        return None
+    return name.replace(LAUNCHER_MARKER, '', 1)
+
+
+def is_launcher(name):
+    return LAUNCHER_MARKER in name
+
+
+# Parsing a log.
+
+def parse_lines(text):
+    """Return [(datetime, raw, clean)] for a log; raw keeps ANSI escapes."""
+    lines = []
+    for line in text.split('\n'):
+        match = LINE.match(line.rstrip('\r'))
+        if not match:
+            continue
+        stamp = datetime.datetime.strptime(match.group(1), '%Y-%m-%dT%H:%M:%S')
+        stamp += datetime.timedelta(microseconds=int(((match.group(2) or '') + '000000')[:6]))
+        raw = match.group(3)
+        lines.append((stamp, raw, ANSI.sub('', raw)))
+    return lines
+
+
+def seconds(start, end):
+    return (end - start).total_seconds()
+
+
+class LogView(object):
+    """The parts of one job's log the tool measures."""
+
+    def __init__(self, name, text):
+        self.name = name
+        self.launcher = is_launcher(name)
+        self.lines = parse_lines(text)
+        self.start = None
+        for i, (_, _, clean) in enumerate(self.lines):
+            if DEPLOY_ACTION.match(clean):
+                self.start = i
+                break
+        self.substeps = {}
+        self.bootstrap = None
+        # Logs from before the composite action's sub-step markers have only
+        # the section headers of tools/bootstrap-kolla-ansible.
+        self.has_markers = False
+        if self.start is not None:
+            self._find_substeps()
+            self._find_bootstrap()
+
+    @property
+    def reached(self):
+        return self.start is not None
+
+    def _find_substeps(self):
+        starts = {}
+        prefix = None
+        for i in range(self.start, len(self.lines)):
+            stamp, _, clean = self.lines[i]
+            match = START_ACTION.match(clean)
+            if match:
+                if prefix is None:
+                    prefix = match.group('id').split('.')[0]
+                if match.group('id').startswith(prefix + '.'):
+                    starts[match.group('id')] = (match.group('display'), i)
+                continue
+            match = END_ACTION.match(clean)
+            if match and match.group('id') in starts:
+                display, first = starts[match.group('id')]
+                key = SUBSTEP_KEYS.get(display)
+                duration = DURATION.search(match.group('rest'))
+                outcome = OUTCOME.search(match.group('rest'))
+                if key and duration:
+                    self.substeps[key] = {
+                        'seconds': int(duration.group(1)) / 1000.0, 'first': first, 'last': i,
+                        'outcome': outcome.group(1) if outcome else None}
+
+    def _find_bootstrap(self):
+        if 'bootstrap' in self.substeps:
+            self.has_markers = True
+            self.bootstrap = (self.substeps['bootstrap']['first'], self.substeps['bootstrap']['last'])
+            return
+        # A bootstrap that never finished has a start marker and no end.
+        for i in range(self.start, len(self.lines)):
+            match = START_ACTION.match(self.lines[i][2])
+            if match:
+                self.has_markers = True
+                if match.group('display') == SUBSTEPS[0][1]:
+                    self.bootstrap = (i, len(self.lines) - 1)
+                    return
+        if not self.has_markers:
+            # No way to say where bootstrap ends, so read the headers of
+            # everything after the action started.
+            self.bootstrap = (self.start, len(self.lines) - 1)
+
+    def headers(self):
+        """Return [(index, clean text)] of the section headers in bootstrap."""
+        found = []
+        if self.bootstrap is None:
+            return found
+        for i in range(self.bootstrap[0], self.bootstrap[1] + 1):
+            _, raw, clean = self.lines[i]
+            coloured = raw.startswith('\x1b[0;34m') or raw.startswith('\x1b[0;32m')
+            if coloured or any(pattern.match(clean) for pattern in KNOWN_HEADERS):
+                found.append((i, clean))
+        return found
+
+    def _until_next(self, headers, position):
+        """Seconds from header number position to the next header, or the end of bootstrap."""
+        index = headers[position][0]
+        end = headers[position + 1][0] if position + 1 < len(headers) else self.bootstrap[1]
+        return seconds(self.lines[index][0], self.lines[end][0])
+
+    def _pull_seconds(self, headers, position):
+        """Seconds from a pin header to the end of the engine's pull, or None."""
+        first = headers[position][0]
+        last = headers[position + 1][0] if position + 1 < len(headers) else self.bootstrap[1]
+        for i in range(first + 1, last + 1):
+            if PULL_END.match(self.lines[i][2]):
+                return seconds(self.lines[first][0], self.lines[i][0])
+        return None
+
+    def timings(self):
+        """Return {key: seconds} for the rows of the report that this log supports."""
+        headers = self.headers()
+        if not any(FIRST_HEADER.match(text) or INVENTORY_HEADER.match(text) for _, text in headers):
+            raise ToolError('%s: ran the %s step, but its log has none of the expected bootstrap headers '
+                            '(has tools/bootstrap-kolla-ansible changed its output?)' % (self.name, DEPLOY_STEP))
+        values = dict((key, step['seconds']) for key, step in self.substeps.items())
+        kind = 'launcher' if self.launcher else 'venv'
+        first = inventory = None
+        for position, (_, text) in enumerate(headers):
+            if FIRST_HEADER.match(text) and first is None:
+                first = position
+            if INVENTORY_HEADER.match(text) and inventory is None:
+                inventory = position
+            for key, applies, pattern in SECTIONS:
+                if applies in (kind, 'both') and re.match(pattern, text) and key not in values:
+                    values[key] = self._until_next(headers, position)
+            if PIN_AS_ROOT.match(text) and 'pull-root' not in values:
+                pull = self._pull_seconds(headers, position)
+                if pull is not None:
+                    values['pull-root'] = pull
+            if PIN_AS_USER.match(text) and 'pull-user' not in values:
+                pull = self._pull_seconds(headers, position)
+                if pull is not None:
+                    values['pull-user'] = pull
+        if first is not None and inventory is not None:
+            values['to-inventory'] = seconds(self.lines[headers[first][0]][0], self.lines[headers[inventory][0]][0])
+        if self.bootstrap is not None:
+            for i in range(self.bootstrap[0], self.bootstrap[1] + 1):
+                match = UNPACKED.match(self.lines[i][2])
+                if match:
+                    values['unpack'] = float(match.group(4))
+                    break
+        later = [values[key] for key, _ in SUBSTEPS[1:] if key in values]
+        if len(later) == len(SUBSTEPS) - 1:
+            values['after-bootstrap'] = sum(later)
+        if self.substeps:
+            last = max(step['last'] for step in self.substeps.values())
+            values['step'] = seconds(self.lines[self.start][0], self.lines[last][0])
+        return values
+
+    def complete(self):
+        """True if every sub-step ran to success."""
+        return (len(self.substeps) == len(SUBSTEPS)
+                and all(step['outcome'] == 'success' for step in self.substeps.values()))
+
+    def _region(self, headers, pattern):
+        """Return the line indexes from a header matching pattern to the next header."""
+        for position, (index, text) in enumerate(headers):
+            if re.match(pattern, text):
+                end = headers[position + 1][0] if position + 1 < len(headers) else self.bootstrap[1]
+                return range(index + 1, end + 1)
+        return range(0)
+
+    def galaxy(self):
+        """Classify the Galaxy fetches of a venv bootstrap.
+
+        Returns {'hard': [lines], 'recovered': [lines]}. Only the two
+        sections that fetch collections are read, so that a failed task in
+        the deploy that follows cannot match.
+        """
+        result = {'hard': [], 'recovered': []}
+        if self.bootstrap is None:
+            return result
+        headers = self.headers()
+        for index in self._region(headers, SECTIONS[3][2]):
+            clean = self.lines[index][2]
+            if any(text in clean for text in GALAXY_ERRORS) or (KOLLA_GALAXY in clean and KOLLA_GIVE_UP in clean):
+                result['hard'].append(clean[:300])
+        for index in self._region(headers, SECTIONS[5][2]):
+            clean = self.lines[index][2]
+            if KOLLA_GALAXY in clean and KOLLA_GIVE_UP in clean:
+                result['hard'].append(clean[:300])
+            elif KOLLA_GALAXY in clean and KOLLA_RETRY in clean:
+                result['recovered'].append(clean[:300])
+            elif any(text in clean for text in GALAXY_ERRORS):
+                result['recovered'].append(clean[:300])
+        return result
+
+
+# Statistics and output.
+
+def summarise(values):
+    if not values:
+        return None
+    return {'n': len(values), 'median': statistics.median(values), 'min': min(values), 'max': max(values)}
+
+
+def cell(stat):
+    if stat is None:
+        return '-'
+    if stat['n'] == 1:
+        return '%.1f' % stat['median']
+    return '%.1f (%.1f-%.1f)' % (stat['median'], stat['min'], stat['max'])
+
+
+def render_table(headers, rows):
+    widths = [max(len(str(row[i])) for row in [headers] + rows) for i in range(len(headers))]
+    out = []
+    for row in [headers] + rows:
+        out.append('  '.join(str(value).ljust(widths[i]) if i == 0 else str(value).rjust(widths[i])
+                             for i, value in enumerate(row)).rstrip())
+    return '\n'.join(out)
+
+
+# Talking to GitHub.
+
+def gh_api(args, binary=False):
+    """Run `gh api` and return its output, raising ToolError with gh's own words on failure."""
+    result = subprocess.run(['gh', 'api'] + args, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    if result.returncode != 0:
+        raise ToolError('gh api %s failed: %s' % (' '.join(args), result.stderr.decode('utf-8', 'replace').strip()))
+    return result.stdout if binary else result.stdout.decode('utf-8')
+
+
+def gh_pages(path, key, fields=None):
+    """Return every item of a paginated list response."""
+    # In the URL, not -f: gh turns any -f field into a POST.
+    query = urllib.parse.urlencode(fields or {})
+    args = [path + ('?' + query if query else ''), '--paginate', '--slurp']
+    items = []
+    for page in json.loads(gh_api(args)):
+        items.extend(page[key])
+    return items
+
+
+class LogsExpired(Exception):
+    pass
+
+
+def download_logs(repo, run_id, attempt, cache_dir=None, sleep=time.sleep):
+    """Return {job name: log text} for one attempt, validating the zip and retrying."""
+    cached = os.path.join(cache_dir, '%s-%s-%s.zip' % (repo.replace('/', '_'), run_id, attempt)) if cache_dir else None
+    if cached and os.path.exists(cached):
+        with open(cached, 'rb') as f:
+            return read_logs_zip(f.read())
+    last = None
+    for tries in range(DOWNLOAD_ATTEMPTS):
+        try:
+            data = gh_api(['repos/%s/actions/runs/%s/attempts/%s/logs' % (repo, run_id, attempt)], binary=True)
+            logs = read_logs_zip(data)
+        except ToolError as e:
+            if 'HTTP 410' in e.message or 'HTTP 404' in e.message:
+                raise LogsExpired(e.message)
+            last = e
+        else:
+            if cached:
+                os.makedirs(cache_dir, exist_ok=True)
+                with open(cached, 'wb') as f:
+                    f.write(data)
+            return logs
+        sleep(2 * (tries + 1))
+    raise ToolError('could not download the logs of run %s attempt %s after %d tries: %s'
+                    % (run_id, attempt, DOWNLOAD_ATTEMPTS, last.message))
+
+
+def read_logs_zip(data):
+    """Return {job name: text} from a run attempt's logs zip, rejecting a truncated or corrupt one."""
+    try:
+        archive = zipfile.ZipFile(io.BytesIO(data))
+        bad = archive.testzip()
+    except zipfile.BadZipFile as e:
+        raise ToolError('the logs download is not a valid zip (%s); it was probably truncated' % e)
+    if bad:
+        raise ToolError('the logs download is corrupt: %s fails its checksum' % bad)
+    logs = {}
+    for entry in archive.namelist():
+        # The job logs are the top-level files, named "<index>_<job name>.txt".
+        # The index is not stable, so only the name is used.
+        if '/' in entry or not entry.endswith('.txt'):
+            continue
+        logs[re.sub(r'^\d+_', '', entry[:-4])] = archive.read(entry).decode('utf-8', 'replace')
+    return logs
+
+
+def read_logs_dir(path):
+    logs = {}
+    for entry in sorted(os.listdir(path)):
+        full = os.path.join(path, entry)
+        if entry.endswith('.txt') and os.path.isfile(full):
+            with open(full, encoding='utf-8', errors='replace') as f:
+                logs[re.sub(r'^\d+_', '', entry[:-4])] = f.read()
+    return logs
+
+
+def list_runs(repo, workflow, since, until=None, run_ids=()):
+    if run_ids:
+        return [json.loads(gh_api(['repos/%s/actions/runs/%s' % (repo, run_id)])) for run_id in run_ids]
+    created = '>=' + api_time(since) if until is None else '%s..%s' % (api_time(since), api_time(until))
+    return gh_pages('repos/%s/actions/workflows/%s/runs' % (repo, workflow), 'workflow_runs',
+                    {'created': created, 'per_page': 100})
+
+
+def list_attempts(run, only_attempt=None):
+    last = run.get('run_attempt') or 1
+    return [only_attempt] if only_attempt else list(range(1, last + 1))
+
+
+def list_jobs(repo, run_id, attempt):
+    return gh_pages('repos/%s/actions/runs/%s/attempts/%s/jobs' % (repo, run_id, attempt), 'jobs')
+
+
+def step_named(job, name):
+    for step in job.get('steps') or []:
+        if step['name'] == name:
+            return step
+    return None
+
+
+def step_ran(job):
+    step = step_named(job, DEPLOY_STEP)
+    return bool(step) and step.get('conclusion') not in (None, 'skipped')
+
+
+def attempt_complete(jobs):
+    return all(job.get('status') == 'completed' for job in jobs)
+
+
+def carried_key(job):
+    """Identify a job across attempts.
+
+    Rerunning failed jobs lists the jobs that passed before again in the new
+    attempt, under new ids but with the same name and timestamps. Such a
+    carried-over job is one result, not two.
+    """
+    return (job['name'], job.get('started_at'), job.get('completed_at'))
+
+
+def step_seconds(job):
+    step = step_named(job, DEPLOY_STEP)
+    if not step or not step.get('started_at') or not step.get('completed_at'):
+        return None
+    return seconds(parse_api_time(step['started_at']), parse_api_time(step['completed_at']))
+
+
+# timings
+
+def deploy_succeeded(job):
+    step = step_named(job, DEPLOY_STEP)
+    return bool(step) and step.get('conclusion') == 'success'
+
+
+def pair_timings(jobs_by_name, logs, seen=None):
+    """Return [(launcher name, launcher values, control values)] for one attempt.
+
+    seen is the set of jobs listed by earlier attempts of the run. A job a
+    rerun carries over unchanged has no log in the later attempt, because it
+    did not run there, and was measured in its own; a pair with such a job is
+    skipped. Only a job that ran in this attempt and has no log is an error.
+    A log from before the sub-step markers is skipped with a note.
+    """
+    seen = seen if seen is not None else set()
+    pairs = []
+    for name in sorted(jobs_by_name):
+        control = control_name(name)
+        if not control or control not in jobs_by_name:
+            continue
+        keys = [carried_key(jobs_by_name[name]), carried_key(jobs_by_name[control])]
+        carried = [each for each, key in zip((name, control), keys) if key in seen]
+        seen.update(keys)
+        if carried:
+            note('%s: skipped in this attempt, %s carried over from an earlier attempt' % (name, ' and '.join(carried)))
+            continue
+        values = []
+        for each in (name, control):
+            job = jobs_by_name[each]
+            if not deploy_succeeded(job):
+                break
+            if each not in logs:
+                raise ToolError('%s: the logs download has no log for this job' % each)
+            view = LogView(each, logs[each])
+            if not view.reached:
+                break
+            if not view.has_markers:
+                note('%s: no sub-step markers (predates them), skipped' % each)
+                break
+            measured = view.timings()
+            if step_seconds(job) is not None:
+                measured['step'] = step_seconds(job)
+            values.append(measured)
+        else:
+            pairs.append((name, values[0], values[1]))
+    return pairs
+
+
+def offline_pairs(logs):
+    pairs = []
+    for name in sorted(logs):
+        control = control_name(name)
+        if not control or control not in logs:
+            continue
+        views = [LogView(each, logs[each]) for each in (name, control)]
+        if all(view.reached and view.has_markers and view.complete() for view in views):
+            pairs.append((name, views[0].timings(), views[1].timings()))
+    return pairs
+
+
+def format_timings(collected):
+    out = []
+    for name in sorted(collected):
+        launcher, control = collected[name]
+        out.append('%s\n  against: %s\n  pairs: %d' % (name, control_name(name), len(launcher)))
+        rows = []
+        for key, label in ROWS:
+            ours = summarise([values[key] for values in launcher if key in values])
+            theirs = summarise([values[key] for values in control if key in values])
+            if ours is None and theirs is None:
+                continue
+            diff = '' if ours is None or theirs is None else '%+.1f' % (ours['median'] - theirs['median'])
+            rows.append([label, cell(ours), cell(theirs), diff])
+        out.append(render_table(['seconds, median (range)', 'launcher', 'control', 'median diff'], rows))
+        out.append('')
+    out.append('Durations are noisy: they depend on the cluster\'s load and on Galaxy\'s responsiveness.')
+    return '\n'.join(out)
+
+
+# galaxy-failures and record
+
+def classify_record(job, control_job):
+    """Return (verdict, reason) for one launcher job of one attempt."""
+    conclusion = job.get('conclusion')
+    if conclusion == 'success':
+        return 'PASS', 'passed'
+    if conclusion == 'cancelled':
+        return 'CANCELLED', 'cancelled, not counted either way'
+    if conclusion != 'failure':
+        return 'PENDING', 'status %s, not counted' % (job.get('status') or conclusion)
+    failed = next((step['name'] for step in job.get('steps') or [] if step.get('conclusion') == 'failure'), None)
+    if failed == SETUP_STEP:
+        return 'IGNORED', 'failed in %s, before the deploy' % SETUP_STEP
+    if control_job is not None and control_job.get('conclusion') == 'failure':
+        control_failed = next((step['name'] for step in control_job.get('steps') or []
+                               if step.get('conclusion') == 'failure'), None)
+        if control_failed == failed:
+            return 'IGNORED', 'the control failed the same step (%s) in the same attempt' % failed
+    return 'FAIL', 'failed in %s' % failed
+
+
+def evaluate_record(rows, min_runs, min_rebases):
+    """rows are dicts with entry, run, verdict and rebase; return {entry: summary} and the overall result.
+
+    A run counts once for an entry however many attempts passed, and a FAIL in
+    any attempt counts even when a later attempt passed.
+    """
+    entries = {}
+    passed = {}
+    for row in rows:
+        entry = entries.setdefault(row['entry'], {'pass': 0, 'rebases': 0, 'fail': 0})
+        if row['verdict'] == 'PASS':
+            passed.setdefault(row['entry'], {})[row['run']] = row['rebase']
+        elif row['verdict'] == 'FAIL':
+            entry['fail'] += 1
+    for name, runs in passed.items():
+        entries[name]['pass'] = len(runs)
+        entries[name]['rebases'] = sum(1 for rebase in runs.values() if rebase)
+    met = bool(entries) and all(entry['fail'] == 0 and entry['pass'] >= min_runs and entry['rebases'] >= min_rebases
+                                for entry in entries.values())
+    return entries, met
+
+
+def collect_rows(repo, runs, only_attempt=None):
+    rows = []
+    for run in runs:
+        if (run.get('head_branch') or '').startswith(PHASE_BRANCH_PREFIX):
+            continue
+        seen = set()
+        for attempt in list_attempts(run, only_attempt):
+            jobs = dict((job['name'], job) for job in list_jobs(repo, run['id'], attempt))
+            for name in sorted(jobs):
+                if not is_launcher(name) or carried_key(jobs[name]) in seen:
+                    continue
+                seen.add(carried_key(jobs[name]))
+                verdict, reason = classify_record(jobs[name], jobs.get(control_name(name)))
+                rows.append({'entry': name, 'run': run['id'], 'attempt': attempt, 'branch': run.get('head_branch'),
+                             'rebase': (run.get('head_branch') or '').startswith(REBASE_BRANCH_PREFIX),
+                             'verdict': verdict, 'reason': reason})
+    return rows
+
+
+@click.group()
+@click.option('--repo', default=REPO, show_default=True, help='GitHub repository.')
+@click.option('--workflow', default=WORKFLOW, show_default=True, help='Workflow file of "Build test clouds".')
+@click.option('--cache-dir', type=click.Path(), default=None, help='Keep downloaded log zips here.')
+@click.pass_context
+def cli(ctx, repo, workflow, cache_dir):
+    ctx.obj = {'repo': repo, 'workflow': workflow, 'cache_dir': cache_dir}
+
+
+@cli.command()
+@click.option('--since', default=None, help='Runs created at or after this date.')
+@click.option('--until', default=None, help='Runs created before this date.')
+@click.option('--run', 'runs', type=int, multiple=True, help='Only these run ids (instead of --since).')
+@click.option('--attempt', type=int, default=None, help='Only this attempt of each run.')
+@click.option('--logs-dir', type=click.Path(exists=True, file_okay=False), default=None,
+              help='Read already downloaded job logs from here instead of GitHub. Needs no network.')
+@click.option('--json', 'as_json', is_flag=True, help='Print JSON instead of a table.')
+@click.pass_obj
+def timings(obj, since, until, runs, attempt, logs_dir, as_json):
+    """Compare each launcher entry's bootstrap with its venv control's."""
+    collected = {}
+
+    def add(pairs):
+        for name, launcher_values, control_values in pairs:
+            launcher, control = collected.setdefault(name, ([], []))
+            launcher.append(launcher_values)
+            control.append(control_values)
+
+    if logs_dir:
+        add(offline_pairs(read_logs_dir(logs_dir)))
+    else:
+        if not since and not runs:
+            raise click.UsageError('give --since or --run')
+        for run in list_runs(obj['repo'], obj['workflow'], parse_when(since or '2000-01-01'),
+                             parse_when(until) if until else None, runs):
+            seen = set()
+            for number in list_attempts(run, attempt):
+                listed = list_jobs(obj['repo'], run['id'], number)
+                jobs = dict((job['name'], job) for job in listed)
+                if not any(is_launcher(name) for name in jobs):
+                    continue
+                if not attempt_complete(listed):
+                    note('run %s attempt %s: not completed, skipped' % (run['id'], number))
+                    continue
+                try:
+                    logs = download_logs(obj['repo'], run['id'], number, obj['cache_dir'])
+                except LogsExpired:
+                    click.echo('run %s attempt %s: logs are unavailable' % (run['id'], number), err=True)
+                    continue
+                add(pair_timings(jobs, logs, seen))
+    if not collected:
+        raise ToolError('no launcher job with a control, both having run the %s step to success, was found'
+                        % DEPLOY_STEP)
+    if as_json:
+        click.echo(json.dumps(dict((name, {'launcher': pairs[0], 'control': pairs[1]})
+                                   for name, pairs in collected.items()), indent=2, sort_keys=True))
+    else:
+        click.echo(format_timings(collected))
+
+
+@cli.command('galaxy-failures')
+@click.option('--since', required=True, help='Runs created at or after this date.')
+@click.option('--until', default=None, help='Runs created before this date.')
+@click.option('--json', 'as_json', is_flag=True, help='Print JSON instead of text.')
+@click.pass_obj
+def galaxy_failures(obj, since, until, as_json):
+    """Count venv jobs whose bootstrap failed to fetch Ansible collections."""
+    examined = []
+    not_reached = expired = 0
+    oldest = None
+    runs = list_runs(obj['repo'], obj['workflow'], parse_when(since), parse_when(until) if until else None)
+    for run in runs:
+        seen = set()
+        for number in list_attempts(run):
+            jobs = []
+            for job in list_jobs(obj['repo'], run['id'], number):
+                if step_named(job, DEPLOY_STEP) and not is_launcher(job['name']) and carried_key(job) not in seen:
+                    seen.add(carried_key(job))
+                    jobs.append(job)
+            if not jobs:
+                continue
+            reached = [job for job in jobs if step_ran(job)]
+            not_reached += len(jobs) - len(reached)
+            if not reached:
+                continue
+            try:
+                logs = download_logs(obj['repo'], run['id'], number, obj['cache_dir'])
+            except LogsExpired:
+                expired += len(reached)
+                continue
+            if oldest is None or run['created_at'] < oldest:
+                oldest = run['created_at']
+            for job in reached:
+                view = LogView(job['name'], logs.get(job['name'], ''))
+                if not view.reached:
+                    continue
+                found = view.galaxy()
+                if not view.headers():
+                    raise ToolError('%s (run %s attempt %s): ran the %s step, but its log has none of the expected '
+                                    'bootstrap headers' % (job['name'], run['id'], number, DEPLOY_STEP))
+                examined.append({'job': job['name'], 'run': run['id'], 'attempt': number,
+                                 'branch': run.get('head_branch'), 'hard': found['hard'],
+                                 'recovered': found['recovered']})
+    hard = [item for item in examined if item['hard']]
+    recovered = [item for item in examined if item['recovered'] and not item['hard']]
+    summary = {'since': since, 'until': until, 'oldest_log_examined': oldest, 'venv_jobs_examined': len(examined),
+               'not_reached': not_reached, 'logs_expired': expired, 'hard_failures': hard,
+               'recovered_after_retries': recovered}
+    if as_json:
+        click.echo(json.dumps(summary, indent=2, sort_keys=True))
+        return
+    click.echo('Venv jobs whose bootstrap ran, in runs created since %s%s: %d' % (
+        since, ' until ' + until if until else '', len(examined)))
+    click.echo('Oldest run with a retained log: %s' % (oldest or 'none'))
+    click.echo('Not counted: %d where the %s step never ran, %d whose logs are unavailable (expired, or the run '
+               'is still going)' % (not_reached, DEPLOY_STEP, expired))
+    click.echo('Galaxy failures that failed the job: %d' % len(hard))
+    for item in hard:
+        click.echo('  run %s attempt %s (%s) %s\n    %s'
+                   % (item['run'], item['attempt'], item['branch'], item['job'], item['hard'][0]))
+    click.echo('Jobs that hit a Galaxy failure and recovered by retrying: %d' % len(recovered))
+    for item in recovered:
+        click.echo('  run %s attempt %s (%s) %s\n    %s'
+                   % (item['run'], item['attempt'], item['branch'], item['job'], item['recovered'][0]))
+
+
+@cli.command()
+@click.option('--since', required=True, help='Window start (runs created at or after).')
+@click.option('--until', required=True, help='Window end.')
+@click.option('--min-runs', type=int, default=5, show_default=True, help='Runs in which each entry passed.')
+@click.option('--min-rebases', type=int, default=2, show_default=True,
+              help='Daily-rebase runs among them.')
+@click.pass_obj
+def record(obj, since, until, min_runs, min_rebases):
+    """Print whether the launcher entries have earned the right to vote.
+
+    Every launcher job on any branch but deployer-phase-* in the window must
+    pass, or fail for a reason that is not the launcher's: it failed in
+    "Setup test environment", or its control failed the same step in the same
+    attempt. A failure in any attempt of a run counts even if a rerun passed.
+    A job carried over unchanged into a rerun is counted once. Each entry
+    needs at least --min-runs runs in which it passed, at least --min-rebases
+    of them daily rebases. Exits 1 when NOT MET.
+    """
+    runs = list_runs(obj['repo'], obj['workflow'], parse_when(since), parse_when(until))
+    rows = collect_rows(obj['repo'], runs)
+    click.echo('Window %s to %s: %d runs, %d launcher jobs (deployer-phase-* branches excluded)'
+               % (since, until, len(runs), len(rows)))
+    for row in sorted(rows, key=lambda r: (r['entry'], r['run'], r['attempt'])):
+        click.echo('  %-9s run %s attempt %s %-28s %s\n            %s' % (
+            row['verdict'], row['run'], row['attempt'], row['branch'], row['entry'], row['reason']))
+    entries, met = evaluate_record(rows, min_runs, min_rebases)
+    click.echo('')
+    for entry in sorted(entries):
+        counts = entries[entry]
+        click.echo('%s\n  passing runs %d (need %d), of them daily rebases %d (need %d), failures %d' % (
+            entry, counts['pass'], min_runs, counts['rebases'], min_rebases, counts['fail']))
+    if not entries:
+        click.echo('No launcher jobs in the window.')
+    click.echo('MET' if met else 'NOT MET')
+    sys.exit(0 if met else 1)
+
+
+if __name__ == '__main__':
+    cli()

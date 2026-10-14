@@ -16,7 +16,7 @@ repos:
         name: shellcheck (extensionless scripts)
         files: ^(_build/|tools/|upstream/)[^/.]+$
         types: [text]
-        exclude: '(spice-connect\.py|extract-commit-message|summarize_layers\.py|analyze-shared-patches\.py|analyze-gerrit-new-roles|analyze-gerrit-patch-size|analyze-gerrit-review-times|gerrit-pre-push-lint|write-build-manifest)$'
+        exclude: '(spice-connect\.py|extract-commit-message|summarize_layers\.py|analyze-shared-patches\.py|analyze-gerrit-new-roles|analyze-gerrit-patch-size|analyze-gerrit-review-times|gerrit-pre-push-lint|write-build-manifest|measure-deployer-bootstrap)$'
         args: ['-x']
 
   # skillsaw lints the agent context in this repository -- AGENTS.md
@@ -58,15 +58,16 @@ repos:
         language: system
         files: ^_patches/.*\.patch(-message)?$
 
-  # The launcher under deployer/ and tools/write-build-manifest are the
-  # Python this repository lints. Both are also unit tested here: the
-  # launcher's tests need no container engine, and the manifest tool's
-  # need no registry.
+  # The launcher under deployer/, tools/write-build-manifest and
+  # tools/measure-deployer-bootstrap are the Python this repository lints.
+  # All three are also unit tested here: the launcher's tests need no
+  # container engine, the manifest tool's need no registry, and the
+  # measurement tool's need neither GitHub nor a real log.
   - repo: https://github.com/pycqa/flake8
     rev: 7.4.1
     hooks:
       - id: flake8
-        files: ^(deployer/|tools/(write-build-manifest|test-write-build-manifest\.py)$)
+        files: ^(deployer/|tools/(write-build-manifest|test-write-build-manifest\.py|measure-deployer-bootstrap|test-measure-deployer-bootstrap\.py)$)
         args: ['--max-line-length=120']
 
   - repo: local
@@ -89,3 +90,15 @@ repos:
         additional_dependencies: ['click', 'requests']
         pass_filenames: false
         files: ^tools/(write-build-manifest|test-write-build-manifest\.py)$
+
+  # The measurement tool imports click, and shells out to gh only outside
+  # these tests.
+  - repo: local
+    hooks:
+      - id: measure-deployer-bootstrap-tests
+        name: measure-deployer-bootstrap unit tests
+        entry: python tools/test-measure-deployer-bootstrap.py
+        language: python
+        additional_dependencies: ['click']
+        pass_filenames: false
+        files: ^tools/(measure-deployer-bootstrap|test-measure-deployer-bootstrap\.py)$
