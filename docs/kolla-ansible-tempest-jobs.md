@@ -68,7 +68,7 @@ serve many CI jobs. Key consumers:
   `kolla_ansible_tempest_packages_extra` to pull in a plugin and add a
   matching regex). The role re-runs `discover-tempest-config` each
   job, so a plugin shipped in the same venv will register itself.
-- `tests/run.yml:451-457` is the call site:
+- The call site is the role import in `tests/run.yml`:
   ```yaml
   - import_role:
       name: kolla-ansible-tempest
