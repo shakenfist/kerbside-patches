@@ -1,11 +1,11 @@
 #!/usr/bin/python3
 """Record the registry digest of every image a build pushed.
 
-Phase 6 of docs/plans/containerised-deployer.md pins every service image by
-digest through a manifest carried in the deployer image. This tool is the
-read-back half of that: after the push has drained, it reads each built
-image's digest from the registry itself with the Docker v2 schema 2 Accept
-header, which is the digest a pull uses.
+A build pins every service image by digest, through a manifest carried in
+the deployer image, so that pinning the deployer pins the whole cloud (see
+docs/building.md). This tool is the read-back half of that: after the push
+has drained, it reads each built image's digest from the registry itself
+with the Docker v2 schema 2 Accept header, which is the digest a pull uses.
 
 Which images to read comes from kolla-build's own record of what it built
 (archive/images, one kolla image name per line, written by _build/imagebuild.sh

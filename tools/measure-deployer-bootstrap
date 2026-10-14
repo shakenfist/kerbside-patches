@@ -1,12 +1,11 @@
 #!/usr/bin/env python3
 """Measure bootstrap from "Build test clouds" CI job logs.
 
-Phase 7 of docs/plans/containerised-deployer.md asks two questions of the
-containerised deployer prototype entries: how long does bootstrap take with
-and without run-time Ansible Galaxy fetches, and have the entries been
-reliable enough to start voting. This tool answers both from the job logs
-GitHub keeps, so the numbers quoted in the plan and upstream come with the
-means of reproducing them.
+Two questions decide whether the containerised deployer's prototype CI
+entries should vote: how long does bootstrap take with and without run-time
+Ansible Galaxy fetches, and have the entries been reliable enough. This
+tool answers both from the job logs GitHub keeps, so the numbers quoted in
+the plan and upstream come with the means of reproducing them.
 
 Three subcommands:
 

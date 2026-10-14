@@ -1,6 +1,6 @@
 #!/bin/bash
 # Assert that the Kolla-Ansible deployer guards work on a deployed cloud (see
-# docs/plans/containerised-deployer.md, Decision 6). Run on the target, as the
+# "Deployer checks" in docs/deployer-launcher.md). Run on the target, as the
 # base user, from the kerbside-patches checkout:
 #
 #   tools/check-deployer-guards
