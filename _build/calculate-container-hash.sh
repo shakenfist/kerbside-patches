@@ -49,9 +49,17 @@ for dir in ${*}; do
             unique="${unique};${hash}"
         elif [ $(echo "_build etc tools" | grep -c "${dir}" || true) -gt 0 ]; then
             # These directories are like `src`, but has a simpler structure and
-            # no python files
+            # no python files. Hash one line per file, its content hash and
+            # its name, in a fixed order. Concatenating the files instead
+            # merged the last line of any file without a trailing newline
+            # into whichever file find listed next, and find lists in
+            # directory order, which on ext4 depends on a per-filesystem hash
+            # seed: the same commit got a different tag on each runner VM, so
+            # a rerun never found its earlier build. Python bytecode caches
+            # are not source and are left out.
             echo "Using config hashing for ${dir}..." >&2
-            hash=$(find . -type f -exec cat {} \; | sort | sha1sum - | cut -f 1 -d " " | sed -rn 's/^(........).*/\1/gp')
+            hash=$(find . -type f -not -path '*/__pycache__/*' -print0 | LC_ALL=C sort -z | \
+                xargs -0 -r sha1sum | sha1sum - | cut -f 1 -d " " | sed -rn 's/^(........).*/\1/gp')
             unique="${unique};${hash}"
         else
             # And the others are assumed to be directories of patches
@@ -76,4 +84,4 @@ for dir in ${*}; do
     fi
 done
 
-echo "v23-${unique}" | sha1sum | cut -f 1 -d " " | sed -rn 's/^(........).*/\1/gp'
+echo "v24-${unique}" | sha1sum | cut -f 1 -d " " | sed -rn 's/^(........).*/\1/gp'
