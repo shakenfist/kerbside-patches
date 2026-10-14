@@ -1,0 +1,77 @@
+commit f9b5bb626f00e5884c1ea49dd70758ae2ebaa08c
+Author: Michael Still <mikal@stillhq.com>
+Date:   Thu Oct 15 06:11:12 2026 +1100
+
+    nova: Precheck for a host virtlogd
+    
+    nova_libvirt runs its own virtlogd and shares the host's /run, so a
+    virtlogd running or enabled on the host conflicts with it and, with
+    older images, makes instance creation fail as libvirt sends console
+    logs to a virtlogd that cannot see the instance directories.
+    
+    Fail prechecks when the host's virtlogd units are active or enabled.
+    Unlike the host libvirt check, run this on existing deployments too,
+    since the conflict only matters once console logs go via virtlogd.
+
+    Prompt: interactive debugging of an upgrade error report from ``Vii``
+    on the #openstack-kolla IRC channel.
+    
+    Related-Bug: #2155214
+    Change-Id: Iabecbda82f1676f0b551b10efc80e5c35d68e0d0
+    Signed-off-by: Michael Still <mikal@stillhq.com>
+    Assisted-By: Claude Opus 5.5 (1M context, low effort) <noreply@anthropic.com>
+
+diff --git a/ansible/roles/nova-cell/tasks/precheck.yml b/ansible/roles/nova-cell/tasks/precheck.yml
+index b61d2292c..8035a30a6 100644
+--- a/ansible/roles/nova-cell/tasks/precheck.yml
++++ b/ansible/roles/nova-cell/tasks/precheck.yml
+@@ -134,6 +134,32 @@
+     - container_facts.containers['nova_libvirt'] is not defined
+     - service | service_enabled_and_mapped_to_host
+ 
++- name: Host virtlogd checks
++  vars:
++    service: "{{ nova_cell_services['nova-libvirt'] }}"
++  when:
++    - service | service_enabled_and_mapped_to_host
++  block:
++    - name: Get state of host virtlogd units  # noqa command-instead-of-module
++      become: true
++      ansible.builtin.command:
++        cmd: "systemctl show --property ActiveState,UnitFileState virtlogd.socket virtlogd.service"
++      register: host_virtlogd
++      changed_when: false
++      check_mode: false
++
++    - name: Checking that host virtlogd is not running or enabled
++      ansible.builtin.fail:
++        msg: >-
++          virtlogd is running or enabled on the host. The nova_libvirt
++          container runs its own virtlogd, and shares /run with the host, so
++          a host virtlogd will prevent nova_libvirt from starting. Stop and
++          disable the host virtlogd.socket, virtlogd-admin.socket and
++          virtlogd.service units.
++      when: >-
++        'ActiveState=active' in host_virtlogd.stdout_lines or
++        'UnitFileState=enabled' in host_virtlogd.stdout_lines
++
+ - name: Checking that nova_libvirt container is not running
+   vars:
+     nova_libvirt: "{{ nova_cell_services['nova-libvirt'] }}"
+diff --git a/releasenotes/notes/nova-libvirt-host-virtlogd-precheck-5d2a8e7c1f9b3a64.yaml b/releasenotes/notes/nova-libvirt-host-virtlogd-precheck-5d2a8e7c1f9b3a64.yaml
+new file mode 100644
+index 000000000..616ff0cb1
+--- /dev/null
++++ b/releasenotes/notes/nova-libvirt-host-virtlogd-precheck-5d2a8e7c1f9b3a64.yaml
+@@ -0,0 +1,11 @@
++---
++upgrade:
++  - |
++    A precheck now fails if ``virtlogd`` is running or enabled on a compute
++    host. The ``nova_libvirt`` container runs its own ``virtlogd`` and
++    shares ``/run`` with the host, so a host ``virtlogd`` either prevents
++    the container from starting or, with older images, causes instance
++    creation to fail with ``Unable to open file:
++    /var/lib/nova/instances/<uuid>/console.log``. Stop and disable the
++    host's ``virtlogd.socket``, ``virtlogd-admin.socket`` and
++    ``virtlogd.service`` units before upgrading.

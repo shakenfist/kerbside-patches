@@ -1,0 +1,76 @@
+commit 11215297fa8928652a7f05ee75ed788060fe8a1d
+Author: Michael Still <mikal@stillhq.com>
+Date:   Thu Oct 15 06:11:05 2026 +1100
+
+    nova: Fail nova_libvirt start without virtlogd
+    
+    nova_libvirt shares the host's /run, so a virtlogd running on the host
+    holds the pidfile and our backgrounded sidecar exits unnoticed. libvirt
+    then hands console logs to the host virtlogd, which cannot see instance
+    directories, and instance creation fails.
+    
+    Run virtlogd with --daemon, which returns only once it holds its pidfile
+    and socket, so a conflict fails the container at startup. --daemon stops
+    virtlogd logging to stderr, so send its log to the kolla log volume.
+
+    Prompt: interactive debugging of an upgrade error report from ``Vii``
+    on the #openstack-kolla IRC channel.
+    
+    Related-Bug: #2155214
+    Change-Id: I31bed46c0ea038886d247bbdc97cc0c8a04b64cc
+    Signed-off-by: Michael Still <mikal@stillhq.com>
+    Assisted-By: Claude Opus 5.5 (1M context, low effort) <noreply@anthropic.com>
+
+diff --git a/kolla/docker/nova/nova-libvirt-spice/kolla_nova_libvirt_start.sh b/kolla/docker/nova/nova-libvirt-spice/kolla_nova_libvirt_start.sh
+index f06a63d9e..a0e36015d 100644
+--- a/kolla/docker/nova/nova-libvirt-spice/kolla_nova_libvirt_start.sh
++++ b/kolla/docker/nova/nova-libvirt-spice/kolla_nova_libvirt_start.sh
+@@ -5,8 +5,11 @@ set -euo pipefail
+ # nova instance console logs to rotate. Otherwise they will
+ # consume unbounded amounts of disk.
+ #
+-# No exec here: libvirtd will be the "main" process.
+-/usr/sbin/virtlogd &
++# virtlogd's pidfile and socket live in the host's /run. --daemon
++# returns only once virtlogd holds both, so a conflicting virtlogd on
++# the host stops the container here instead of being silently used.
++LIBVIRT_LOG_OUTPUTS="3:file:/var/log/kolla/libvirt/virtlogd.log" \
++    /usr/sbin/virtlogd --daemon
+ 
+ # Now hand over PID 1's direct child role to libvirtd.
+ exec /usr/sbin/libvirtd --listen
+diff --git a/kolla/docker/nova/nova-libvirt/kolla_nova_libvirt_start.sh b/kolla/docker/nova/nova-libvirt/kolla_nova_libvirt_start.sh
+index f06a63d9e..a0e36015d 100644
+--- a/kolla/docker/nova/nova-libvirt/kolla_nova_libvirt_start.sh
++++ b/kolla/docker/nova/nova-libvirt/kolla_nova_libvirt_start.sh
+@@ -5,8 +5,11 @@ set -euo pipefail
+ # nova instance console logs to rotate. Otherwise they will
+ # consume unbounded amounts of disk.
+ #
+-# No exec here: libvirtd will be the "main" process.
+-/usr/sbin/virtlogd &
++# virtlogd's pidfile and socket live in the host's /run. --daemon
++# returns only once virtlogd holds both, so a conflicting virtlogd on
++# the host stops the container here instead of being silently used.
++LIBVIRT_LOG_OUTPUTS="3:file:/var/log/kolla/libvirt/virtlogd.log" \
++    /usr/sbin/virtlogd --daemon
+ 
+ # Now hand over PID 1's direct child role to libvirtd.
+ exec /usr/sbin/libvirtd --listen
+diff --git a/releasenotes/notes/nova-libvirt-virtlogd-fail-loudly-3e1f6c0a9b2d4e57.yaml b/releasenotes/notes/nova-libvirt-virtlogd-fail-loudly-3e1f6c0a9b2d4e57.yaml
+new file mode 100644
+index 000000000..d1b679889
+--- /dev/null
++++ b/releasenotes/notes/nova-libvirt-virtlogd-fail-loudly-3e1f6c0a9b2d4e57.yaml
+@@ -0,0 +1,11 @@
++---
++fixes:
++  - |
++    The ``nova_libvirt`` container now fails to start if its ``virtlogd``
++    sidecar cannot claim ``/run/virtlogd.pid`` and
++    ``/run/libvirt/virtlogd-sock``. Previously a ``virtlogd`` running on
++    the host, which cannot see the instance directories, would silently
++    take over and instance creation failed with ``Unable to open file:
++    /var/lib/nova/instances/<uuid>/console.log``. Stop and disable the
++    host's ``virtlogd.socket`` and ``virtlogd.service`` units if this
++    occurs.

@@ -1,0 +1,18 @@
+nova: Precheck for a host virtlogd
+
+nova_libvirt runs its own virtlogd and shares the host's /run, so a
+virtlogd running or enabled on the host conflicts with it and, with
+older images, makes instance creation fail as libvirt sends console
+logs to a virtlogd that cannot see the instance directories.
+
+Fail prechecks when the host's virtlogd units are active or enabled.
+Unlike the host libvirt check, run this on existing deployments too,
+since the conflict only matters once console logs go via virtlogd.
+
+Prompt: interactive debugging of an upgrade error report from ``Vii``
+on the #openstack-kolla IRC channel.
+
+Related-Bug: #2155214
+Change-Id: Iabecbda82f1676f0b551b10efc80e5c35d68e0d0
+Signed-off-by: Michael Still <mikal@stillhq.com>
+Assisted-By: Claude Opus 5.5 (1M context, low effort) <noreply@anthropic.com>
