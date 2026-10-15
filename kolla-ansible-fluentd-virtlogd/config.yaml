@@ -1,0 +1,12 @@
+repo: https://opendev.org/openstack/kolla-ansible
+source_branch: master
+destination_branch: host-virtlogd
+shallow_clone: false
+directory: kolla-ansible
+release: master-kolla-ansible-fluentd-virtlogd
+depends_on: ''
+source_sha: 5506f20e08ccdcee9b815f679e4512c36cfc6dc0
+previous_source_sha: 5506f20e08ccdcee9b815f679e4512c36cfc6dc0
+skip_rebase: false
+skip_claude: true
+repush: true
