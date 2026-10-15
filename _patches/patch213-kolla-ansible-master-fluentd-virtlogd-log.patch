@@ -1,4 +1,4 @@
-commit c41bd83004dd48a667bb971379ae6bdc22b3ad33
+commit e3712aee01c6af7f7c4af40004c4f675fd2d2c62
 Author: Michael Still <mikal@stillhq.com>
 Date:   Thu Oct 15 08:51:38 2026 +1100
 
@@ -8,6 +8,12 @@ Date:   Thu Oct 15 08:51:38 2026 +1100
     /var/log/kolla/libvirt/virtlogd.log, but the libvirt tail source only
     follows libvirtd.log, so check-logs.sh reports the file as missing.
     Add it to the source; both files use libvirt's log format.
+    
+    virtlogd creates its log readable only by root, and the permissions
+    glob in nova-libvirt's config.json only matches files that already
+    exist when kolla_set_configs runs, so on a fresh deploy fluentd cannot
+    open the file. Create it in config.json as root:kolla 0664, as is
+    already done for libvirtd.log.
     
     Prompt: diagnose why Zuul failed every kolla-ansible deploy job on kolla
     change 1010516.
@@ -29,9 +35,25 @@ index 4765c9608..1b173db74 100644
    pos_file /var/run/fluentd/libvirt.pos
    tag infra.libvirt
    enable_watch_timer {{ fluentd_enable_watch_timer }}
+diff --git a/ansible/roles/nova-cell/templates/nova-libvirt.json.j2 b/ansible/roles/nova-cell/templates/nova-libvirt.json.j2
+index f8a42bf13..67317b1b1 100644
+--- a/ansible/roles/nova-cell/templates/nova-libvirt.json.j2
++++ b/ansible/roles/nova-cell/templates/nova-libvirt.json.j2
+@@ -116,6 +116,11 @@
+             "path": "/var/log/kolla/libvirt/libvirtd.log",
+             "owner": "root:kolla",
+             "perm": "0664"
++        },
++        {
++            "path": "/var/log/kolla/libvirt/virtlogd.log",
++            "owner": "root:kolla",
++            "perm": "0664"
+         }
+     ],
+     "permissions": [
 diff --git a/releasenotes/notes/fluentd-virtlogd-log-7c2e9d41a5b3f806.yaml b/releasenotes/notes/fluentd-virtlogd-log-7c2e9d41a5b3f806.yaml
 new file mode 100644
-index 000000000..c5adc5438
+index 000000000..394745b01
 --- /dev/null
 +++ b/releasenotes/notes/fluentd-virtlogd-log-7c2e9d41a5b3f806.yaml
 @@ -0,0 +1,5 @@
@@ -40,3 +62,4 @@ index 000000000..c5adc5438
 +  - |
 +    Fluentd now collects ``/var/log/kolla/libvirt/virtlogd.log``, which the
 +    ``nova_libvirt`` container writes its ``virtlogd`` log to.
+

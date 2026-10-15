@@ -5,6 +5,12 @@ nova_libvirt now writes virtlogd's log to
 follows libvirtd.log, so check-logs.sh reports the file as missing.
 Add it to the source; both files use libvirt's log format.
 
+virtlogd creates its log readable only by root, and the permissions
+glob in nova-libvirt's config.json only matches files that already
+exist when kolla_set_configs runs, so on a fresh deploy fluentd cannot
+open the file. Create it in config.json as root:kolla 0664, as is
+already done for libvirtd.log.
+
 Prompt: diagnose why Zuul failed every kolla-ansible deploy job on kolla
 change 1010516.
 
