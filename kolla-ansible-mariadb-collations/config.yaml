@@ -5,8 +5,8 @@ shallow_clone: false
 directory: kolla-ansible
 release: master-kolla-ansible-mariadb-collations
 depends_on: ''
-source_sha: 5506f20e08ccdcee9b815f679e4512c36cfc6dc0
-previous_source_sha: e7c2b4010a99d7c1fdb4fb885abc5391a328e033
+source_sha: 24644b3bac2fb48bd1319c73ec2c91a0e8a48e53
+previous_source_sha: 5506f20e08ccdcee9b815f679e4512c36cfc6dc0
 skip_rebase: false
 skip_claude: true
 repush: true
