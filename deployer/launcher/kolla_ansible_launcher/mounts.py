@@ -1,7 +1,7 @@
 """Turn host paths into same-path bind mounts.
 
-Every path is mounted at the path it has on the host (top-level Decision 2),
-so absolute paths in globals.yml and the inventory keep working. A directory is
+Every path is mounted at the path it has on the host, so absolute paths in
+globals.yml, the inventory and operator overrides keep working. A directory is
 mounted itself; for a file, or a path that does not exist yet, the nearest
 existing directory above it is mounted, because Ansible reads group_vars/ and
 host_vars/ from beside an inventory file, and @file vars commonly include

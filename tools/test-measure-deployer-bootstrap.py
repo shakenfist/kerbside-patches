@@ -360,7 +360,7 @@ class RecordTest(unittest.TestCase):
         self.assertFalse(mdb.evaluate_record(self.rows('a', 5, 2) + self.rows('b', 2, 2), 5, 2)[1])
 
     def test_phase_branches_are_excluded(self):
-        runs = [{'id': 1, 'run_attempt': 1, 'head_branch': 'deployer-phase-6'},
+        runs = [{'id': 1, 'run_attempt': 1, 'head_branch': 'deployer-phase-6'},  # audit-ok: phase-reference
                 {'id': 2, 'run_attempt': 2, 'head_branch': 'daily-rebase-20261011'}]
         with mock.patch.object(mdb, 'list_jobs', return_value=[job(LAUNCHER), job(VENV)]) as listing:
             rows = mdb.collect_rows('o/r', runs)

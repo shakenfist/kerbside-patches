@@ -99,7 +99,8 @@ deployer="venv"
 
 # Should install-build-dependencies.sh install Docker? The containerised
 # deployer's CI entries say no, so that the launcher meets a host with no
-# container engine (Phase 4 of docs/plans/containerised-deployer.md).
+# container engine, as it would on a stock cloud image, and installs the
+# distribution's own.
 install_docker="true"
 
 # Ensure we have a git commit sha

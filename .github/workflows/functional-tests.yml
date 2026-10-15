@@ -543,8 +543,8 @@ jobs:
     runs-on: [self-hosted, 'bound-${{ matrix.test.runs_on }}', bound-s, "bind-${{ github.run_id }}-${{ github.run_attempt }}-build-test-clouds-${{ strategy.job-index }}"]
     needs: [build_images, aggregate_results]
     timeout-minutes: 120
-    # Non-voting entries are prototypes (see docs/plans/containerised-deployer.md).
-    # Phase 7 removes this key.
+    # Non-voting entries are prototypes (see docs/plans/containerised-deployer.md),
+    # until their CI record over a dated window shows they are ready to vote.
     continue-on-error: ${{ matrix.test.non_voting == 'true' }}
     concurrency:
       group: ${{ github.workflow }}-${{ github.ref }}-${{ matrix.test.name }}
@@ -992,7 +992,7 @@ jobs:
           # NOTE: Console data collection via sf-client has been removed as the
           # CI runner orchestrator already collects this information for us.
 
-          # Phase 1: Setup - copy tools to remote nodes
+          # Step 1: Setup - copy tools to remote nodes
           for node in ${nodes}; do
               node_address=${!node}
               node_start=$(date +%s)
@@ -1021,7 +1021,7 @@ jobs:
               echo
           done
 
-          # Phase 2: Gather logs in parallel on all nodes (10 minute timeout each)
+          # Step 2: Gather logs in parallel on all nodes (10 minute timeout each)
           echo
           echo "Starting parallel log collection..."
           pids=""
@@ -1044,7 +1044,7 @@ jobs:
           wait ${pids}
           echo "All gather-logs processes completed"
 
-          # Phase 3: Fetch bundles and extract
+          # Step 3: Fetch bundles and extract
           for node in ${nodes}; do
               node_address=${!node}
               echo

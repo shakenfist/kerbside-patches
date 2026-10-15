@@ -387,11 +387,12 @@ fi
 # Build manifest                                                             #
 ##############################################################################
 
-# Phase 6 of docs/plans/containerised-deployer.md. Once every image of a
-# build has landed in the registry, read each one's digest back into a
-# manifest.json, and push that as a thin layer on top of the deployer under
-# the deployer's own tag. This has to wait for the proxy to drain: the digest
-# kolla-build saw is not the one the proxy's filters wrote to the registry.
+# A deployer pinned by tag or digest should pin every image of its build
+# too (see docs/building.md). Once every image of a build has landed in the
+# registry, read each one's digest back into a manifest.json, and push that
+# as a thin layer on top of the deployer under the deployer's own tag. This
+# has to wait for the proxy to drain: the digest kolla-build saw is not the
+# one the proxy's filters wrote to the registry.
 
 manifest_label="kolla_build_manifest"
 

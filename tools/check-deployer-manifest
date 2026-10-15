@@ -1,7 +1,7 @@
 #!/bin/bash
 # Assert that the deployer's build manifest pins every image on a deployed
-# cloud (see docs/plans/containerised-deployer.md, Phase 6, Decision 7). Run on
-# the target, as the base user, from the kerbside-patches checkout, after the
+# cloud (see "The build manifest" in docs/deployer-launcher.md). Run on the
+# target, as the base user, from the kerbside-patches checkout, after the
 # cloud is deployed:
 #
 #   tools/check-deployer-manifest
