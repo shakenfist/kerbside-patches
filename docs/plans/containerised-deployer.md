@@ -3569,6 +3569,15 @@ wrong.
    least two daily rebases among them. The tool's `record`
    subcommand prints this, so the check is run rather than read.
 
+   *Amended 2026-10-16:* the window was closed early, at 2026-10-15
+   22:00Z. `record` already printed MET with ten passing runs of each
+   entry, two of them daily rebases, and no failure attributed to the
+   launcher, twice the bar on every count. Michael chose to close it
+   rather than wait four more days. What the shorter window does not
+   cover is the daily rebases of 10-16 to 10-20; once the entries
+   vote, a regression there fails the run instead of passing
+   unnoticed, which is the point of voting.
+
 4. **Two pull requests.** The first lands the tool and the
    measurement now (7a, 7b). The second, on a new branch after the
    window closes, removes the non-voting mechanism and records the
