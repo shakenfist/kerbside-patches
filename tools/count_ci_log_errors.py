@@ -27,6 +27,11 @@ Multinode jobs produce several copies of a log file, one per node directory
 (primary, secondary1, secondary2, ...). Each of those is recorded as its own
 CSV row. We discover them from the build's zuul-manifest.json rather than
 guessing node directory names, so any node layout is handled correctly.
+
+Each row also records the nodepool provider (the cloud region the job's nodes
+ran in), read from the build's zuul-info/inventory.yaml. Some failures are
+specific to one provider's network rather than to the code under test, and the
+CSV is where that shows up.
 """
 
 import argparse
@@ -46,14 +51,23 @@ import requests
 ZUUL_API = 'https://zuul.opendev.org/api/tenant/openstack'
 DEFAULT_PROJECTS = ['openstack/kolla', 'openstack/kolla-ansible']
 
-# The last field was called 'libvirtd_url' when this tool only scanned
+# The log_url field was called 'libvirtd_url' when this tool only scanned
 # libvirtd.txt. Rows appended to a legacy CSV stay positionally compatible
 # (same column order, only the header cell differs), and nothing reads the
-# URL column when aggregating, so legacy files do not need migrating.
+# URL column when aggregating, so that rename needs no migration. The provider
+# column was added later; migrate_csv() appends it to older files, with an
+# empty value for rows recorded before it existed.
 CSV_FIELDS = [
     'build_uuid', 'project', 'job_name', 'branch', 'pipeline', 'result',
-    'end_time', 'node', 'status', 'match_count', 'log_url',
+    'end_time', 'node', 'status', 'match_count', 'log_url', 'provider',
 ]
+
+# The first nodepool provider in a build's inventory. Every node in a nodeset
+# comes from one provider, so the first is representative. Zuul-launcher
+# providers are canonical names such as
+# 'opendev.org%2Fopendev%2Fzuul-providers/vexxhost-ca-ymq-1-main'; only the
+# part after the last slash is kept.
+PROVIDER_RE = re.compile(r'^\s+provider:\s*(\S+)\s*$', re.MULTILINE)
 
 
 def iso_now():
@@ -183,6 +197,21 @@ def classify_file(session, file_url, target):
     return ('hit' if count else 'miss'), count
 
 
+def fetch_provider(session, log_url):
+    """Return the nodepool provider a build ran on, or '' if unrecorded.
+
+    A missing inventory (404) is a real answer, for example a build that
+    failed before any node was assigned. Other failures raise after retries,
+    so the build is retried rather than recorded without its provider.
+    """
+    resp = http_get(session, log_url.rstrip('/') + '/zuul-info/inventory.yaml', timeout=60)
+    if resp.status_code == 404:
+        return ''
+    resp.raise_for_status()
+    match = PROVIDER_RE.search(resp.text)
+    return match.group(1).rsplit('/', 1)[-1] if match else ''
+
+
 def node_from_path(path):
     """The leading node directory, for example 'primary' or 'secondary1'."""
     return path.split('/', 1)[0] if '/' in path else path
@@ -204,6 +233,9 @@ def process_build(session, build, suffixes, target):
 
     try:
         rel_paths = find_log_paths(session, log_url, suffixes)
+        # Only fetched for builds that will produce rows, to spare the log
+        # servers a request for every unit test and docs build.
+        provider = fetch_provider(session, log_url) if rel_paths else ''
         rows = []
         for rel_path in rel_paths:
             file_url = log_url.rstrip('/') + '/' + rel_path
@@ -224,6 +256,7 @@ def process_build(session, build, suffixes, target):
                 'status': status,
                 'match_count': count,
                 'log_url': file_url,
+                'provider': provider,
             })
         return rows, True
     except Exception as exc:
@@ -232,6 +265,34 @@ def process_build(session, build, suffixes, target):
         print(f'    build {build.get("uuid", "")} failed (will retry next run): '
               f'{type(exc).__name__}: {exc}', file=sys.stderr)
         return [], False
+
+
+def migrate_csv(path):
+    """Append any columns missing from an existing CSV, in place.
+
+    Rows recorded before a column existed get an empty value; they are never
+    refetched, because their builds are already in the checkpoint. The legacy
+    'libvirtd_url' header cell is left alone (see CSV_FIELDS).
+    """
+    with open(path, newline='', encoding='utf-8') as handle:
+        rows = list(csv.reader(handle))
+    if not rows:
+        return
+    header = rows[0]
+    known = set(header)
+    if 'libvirtd_url' in header:
+        known.add('log_url')
+    missing = [field for field in CSV_FIELDS if field not in known]
+    if not missing:
+        return
+    tmp_path = path + '.tmp'
+    with open(tmp_path, 'w', newline='', encoding='utf-8') as handle:
+        writer = csv.writer(handle)
+        writer.writerow(header + missing)
+        for row in rows[1:]:
+            writer.writerow(row + [''] * len(missing))
+    os.replace(tmp_path, path)
+    print(f'migrated {path}: added column(s) {", ".join(missing)}', file=sys.stderr)
 
 
 def load_checkpoint(path):
@@ -508,6 +569,8 @@ def main():
     print(f'builds in window: {len(builds)}  to process: {len(todo)}', file=sys.stderr)
 
     csv_exists = os.path.exists(args.output)
+    if csv_exists:
+        migrate_csv(args.output)
     csv_handle = open(args.output, 'a', newline='', encoding='utf-8')
     writer = csv.DictWriter(csv_handle, fieldnames=CSV_FIELDS)
     if not csv_exists:
@@ -516,6 +579,8 @@ def main():
 
     write_lock = threading.Lock()
     tally = {'hit': 0, 'miss': 0}
+    # provider -> [builds with a log file, builds with a hit], this run only.
+    by_provider = {}
     builds_with_file = 0
     builds_without_file = 0
     builds_failed = 0
@@ -556,6 +621,10 @@ def main():
                     cp_handle.flush()
                 if rows:
                     builds_with_file += 1
+                    counts = by_provider.setdefault(rows[0]['provider'] or 'unknown', [0, 0])
+                    counts[0] += 1
+                    if any(row['status'] == 'hit' for row in rows):
+                        counts[1] += 1
                 else:
                     builds_without_file += 1
 
@@ -579,6 +648,10 @@ def main():
     print(f'  misses : {tally["miss"]}')
     if total_files:
         print(f'hit rate (files)          : {tally["hit"] / total_files:.1%}')
+    if by_provider:
+        print('builds by provider (with a log file / with a hit):')
+        for provider, (seen, hits) in sorted(by_provider.items(), key=lambda item: -item[1][0]):
+            print(f'  {provider:32} {seen:6} {hits:6}  ({hits / seen:.1%})')
     print(f'CSV written to            : {args.output}')
 
     if args.chart is not None:

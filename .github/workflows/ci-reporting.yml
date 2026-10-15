@@ -36,6 +36,7 @@ on:
           - haproxy-layer7-timeout
           - mariadb-collation
           - ovn-metadata-agent-missing
+          - galaxy-install
           - all
 
 jobs:
