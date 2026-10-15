@@ -478,8 +478,7 @@ jobs:
             'runs_on': 'debian-13',
             'container_distro': 'debian',
             'container_distro_version': 'trixie',
-            'deployer': 'launcher',
-            'non_voting': 'true'
+            'deployer': 'launcher'
           },
           {
             'name': 'master-h-rocky10-c-debian-13-aio',
@@ -502,8 +501,7 @@ jobs:
             'runs_on': 'debian-13',
             'container_distro': 'debian',
             'container_distro_version': 'trixie',
-            'deployer': 'launcher',
-            'non_voting': 'true'
+            'deployer': 'launcher'
           },
           {
             'name': 'master-h-rocky10-c-rocky10-aio',
@@ -543,9 +541,6 @@ jobs:
     runs-on: [self-hosted, 'bound-${{ matrix.test.runs_on }}', bound-s, "bind-${{ github.run_id }}-${{ github.run_attempt }}-build-test-clouds-${{ strategy.job-index }}"]
     needs: [build_images, aggregate_results]
     timeout-minutes: 120
-    # Non-voting entries are prototypes (see docs/plans/containerised-deployer.md),
-    # until their CI record over a dated window shows they are ready to vote.
-    continue-on-error: ${{ matrix.test.non_voting == 'true' }}
     concurrency:
       group: ${{ github.workflow }}-${{ github.ref }}-${{ matrix.test.name }}
       cancel-in-progress: true
