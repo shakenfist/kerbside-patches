@@ -365,7 +365,7 @@ against `develop`.
 | 4. Bootstrapping the deploy host | Complete | #1854 (`78c6e79c7`), #1857 (`af2474d4f`); shakenfist/actions#150 |
 | 5. Version safeguards | Complete | #1867 (`b38293652`) |
 | 6. Build manifest | Complete | #1881 (`784e95d9e`) |
-| 7. Make the prototype entry voting | In progress | |
+| 7. Make the prototype entry voting | Complete | #1896 (`1af58c137`), #1919 (`3b8ff103d`) |
 | 8. Documentation and upstream proposal | Not started | |
 | 9. Push audit | Not started | |
 
