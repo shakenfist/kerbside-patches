@@ -12,6 +12,11 @@ This is a prototype. The design and the phases still to come are in
 The source is in `deployer/launcher/`. It uses only the Python
 standard library.
 
+The two launcher CI entries in `functional-tests.yml`
+(`master-h-debian13-c-debian13-aio-launcher` and
+`master-h-rocky10-c-debian-13-aio-launcher`) vote: a workflow run fails
+if either of them fails.
+
 ## Installing
 
 Install it with pip into a virtualenv of its own:

@@ -3569,6 +3569,15 @@ wrong.
    least two daily rebases among them. The tool's `record`
    subcommand prints this, so the check is run rather than read.
 
+   *Amended 2026-10-16:* the window was closed early, at 2026-10-15
+   22:00Z. `record` already printed MET with ten passing runs of each
+   entry, two of them daily rebases, and no failure attributed to the
+   launcher, twice the bar on every count. Michael chose to close it
+   rather than wait four more days. What the shorter window does not
+   cover is the daily rebases of 10-16 to 10-20; once the entries
+   vote, a regression there fails the run instead of passing
+   unnoticed, which is the point of voting.
+
 4. **Two pull requests.** The first lands the tool and the
    measurement now (7a, 7b). The second, on a new branch after the
    window closes, removes the non-voting mechanism and records the
@@ -3649,11 +3658,20 @@ Exit:
   the rest is within the noise of 13 pairs a side, with a Rocky excess
   (+213s mean) at about two standard errors.
 * `record` for 2026-10-13 10:13Z to 2026-10-20 10:13Z prints MET.
-  Not yet. Run on 2026-10-14 it prints "0 runs, 0 launcher jobs" and
-  NOT MET; the window has barely opened and 7d reports it.
+  Met, over the shortened window the amendment to Decision 3 allows
+  (2026-10-13 10:13Z to 2026-10-15 22:00Z). Run on 2026-10-14 it printed
+  "0 runs, 0 launcher jobs" and NOT MET. Run on 2026-10-16 it prints MET,
+  with 11 passing runs of each entry, 3 of them daily rebases, and no
+  failure attributed to the launcher. The window was not run to
+  2026-10-20; the Outcome says what that leaves uncovered.
 * `.github/workflows/functional-tests.yml` has no `non_voting` and no
   `continue-on-error`, and the first run after 7c lands is green
   with both launcher entries counting.
+  Met. The file has neither key and no `continue-on-error`. Run
+  38820775821 on #1919 is the first run with both launcher entries
+  counting, and both passed (the Debian 13 entry in attempt 1, the Rocky
+  10 entry in attempt 2). The run went green in attempt 3, after
+  capacity misses on jobs that do not use the launcher; see the Outcome.
 
 #### Outcome
 
@@ -3906,6 +3924,99 @@ line, which is right.
 "No launcher jobs in the window" and `NOT MET`, exit 1. That is expected:
 no run of the workflow has been created since #1881 merged. 7d records the
 window when it closes.
+
+#### The voting window (7c, 7d)
+
+Written after the window closed and 7c's run. The numbers below are from
+2026-10-16.
+
+*The record.* `tools/measure-deployer-bootstrap record --since
+'2026-10-13T10:13Z' --until '2026-10-15T22:00Z'`, run on 2026-10-16,
+covered 12 runs and 26 launcher jobs, with `deployer-phase-*` branches
+left out. It prints MET:
+
+| Entry | Passing runs (need 5) | Daily rebases (need 2) | Failures |
+|-------|-----------------------|------------------------|----------|
+| Debian 13 launcher | 11 | 3 | 0 |
+| Rocky 10 launcher | 11 | 3 | 0 |
+
+An earlier run of the tool, with run 38792591006 still in progress,
+printed 25 jobs and 10 passing runs of each entry with 2 daily rebases.
+That run has since completed: its Debian 13 job passed, and its Rocky job
+failed in Setup test environment in attempt 1 and passed in attempt 2. So
+each count rose by one, the daily rebases rose from 2 to 3, and the
+ignored jobs are as before plus that Rocky attempt. Nothing else changed.
+
+*What the record ignored.* Two jobs, both Rocky 10 launcher entries and
+both before the deploy:
+
+| Run | Attempt | Branch | Why ignored |
+|-----|---------|--------|-------------|
+| 38647688356 | 1 | host-virtlogd | Failed in Setup test environment, before the deploy; passed in attempt 2 |
+| 38792591006 | 1 | daily-rebase-20261015 | Failed in Setup test environment, before the deploy; passed in attempt 2 |
+
+Decision 3 allows this because the launcher never ran. The tool
+classifies by the step that failed, not by the message; the logs of both
+jobs show the cause was capacity, sfcbr answering 507 "No nodes remaining
+at scheduling stage sufficient_idle_memory" because no host had room for
+the test cloud VM. No
+job in the window failed in the deploy or later, so none was classified
+as the launcher's, and none needed its control to have failed the same
+step.
+
+*Manual reruns, and whether a retry pattern is warranted.* One run needed
+a manual rerun that the workflow should have done itself. Run
+38478931745 (#1896, Phase 7's first pull request) had a Debian 13
+no-kerbside job hit the sfcbr 507 on 2026-10-14; the management session
+reran it at Michael's request.
+That job is not a launcher entry, so `record` does not see it.
+
+The pattern for that 507 already existed: #1884 added it to
+auto-retry-infra-failures. It never matched, and the reason was not the
+pattern. Current `gh api` refuses to print a job log that contains
+terminal escape sequences, and the workflow discarded stderr, so every
+pattern that matched on log text rather than on an annotation had silently
+never matched. In the 200 auto-retry runs back to 2026-07-16, every match
+was an annotation pattern. #1902 (merged 2026-10-14) added
+`--allow-escape-sequences`. So no new pattern is warranted: the existing
+one works now, and 7c's run is the first evidence that it does (below).
+It also means the retry rate before 2026-10-14 understates how often a
+log-text infrastructure failure happened; those were not retried.
+
+*7c's own run.* Run 38820775821 on #1919 removed `non_voting` and
+`continue-on-error`, so both launcher entries counted for the first time.
+The run sat queued for several hours before any test cloud started: VM
+runners were not being handed out to any repo run at the time, from about
+2026-10-15 19:00Z to about 2026-10-16 03:00Z. That is a wait, not a
+failure, and it is recorded so that the run's elapsed time is not read as
+the cost of the change.
+
+* Attempt 1. The Debian 13 launcher entry passed, as a voting job. Three
+  Rocky 10 host jobs failed in Setup test environment with the sfcbr 507:
+  the Rocky launcher entry, its venv control, and the Rocky-containers
+  entry. Auto-retry started attempt 2 on its own. This is the first time
+  it has retried on a log-only pattern, so #1902 is confirmed working in
+  practice and not only in review.
+* Attempt 2. The Rocky launcher entry and its control passed. The
+  Rocky-containers entry, which is not a launcher entry, hit the 507
+  again.
+
+So both launcher entries passed as voting jobs, and the one job keeping
+the run from green is a different entry hitting capacity, not the
+launcher.
+
+* Attempt 3. Auto-retry does not retry the same run twice, so the
+  Rocky-containers job was rerun at Michael's request. It passed, and the
+  run concluded green, with both launcher entries voting.
+
+Phase 7 is done: the launcher entries vote, and the only failures in
+their first voting run were capacity misses before the deploy, which
+auto-retry and one manual rerun absorbed.
+
+*What the shorter window does not cover.* Decision 3's amendment already
+says it: the daily rebases of 2026-10-16 to 2026-10-20. A regression there
+now fails the run. The record is eleven passing runs of each entry, three
+of them daily rebases, over two and a half days; it is not seven days.
 
 ### Phase 8: Documentation and upstream proposal
 
