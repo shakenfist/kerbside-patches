@@ -32,6 +32,9 @@ and tracks the health of the pipelines involved.
 - [The deployer launcher](deployer-launcher.md) — a prototype that
   runs Kolla-Ansible from a container image: installing it,
   `deployer.conf`, what it mounts, and what it refuses.
+- [The containerised deployer](containerised-deployer.md) — running
+  Kolla-Ansible from a Kolla-built image: building it, the version
+  safeguards and build manifest, what CI shows, and what did not work.
 - [Plans](plans/index.md) — the planning documents for work in
   flight here and upstream, oldest first, with a one-line status for
   each.
