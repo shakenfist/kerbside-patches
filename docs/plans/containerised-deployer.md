@@ -4185,8 +4185,10 @@ This plan's decision most likely to be argued with is 3: an upstream
 inventory that nothing here deploys. The alternative is to describe
 it in prose and let upstream write it, which is cheaper and honest.
 The patch wins because the proposal's series table should name every
-change, and because a reviewer can read a twenty-line diff faster
-than a paragraph describing one.
+change, and because the delta against `all-in-one` is small and is what
+the proposal describes, which a reviewer can read faster than a
+paragraph describing it. The patch itself is a full new file, not a
+twenty-line diff. *Corrected in 8e.*
 
 #### Risks
 
@@ -4245,15 +4247,73 @@ cheap to change before the prose exists and costly after.
 
 * `_build/test-apply.sh` passes, with tests, for `kolla-deployer` and
   `kolla-ansible-deployer`, on pristine upstream.
+  * Met. See 8b in the Outcome below: 172 tests for `kolla-deployer`,
+    579 for `kolla-ansible-deployer`, with pep8 and linters clean.
 * Neither directory sets `repush`, and both are picked up by the
   Rebase tests workflow.
+  * Met for `repush`, which 8e's check confirms. Picked up: the matrix
+    entries `debian-13-kolla-deployer` and
+    `debian-13-kolla-ansible-deployer` are in `rebase-tests.yml`, but no
+    run of the workflow has exercised them yet, so this is not yet
+    observed in CI.
 * The new inventory differs from `ansible/inventory/all-in-one` only
   in the host name and two `[all:vars]` lines.
+  * Met with a qualification. The delta is an 18-line header, the two
+    `[all:vars]` lines and six host renames, not one rename.
 * `docs/containerised-deployer.md` has a section on what did not work,
   with at least the six cases in 8c's brief.
+  * Met.
 * The proposal's series table lists every upstream-bound patch, and
   8e's checks pass.
+  * Met. 8e's checks pass, and `pre-commit run --all-files` is clean.
 * Nothing has been pushed, posted or filed.
+  * Met.
+
+#### Outcome
+
+Written by 8e, after 8a to 8d (`git log --oneline origin/develop..HEAD`:
+`72f081d27`, `963419576`, `c1c20676c`, `a8b8fd0dc`). 8e's checks all
+passed: no phrasing Phase 7 ruled out, the two documents link each other
+and the launcher page, neither series directory sets `repush`, no typed
+Change-Id remains in patch200 or patch201, and `pre-commit run
+--all-files` is clean.
+
+*8a, the inventory.* patch214,
+`_patches/patch214-kolla-ansible-master-deployer-all-in-one.patch`, adds
+`ansible/inventory/all-in-one-deployer`, with the host named `kolla`. Its
+`[all:vars]` carries `ansible_connection=community.docker.nsenter` and
+`ansible_remote_tmp=/tmp/.ansible-kolla`. The path is shared, unlike CI's
+per-user one, because an upstream example has no bootstrap to substitute
+a user name into it. The patch is a new file of about 600 lines. Its
+delta against `all-in-one` is an 18-line header, the two `[all:vars]`
+lines and six host renames.
+
+*8b, the series directories.* `kolla-deployer/` and
+`kolla-ansible-deployer/` have `release: containerised-deployer`, which
+matches no build target, `skip_rebase: false`, and no `repush`.
+`rebase-tests.yml`'s deep matrix is hand-written, so it gained a
+debian-13 entry for each. Test-apply results: `kolla-deployer` passed
+172 py3 tests and pep8 after patch199. `kolla-ansible-deployer` passed
+py3, pep8 and linters after each of 200, 201, 206, 208, 209 and 214; the
+last run was 579 tests, 577 passed and 2 skipped. The Change-Ids of
+patch200 and patch201 were regenerated. No patch needed downstream
+context, so there was no rebase and no second copy of any patch.
+
+*8c, the how-to.* `docs/containerised-deployer.md`. Two stale facts were
+fixed in passing: the launcher inventory's interpreter-pin comment, and
+the 1.7 GB "unpacked" figure, which is 1170 MiB unpacked per Phase 4.
+
+*8d, the proposal.* `docs/containerised-deployer-proposal.md`. Its outline
+was approved at the back brief gate. It adds four open questions:
+registry retention, no upstream CI job, the deployer tag being pushed
+twice, and an inventory nothing deploys. Two things are not verified.
+Appendix A's reproducer was not run in the form written, and Appendix B's
+`RepoDigests` approach has not been checked against a real publish.
+
+*Left to Michael.* Pushing to Gerrit, by setting `repush: true` on the
+two series directories. Posting the proposal. Filing the community.docker
+issue, after running Appendix A's reproducer first. Nothing has been
+pushed, posted or filed.
 
 ### Phase 9: Push audit
 
