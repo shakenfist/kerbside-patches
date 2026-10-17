@@ -150,6 +150,18 @@ jobs:
               'project': 'kolla-ansible',
               'runs_on': 'rocky-9'
           },
+          {
+              'description': "kolla deployer on debian 13",
+              'name': 'debian-13-kolla-deployer',
+              'project': 'kolla-deployer',
+              'runs_on': 'debian-13'
+          },
+          {
+              'description': "kolla-ansible deployer on debian 13",
+              'name': 'debian-13-kolla-ansible-deployer',
+              'project': 'kolla-ansible-deployer',
+              'runs_on': 'debian-13'
+          },
         ]
     runs-on: [self-hosted, vm, '${{ matrix.test.runs_on }}', 'xl']
     concurrency:

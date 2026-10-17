@@ -1,0 +1,676 @@
+commit 9aed2e272ec087863be5d64d1d22973ecd2e5803
+Author: Michael Still <mikal@stillhq.com>
+Date:   Sat Oct 17 08:09:03 2026 +1100
+
+    Add an all-in-one inventory for the deployer.
+    
+    Kolla Ansible can be run from a container on the host it deploys to,
+    such as the kolla-ansible image built by Kolla. The container then
+    reaches its own host through the community.docker.nsenter connection
+    plugin, with no SSH. The all-in-one inventory cannot be used for that
+    with only its connection changed, because it names the deploy host
+    localhost.
+    
+    Some tasks run with delegate_to: localhost and connection: local, using
+    paths that exist only where Ansible runs. Keystone's fernet cron
+    generator, for example, runs a script from its role directory with
+    ansible_playbook_python. An inventory host named localhost replaces
+    Ansible's implicit one, and a host's ansible_connection takes precedence
+    over a task's connection keyword, so those tasks would run on the host
+    and fail.
+    
+    This change adds all-in-one-deployer beside all-in-one. It differs only
+    in that:
+    
+    * the deploy host is named kolla, so that every use of localhost stays
+      in the container;
+    * ansible_connection=community.docker.nsenter in [all:vars] replaces
+      ansible_connection=local on each host line; and
+    * ansible_remote_tmp is an absolute path. The nsenter plugin assumes
+      that remote_user is root, and passes the container's environment,
+      including HOME, to commands on the host, so the default
+      ~/.ansible/tmp names a directory in the container's HOME, which the
+      host does not have.
+    
+    Neither all-in-one nor this inventory pins ansible_python_interpreter,
+    so interpreter discovery on the host is unchanged.
+    
+    Assisted-By: Claude Opus 5.5 (1M context, high effort) <noreply@anthropic.com>
+    Co-Authored-By: Claude Opus 5.5 (1M context, high effort) <noreply@anthropic.com>
+    Change-Id: Ie28b1166516779eb3af0d4c61fd839ec188c4a24
+    Signed-off-by: Michael Still <mikal@stillhq.com>
+
+diff --git a/ansible/inventory/all-in-one-deployer b/ansible/inventory/all-in-one-deployer
+new file mode 100644
+index 000000000..f955bb261
+--- /dev/null
++++ b/ansible/inventory/all-in-one-deployer
+@@ -0,0 +1,611 @@
++# An all-in-one inventory for running Kolla Ansible from a container on the
++# host it deploys to, such as the kolla-ansible deployer image. The container
++# needs the host's PID namespace and privileges to enter the host's
++# namespaces. community.docker.nsenter then runs each task on the host, so no
++# SSH is needed.
++#
++# The deploy host must not be named localhost. Kolla Ansible runs some tasks
++# with delegate_to: localhost and connection: local, using paths that exist
++# only in the container. A host named localhost here would replace Ansible's
++# implicit localhost, and its ansible_connection would send those tasks to the
++# host instead.
++#
++# The nsenter plugin assumes that remote_user is root, and it passes the
++# container's environment, including HOME, to commands on the host. A relative
++# remote_tmp such as the default ~/.ansible/tmp would therefore name a path in
++# the container's HOME, which the host may not have, so ansible_remote_tmp is
++# absolute. If more than one user deploys from this host, give each their own
++# directory.
++[all:vars]
++ansible_connection=community.docker.nsenter
++ansible_remote_tmp=/tmp/.ansible-kolla
++
++# These initial groups are the only groups required to be modified. The
++# additional groups are for more control of the environment.
++[control]
++kolla
++
++[network]
++kolla
++
++[compute]
++kolla
++
++[storage]
++kolla
++
++[monitoring]
++kolla
++
++[deployment]
++kolla
++
++# You can explicitly specify which hosts run each project by updating the
++# groups in the sections below. Common services are grouped together.
++
++[common:children]
++control
++network
++compute
++storage
++monitoring
++
++[collectd:children]
++compute
++
++[baremetal:children]
++control
++
++[tls-backend:children]
++control
++network
++
++[grafana:children]
++monitoring
++
++[etcd:children]
++control
++
++[hacluster:children]
++control
++
++[hacluster-remote:children]
++compute
++
++[loadbalancer:children]
++network
++
++[mariadb:children]
++control
++
++[rabbitmq:children]
++control
++
++[keystone:children]
++control
++
++[glance:children]
++control
++
++[nova:children]
++control
++
++[neutron:children]
++network
++
++[openvswitch:children]
++network
++compute
++manila-share
++
++[cinder:children]
++control
++
++[cloudkitty:children]
++control
++
++[memcached:children]
++control
++
++[horizon:children]
++control
++
++[barbican:children]
++control
++
++[heat:children]
++control
++
++[ironic:children]
++control
++
++[prometheus:children]
++monitoring
++
++[magnum:children]
++control
++
++[mistral:children]
++control
++
++[manila:children]
++control
++
++[gnocchi:children]
++control
++
++[ceilometer:children]
++control
++
++[aodh:children]
++control
++
++[cyborg:children]
++control
++
++[tacker:children]
++control
++
++[trove:children]
++control
++
++[watcher:children]
++control
++
++[octavia:children]
++control
++
++[designate:children]
++control
++
++[placement:children]
++control
++
++[bifrost:children]
++deployment
++
++[skyline:children]
++control
++
++[valkey:children]
++control
++
++[blazar:children]
++control
++
++[letsencrypt:children]
++loadbalancer
++
++# Additional control implemented here. These groups allow you to control which
++# services run on which hosts at a per-service level.
++#
++# Word of caution: Some services are required to run on the same host to
++# function appropriately. For example, neutron-metadata-agent must run on the
++# same host as the l3-agent and (depending on configuration) the dhcp-agent.
++
++# Common
++[cron:children]
++common
++
++[fluentd:children]
++common
++
++[kolla_logs:children]
++common
++
++[kolla_toolbox:children]
++common
++
++[opensearch:children]
++control
++
++# Opensearch dashboards
++[opensearch-dashboards:children]
++opensearch
++
++# Glance
++[glance-api:children]
++glance
++
++# Nova
++[nova-api:children]
++nova
++
++[nova-conductor:children]
++nova
++
++[nova-metadata:children]
++nova
++
++[nova-super-conductor:children]
++nova
++
++[nova-novncproxy:children]
++nova
++
++[nova-scheduler:children]
++nova
++
++[nova-spicehtml5proxy:children]
++nova
++
++[nova-compute-ironic:children]
++nova
++
++[nova-serialproxy:children]
++nova
++
++# Neutron
++[ironic-neutron-agent:children]
++neutron
++
++[neutron-bgp-dragent:children]
++neutron
++
++[neutron-dhcp-agent:children]
++neutron
++
++[neutron-l3-agent:children]
++neutron
++
++[neutron-metadata-agent:children]
++neutron
++
++[neutron-ovn-vpn-agent:children]
++neutron
++
++[neutron-metering-agent:children]
++neutron
++
++[neutron-periodic-worker:children]
++control
++
++[neutron-rpc-server:children]
++control
++
++[neutron-server:children]
++control
++
++[neutron-ovn-agent:children]
++compute
++network
++
++[neutron-ovn-maintenance-worker:children]
++control
++
++[neutron-ovn-metadata-agent:children]
++compute
++network
++
++# Cinder
++[cinder-api:children]
++cinder
++
++[cinder-backup:children]
++cinder
++
++[cinder-backup-lvm:children]
++storage
++
++[cinder-backup-multiple:children]
++cinder
++storage
++
++[cinder-scheduler:children]
++cinder
++
++[cinder-volume:children]
++cinder
++
++[cinder-volume-lvm:children]
++storage
++
++[cinder-volume-multiple:children]
++cinder
++storage
++
++# Cloudkitty
++[cloudkitty-api:children]
++cloudkitty
++
++[cloudkitty-processor:children]
++cloudkitty
++
++# iSCSI
++# NOTE(mnasiadka): We need iscsid on cinder-volume hosts and clients
++[iscsid:children]
++compute
++storage
++
++# NOTE(mnasiadka): We need tgtd on storage nodes for Cinder LVM
++[tgtd:children]
++storage
++
++# Manila
++[manila-api:children]
++manila
++
++[manila-scheduler:children]
++manila
++
++[manila-share:children]
++network
++
++[manila-data:children]
++manila
++
++# Barbican
++[barbican-api:children]
++barbican
++
++[barbican-keystone-listener:children]
++barbican
++
++[barbican-worker:children]
++barbican
++
++# Trove
++[trove-api:children]
++trove
++
++[trove-conductor:children]
++trove
++
++[trove-taskmanager:children]
++trove
++
++# Heat
++[heat-api:children]
++heat
++
++[heat-api-cfn:children]
++heat
++
++[heat-engine:children]
++heat
++
++# Ironic
++[ironic-api:children]
++ironic
++
++[ironic-conductor:children]
++ironic
++
++[ironic-dnsmasq:children]
++ironic
++
++[ironic-tftp:children]
++ironic
++
++[ironic-http:children]
++ironic
++
++# Magnum
++[magnum-api:children]
++magnum
++
++[magnum-conductor:children]
++magnum
++
++# Mistral
++[mistral-api:children]
++mistral
++
++[mistral-executor:children]
++mistral
++
++[mistral-engine:children]
++mistral
++
++[mistral-event-engine:children]
++mistral
++
++# Aodh
++[aodh-api:children]
++aodh
++
++[aodh-evaluator:children]
++aodh
++
++[aodh-listener:children]
++aodh
++
++[aodh-notifier:children]
++aodh
++
++# Cyborg
++[cyborg-api:children]
++cyborg
++
++[cyborg-agent:children]
++compute
++
++[cyborg-conductor:children]
++cyborg
++
++# Gnocchi
++[gnocchi-api:children]
++gnocchi
++
++[gnocchi-statsd:children]
++gnocchi
++
++[gnocchi-metricd:children]
++gnocchi
++
++# Ceilometer
++[ceilometer-central:children]
++ceilometer
++
++[ceilometer-notification:children]
++ceilometer
++
++[ceilometer-compute:children]
++compute
++
++[ceilometer-ipmi:children]
++compute
++
++# Multipathd
++[multipathd:children]
++compute
++storage
++
++# Watcher
++[watcher-api:children]
++watcher
++
++[watcher-engine:children]
++watcher
++
++[watcher-applier:children]
++watcher
++
++# Octavia
++[octavia-api:children]
++octavia
++
++[octavia-driver-agent:children]
++octavia
++
++[octavia-health-manager:children]
++octavia
++
++[octavia-housekeeping:children]
++octavia
++
++[octavia-worker:children]
++octavia
++
++# Designate
++[designate-api:children]
++designate
++
++[designate-central:children]
++designate
++
++[designate-producer:children]
++designate
++
++[designate-mdns:children]
++network
++
++[designate-worker:children]
++designate
++
++[designate-sink:children]
++designate
++
++[designate-backend-bind9:children]
++designate
++
++# Placement
++[placement-api:children]
++placement
++
++# Skyline
++[skyline-apiserver:children]
++skyline
++
++[skyline-console:children]
++skyline
++
++# Tacker
++[tacker-server:children]
++tacker
++
++[tacker-conductor:children]
++tacker
++
++# Blazar
++[blazar-api:children]
++blazar
++
++[blazar-manager:children]
++blazar
++
++# Prometheus
++[prometheus-node-exporter:children]
++monitoring
++control
++compute
++network
++storage
++
++[prometheus-mysqld-exporter:children]
++mariadb
++
++[prometheus-memcached-exporter:children]
++memcached
++
++[prometheus-cadvisor:children]
++monitoring
++control
++compute
++network
++storage
++
++[prometheus-alertmanager:children]
++monitoring
++
++[prometheus-openstack-exporter:children]
++monitoring
++
++[prometheus-elasticsearch-exporter:children]
++opensearch
++
++[prometheus-blackbox-exporter:children]
++monitoring
++
++[prometheus-libvirt-exporter:children]
++compute
++
++[prometheus-openstack-network-exporter:children]
++compute
++network
++
++[prometheus-valkey-exporter:children]
++valkey
++
++[masakari-api:children]
++control
++
++[masakari-engine:children]
++control
++
++[masakari-hostmonitor:children]
++control
++
++[masakari-instancemonitor:children]
++compute
++
++[ovn-controller:children]
++ovn-controller-compute
++ovn-controller-network
++
++[ovn-controller-compute:children]
++compute
++
++[ovn-controller-network:children]
++network
++
++[ovn-database:children]
++control
++
++[ovn-northd:children]
++ovn-database
++
++[ovn-nb-db:children]
++ovn-database
++
++[ovn-sb-db:children]
++ovn-database
++
++[ovn-sb-db-relay:children]
++ovn-database
++
++[letsencrypt-webserver:children]
++letsencrypt
++
++[letsencrypt-lego:children]
++letsencrypt
+diff --git a/releasenotes/notes/all-in-one-deployer-inventory-7df5e3655e059a3f.yaml b/releasenotes/notes/all-in-one-deployer-inventory-7df5e3655e059a3f.yaml
+new file mode 100644
+index 000000000..a611d3267
+--- /dev/null
++++ b/releasenotes/notes/all-in-one-deployer-inventory-7df5e3655e059a3f.yaml
+@@ -0,0 +1,11 @@
++---
++features:
++  - |
++    Adds an ``all-in-one-deployer`` example inventory, for running
++    ``kolla-ansible`` from a container on the host it deploys to. It reaches
++    that host with the ``community.docker.nsenter`` connection plugin rather
++    than SSH, names the host ``kolla`` rather than ``localhost`` so that tasks
++    delegated to ``localhost`` still run in the container, and sets an absolute
++    ``ansible_remote_tmp``, because the plugin passes the container's ``HOME``
++    to commands on the host. The container must share the host's PID namespace
++    and be privileged.

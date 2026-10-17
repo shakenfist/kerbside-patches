@@ -365,8 +365,8 @@ against `develop`.
 | 4. Bootstrapping the deploy host | Complete | #1854 (`78c6e79c7`), #1857 (`af2474d4f`); shakenfist/actions#150 |
 | 5. Version safeguards | Complete | #1867 (`b38293652`) |
 | 6. Build manifest | Complete | #1881 (`784e95d9e`) |
-| 7. Make the prototype entry voting | In progress | |
-| 8. Documentation and upstream proposal | Not started | |
+| 7. Make the prototype entry voting | Complete | #1896 (`1af58c137`), #1919 (`3b8ff103d`) |
+| 8. Documentation and upstream proposal | In progress | |
 | 9. Push audit | Not started | |
 
 The order is deliberate. Phase 0 comes first so that every later
@@ -4020,20 +4020,18 @@ of them daily rebases, over two and a half days; it is not seven days.
 
 ### Phase 8: Documentation and upstream proposal
 
-Planning effort: medium.
+Planning effort: medium. Review effort: high for 8d, because the
+proposal is the one artefact of this plan that leaves the repository,
+and a number quoted wrongly in it is expensive to retract.
 
-Phase 1's patch199 does not apply to pristine Kolla. Its
-`sources.yaml` hunk has our downstream `kerbside-base` entry as
-context. Before a push, rebase it onto the upstream `source_sha`
-alone, and check its `zuul.d/base.yaml` `override-checkout: master`
-for the collection, which has to change when Kolla branches.
-
-Phase 6's patch209 has one hunk (`nova-cell`'s defaults, near line
-300) whose context includes patch147's `nova_libvirt_image` line, so
-it does not apply to pristine upstream either; every other hunk does.
-Rebase that hunk the same way. patch208 and the upstream parts of
-patch209 are otherwise upstream-ready, and the upstream half of the
-manifest, a change to Kolla's Zuul publish jobs, is drafted here.
+Phase 1's patch199 and Phase 6's patch209 were expected to need a
+rebase before they could apply to pristine upstream. *Corrected at
+planning (see the survey below):* neither does. Upstream Kolla now
+carries `kerbside-base` itself, and this repository applies patches
+with `git apply -C1`, under which patch209's `nova-cell` hunk applies
+to pristine Kolla-Ansible and produces the upstream line. What is
+left is to prove that continuously, as two series directories, and
+to write things down.
 
 Raise these `community.docker.nsenter` problems found in Phase 3:
 the plugin assumes `remote_user` is root, and it leaks the caller's
@@ -4051,6 +4049,271 @@ post or PTG topic that links the demo, what we measured, and the
 series of changes it would take, saying which repository each
 change belongs in. This is prose here, not a Gerrit push. Pushing
 is a separate decision.
+
+**In scope:**
+* the upstream all-in-one inventory for the container, as a
+  Kolla-Ansible patch (Phase 3, Decision 5 deferred it here);
+* two series directories, `kolla-deployer/` and
+  `kolla-ansible-deployer/`, that apply this plan's upstream-bound
+  patches to pristine upstream and run upstream's tests, without
+  pushing anything;
+* `docs/containerised-deployer.md`; and
+* the proposal, with the community.docker issue and the Zuul publish
+  job change drafted inside it.
+
+**Out of scope:**
+* Pushing to Gerrit, posting to openstack-discuss, or filing on
+  ansible-collections/community.docker. Each is outward-facing, and
+  each is Michael's decision once the drafts exist.
+* Changing any patch's behaviour. If 8b's test run finds that a patch
+  fails upstream's tests without the downstream series under it, that
+  is a finding: record it, and fix it in the patch that owns it only
+  if the fix is mechanical.
+* Kayobe. The Future work entry stands; the proposal asks the
+  question rather than answering it.
+
+#### What the survey found
+
+Checked against `origin/develop` at `3b8ff103d`, with Kolla at
+`f738a5e56` and Kolla-Ansible at `24644b3ba` (the `source_sha` pins).
+
+* **patch199 applies to pristine Kolla.** The old claim was that its
+  `sources.yaml` hunk had our downstream `kerbside-base` entry as
+  context. Upstream now has that entry (`kolla/common/sources.yaml:111`),
+  so `git apply --check` passes on pristine Kolla. Its
+  `zuul.d/base.yaml` hunk still pins `ansible-collection-kolla` with
+  `override-checkout: master`, which upstream must change when Kolla
+  branches; that stays a note for the proposal.
+* **The deployer series applies to pristine Kolla-Ansible, in order,
+  with the repository's own apply.** `_build/apply-patches-and-test.sh:205`
+  uses `git apply -v -C1`. With `-C1`, patches 200, 201, 206, 208 and
+  209 apply in that order to pristine Kolla-Ansible, and the
+  `nova-cell` hunk of patch209 yields
+  `nova_libvirt_image_full: "{{ lookup('kolla_image_full', ...) }}"`
+  under upstream's own `nova_libvirt_image` line. With plain
+  `git apply` (three lines of context) that hunk fails, which is what
+  Phase 6's step 6e recorded; its note is true, and does not matter
+  here. patch209 does depend on 206 and 208 (it adds to
+  `deployer-checks.yml` and to the `common.yml` lines 208 changes),
+  so the order is load-bearing.
+* **The Phase 8 section named only patch199 and patch209.** The
+  upstream-bound set is 199 (Kolla) and 200, 201, 206, 208 and 209
+  (Kolla-Ansible). patch210 is downstream (Kerbside's images).
+* **None of the six is on Gerrit.** A query of review.opendev.org for
+  each `Change-Id` returns nothing.
+* **The Change-Ids of patch200 and patch201 were typed, not
+  generated.** `I7b3e5a9c2d4f60812a3b4c5d6e7f8091a2b3c4d5` and
+  `I2f6a9d4c7e1b30586a9b0c1d2e3f4051627384a5` are runs of ascending
+  hex. Gerrit would accept them, but they should be regenerated before
+  anything is pushed.
+* **Series directories are tested unless `skip_rebase` is set, and
+  pushed only when `repush` is set.** `_build/repush-openstack.sh:11`
+  reads `.repush // false`; `_build/test-patches-for-ci.sh:57` skips a
+  directory whose `skip_rebase` is `true`. The Kerbside wave
+  directories set both, because the main series already tests their
+  patches. The deployer directories are different: the property they
+  exist to check, that the patches apply and pass tests on pristine
+  upstream, is exactly what the main series cannot check.
+* **Upstream's publish jobs** are the `kolla-publish-*-quay` jobs in
+  Kolla's `zuul.d/{debian,rocky,ubuntu}.yaml`, running
+  `tests/playbooks/publish.yml`. That is where the manifest's upstream
+  half would go.
+* **Facts the documents must use, recorded in earlier phases:**
+  controller-side `become` is rare upstream (Phase 2 Risks);
+  upstream's all-in-one names its host `localhost`, so a container
+  inventory cannot be a one-line change to it (Phase 3 survey); the
+  nsenter plugin's root assumption and environment leak (Phase 3,
+  Decision 3); digest pinning's three consequences (Phase 6); and what
+  Phase 7's numbers would and would not support (Phase 7 Outcome).
+* `docs/containerised-deployer.md` does not exist.
+  `docs/deployer-launcher.md` already states the three inventory rules
+  (lines 205-222).
+
+I have corrected this section's opening at its source, above. The
+index row describes the plan, not the phase, and needs no change.
+
+#### Decisions
+
+1. **No rebases.** The survey shows both patches apply to pristine
+   upstream with the apply this repository uses. A second copy of any
+   patch with different context would break the "one copy of each"
+   rule of *How this work is carried*.
+
+2. **The series directories are tested, and never pushed in this
+   phase.** `kolla-deployer/` and `kolla-ansible-deployer/` follow the
+   Kerbside wave directories' `config.yaml`, with `repush: false` and
+   `skip_rebase: false`. Turning on `repush` is the push decision, and
+   is one line when it is made. Until then, the daily rebase tells us
+   the day an upstream change stops the series applying, which is the
+   thing a proposal most needs to be true when it is sent.
+
+3. **The upstream inventory is a patch, in the deployer series only.**
+   Phase 3, Decision 5 said Phase 8 writes it. It goes in
+   `kolla-ansible-deployer/ORDER`, not the main `kolla-ansible/ORDER`:
+   our CI uses `etc/inventory-all-in-one-launcher-master`, which
+   carries Kerbside's groups, so the main series would only carry the
+   file, not use it. Its test is upstream's own lint, plus a check
+   that it differs from `ansible/inventory/all-in-one` only in the host
+   name and the two `[all:vars]` lines Phase 3 proved. That is weaker
+   than a deploy, and the proposal says so.
+
+4. **The two drafts that would leave the repository live inside the
+   proposal.** The community.docker issue and the Zuul publish-job
+   change are written as appendices to
+   `docs/containerised-deployer-proposal.md`, not as files in
+   `_patches/` or as issues. A publish-job patch that no CI here can
+   run is the "patch nothing deploys" that Phase 3 refused to write.
+
+5. **Two documents, not one.** `docs/containerised-deployer.md` is for
+   someone running the deployer: how to build it, run it, and what does
+   not work. The proposal is for upstream reviewers, and argues. Mixing
+   them makes the how-to read like advocacy and the proposal read like
+   a manual.
+
+6. **The proposal quotes numbers only as Phase 7 allows.** The
+   bootstrap section is shorter, by about two minutes at the median;
+   the deploy step as a whole is within noise; Galaxy failures are
+   rare here and say nothing about upstream's Zuul. 8e checks this
+   with a grep rather than a read.
+
+7. **Kayobe is a question in the proposal, not a dependency.** Asking
+   its maintainers first, as Future work suggests, would block the
+   draft on a conversation. The draft names the question; asking it is
+   part of sending.
+
+This plan's decision most likely to be argued with is 3: an upstream
+inventory that nothing here deploys. The alternative is to describe
+it in prose and let upstream write it, which is cheaper and honest.
+The patch wins because the proposal's series table should name every
+change, and because the delta against `all-in-one` is small and is what
+the proposal describes, which a reviewer can read faster than a
+paragraph describing it. The patch itself is a full new file, not a
+twenty-line diff. *Corrected in 8e.*
+
+#### Risks
+
+* **Upstream's tests fail on the deployer series without our other
+  patches** (for example a test that only passes with a downstream
+  fixture). 8b runs `_build/test-apply.sh` with tests, not
+  `--skip-tests`, on both directories, and the management session
+  reads the output before 8c starts.
+* **The proposal overstates.** It is the one place this plan's
+  numbers leave the repository. Mitigation: Decision 6, the grep in
+  8e, and the back brief gate on 8d's outline.
+* **The documents restate facts the plan holds, and drift.** Every
+  number in either document cites the phase Outcome it comes from,
+  and 8e greps the two documents for the Phase 7 headline figures to
+  check they match.
+* **The daily rebase now tests two more directories.** Each is a
+  short series; if the cost shows in the Rebase tests run time, set
+  `skip_rebase: true` and record why.
+
+| Step | Effort | Model | Isolation | Brief for sub-agent |
+|---|---|---|---|---|
+| 8a | high | opus | none | Write the upstream all-in-one inventory for the containerised deployer as a Kolla-Ansible patch, per Decision 3 of Phase 8 in `docs/plans/containerised-deployer.md`. Read Phase 3's survey and Decisions 1, 2, 3 and 5 first, and `etc/inventory-all-in-one-launcher-master` and `docs/deployer-launcher.md` (lines 205-222). Clone kolla-ansible at the `source_sha` in `kolla-ansible/config.yaml` into the scratchpad. Copy `ansible/inventory/all-in-one` to a new file beside it (choose the name; say why), rename its host from `localhost` to a name that is not `localhost`, and add `ansible_connection=community.docker.nsenter` and an absolute `ansible_remote_tmp` to `[all:vars]`, with a header comment saying what it is for and pointing at the plugin's root assumption. Add a release note in Kolla-Ansible's style. Take the number from `_build/get-next-patch-number.py`, name it `patchNNN-kolla-ansible-master-deployer-all-in-one.patch`, write its message with `tools/extract-commit-message` conventions and a real `Change-Id` (generate one), and list it in no `ORDER` yet; 8b does that. Show `diff` of the new inventory against the original: only the host name and the `[all:vars]` lines may differ. Commit subject: "Add an all-in-one inventory for the deployer." |
+| 8b | medium | sonnet | none | Create `kolla-deployer/` and `kolla-ansible-deployer/` per Decision 2 of Phase 8. Model each `config.yaml` on `kolla-ansible-kerbside/config.yaml` (the same `repo`, `source_branch`, `source_sha` and `previous_source_sha` as `kolla/config.yaml` and `kolla-ansible/config.yaml` respectively, a `destination_branch` of `containerised-deployer`, `skip_claude: true`, `skip_rebase: false`, and no `repush`). Check every key against `_build/common.sh`, `_build/apply-patches-and-test.sh`, `_build/test-patches-for-ci.sh` and `_build/repush-openstack.sh`, and against whatever enumerates series directories in `.github/workflows/`, so the new directories are tested and never pushed. `ORDER`: `kolla-deployer/` lists patch199; `kolla-ansible-deployer/` lists 200, 201, 206, 208, 209 and 8a's patch, in that order. Regenerate the `Change-Id` of patch200 and patch201 (the survey says they were typed), in both the `.patch` and `.patch-message` files. Prove both with `_build/test-apply.sh` with tests (not `--skip-tests`), and report the full summary. Add both directories to `ARCHITECTURE.md`'s inventory only if it lists series directories individually. Commit subject: "Test the deployer patches on pristine upstream." |
+| 8c | high | opus | none | Write `docs/containerised-deployer.md` per Decision 5 of Phase 8: for someone who wants to run the deployer. Sources, all in the repository: `docs/plans/containerised-deployer.md` (every phase's survey, Decisions and Outcome; read them, do not summarise the plan's process), `docs/deployer-launcher.md` (link it; do not copy its reference material), `_patches/patch199*`, and the CI wiring in `tools/bootstrap-kolla-ansible` and `.github/workflows/functional-tests.yml`. Sections: what it is and why; building the image; installing and running the launcher (point at `docs/deployer-launcher.md`); the version safeguards; the build manifest and digest pinning; what CI shows; and **what did not work**, as plainly as what did (at least: SSH to `127.0.0.1`, controller-side `become`, an inventory host named `localhost`, the nsenter plugin's root assumption and environment leak, podman untested, the Rocky post-bootstrap excess that is not established). Every number cites the phase it comes from. Link it from `docs/index.md`. Do not touch `AGENTS.md` unless a convention changed, and say whether one did. Commit subject: "Document the containerised deployer." |
+| 8d | high | opus | none | Write `docs/containerised-deployer-proposal.md`, the draft upstream proposal, per Decisions 4, 6 and 7 of Phase 8. **First write only an outline** (headings and one line each, plus the series table) and stop for the back brief gate below. Then the prose: a mailing-list post (openstack-discuss, `[kolla]` tag) that says what the deployer is, links the demo (this repository's launcher entries and their CI record), leads with digest pinning's two consequences from Phase 6 (a pull cannot mix builds; a tag that stopped being published cannot be deployed by accident), quotes Phase 7's numbers only as its Outcome's "would and would not support" list allows, and gives the series as a table: change, repository (`openstack/kolla`, `openstack/kolla-ansible`, `ansible-collections/community.docker`, and where the launcher itself should live, which is an open question), patch file, and status. Name the open questions: where the launcher lives, Kayobe, podman, the collection's `override-checkout: master`. Appendix A: the community.docker issue, as it would be filed (the root `remote_user` assumption and the environment leak, with the evidence from Phase 3). Appendix B: the change to Kolla's `kolla-publish-*-quay` jobs and `tests/playbooks/publish.yml` that would record digests after the push, as a sketch with the reasoning, not a patch. Link the proposal from `docs/containerised-deployer.md`. Commit subject: "Draft the containerised deployer proposal." |
+| 8e | low | sonnet | none | Run the checks below and report their output. Then record Phase 8's Outcome in `docs/plans/containerised-deployer.md`: 8b's test results, what each document covers, any patch finding from 8b, and the decisions left to Michael (push, post, file). Annotate the exit criteria. Commit subject: "Record what Phase 8 produced." |
+
+The 8e checks:
+
+```bash
+# No phrasing Phase 7 ruled out.
+! grep -inE 'faster deploy|deploys? faster|eleven minutes|8-11 min' \
+    docs/containerised-deployer*.md
+# Both documents exist and link each other and the launcher page.
+grep -q 'containerised-deployer-proposal.md' docs/containerised-deployer.md
+grep -q 'deployer-launcher.md' docs/containerised-deployer.md
+grep -q 'containerised-deployer.md' docs/index.md
+# Neither series directory can push.
+for d in kolla-deployer kolla-ansible-deployer; do
+    test "$(yq -r '.repush // false' $d/config.yaml)" = false
+done
+# No typed Change-Ids remain in the deployer patches.
+! grep -hE 'Change-Id: I(7b3e5a9c2d4f6081|2f6a9d4c7e1b3058)' \
+    _patches/patch20[01]-*
+pre-commit run --all-files
+```
+
+#### Back brief gate
+
+Before 8d writes prose, the management session shows Michael the
+outline and the series table. The table is the claim upstream will
+check first, and the outline fixes what the post leads with; both are
+cheap to change before the prose exists and costly after.
+
+#### Exit criteria
+
+* `_build/test-apply.sh` passes, with tests, for `kolla-deployer` and
+  `kolla-ansible-deployer`, on pristine upstream.
+  * Met. See 8b in the Outcome below: 172 tests for `kolla-deployer`,
+    579 for `kolla-ansible-deployer`, with pep8 and linters clean.
+* Neither directory sets `repush`, and both are picked up by the
+  Rebase tests workflow.
+  * Met for `repush`, which 8e's check confirms. Picked up: the matrix
+    entries `debian-13-kolla-deployer` and
+    `debian-13-kolla-ansible-deployer` are in `rebase-tests.yml`, but no
+    run of the workflow has exercised them yet, so this is not yet
+    observed in CI.
+* The new inventory differs from `ansible/inventory/all-in-one` only
+  in the host name and two `[all:vars]` lines.
+  * Met with a qualification. The delta is an 18-line header, the two
+    `[all:vars]` lines and six host renames, not one rename.
+* `docs/containerised-deployer.md` has a section on what did not work,
+  with at least the six cases in 8c's brief.
+  * Met.
+* The proposal's series table lists every upstream-bound patch, and
+  8e's checks pass.
+  * Met. 8e's checks pass, and `pre-commit run --all-files` is clean.
+* Nothing has been pushed, posted or filed.
+  * Met.
+
+#### Outcome
+
+Written by 8e, after 8a to 8d (`git log --oneline origin/develop..HEAD`:
+`72f081d27`, `963419576`, `c1c20676c`, `a8b8fd0dc`). 8e's checks all
+passed: no phrasing Phase 7 ruled out, the two documents link each other
+and the launcher page, neither series directory sets `repush`, no typed
+Change-Id remains in patch200 or patch201, and `pre-commit run
+--all-files` is clean.
+
+*8a, the inventory.* patch214,
+`_patches/patch214-kolla-ansible-master-deployer-all-in-one.patch`, adds
+`ansible/inventory/all-in-one-deployer`, with the host named `kolla`. Its
+`[all:vars]` carries `ansible_connection=community.docker.nsenter` and
+`ansible_remote_tmp=/tmp/.ansible-kolla`. The path is shared, unlike CI's
+per-user one, because an upstream example has no bootstrap to substitute
+a user name into it. The patch is a new file of about 600 lines. Its
+delta against `all-in-one` is an 18-line header, the two `[all:vars]`
+lines and six host renames.
+
+*8b, the series directories.* `kolla-deployer/` and
+`kolla-ansible-deployer/` have `release: containerised-deployer`, which
+matches no build target, `skip_rebase: false`, and no `repush`.
+`rebase-tests.yml`'s deep matrix is hand-written, so it gained a
+debian-13 entry for each. Test-apply results: `kolla-deployer` passed
+172 py3 tests and pep8 after patch199. `kolla-ansible-deployer` passed
+py3, pep8 and linters after each of 200, 201, 206, 208, 209 and 214; the
+last run was 579 tests, 577 passed and 2 skipped. The Change-Ids of
+patch200 and patch201 were regenerated. No patch needed downstream
+context, so there was no rebase and no second copy of any patch.
+
+*8c, the how-to.* `docs/containerised-deployer.md`. Two stale facts were
+fixed in passing: the launcher inventory's interpreter-pin comment, and
+the 1.7 GB "unpacked" figure, which is 1170 MiB unpacked per Phase 4.
+
+*8d, the proposal.* `docs/containerised-deployer-proposal.md`. Its outline
+was approved at the back brief gate. It adds four open questions:
+registry retention, no upstream CI job, the deployer tag being pushed
+twice, and an inventory nothing deploys. Two things are not verified.
+Appendix A's reproducer was not run in the form written, and Appendix B's
+`RepoDigests` approach has not been checked against a real publish.
+
+*Left to Michael.* Pushing to Gerrit, by setting `repush: true` on the
+two series directories. Posting the proposal. Filing the community.docker
+issue, after running Appendix A's reproducer first. Nothing has been
+pushed, posted or filed.
 
 ### Phase 9: Push audit
 
