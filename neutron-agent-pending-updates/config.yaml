@@ -5,6 +5,6 @@ shallow_clone: true
 directory: neutron
 release: master-neutron-agent-pending-updates
 depends_on: ''
-source_sha: 152dcdf849341f07374398ab12693132efd73ca9
-previous_source_sha: 2f608d4a678b239bc7dd3938bd7d1fa4578c92e2
+source_sha: 8e0b546521abde0d96e68169a60c043a5053e684
+previous_source_sha: 152dcdf849341f07374398ab12693132efd73ca9
 repush: true
