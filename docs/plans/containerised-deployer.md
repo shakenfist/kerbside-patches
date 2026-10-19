@@ -366,7 +366,7 @@ against `develop`.
 | 5. Version safeguards | Complete | #1867 (`b38293652`) |
 | 6. Build manifest | Complete | #1881 (`784e95d9e`) |
 | 7. Make the prototype entry voting | Complete | #1896 (`1af58c137`), #1919 (`3b8ff103d`) |
-| 8. Documentation and upstream proposal | In progress | |
+| 8. Documentation and upstream proposal | Complete | #1925 (`54b8bb270`) |
 | 9. Push audit | Not started | |
 
 The order is deliberate. Phase 0 comes first so that every later
