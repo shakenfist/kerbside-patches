@@ -358,16 +358,16 @@ against `develop`.
 
 | Phase | Status | Merged |
 |-------|--------|--------|
-| 0. A CI entry for the prototype | Complete | #1796 (`725cf1e8a`), #1799 (`190daeeca`); shakenfist/actions#121 (`7eaa1e534`) |
+| 0. A CI entry for the prototype | Complete | #1796 (`725cf1e8a`), #1799 (`190daeeca`); shakenfist/actions `7eaa1e534` (#121) |
 | 1. Deployer image | Complete | #1803 (`507fbea62`) |
 | 2. Launcher | Complete | #1812 (`b97361853`) |
 | 3. The localhost connection | Complete | #1831 (`f2dd038ab`) |
-| 4. Bootstrapping the deploy host | Complete | #1854 (`78c6e79c7`), #1857 (`af2474d4f`); shakenfist/actions#150 |
+| 4. Bootstrapping the deploy host | Complete | #1854 (`78c6e79c7`), #1857 (`af2474d4f`); shakenfist/actions `34b05f734` (#150) |
 | 5. Version safeguards | Complete | #1867 (`b38293652`) |
 | 6. Build manifest | Complete | #1881 (`784e95d9e`) |
 | 7. Make the prototype entry voting | Complete | #1896 (`1af58c137`), #1919 (`3b8ff103d`) |
 | 8. Documentation and upstream proposal | Complete | #1925 (`54b8bb270`) |
-| 9. Push audit | Not started | |
+| 9. Push audit | In progress | |
 
 The order is deliberate. Phase 0 comes first so that every later
 phase is proven in CI as it lands, rather than CI arriving at the
@@ -4317,22 +4317,251 @@ pushed, posted or filed.
 
 ### Phase 9: Push audit
 
-Planning effort: medium.
+Planning effort: medium. Review effort: high for 9b and 9c, because
+they are the only read of the plan's code taken as a whole rather than
+one phase at a time.
 
 This repository has no `PUSH-AUDIT.md` yet. This phase runs what
-`PLAN-TEMPLATE.md` specifies in its place over the accumulated
-diff of Phases 0 to 8 against `origin/develop`, using the ranges
-recorded in the `Merged` column:
+`PLAN-TEMPLATE.md` specifies in its place over the accumulated diff of
+Phases 0 to 8, using the ranges recorded in the `Merged` column: the
+five-item checklist of the `plan-push-audit-phase` shared block, and on
+top of it a code review of those ranges, `_build/test-apply.sh` for
+every project directory the plan touched, and a read of every
+documentation page the plan changed. *Corrected at planning (see the
+survey below):* this section first named only the last three, and said
+the `shakenfist/actions` changes were already audited there. They were
+not.
 
-* a `/code-review` of that diff;
-* `_build/test-apply.sh` for every project directory the plan
-  touched; and
-* a read of every documentation page the plan changed.
+**In scope:**
+* the shared block's five checklist items, each with a verdict or a
+  sentence saying why it does not apply;
+* a code review of the twelve merges below, read together, in two
+  halves: this repository's own code, and the upstream-bound patches;
+* `_build/test-apply.sh`, with tests, for the five project directories
+  the plan touched, in a fresh clone;
+* a read of the eight documentation pages the plan changed, checked
+  against the tree; and
+* the audit of the two `shakenfist/actions` merges under that
+  repository's own `PUSH-AUDIT.md`.
 
-Phase 0's changes in `shakenfist/actions` are audited in that
-repository, as part of the pull request that lands them, and are
-cited here rather than re-run. Findings land as their own pull
-request.
+**Out of scope:**
+* Fixing anything. Findings land as their own pull request after this
+  phase merges, as the shared block requires. This phase's pull request
+  carries the audit's results and nothing else.
+* Re-raising what *Future work* already records. A known gap is not a
+  finding; one that has become worse, or whose entry is now wrong, is.
+* Pushing to Gerrit, posting the proposal, or filing on
+  community.docker. Phase 8 left those to Michael, and the audit does
+  not change that.
+* Rewriting history. If item 3 finds something that should never have
+  entered a public repository, the audit records it and Michael decides.
+
+#### What the survey found
+
+Checked against `origin/develop` at `3bd67676e`.
+
+* **No `PUSH-AUDIT.md`**, as the section said. `PLAN-TEMPLATE.md`'s
+  "In this project" note under the push-audit block is the substitute,
+  and it adds the five-item checklist as a floor, which this section
+  did not list. Corrected above.
+* **Every recorded landing here is a two-parent merge commit on
+  `develop`'s first-parent history**, so each diffs cleanly against its
+  first parent:
+
+  | Merge | PR | Phase | Files | +/- |
+  |-------|----|-------|-------|-----|
+  | `725cf1e8a` | #1796 | 0 | 6 | +246 -25 |
+  | `190daeeca` | #1799 | 0 | 1 | +1 -2 |
+  | `507fbea62` | #1803 | 1 | 12 | +806 -61 |
+  | `b97361853` | #1812 | 2 | 34 | +3309 -59 |
+  | `f2dd038ab` | #1831 | 3 | 9 | +642 -85 |
+  | `78c6e79c7` | #1854 | 4 | 17 | +1935 -164 |
+  | `af2474d4f` | #1857 | 4 | 5 | +344 -64 |
+  | `b38293652` | #1867 | 5 | 9 | +2115 -34 |
+  | `784e95d9e` | #1881 | 6 | 18 | +4413 -14 |
+  | `1af58c137` | #1896 | 7 | 6 | +1872 -13 |
+  | `3b8ff103d` | #1919 | 7 | 3 | +120 -9 |
+  | `54b8bb270` | #1925 | 8 | 17 | +1869 -21 |
+
+  Their union is 79 paths: 58 added, 21 modified, none deleted or
+  renamed (`git diff --name-status -M`), and every one still exists.
+  The list, for every step below:
+
+  ```bash
+  MERGES="725cf1e8a 190daeeca 507fbea62 b97361853 f2dd038ab 78c6e79c7
+          af2474d4f b38293652 784e95d9e 1af58c137 3b8ff103d 54b8bb270"
+  for m in ${MERGES}; do git diff --name-only ${m}^1 ${m}; done | sort -u
+  ```
+
+* **The `shakenfist/actions` changes were never audited.** The section
+  said Phase 0's were "audited in that repository, as part of the pull
+  request that lands them". Neither #121 (`7eaa1e534`, Phase 0) nor
+  #150 (`34b05f734`, Phase 4) mentions an audit in its body or
+  comments, and this section did not name #150 at all. Both are
+  two-parent merges touching one file each
+  (`deploy-kolla-ansible/action.yml`,
+  `setup-kerbside-environment/action.yml`). That repository does have a
+  `PUSH-AUDIT.md`, of two waves. Phase 4's `Merged` cell had no commit
+  for #150; both cells now use the block's `<repo> <sha> (#pr)` form.
+* **Five project directories were touched**: `kolla/` and
+  `kolla-ansible/` (their `ORDER` files only), `ansible-collection-kolla/`
+  (added in Phase 1 with an empty `ORDER` and `FORCE`, for a fallback
+  Phase 4 never took), and `kolla-deployer/` and
+  `kolla-ansible-deployer/` (Phase 8). No per-release directory was
+  touched. The patches are 199, 200, 201, 206, 208, 209, 210 and 214.
+* **The patches have moved since they merged.** The daily rebase
+  rewrites patch files, so a merge's diff shows a patch as it landed,
+  not as it is now. The same goes for code a later phase changed.
+* **Phase 8's last open exit criterion is now observed.** Rebase tests
+  runs `39056461955` (2026-10-17) and `39153391224` (2026-10-18) both
+  passed, with the `debian-13-kolla-deployer` and
+  `debian-13-kolla-ansible-deployer` jobs green in each.
+* **Eight documentation pages were changed**, besides this plan:
+  `AGENTS.md`, `ARCHITECTURE.md`, `docs/building.md`,
+  `docs/containerised-deployer.md`,
+  `docs/containerised-deployer-proposal.md`,
+  `docs/deployer-launcher.md`, `docs/index.md` and
+  `docs/script-reference.md`.
+* **Leads for checklist item 3, not verdicts.** Both repositories are
+  public. The plan's merges added `gitlab.home.stillhq.com:5050`
+  (`507fbea62`, `b97361853`, and in `784e95d9e` as a `click` default in
+  `tools/write-build-manifest`), `devpi.home.stillhq.com`
+  (`af2474d4f`) and `sfcbr` (`3b8ff103d`). `gitlab.home.stillhq.com`
+  was already in `_build/common.sh:66` before the plan started, so
+  whether these "entered" the repository is a judgement for 9e.
+  `10.0.2.0/24` addresses in `tools/` are the test cloud's network.
+* **No secret scanner is installed on the host.** gitleaks runs from
+  its container image.
+* **`/code-review` takes one target**: a diff, a pull request, a branch
+  or paths. The twelve merges are not contiguous, since unrelated work
+  landed between them, so no single target is the plan's diff.
+* **`_build/test-apply.sh` can report success while testing nothing**
+  if `src/kolla-ansible` has a stale `master-patches` branch (Future
+  work). The audit's run has to be in a fresh clone.
+
+I have corrected this section's opening, and the two `shakenfist/actions`
+cells of the Execution table, at their source. The index row describes
+the plan, not the phase, and needs no change.
+
+#### Decisions
+
+1. **Read each merge as it landed, and judge the files as they are
+   now.** The recorded ranges say what the plan changed; each merge's
+   diff against its first parent says why. But the patches have been
+   rebased since and later phases changed earlier phases' code, so a
+   finding names the file and line in today's tree, and is a finding
+   only if it is still true there.
+
+2. **The code review is two sub-agents, not one `/code-review` run.**
+   `/code-review` cannot take twelve separate merges as one target, and
+   running it once per pull request is the one-phase-at-a-time audit
+   the shared block exists to replace. 9b reads this repository's code
+   (the launcher, `tools/`, `_build/`, `etc/` and the workflows); 9c
+   reads the upstream-bound patches, judged against the plan's second
+   question: would an upstream reviewer accept them. Both ask the
+   cross-phase question explicitly. The management session may still
+   run `/code-review` on a single pull request to settle a disputed
+   finding.
+
+3. **Audit the `shakenfist/actions` merges now, under that repository's
+   runbook.** "Cite rather than re-run" assumed an audit that never
+   happened, and skipping it would be the silent omission the shared
+   block warns about. It is two one-file merges, so it is cheap. 9f
+   runs `shakenfist/actions`' `PUSH-AUDIT.md`, not this repository's
+   checklist (the block says not to borrow a runbook). Its findings
+   become a pull request there, and its result is recorded here.
+
+4. **`test-apply.sh` runs locally, in a fresh clone, for all five
+   directories, with tests.** The green Rebase tests runs are
+   corroboration, not a substitute: they run at a different SHA and
+   their logs are not read by anyone. `ansible-collection-kolla/` is
+   run too, to record what an empty `ORDER` does. Whether that empty
+   directory should exist at all is a question for 9b.
+
+5. **Each finding is classified: fix, decline or Future work.** A fix
+   lands in the follow-up pull request. A decline says why, in this
+   plan. Future work is for a real gap that is not this plan's change.
+   Declines are Michael's call (see the back brief gate).
+
+6. **This phase closes itself out.** If nothing needs fixing, this
+   pull request sets Phase 9 and the plan's index row to `Complete`,
+   with no `Merged` cell. If something does, the follow-up pull request
+   carries the close-out and records this phase's merge commit, as
+   `plan-phase-landing` requires. A `shakenfist/actions` finding does
+   not hold the close-out once its pull request there has merged.
+
+The decision most likely to be argued with is 3. It widens the audit
+into a second repository, with a different runbook, for a change that
+is two files. The alternative is to record that the audit was never run
+and move on, which is honest but leaves the shared block's rule broken
+for this plan, and the next plan would copy that. Doing it costs one
+sub-agent.
+
+#### Risks
+
+* **Reviewers re-find what Future work records**, and the findings
+  list fills up with noise. Each brief names the entries; the
+  management session drops duplicates before the gate.
+* **The review turns into a redesign.** A finding must name a failure
+  scenario, with inputs and the wrong result. A design opinion with no
+  failure goes to Future work, if anywhere.
+* **`test-apply.sh` fails for reasons outside the patches** (PyPI, Ansible
+  Galaxy, a tox environment). 9a reruns once, and classifies a failure
+  as the patch's or the environment's in the way the `check-patches`
+  skill does. The green Rebase tests runs are the comparison.
+* **Item 3 finds something that needs a history rewrite.** That is out
+  of scope (see above): it is recorded, and Michael decides.
+* **The audit itself goes stale** if the daily rebase moves the patches
+  between 9a and the merge. 9a records the SHA it tested.
+
+| Step | Effort | Model | Isolation | Brief for sub-agent |
+|---|---|---|---|---|
+| 9a | medium | sonnet | none | Run the mechanical checks for Phase 9 of `docs/plans/containerised-deployer.md` and report output; change nothing and commit nothing. Clone this repository fresh into the scratchpad at `origin/develop` (not a worktree: a stale `master-patches` branch in `src/` makes `_build/test-apply.sh` pass while testing nothing). Record the SHA. Run `_build/test-apply.sh` with tests (no `--skip-tests`) for `kolla`, `kolla-ansible`, `ansible-collection-kolla`, `kolla-deployer` and `kolla-ansible-deployer`, one at a time, and report each summary, including test counts. Rerun a failure once, and say whether it looks like the patches or the environment. Then `pre-commit run --all-files` (it runs the launcher, `write-build-manifest` and `measure-deployer-bootstrap` tests). Then gitleaks from its container image over the twelve merges listed in the survey (each merge's first-parent diff), with a positive control: a scratch commit carrying a fake AWS key that it must find. Then the lines over 120 characters in Python the merges added. Report the commands as well as their output. |
+| 9b | high | opus | none | Review this repository's own code from the twelve merges listed in Phase 9's survey: `deployer/launcher/`, `tools/` (`bootstrap-kolla-ansible`, `check-deployer-*`, `install-openstack-clients`, `ka`, `measure-deployer-bootstrap`, `postinstall-kolla-ansible`, `write-build-manifest` and their tests), `_build/`, `etc/`, `.github/workflows/` and `.pre-commit-config.yaml`. Read each merge's diff against its first parent for intent, and the file as it is now for the finding (Decision 1). Look hardest at what one phase did to another: a helper written twice, an assumption Phase 2 made that Phase 4 or 6 broke, a CI path no entry exercises. Also say whether `ansible-collection-kolla/` (empty `ORDER` and `FORCE`) should still exist. Every finding gives a file and line in today's tree, a failure scenario, and a suggested class (fix, decline, Future work). Do not re-raise *Future work* entries unless one is now wrong. Change nothing. |
+| 9c | high | opus | none | Review the upstream-bound patches as an upstream reviewer would: `_patches/patch199*` (openstack/kolla) and 200, 201, 206, 208, 209 and 214 (openstack/kolla-ansible), and patch210 (downstream) for its interaction with 208 and 209. Read Phase 1, 5, 6 and 8's Decisions first. Apply them to pristine upstream at the `source_sha` pins in `kolla-deployer/config.yaml` and `kolla-ansible-deployer/config.yaml`, in a scratchpad clone, and read the result, not only the diffs. Check: upstream's style (release notes, docs, tests, commit messages); that each patch does one thing; that the series' order holds; that no patch relies on a downstream patch; and the cross-phase question (does 209's manifest still cover what 206's guards check, for example). Every finding gives a patch and hunk, a failure scenario or the reviewer comment it would draw, and a suggested class. Change nothing. |
+| 9d | medium | opus | none | Read the eight documentation pages Phase 9's survey lists, and check every factual claim against the tree: a path, a command, a flag, a default, a line reference, a number. `docs/containerised-deployer.md` and the proposal cite phase Outcomes for their numbers; check each against the Outcome it names in `docs/plans/containerised-deployer.md`. Check that no fact is stated differently on two pages, and that `AGENTS.md` and `ARCHITECTURE.md` changed only as their own rules allow (a convention, the shape of the system). Report each error with file, line and the correct fact. Change nothing. |
+| 9e | medium | sonnet | none | Give a verdict for items 2 to 5 of the `plan-push-audit-phase` checklist in `PLAN-TEMPLATE.md`, over the twelve merges in Phase 9's survey (item 1 is the survey's table). Item 2: anything that runs unattended, including the two deployer entries in `rebase-tests.yml`, and say where its failure is seen. Item 3: use 9a's gitleaks result, and judge the survey's hostname leads; say which were already in the repository before the plan. Item 4: nothing was deleted or renamed, but modified files lost lines (`tools/ka`, the workflows); grep this repository, `shakenfist/actions` and `shakenfist/kerbside` for consumers of anything removed, and state the greps. Item 5: what the repository publishes (images, the build manifest, patches to Gerrit through `repush`) and whether a broken change fails closed. Change nothing. |
+| 9f | medium | sonnet | none | Audit `shakenfist/actions` merges `7eaa1e534` (#121) and `34b05f734` (#150) under that repository's own `PUSH-AUDIT.md`, per Decision 3 of Phase 9. Clone it fresh into the scratchpad. Scope its range to those two merges, each against its first parent, and run wave 1 and wave 2 as the runbook directs; say which checks you could not run and why. Report findings with file, line and failure scenario, or say in one sentence that there are none. Change nothing in either repository. |
+| 9g | low | sonnet | none | After the back brief gate, record Phase 9's Outcome in `docs/plans/containerised-deployer.md`: 9a's SHA and results, a findings table (finding, source step, class, where it lands), each decline with its reason, 9e's verdicts, and 9f's result. Annotate the exit criteria. If nothing is classed fix, set Phase 9 and the plan's row in `docs/plans/index.md` to `Complete` (Decision 6). Run the checks below. Commit subject: "Record the deployer plan's push audit." |
+
+The 9g checks:
+
+```bash
+git fetch origin
+# Every recorded landing here is a two-parent merge on develop's
+# first-parent history.
+for m in 725cf1e8a 190daeeca 507fbea62 b97361853 f2dd038ab 78c6e79c7 \
+         af2474d4f b38293652 784e95d9e 1af58c137 3b8ff103d 54b8bb270; do
+    test "$(git rev-list --parents -n1 ${m} | wc -w)" = 3
+    git rev-list --first-parent origin/develop | \
+        grep -q "^$(git rev-parse ${m})"
+done
+# The audit changed nothing but the plan (and the index, at close-out).
+test -z "$(git diff --name-only origin/develop...HEAD | \
+    grep -vE '^docs/plans/(containerised-deployer|index)\.md$')"
+pre-commit run --all-files
+```
+
+#### Back brief gate
+
+Before 9g writes the Outcome, the management session shows Michael the
+findings table with each finding's proposed class. Declining a finding
+is a decision the plan records for good, and changing a class is cheap
+before the Outcome is written and a second round of review after it.
+
+#### Exit criteria
+
+* Each of the shared block's five checklist items has a verdict, or a
+  sentence saying why it does not apply.
+* `_build/test-apply.sh` passes, with tests, for all five project
+  directories in a fresh clone, or each failure is classified.
+* Every 9b and 9c finding names a file and line (or patch and hunk) in
+  today's tree, and has a class.
+* All eight documentation pages were read against the tree, and each
+  error found is listed.
+* The `shakenfist/actions` audit is recorded, with its pull request or
+  a sentence saying it found nothing.
+* This pull request changes only the plan and, at close-out, the index.
 
 ## Agent guidance
 
