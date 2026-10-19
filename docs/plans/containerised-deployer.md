@@ -4405,8 +4405,10 @@ Checked against `origin/develop` at `3bd67676e`.
   for #150; both cells now use the block's `<repo> <sha> (#pr)` form.
 * **Five project directories were touched**: `kolla/` and
   `kolla-ansible/` (their `ORDER` files only), `ansible-collection-kolla/`
-  (added in Phase 1 with an empty `ORDER` and `FORCE`, for a fallback
-  Phase 4 never took), and `kolla-deployer/` and
+  (added in Phase 1 to pin the collection the deployer image installs:
+  its `ORDER` is empty, and the empty `FORCE` file is what makes
+  `assemble-source.sh` and `imagebuild.sh` include it, per Phase 1
+  Decision 8. *Corrected in 9g.*), and `kolla-deployer/` and
   `kolla-ansible-deployer/` (Phase 8). No per-release directory was
   touched. The patches are 199, 200, 201, 206, 208, 209, 210 and 214.
 * **The patches have moved since they merged.** The daily rebase
@@ -4476,7 +4478,8 @@ the plan, not the phase, and needs no change.
    corroboration, not a substitute: they run at a different SHA and
    their logs are not read by anyone. `ansible-collection-kolla/` is
    run too, to record what an empty `ORDER` does. Whether that empty
-   directory should exist at all is a question for 9b.
+   directory should exist at all is a question for 9b. (9b: it
+   should; see the Outcome.)
 
 5. **Each finding is classified: fix, decline or Future work.** A fix
    lands in the follow-up pull request. A decline says why, in this
@@ -4553,15 +4556,129 @@ before the Outcome is written and a second round of review after it.
 
 * Each of the shared block's five checklist items has a verdict, or a
   sentence saying why it does not apply.
+  * Met. All five items have verdicts.
+
 * `_build/test-apply.sh` passes, with tests, for all five project
   directories in a fresh clone, or each failure is classified.
+  * Met with a qualification. Four of the five directories pass; the
+    fifth, `ansible-collection-kolla/`, fails in the upstream baseline
+    and is classified and declined (finding 18).
+
 * Every 9b and 9c finding names a file and line (or patch and hunk) in
   today's tree, and has a class.
+  * Met. Every finding names a location and has a class.
+
 * All eight documentation pages were read against the tree, and each
   error found is listed.
+  * Met. About 225 claims were checked and 12 errors found; they are
+    folded into rows 12 to 17.
+
 * The `shakenfist/actions` audit is recorded, with its pull request or
   a sentence saying it found nothing.
+  * Met with a qualification. The audit is recorded; its pull request
+    is part of the follow-up work.
+
 * This pull request changes only the plan and, at close-out, the index.
+  * Met. This pull request changes only the plan.
+
+#### Outcome
+
+Written in 9g, after 9a to 9f, on the tree at `3bd67676e`
+(origin/develop). Michael classified every finding at the
+back brief gate on 2026-10-20 and accepted the proposed classes.
+Findings land in a follow-up pull request here and one in
+shakenfist/actions, so Phase 9 stays In progress and the follow-up pull
+request closes the plan out (Decision 6).
+
+*9a, mechanical.* `_build/test-apply.sh` with tests, in a fresh clone
+at `3bd67676e`. kolla passed (patches 047, 154, 175, 196 and 199; py3
+172/172, pep8 clean). kolla-ansible passed (17 patches through 210;
+the last py3 run was 579 ran, 577 passed, 2 skipped; pep8, linters and
+bashate clean; 35 minutes). kolla-deployer passed (199; 172/172).
+kolla-ansible-deployer passed (200, 201, 206, 208, 209 and 214; same
+counts, linters clean). ansible-collection-kolla fails in the upstream
+baseline before any patch is applied: upstream at `9fc1185` has no
+`tests/` directory, so stestr cannot start. A rerun without deleting
+`src/` "passed" by reusing the stale `master-patches` branch and
+testing nothing, which is the Future work hazard seen live.
+pre-commit is clean (11 hooks). gitleaks v8.18.4, from its container
+image, over each of the twelve merges' first-parent ranges found no
+leaks, and a positive control (a fake AWS key) was caught. No added
+Python line is over 120 characters.
+
+Findings, with the step that raised each, its class and where it
+lands:
+
+| # | Finding | Step | Class | Lands in |
+|---|---|---|---|---|
+| 1 | Launcher bind-mounts a host /etc/kolla-ansible over the image's, hiding deployer.json and manifest.json, which disables the version guards and digest pinning (`deployer/launcher/kolla_ansible_launcher/mounts.py:24`) | 9b | fix | follow-up PR |
+| 2 | patch206's release note states the record rule backwards (refuses a record showing an older release; the code refuses an older deployer) | 9c | fix | follow-up |
+| 3 | patch206 "Deployer checks" and patch209 "Build manifests" use `---`, nesting them under "Upgrade procedure" in operating-kolla.rst | 9c | fix | follow-up |
+| 4 | patch200 and patch201 carry no Assisted-By line | 9c | fix | follow-up |
+| 5 | All seven upstream commit messages exceed upstream's limits per tools/gerrit-pre-push-lint (body paragraphs, bullets, subject style); trim them before any push | 9c | fix | follow-up |
+| 6 | patch214 adds a third sample inventory but doc/source/contributor/adding-a-new-service.rst still names only multinode and all-in-one | 9c | fix | follow-up |
+| 7 | With 209, prune-images on Docker's classic image store deletes images pulled only by digest (reasoned from moby, not reproduced); one sentence in 209's notes and docs | 9c | fix | follow-up |
+| 8 | Proposal: patch209 and patch147 must land upstream in a coordinated order (patch210's conversions ride with whichever is second); Open question 4 misses patch199's sources.yaml `reference: master`; patch201's series-table row should say it is needed only if upstream adopts the launcher | 9c | fix | follow-up |
+| 9 | ANSIBLE_* variables are forwarded but the files they name are not mounted, so ANSIBLE_CONFIG outside the mounted paths is silently ignored (`command.py:24`) | 9b | fix | follow-up |
+| 10 | Nothing keeps etc/inventory-all-in-one-launcher-master in step with etc/inventory-all-in-one-master | 9b | fix (pre-commit diff check) | follow-up |
+| 11 | _build/calculate-container-hash.sh only warns and skips a src/ tree that is not a git repository, so a change there could reuse a stale tag; it should exit 1 as the empty case does | 9e | fix | follow-up |
+| 12 | AGENTS.md:36-37 says there is no Python linting outside deployer/, but flake8 and tests cover tools/write-build-manifest and tools/measure-deployer-bootstrap | 9b, 9d | fix | follow-up |
+| 13 | ARCHITECTURE.md's layout omits kolla-deployer/ and kolla-ansible-deployer/ | 9d | fix | follow-up |
+| 14 | docs/containerised-deployer.md:452 says the patches are all on the main series; patch214 is only in kolla-ansible-deployer/ORDER, and the table above omits it | 9d | fix | follow-up |
+| 15 | docs/deployer-launcher.md:449-451 gives per-pair differences as "up to 900 seconds" (Phase 7 Outcome: -947s to +777s) and "9 of 13 / 8 of 13" counts no Outcome holds | 9d | fix | follow-up |
+| 16 | "About two minutes" for the bootstrap saving (containerised-deployer.md:302, proposal:99) overstates Rocky's 95s; say about 95 to 130s | 9d | fix | follow-up |
+| 17 | Smaller doc errors: script-reference.md omits tools/check-deployer-{launcher,guards,manifest} and the launcher mode of bootstrap-kolla-ansible, links plans/containerised-deployer.md under a misleading name and says "jobs" for runs; archive/images should be archive/images-<tag> in ARCHITECTURE.md and building.md; building.md's hash description and the build-manifest step list; deployer-launcher.md's "phases still to come", `launcher show` wording and exit-status claim; the proposal's Kolla-Ansible SHA should read "at the time of writing" | 9d, 9e | fix | follow-up |
+| 18 | ansible-collection-kolla test-apply fails (see 9a) | 9a | decline | — |
+| 19 | patch214's ansible_remote_tmp=/tmp/.ansible-kolla is a predictable path in world-writable /tmp | 9c | Future work | this plan |
+| 20 | patch199's kolla_ansible_launcher_protocol label has no upstream consumer | 9c | decline | — |
+| 21 | _build/build-containers.sh:136 (Phase 6) passes the registry token on the occystrap command line, as the older lines 46 and 352 do | 9e | Future work | #1932 |
+| A1 | shakenfist/actions docs/actions.md documents neither deploy-kolla-ansible's `deployer` input nor setup-kerbside-environment's `install_docker` | 9f | fix | shakenfist/actions PR |
+| A2 | shakenfist/actions: an empty `deployer` emits a bare `--deployer` (action.yml:61), and `install_docker` treats any value but the exact string true as false (action.yml:160) | 9f | fix | shakenfist/actions PR |
+
+*The declines.* Finding 18: the directory has no patches and upstream
+has no unit tests. It exists for the collection pin in `config.yaml`
+and the `FORCE` file, which makes `assemble-source.sh` and
+`imagebuild.sh` clone it for the deployer image. Nothing runs
+test-apply on it in CI, and testing it would test nothing of ours.
+Finding 20: Phase 1 Decision 4 chose the label. It is harmless
+upstream, and the proposal's open question on where the launcher lives
+covers it.
+
+*9e, the checklist.* Item 1: pass. The survey's table has the twelve
+two-parent merges here, and the two actions merges were audited in 9f.
+Item 2: pass. Nothing unattended was added. The two deployer matrix
+entries in `rebase-tests.yml` run on pull requests (including the daily
+rebase's) and fail as red checks, and Phase 7's removal of
+`continue-on-error` made launcher failures visible. Item 3: pass for
+secrets, as gitleaks is clean and the plan added no place that prints a
+token. For hostnames, the CI registry and package-mirror hostnames were
+already in the repository before the plan. The test-cloud's name appears
+for the first time, as a bare name in plan prose only, which the audit
+accepts. Item 4: pass. Nothing was deleted or renamed. The removed lines
+(the deployer marker step, the old hash arguments and prefix, `tools/ka`'s
+`$*`, the venv path in `functional-tests.yml`, the unconditional Docker
+install) were grepped for across this repository, shakenfist/actions and
+shakenfist/kerbside, and no stale consumer remains. Item 5: pass. No
+touched `config.yaml` sets `repush`, and `write_build_manifest` and
+`write_build_marker` fail the build rather than mark a partial one
+complete. Finding 11 is the one gap.
+
+*9f, shakenfist/actions.* Audited under that repository's
+`PUSH-AUDIT.md` at main `3c9c6f5`. Wave 1 was clean: pre-commit, 762
+unit tests, and gitleaks over all 599 commits with a positive control.
+Wave 2 was read by the agent itself, given only 19 added lines. The
+ansible syntax check was not run, since neither merge touches
+`ansible/`. The findings are A1 and A2.
+
+*Issues filed* for problems that predate the plan. #1931:
+`_build/analyze-shared-patches.py` chooses `create_copy` for a patch
+shared by master series, which would fork the deployer patches against
+Phase 8 Decision 1; reproduced with a synthetic failure. #1932: the
+registry token printed in the banners of `tools/bootstrap-kolla-ansible`
+and `_build/build-containers.sh`, and passed on command lines.
+
+*Corrected at source.* The survey's ansible-collection-kolla bullet,
+which gave the wrong reason for the directory's existence.
 
 ## Agent guidance
 
@@ -4649,9 +4766,16 @@ We will know this plan has succeeded when the following are true:
   makes `_build/test-apply.sh` report "All patches applied correctly"
   while applying and testing nothing.** Phase 6b ran its tests in a
   fresh clone. The script should refuse, or reset the branch.
-* `_build/build-containers.sh:16` echoes the registry token in its
-  banner. GitHub Actions masks it, so nothing leaks in CI; a local run
-  prints it. Pre-existing.
+* Both banners, `_build/build-containers.sh:15` and
+  `tools/bootstrap-kolla-ansible:18`, echo the registry token. GitHub
+  Actions masks it, so nothing leaks in CI; a local run prints it.
+  Pre-existing. #1932 tracks it, with the uses of `--password` on a
+  command line.
+* **patch214's `ansible_remote_tmp=/tmp/.ansible-kolla` is a
+  predictable path shared in world-writable `/tmp`.** A local user can
+  win a symlink or rename race on it. The fix is a per-user or
+  `mktemp` path, once upstream has a bootstrap to substitute it; Appendix
+  A of the proposal already calls the workaround temporary.
 
 ### Bugs fixed during this work
 
