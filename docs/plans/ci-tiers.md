@@ -277,11 +277,23 @@ Required checks have to come from somewhere that always reports, so:
   `predicate-quantifier: 'every'`, with
   `base: ${{ github.event.merge_group.base_sha || 'develop' }}`.
   A docs-only or data-only pull request or queue entry skips every
-  heavy job, and the aggregators pass on the skips.
+  heavy job, and the aggregators pass on the skips. Unlike
+  kerbside's copy, the job checks out on every event, dispatches
+  included, because the lane selector and the superseded-run check
+  both read the tree, and it carries job-level `permissions:` of
+  `contents: read` and `actions: write`, because the workflow's own
+  block is `contents: read` and the superseded-run check cancels its
+  own run.
 * `rebase-tests.yml` becomes a reusable (`workflow_call`) workflow,
-  which `functional-tests.yml` calls with the tier. Its result then
-  sits in the aggregators' `needs`. `local-container-builds.yml`
-  does the same, and keeps `workflow_dispatch`.
+  which `functional-tests.yml` calls with the tier and
+  `secrets: inherit` (the lint fixer pushes with
+  `DAILY_REBASE_TOKEN`). Its result then sits in the aggregators'
+  `needs`. `local-container-builds.yml` does the same, and keeps
+  `workflow_dispatch`. Inside a called workflow `github.workflow` is
+  the caller's name, so a called job's concurrency suffix must not
+  repeat one of the caller's: `rebase-tests.yml`'s `-lint` would
+  share a group with the pre-commit job and the two would cancel
+  each other.
 * The lanes move into `.github/ci-lanes.json`, each carrying the
   tiers it runs in. A short `tools/ci-select-lanes.py`, run in
   `check_paths`, emits the build, install and patch-test matrices for
@@ -305,8 +317,12 @@ Required checks have to come from somewhere that always reports, so:
   are written as in client-python-k3s. They use `always()`, not
   `!cancelled()`, so a cancelled run fails `Can merge` instead of
   skipping it. Their jq passes only `success` and `skipped`, so
-  `cancelled` fails. `collect_layer_data` and the automated lint
-  fixer are not in either `needs` list.
+  `cancelled` fails. Each needs every gated job directly, not
+  through another job, because a job skipped after its own `needs`
+  failed reports `skipped`. `collect_layer_data` is in neither
+  `needs` list. The automated lint fixer runs inside the patch-test
+  call, so its result folds into the call's; it only runs after lint
+  has already failed that call, so this adds no failure mode.
 * Every job on a VM or bound runner keys its concurrency group as:
 
   ```yaml
@@ -430,11 +446,11 @@ Every phase lands as its own pull request against `develop`.
 
 | Phase | Status | Merged |
 |-------|--------|--------|
-| 1. One gated workflow | Proposed | |
-| 2. Re-queue on infrastructure failure | Proposed | |
-| 3. Split the tiers and enable the queue | Proposed | |
-| 4. Soak and measure | Proposed | |
-| 5. Push audit | Proposed | |
+| 1. One gated workflow | In progress | |
+| 2. Re-queue on infrastructure failure | Not started | |
+| 3. Split the tiers and enable the queue | Not started | |
+| 4. Soak and measure | Not started | |
+| 5. Push audit | Not started | |
 
 The order keeps every lane voting on pull requests until the queue
 exists to run it. Phase 1 restructures with no change in coverage.
@@ -446,30 +462,245 @@ two did the work.
 
 Planning effort: high. It restructures the workflow every other
 phase edits, and it must not change what a pull request tests.
+Planned in detail on 2026-10-20 against `develop` at `3bd67676e`.
+Branch `ci-tiers-phase-1`.
 
-Restructure as Decisions 2 and 3 describe, with every lane in both
-tiers (`"tiers": ["smoke", "merge"]` throughout `ci-lanes.json`), so
-pull requests test exactly what they test today. The two load
-reductions that do not depend on a queue land here too: the Debian
-patch tests become one sequential job and the Rocky ones another
-(6 xl lanes become 2), and `check_bot_commit` and
-`aggregate_results` move to static runners.
+#### Scope
+
+In: restructure as Decisions 2 and 3 describe, with every lane in
+both tiers (`"tiers": ["smoke", "merge"]` throughout
+`ci-lanes.json`), so pull requests test exactly what they test
+today. The two load reductions that do not depend on a queue land
+here too: the Debian patch tests become one sequential job and the
+Rocky ones another (6 xl lanes become 2), and `check_bot_commit`
+and `aggregate_results` move to static runners. `merge_group:`
+joins the triggers, and is inert until Phase 3 creates a ruleset.
+
+Out: moving any lane out of the smoke tier (Phase 3), the merge
+group re-queue (Phase 2), `collect_layer_data`'s trigger (Phase 3),
+any ruleset or repository setting (3d), and anything in
+`shakenfist/actions`.
+
+#### What the survey found
+
+Every factual claim in this section's original briefs was checked
+against the tree, GitHub and the reference repositories. The line
+ranges it cites (`build_images` at `functional-tests.yml:112-150`,
+`test_installs` at `:418-540`) are right, as are the hash
+directories in `build_images`' "Build container images" step
+(`kolla kolla-ansible ansible-collection-kolla etc src _build
+tools`, so `.github/` is not hashed), and the repository state under
+Situation (no ruleset, no branch protection, `allow_auto_merge`
+false, public, all actions allowed). The kerbside reference
+(kerbside#582) is still open at `cc50cb9`, and shakenfist's
+`tools/ci-merge-group-current.sh` at `8a89247de0` is byte-identical
+to its `develop` (blob `561390c2aa`). These were wrong or missing,
+and are corrected in the briefs below and, where a Decision stated
+them, in Decisions 2 and 3 above:
+
+1. **kerbside's `check_paths` skips its checkout on
+   `workflow_dispatch`.** Ours cannot: `tools/ci-select-lanes.py`
+   and `tools/ci-merge-group-current.sh` both run from the tree.
+2. **The superseded-run check needs `actions: write`.** Its header
+   says so, and shakenfist grants it on `check_paths` alone. This
+   workflow's top-level block is `contents: read`, so the job needs
+   its own `permissions:` (naming one scope sets every unnamed one to
+   none, so it names `contents: read` too). dorny/paths-filter needs
+   no `pull-requests: read` here because the repository is public,
+   which is also why kerbside's copy works under `contents: read`.
+3. **In a called workflow, `github.workflow` is the caller's
+   name.** `rebase-tests.yml`'s `lint_check` keys its group
+   `${{ github.workflow }}-${{ github.ref }}-lint`, which is
+   character for character the pre-commit `lint` job's group in
+   `functional-tests.yml`. Called as is, the two would cancel each
+   other. Every called job needs a suffix of its own.
+4. **The lint fixer needs `secrets: inherit`.** It checks out with
+   `DAILY_REBASE_TOKEN`, and a called workflow sees no secrets
+   unless the caller passes them.
+5. **`rebase-tests.yml` also triggers on `v*-releases` branches.**
+   None exist (`git ls-remote --heads origin 'v*-releases'` is
+   empty), so dropping its `pull_request` trigger loses nothing.
+6. **A sequential patch-test job stops at its first failing step.**
+   Today's six lanes are independent, so a kolla failure still
+   reports kolla-ansible. Each project step needs `!cancelled()` in
+   its `if:` to keep that.
+7. **A `fromJSON` matrix of an empty list fails the job** rather
+   than skipping it, so the matrix jobs must be skipped by a job
+   `if:` before the matrix is expanded. Comparing JSON strings in
+   `if:` is fragile, so the selector emits booleans as well.
+8. **The local build was to sit only in `Can merge`'s `needs`.**
+   In this phase it runs on every pull request, and a failure there
+   would not have failed `Can enqueue`. It goes in both: on a pull
+   request after Phase 3 it is skipped, which passes.
+9. **The lint fixer cannot be left out of `needs`**, as Decision 3
+   said: it runs inside the patch-test call. That is harmless, and
+   Decision 3 now says why.
+10. **Missing from the original briefs:** `docs/script-reference.md`
+    documents every script in `tools/`, so both new scripts and
+    their tests go in it; the `flake8` hook in
+    `.pre-commit-config.yaml` lists the Python it lints by name, so
+    the new Python must be added; the `docs-line-references` hook
+    rejects `file.yml:123` references anywhere in `docs/` except
+    `docs/plans/`, so `docs/ci.md` names jobs and steps, not lines;
+    `.claude/skills/debug-ci/SKILL.md` lists "Rebase tests" and
+    "Ensure local container builds work" as workflows to look in,
+    which stops being true; and shakenfist carries a test for the
+    cancel script (`shakenfist/tests/test_merge_group_current.py`),
+    which is worth porting with it.
+11. **`SF_HEAD_SHA` in `local-container-builds.yml` has no
+    consumer.** Nothing in that workflow reads it (its only reader
+    is `shakenfist/actions/tools/clone_with_depends.py`, which this
+    workflow does not run). kerbside's fallback,
+    `github.event.pull_request.head.sha || github.sha`, keeps the
+    pull request value and fills the rest. `daily-rebase-checks.yml`
+    has the same empty-on-dispatch pattern; it is out of scope here.
+12. **The local `../development` clone is 23 commits behind
+    `origin/main`**, so the fleet audits must run from an up-to-date
+    checkout of it, not the clone as it stands.
+13. **client-python-k3s's `develop` does not yet carry the
+    `run_attempt` concurrency rule.** The aggregators are copied
+    from it; the concurrency key is Decision 3's, not k3s's.
+
+Nothing else in the section was wrong.
+
+#### Decisions
+
+1. **The master plan lands with this phase.** It was never
+   committed, so the branch carries two commits before any work: the
+   plan as written (in place of a previous phase's close-out, since
+   there is none), then this section and the corrections above. The
+   containerised deployer landed its master plan as a pull request
+   of its own (#1788) first. Doing that here would buy a review of
+   the plan alone at the price of a round trip, and the plan's
+   phases are only meaningful once Phase 1 is visible. If a separate
+   review is wanted, the first commit pushes on its own.
+2. **Strict parity on pull requests.** Every job that is skipped on
+   a docs-only or data-only change today is skipped by `check_paths`
+   instead, pre-commit included, although linting docs would be
+   cheap. Phase 1's promise is "same tests"; linting docs-only pull
+   requests is in Future work.
+3. **Sequential patch tests keep going after a failure.** Each
+   project is its own step with `if: ${{ !cancelled() &&
+   contains(matrix.test.projects, '<project>') }}`, so the step list
+   says which projects failed, as the six lanes did. The job's time
+   is the sum (about 95 minutes on Debian, 70 on Rocky), still
+   shorter than the build-then-deploy path beside it.
+4. **The selector emits a `run_<name>` boolean beside each matrix**
+   and the jobs gate on those. It also validates its own input: a
+   selected install whose release and distribution have no selected
+   build, or two lanes with the same `name`, is an error. A test
+   runs the real `ci-lanes.json` through every event and tier, so an
+   edit that breaks a tier fails in pre-commit, not after eight
+   hours of CI.
+5. **Reusable jobs key on a prefix of their own and on
+   `inputs.tier`**: `patch-lint`, `patch-lint-fixer`,
+   `patch-tests-<lane>` and `local-build-<release>`. That satisfies
+   `merge-group-cancellation`'s rule for reusable workflows and
+   avoids finding 3.
+6. **The 2026.1 entries commented out of both matrices are not
+   carried into the JSON**, which has no comments. `docs/ci.md` says
+   how to add a lane back, and Future work already records them.
+7. **The reusable workflows are converted before their caller is
+   reworked.** Every commit then passes actionlint. The commits in
+   between leave the patch tests triggered by nothing, which only
+   matters if someone pushes the branch half done; the pull request
+   is tested at its tip.
+8. **The cancel script comes with its tests.** It is the guard
+   against a superseded queue run cancelling the live one, and
+   calling a live run superseded ejects a pull request untested. Its
+   failure directions are worth tests, not a reading.
+
+#### Steps
 
 | Step | Effort | Model | Isolation | Brief for sub-agent |
 |------|--------|-------|-----------|---------------------|
-| 1a | medium | sonnet | none | Create `.github/ci-lanes.json` with three lists, `builds`, `installs` and `patch_tests`. Copy every field of the current matrix entries from `functional-tests.yml` (`build_images` at :112-150, `test_installs` at :418-540; skip the commented-out 2026.1 entries) and `rebase-tests.yml` (`functional_matrix`), and add `"tiers": ["smoke", "merge"]` to each. Patch tests are two entries, one per runner OS, each with a `projects` list: debian-13 `[kolla, kolla-ansible, kolla-deployer, kolla-ansible-deployer]`, rocky-9 `[kolla, kolla-ansible]`. Write `tools/ci-select-lanes.py` (Python 3, stdlib only, single quotes, 120 columns, executable, with `#!/usr/bin/env python3`). Arguments: `--lanes`, `--event` (`pull_request`, `merge_group`, `workflow_dispatch`), `--tier` (the dispatch input, ignored otherwise) and `--code-changed` (`true`/`false`). `pull_request` selects `smoke`, `merge_group` selects `merge`, and dispatch selects whatever `--tier` says, with `full` meaning `merge`. Print `builds=<json>`, `installs=<json>` and `patch_tests=<json>` lines for `$GITHUB_OUTPUT`, each `{"test": [...]}` so the jobs keep reading `matrix.test.*`. Exit non-zero if a selected install's `release`/`container_distro`/`container_distro_version` has no selected build. When `--code-changed` is false, print empty lists. Add `tools/test-ci-select-lanes.py` (unittest) covering each event, `full` versus `smoke`, the missing-build error and code-changed false, and a pre-commit hook for it modelled on `write-build-manifest-tests` in `.pre-commit-config.yaml`. Commit subject: "Describe the CI lanes in a data file." |
-| 1b | high | opus | worktree | Rework `.github/workflows/functional-tests.yml` per Decisions 2 and 3 of `docs/plans/ci-tiers.md`. (1) Triggers: drop `paths-ignore`, add `merge_group:`, add a `workflow_dispatch` input `tier` (choice `smoke`/`full`, default `smoke`) beside `data_prefix`. (2) Add `check_paths` on `[self-hosted, static]`, copied from shakenfist/kerbside's `functional-tests.yml:60-104` as kerbside#582 (`cc50cb9`) leaves it, with `base: ${{ github.event.merge_group.base_sha \|\| 'develop' }}`, `predicate-quantifier: 'every'` and filters `'**'`, `'!docs/**'`, `'!data/**'`, `'!README.md'`. Add a step running `tools/ci-select-lanes.py` that exposes `builds`, `installs` and `patch_tests` outputs. The last step is "Cancel this run if the merge group is superseded", copied with `tools/ci-merge-group-current.sh` from shakenfist/shakenfist at `8a89247de0`; keep its header comment and say where it came from. (3) Make `assemble_source`, `build_images` and `test_installs` `needs: check_paths`, skip when `code_changed == 'false'` or the matrix is empty, and use `strategy.matrix: ${{ fromJSON(needs.check_paths.outputs.<name>) }}`. Keep `test_installs`' bound `runs-on` exactly as it is. (4) Put every VM or bound job on the concurrency key in Decision 3, keeping each job's suffix and matrix lane. (5) Move `aggregate_results` to `[self-hosted, static]` and give it a `timeout-minutes`. (6) Call the reusable patch tests (step 1c) with `tier` and `patch_tests`, and the reusable local build (step 1d) when the event is `merge_group` or a `full` dispatch. In this phase that also means every `pull_request`: gate it on a `local_build` output from `ci-select-lanes.py`, added to `ci-lanes.json` as `{"tiers": [...]}`. (7) Add `can_enqueue` and `can_merge` exactly as client-python-k3s's `functional-tests.yml` writes them, with `needs` covering check_paths, lint, assemble_source, build_images, aggregate_results, test_installs, the patch tests and, for `can_merge`, the local build. Leave out `collect_layer_data` and the lint fixer. (8) Leave `collect_layer_data` on `pull_request` for now. Run `pre-commit run --all-files` (actionlint is in it). Then run shakenfist/development's consistency checks `merge-group-cancellation` and `expensive-lane-path-filter` against the worktree, using the local clone at `../development` (see its `scripts/` for how to run one check). Commit subject: "Gate CI on Can enqueue and Can merge." |
-| 1c | medium | sonnet | none | Turn `.github/workflows/rebase-tests.yml` into a reusable workflow: `on: workflow_call` with inputs `tier` and `patch_tests` (JSON), and no `pull_request` trigger. `check_bot_commit` moves to `[self-hosted, static]`. `lint_check` stays on vm m. `automated_lint_fixer` also needs `github.event_name == 'pull_request'` in its `if:` (in a called workflow that is the caller's event). Replace `functional_matrix` with `patch_tests`: matrix `fromJSON(inputs.patch_tests)`, runs-on `[self-hosted, vm, '${{ matrix.test.runs_on }}', 'xl']`, `timeout-minutes: 150`, and one step per project, each running `./_build/test-apply.sh <project>`, so the log says which project failed. Steps for projects a lane does not list are skipped with an `if:` on `contains(matrix.test.projects, '<project>')`. Concurrency keys use the Decision 3 form and also include `inputs.tier`, per `merge-group-cancellation.md`'s rule for reusable workflows. Keep the file's name and `permissions:`. Commit subject: "Run the patch tests from the gated workflow." |
-| 1d | low | sonnet | none | In `.github/workflows/local-container-builds.yml`, replace the `pull_request` trigger with `workflow_call` and keep `workflow_dispatch`. Set `SF_HEAD_SHA` from `github.sha` rather than `github.event.pull_request.head.sha`, which is empty outside `pull_request`. Concurrency key as in step 1c. Add `timeout-minutes: 120`. Commit subject: "Call the local build from the gated workflow." |
-| 1e | low | sonnet | none | In `.github/workflows/auto-retry-infra-failures.yml`, drop "Ensure local container builds work" and "Rebase tests" from `workflow_run.workflows`, because their jobs now run inside "Build test clouds". Nothing else changes in this phase. Commit subject: "Retry only the workflow that now runs everything." |
-| 1f | medium | sonnet | none | Write `docs/ci.md` covering both tiers, the lane file, how to move a lane between tiers, `tier=full` dispatches, and what "please retest" runs. Mark the merge tier as not yet enabled; later phases update the page. Link it from `docs/index.md` and from `AGENTS.md`'s question table. In `AGENTS.md`'s "Modifying GitHub Actions Workflows", add: lanes live in `.github/ci-lanes.json`; the gated workflow never uses trigger-level `paths-ignore`; new jobs take the Decision 3 concurrency key. Fix its "Other workflows" list. Rewrite `ARCHITECTURE.md`'s "CI/CD" section for the new shape. Commit subject: "Document the CI tiers." |
+| 1a | medium | sonnet | none | Create `.github/ci-lanes.json` with four keys: `builds`, `installs`, `patch_tests` (lists) and `local_build` (an object). Copy every field of the active matrix entries verbatim from `.github/workflows/functional-tests.yml` (`build_images`' three entries and `test_installs`' eight; drop the commented-out 2026.1 entries) and add `"tiers": ["smoke", "merge"]` to each. `patch_tests` is two entries replacing `rebase-tests.yml`'s six `functional_matrix` lanes: `{"name": "debian-13", "description": "debian 13", "runs_on": "debian-13", "projects": ["kolla", "kolla-ansible", "kolla-deployer", "kolla-ansible-deployer"], "tiers": [...]}` and the same for `rocky-9` with `["kolla", "kolla-ansible"]`. `local_build` is `{"tiers": ["smoke", "merge"]}`. Write `tools/ci-select-lanes.py`: Python 3, stdlib only, single-quoted strings, double-quoted docstrings, 120 columns, executable, `#!/usr/bin/env python3`, a module docstring saying why the lanes are data (one job definition per lane kind, and `.github/` is outside the image hash). Arguments `--lanes PATH`, `--event` (`pull_request`, `merge_group`, `workflow_dispatch`), `--tier` (`smoke`/`full`/empty; only read for `workflow_dispatch`, where empty means `smoke`) and `--code-changed` (`true`/`false`). `pull_request` selects tier `smoke`, `merge_group` selects `merge`, a dispatch with `full` selects `merge`. Print, one per line in `key=value` form for `$GITHUB_OUTPUT`: `builds`, `installs`, `patch_tests`, each compact JSON `{"test": [...]}` with the `tiers` key removed from every entry, so jobs keep reading `matrix.test.*`; `run_builds`, `run_installs`, `run_patch_tests` (`true` when the list is non-empty) and `run_local_build` (`true` when `local_build`'s tiers include the selected one). With `--code-changed false`, every list is empty and every `run_*` is `false`. Exit 1 with a clear message on an unknown event or tier, on a duplicate `name` within a list, or when a selected install's (`release`, `container_distro`, `container_distro_version`) matches no selected build. Add `tools/test-ci-select-lanes.py` (unittest, stdlib only), mirroring `tools/test-write-build-manifest.py`'s layout: each event, `full` versus `smoke` versus empty tier, `--code-changed false`, the missing-build and duplicate-name errors against small fixture files, and one test that runs the real `.github/ci-lanes.json` through every event and tier and asserts it validates; in this phase it also asserts that `pull_request` selects 3 builds, 8 installs and 2 patch tests. Add a pre-commit hook `ci-select-lanes-tests` modelled on `write-build-manifest-tests`, with `files: ^(tools/(ci-select-lanes\|test-ci-select-lanes)\.py\|\.github/ci-lanes\.json)$`, and add both Python files to the `flake8` hook's `files` regex. Add both to `docs/script-reference.md` beside `write-build-manifest`. Run `pre-commit run --all-files`. Commit subject: "Describe the CI lanes in a data file." |
+| 1b | medium | sonnet | none | Copy `tools/ci-merge-group-current.sh` byte for byte from shakenfist/shakenfist at `8a89247de0` (`gh api 'repos/shakenfist/shakenfist/contents/tools/ci-merge-group-current.sh?ref=8a89247de0' -q .content \| base64 -d`), keeping its header comment, and add one comment line under the copyright saying it is copied from shakenfist/shakenfist `tools/ci-merge-group-current.sh` at `8a89247de0` and should be kept in step with it. Make it executable; it must pass the repository's shellcheck hooks. Port the script half of `shakenfist/tests/test_merge_group_current.py` (same ref) to `tools/test-ci-merge-group-current.py`: unittest instead of shakenfist's `base` test case, stdlib only, the same `git` and `gh` stubs on `PATH`, every script-behaviour case it has (current, superseded and cancelled, superseded and the cancel fails, `ls-remote` fails, missing environment variables), with `CANCEL_WAIT_SECONDS` small. Leave out its workflow-shape tests; step 1e adds those. Add a pre-commit hook `ci-merge-group-current-tests` (`language: python`, `pass_filenames: false`) with `files: ^(tools/(ci-merge-group-current\.sh\|test-ci-merge-group-current\.py)\|\.github/workflows/functional-tests\.yml)$`, add the test to the `flake8` hook's `files`, and add both files to `docs/script-reference.md`. Commit subject: "Copy the superseded merge group check." |
+| 1c | medium | sonnet | none | Turn `.github/workflows/rebase-tests.yml` into a reusable workflow. Replace `on:` with `workflow_call` taking string inputs `tier` (required) and `patch_tests` (required, JSON); there is no `pull_request` trigger any more (its `v*-releases` branch filter matched no branch). Keep `name: Rebase tests`, the file's comments and `permissions:`. `check_bot_commit` moves to `[self-hosted, static]`. `lint_check` stays on `[self-hosted, vm, debian-13, m]`. `automated_lint_fixer`'s `if:` gains `github.event_name == 'pull_request'` (in a called workflow that is the caller's event). Replace `functional_matrix` with a job `patch_tests` named `"Patch tests on ${{ matrix.test.description }}"`, `strategy: {fail-fast: false, matrix: ${{ fromJSON(inputs.patch_tests) }}}`, `runs-on: [self-hosted, vm, '${{ matrix.test.runs_on }}', 'xl']`, `timeout-minutes: 150`, the same checkout, pip and test-dependency steps, and then one step per project, in the order kolla, kolla-ansible, kolla-deployer, kolla-ansible-deployer, each named "Deep test patches for <project>", each running `./_build/test-apply.sh <project>` from the checkout, each with `if: ${{ !cancelled() && contains(matrix.test.projects, '<project>') }}` so a failure in one project does not hide the next. Concurrency, with `cancel-in-progress: true` throughout: inside a called workflow `github.workflow` is the caller's name ("Build test clouds"), so every group needs a suffix the caller does not use, and must include `inputs.tier`. Use `${{ github.workflow }}-patch-lint-${{ inputs.tier }}-<ref part>`, `-patch-lint-fixer-`, and `-patch-tests-${{ matrix.test.name }}-${{ inputs.tier }}-<ref part>`, where `<ref part>` is Decision 3's expression in `docs/plans/ci-tiers.md` (`github.event_name == 'merge_group' && github.run_attempt == '1' && format('merge_group-{0}', github.event.merge_group.base_ref) \|\| github.ref`). Nothing calls this workflow until step 1e, which is expected. Run `pre-commit run --all-files`. Commit subject: "Make the patch tests a reusable workflow." |
+| 1d | low | sonnet | none | In `.github/workflows/local-container-builds.yml`, replace the `pull_request` trigger with `workflow_call` taking a required string input `tier`, and keep `workflow_dispatch`. Keep `name:`, comments and `permissions:`. Set `SF_HEAD_SHA` to `${{ github.event.pull_request.head.sha \|\| github.sha }}` (kerbside's fallback; the value is empty outside `pull_request` today). Add `timeout-minutes: 120` to `local_build_matrix`. Its concurrency group becomes `${{ github.workflow }}-local-build-${{ matrix.test.release }}-${{ inputs.tier }}-<ref part>` with Decision 3's ref expression from `docs/plans/ci-tiers.md`, `cancel-in-progress: true`; on a direct dispatch `inputs.tier` is empty, which is fine. Run `pre-commit run --all-files`. Commit subject: "Make the local build a reusable workflow." |
+| 1e | high | opus | worktree | Rework `.github/workflows/functional-tests.yml` per Decisions 2 and 3 and this phase's survey in `docs/plans/ci-tiers.md`; read both first. Keep `name: Build test clouds` (auto-retry matches on it). (1) Triggers: drop `paths-ignore`; add `merge_group:`; add a `workflow_dispatch` choice input `tier` (`smoke`, `full`, default `smoke`) beside `data_prefix`. (2) Add a `check_paths` job (name "Check paths") on `[self-hosted, static]`, `timeout-minutes: 10`, with job-level `permissions: {contents: read, actions: write}` and a comment saying `actions: write` is for the last step. Base it on shakenfist/kerbside's `check_paths` in `.github/workflows/functional-tests.yml` at `cc50cb96d5` (fetch it with `gh api`), keeping its explanatory comments where they still apply, with three differences: checkout always runs, dispatches included; the filter is `'**'`, `'!docs/**'`, `'!data/**'`, `'!README.md'` with `predicate-quantifier: 'every'` and `base: ${{ github.event.merge_group.base_sha \|\| 'develop' }}`, and still skipped on dispatch so `code_changed` defaults to `true`; and two steps follow the verdict. First, "Select lanes" runs `tools/ci-select-lanes.py --lanes .github/ci-lanes.json --event "${{ github.event_name }}" --tier "${{ inputs.tier }}" --code-changed "<code_changed>" >> "$GITHUB_OUTPUT"`, and the job exports `code_changed` plus all eight of its outputs. Last, "Cancel this run if the merge group is superseded", `if: github.event_name == 'merge_group'`, env `GH_TOKEN: ${{ github.token }}`, `BASE_REF`, `BASE_SHA` and `RUN_ID` as shakenfist's `functional-tests.yml` at `8a89247de0` passes them, running `tools/ci-merge-group-current.sh`. (3) `lint` gains `needs: check_paths` and `if: needs.check_paths.outputs.code_changed == 'true'`. `assemble_source` likewise; its one-entry matrix stays inline. `build_images` needs `[check_paths, assemble_source]`, `if: needs.check_paths.outputs.run_builds == 'true'`, `strategy: {fail-fast: false, matrix: ${{ fromJSON(needs.check_paths.outputs.builds) }}}`. `test_installs` needs `[check_paths, build_images, aggregate_results]`, `if: needs.check_paths.outputs.run_installs == 'true'`, matrix from `installs`. Keep `test_installs`' `runs-on` line exactly as it is: the `bind-` token uses `strategy.job-index`, which stays unique only while there is one install job. (4) Every job on a `vm` or `bound-` runner takes Decision 3's concurrency key, `${{ github.workflow }}-<suffix>-<matrix lane if any>-<ref part>`, keeping each job's current suffix (`lint`, `source-<release>`, the build and install `matrix.test.name`). (5) `aggregate_results` moves to `[self-hosted, static]` with `timeout-minutes: 15`. (6) Add `patch_tests` (name "Patch tests") calling `./.github/workflows/rebase-tests.yml` with `needs: check_paths`, `if: needs.check_paths.outputs.run_patch_tests == 'true'`, `with: {tier: <selected tier>, patch_tests: ${{ needs.check_paths.outputs.patch_tests }}}` and `secrets: inherit`; and `local_build` (name "Local build") calling `./.github/workflows/local-container-builds.yml` with `if: needs.check_paths.outputs.run_local_build == 'true'` and `tier`. The selected tier passed down is `merge_group` → `merge`, `pull_request` → `smoke`, dispatch → `inputs.tier`. (7) Add `can_enqueue` and `can_merge` exactly as shakenfist/client-python-k3s's `.github/workflows/functional-tests.yml` on `develop` writes them (`always()` and the event test, `permissions: {actions: read}`, static runner, the jq over `toJSON(needs)` that passes only `success` and `skipped`). Both need, directly, `check_paths`, `lint`, `assemble_source`, `build_images`, `aggregate_results`, `test_installs`, `patch_tests` and `local_build`. Leave `collect_layer_data` out of both, and leave its own trigger and `needs` as they are. (8) Add the workflow-shape tests to `tools/test-ci-merge-group-current.py` that shakenfist's `shakenfist/tests/test_merge_group_current.py` at `8a89247de0` has, adapted to this workflow (the cancel step is the last step of `check_paths`, `check_paths` grants `actions: write`, and every job with a `merge_group`-keyed concurrency group needs `check_paths`), and give its pre-commit hook `additional_dependencies: [pyyaml]`. Verify: `pre-commit run --all-files` (actionlint is in it); then run shakenfist/development's audits from an up-to-date checkout (`git -C ../development fetch origin`, then `git -C ../development worktree add <scratch dir> origin/main`, and `python3 <scratch dir>/scripts/audit-check.py --repo-path <this worktree> --repo-name kerbside-patches`), and report the `merge-group-cancellation` and `expensive-lane-path-filter` results from its JSON. Remove the scratch worktree afterwards. Commit subject: "Gate CI on Can enqueue and Can merge." |
+| 1f | low | haiku | none | In `.github/workflows/auto-retry-infra-failures.yml`, remove `"Ensure local container builds work"` and `"Rebase tests"` from `on.workflow_run.workflows`, leaving `"Build test clouds"`: their jobs now run inside that workflow's runs. Change nothing else. Run `pre-commit run --all-files`. Commit subject: "Retry only the workflow that now runs everything." |
+| 1g | medium | sonnet | none | Write `docs/ci.md`: the two tiers and which lanes sit in each (all lanes in both for now; say the merge tier is not enabled yet and Phase 3 of `docs/plans/ci-tiers.md` enables it); `check_paths` and why there is no trigger-level `paths-ignore` (required checks must always report); the lane file `.github/ci-lanes.json`, why it is under `.github/` (outside the image hash), how to add, remove or move a lane and that `tools/test-ci-select-lanes.py` checks it; `Can enqueue` and `Can merge`; `tier=full` dispatches; that "@shakenfist-bot please retest" runs the smoke tier; the concurrency key and why new jobs must use it. Name jobs and steps, never `file.yml:<line>` (the `docs-line-references` hook rejects it). Link it from `docs/index.md` and from the question table in `AGENTS.md`. In `AGENTS.md`'s "Modifying GitHub Actions Workflows", list the new jobs, and add three conventions: lanes live in `.github/ci-lanes.json`; the gated workflow never uses trigger-level `paths-ignore`; new VM jobs take the Decision 3 concurrency key, and a called workflow's suffix must not repeat its caller's. Correct its "Other workflows" entries for `rebase-tests.yml` and `local-container-builds.yml` (now called from `functional-tests.yml`). Rewrite `ARCHITECTURE.md`'s "CI/CD" section, its "Functional Tests Workflow" and "Rebase Tests Workflow" subsections, for the new shape, and fix the directory-tree comments for the two reusable workflows. In `.claude/skills/debug-ci/SKILL.md`, replace the three-workflow table with the jobs of "Build test clouds" (patch tests and the local build are now jobs there, as `Patch tests / ...` and `Local build / ...`). Run `pre-commit run --all-files`. Commit subject: "Document the CI tiers." |
+| 1h | medium | opus | none | Management session, not a sub-agent: the exit checks below, after the branch is pushed with Michael's go-ahead. No commit unless a check fails. |
 
-Exit: the phase's own pull request shows the same 8 installs, 3
-builds and both patch-test OSes passing as before, and a green
-`Can enqueue`. A `tier=full` dispatch on the branch also runs green.
-A throwaway docs-only pull request reports `Can enqueue` green with
-every heavy job skipped, and is then closed. `pre-commit` and both
-fleet audits pass.
+#### Risks
+
+* **Two called jobs sharing a concurrency group cancel each other
+  silently**, and the run looks merely cancelled. Mitigation: the
+  suffixes in Decision 5, the `merge-group-cancellation` audit in
+  1e, and the management session reading every rendered `group:`
+  in the 1e diff before committing.
+* **The bound install runners might not bind** if the conductor
+  depends on anything beyond the job's resolved labels. The labels
+  are unchanged, and dynamic matrices resolve before the job is
+  queued, so this is not expected. The pull request's own run is the
+  test: all eight installs must get a runner.
+* **`check_paths` on the static pool becomes a single point of
+  failure** for every job. `collect_layer_data` and auto-retry
+  already depend on that pool, so this adds a dependency rather than
+  creating one.
+* **New files under `tools/` change the image hash**, so this pull
+  request rebuilds every image once. Expected.
+* **The exit checks cost two full matrix runs** (the pull request
+  and the dispatch). The dispatch goes only after the pull request
+  run is green, so a broken branch costs one.
+* **A mistake in `if:` wiring can make every heavy job skip and
+  both aggregators pass on the skips**, which looks like success.
+  The exit check counts jobs and conclusions, not the aggregator's
+  colour.
+
+#### Definition of done
+
+* `pre-commit run --all-files` passes, including
+  `ci-select-lanes-tests` and `ci-merge-group-current-tests`.
+* `rg -n 'paths-ignore' .github/workflows/functional-tests.yml`
+  finds nothing, and `rebase-tests.yml` and
+  `local-container-builds.yml` have no `pull_request:` trigger.
+* Every `group:` in `rebase-tests.yml` and
+  `local-container-builds.yml` starts
+  `${{ github.workflow }}-patch-` or `${{ github.workflow }}-local-build-`
+  and contains `inputs.tier`, so no called job can share a group with
+  a caller job.
+* shakenfist/development's `merge-group-cancellation` and
+  `expensive-lane-path-filter` checks pass for this worktree.
+* The pull request's own run, checked with the snippet below, shows
+  3 builds, 8 installs, 2 patch-test jobs, 1 local build and
+  `Can enqueue`, all `success`. A `tier=full` dispatch on the branch
+  shows the same.
+* A throwaway docs-only pull request (with Michael's go-ahead; it is
+  outward-facing) shows `Check paths` and `Can enqueue` `success`,
+  every other job `skipped`, and is then closed and its branch
+  deleted.
+* `docs/ci.md` exists, is linked from `docs/index.md` and
+  `AGENTS.md`, and `rg -n 'Rebase tests|Ensure local container
+  builds' AGENTS.md ARCHITECTURE.md .claude/skills docs --glob
+  '!docs/plans/**'` finds no claim that either is a workflow of its
+  own.
+
+The run check, for a run id `R`:
+
+```bash
+gh run view "$R" -R shakenfist/kerbside-patches --json jobs --jq '
+  .jobs as $j
+  | {builds:   [$j[] | select(.name | startswith("Images for "))],
+     installs: [$j[] | select(.name | test(" using .* containers$"))],
+     patch:    [$j[] | select(.name | startswith("Patch tests / Patch tests on "))],
+     local:    [$j[] | select(.name | startswith("Local build / "))],
+     enqueue:  [$j[] | select(.name == "Can enqueue")]}
+  | map_values({n: length, ok: all(.[]; .conclusion == "success")})'
+```
+
+Expected on a code run: `builds` 3, `installs` 8, `patch` 2,
+`local` 1, `enqueue` 1, every `ok` true.
+
+#### Back brief
+
+Before 1a, back brief Michael on this section. Two gates on top of
+that: the 1e diff is reviewed in the management session before its
+commit, with every rendered concurrency group read, because a wrong
+`if:` or group is cheap to write and costs an eight-hour run to
+find; and nothing is pushed, and no throwaway pull request opened,
+without his go-ahead.
 
 ### Phase 2: Re-queue on infrastructure failure
 
@@ -579,7 +810,7 @@ pull request.
   edit is free.
 * **The bound-runner binding token.** `test_installs` binds with
   `build-test-clouds-${{ strategy.job-index }}`. That stays unique
-  only while there is one install job. 1b must not split it into
+  only while there is one install job. 1e must not split it into
   smoke and merge copies.
 * **A required check that never reports blocks forever.** Every gated
   job must stay reachable on both events, and both aggregators must
@@ -638,6 +869,12 @@ We will know this plan has succeeded when the following are true:
 * Extract the 600-line install job into a reusable workflow, if the
   file's size still bothers anyone once the tiers exist.
 * Conductor priority for merge-group jobs (Open Question 3).
+* Lint docs-only pull requests. Phase 1 keeps today's behaviour, where
+  pre-commit does not run on a change confined to `docs/` or `data/`,
+  so the `docs-line-references` hook only runs locally on those.
+* `daily-rebase-checks.yml` reads `github.event.pull_request.head.sha`
+  into `SF_HEAD_SHA` as `local-container-builds.yml` did, and gets the
+  same empty value outside `pull_request`.
 
 ### Bugs fixed during this work
 
