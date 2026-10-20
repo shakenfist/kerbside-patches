@@ -2,7 +2,7 @@ commit ac71f80575467fa9d8f14bea07fbaf6b558a14d0
 Author: Michael Still <mikal@stillhq.com>
 Date:   Sun Oct 11 09:07:28 2026 +1100
 
-    Guard deployments against the wrong deployer.
+    WIP / PoC: Guard deployments against the wrong deployer.
     
     A deployer image can be run against a configuration naming other
     images, or a host a newer deployer has changed. Each deploy now records

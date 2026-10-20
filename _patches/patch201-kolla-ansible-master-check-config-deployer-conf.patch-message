@@ -1,4 +1,4 @@
-Ignore deployer.conf in check-config.sh.
+WIP / PoC: Ignore deployer.conf in check-config.sh.
 
 deployer.conf is the configuration file of a containerised deployer
 launcher, kept beside globals.yml in the deploy host's configuration

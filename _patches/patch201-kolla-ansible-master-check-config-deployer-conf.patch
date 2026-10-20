@@ -2,7 +2,7 @@ commit 4c1e8a7d2b9f3065e1a7c8d9b0a1f2e3d4c5b6a7
 Author: Michael Still <mikal@stillhq.com>
 Date:   Sat Oct 3 06:20:11 2026 +1000
 
-    Ignore deployer.conf in check-config.sh.
+    WIP / PoC: Ignore deployer.conf in check-config.sh.
     
     deployer.conf is the configuration file of a containerised deployer
     launcher, kept beside globals.yml in the deploy host's configuration

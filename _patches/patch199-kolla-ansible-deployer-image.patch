@@ -1,18 +1,16 @@
-commit be3a8b75ce235c1de57e7fc483f44418c4b8c6f6
+commit cd5e4bd682e093d9bb2858c1ed67eecd57fa7341
 Author: Michael Still <mikal@stillhq.com>
-Date:   Thu Oct 1 18:12:21 2026 +1000
+Date:   Tue Oct 20 19:29:17 2026 +1100
 
-    Add a kolla-ansible deployer image.
+    WIP / PoC: Add a kolla-ansible deployer image.
     
     Kolla-Ansible is installed onto the deploy host with pip and fetches
     its collections from Galaxy and git, so two deploy hosts installed a
     day apart can run different code against one cloud. Add a kolla-ansible
     image which packages the tool, as Kolla packages every service.
     
-    Collections are installed at build time into the only path Ansible
-    searches, so nothing is fetched at run time and ~/.ansible cannot
-    shadow them. Labels cannot hold build output, so the versions and
-    source commits are recorded in /etc/kolla-ansible/deployer.json.
+    This change adds a kolla-ansible image which packages the deployment
+    tool itself, in the same way as Kolla packages every service.
     
     Assisted-By: Claude Opus 5.5 (1M context, high effort) <noreply@anthropic.com>
     Co-Authored-By: Claude Opus 5.5 (1M context, high effort) <noreply@anthropic.com>
@@ -40,7 +38,7 @@ index db892daa8..4b0466ab8 100644
    location: "$tarballs_base/openstack/requirements/requirements-${openstack_branch}.tar.gz"
 diff --git a/kolla/docker/kolla-ansible/Dockerfile.j2 b/kolla/docker/kolla-ansible/Dockerfile.j2
 new file mode 100644
-index 000000000..ddf399019
+index 000000000..bc4062072
 --- /dev/null
 +++ b/kolla/docker/kolla-ansible/Dockerfile.j2
 @@ -0,0 +1,93 @@
@@ -139,7 +137,7 @@ index 000000000..ddf399019
 +USER ansible
 diff --git a/kolla/docker/kolla-ansible/kolla_ansible_deployer_info.py b/kolla/docker/kolla-ansible/kolla_ansible_deployer_info.py
 new file mode 100644
-index 000000000..1fe5ff700
+index 000000000..227b89ec7
 --- /dev/null
 +++ b/kolla/docker/kolla-ansible/kolla_ansible_deployer_info.py
 @@ -0,0 +1,104 @@
@@ -170,7 +168,7 @@ index 000000000..1fe5ff700
 +from importlib import metadata
 +import json
 +import os
-+import subprocess  # nosec
++import subprocess                                                  # nosec
 +import sys
 +
 +UNKNOWN = 'unknown'
@@ -192,7 +190,7 @@ index 000000000..1fe5ff700
 +    if not os.path.exists(os.path.join(path, '.git')):
 +        return UNKNOWN
 +    try:
-+        return subprocess.check_output(  # nosec
++        return subprocess.check_output(                            # nosec
 +            ['git', '-c', 'safe.directory=*', '-C', path,
 +             'rev-parse', 'HEAD'],
 +            text=True).strip()
@@ -201,7 +199,7 @@ index 000000000..1fe5ff700
 +
 +
 +def installed_collections():
-+    output = subprocess.check_output(  # nosec
++    output = subprocess.check_output(                              # nosec
 +        ['ansible-galaxy', 'collection', 'list', '--format', 'json'],
 +        text=True)
 +    return json.loads(output)
@@ -249,7 +247,7 @@ index 000000000..1fe5ff700
 +    sys.exit(main())
 diff --git a/releasenotes/notes/add-kolla-ansible-image-0746f6311029c37f.yaml b/releasenotes/notes/add-kolla-ansible-image-0746f6311029c37f.yaml
 new file mode 100644
-index 000000000..cd5604e84
+index 000000000..6a25cd0cb
 --- /dev/null
 +++ b/releasenotes/notes/add-kolla-ansible-image-0746f6311029c37f.yaml
 @@ -0,0 +1,19 @@

@@ -1,14 +1,25 @@
-Add an all-in-one inventory for the deployer.
+WIP / PoC: Add an nsenter friendly all-in-one inventory.
 
-Running Kolla Ansible from a container on the host it deploys, over
-community.docker.nsenter, needs the deploy host not to be named
-localhost, so all-in-one cannot simply change its connection. Add
-all-in-one-deployer, which names the host kolla.
+This patch series adds a containerized version of kolla-ansible as
+built by the Kolla patch the series depends on. The container needs
+to be able to run ansible tasks against the host it runs on, but
+cannot rely on local access nor ssh to do that. Instead, it uses
+the community.docker.nsenter connection plugin. The current all-in-one
+inventory cannot be used for that with only its connection changed,
+because it names the deploy host localhost.
 
-A host named localhost replaces Ansible's implicit one, and its
-ansible_connection overrides the connection: local of tasks delegated
-to localhost, sending them to the host. ansible_remote_tmp is absolute
-because the plugin passes the container's HOME to the host.
+This change adds all-in-one-deployer beside all-in-one. It differs only
+in that:
+
+* the deploy host is named kolla, so that every use of localhost stays
+  in the container;
+* ansible_connection=community.docker.nsenter in [all:vars] replaces
+  ansible_connection=local on each host line; and
+* ansible_remote_tmp is an absolute path. The nsenter plugin assumes
+  that remote_user is root, and passes the container's environment,
+  including HOME, to commands on the host, so the default
+  ~/.ansible/tmp names a directory in the container's HOME, which the
+  host does not have.
 
 Assisted-By: Claude Opus 5.5 (1M context, high effort) <noreply@anthropic.com>
 Co-Authored-By: Claude Opus 5.5 (1M context, high effort) <noreply@anthropic.com>

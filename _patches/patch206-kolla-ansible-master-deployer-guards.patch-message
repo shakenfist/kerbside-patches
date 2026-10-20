@@ -1,4 +1,4 @@
-Guard deployments against the wrong deployer.
+WIP / PoC: Guard deployments against the wrong deployer.
 
 A deployer image can be run against a configuration naming other
 images, or a host a newer deployer has changed. Each deploy now records

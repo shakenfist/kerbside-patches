@@ -2,7 +2,7 @@ commit 807bb7ba1afa1b93364eba61ca7aad05de38ced1
 Author: Michael Still <mikal@stillhq.com>
 Date:   Sat Oct 3 06:05:27 2026 +1000
 
-    Allow validate-config to skip become on localhost.
+    WIP / PoC: Allow validate-config to skip become on localhost.
     
     service-config-validate writes its output on the deploy host with
     become, so it fails with "sudo: a password is required" where that
@@ -14,6 +14,7 @@ Date:   Sat Oct 3 06:05:27 2026 +1000
     the per-service config_validate.yml files need no changes.
     
     Assisted-By: Claude Opus 5.5 (1M context, low effort) <noreply@anthropic.com>
+    Depends-On: https://review.opendev.org/c/openstack/kolla/+/1011443
     Change-Id: I05c5fb2cf7360c4c3dbbf493b9eb3e735a4c2e45
     Signed-off-by: Michael Still <mikal@stillhq.com>
 

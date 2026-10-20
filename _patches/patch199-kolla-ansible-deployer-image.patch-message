@@ -1,14 +1,12 @@
-Add a kolla-ansible deployer image.
+WIP / PoC: Add a kolla-ansible deployer image.
 
 Kolla-Ansible is installed onto the deploy host with pip and fetches
 its collections from Galaxy and git, so two deploy hosts installed a
 day apart can run different code against one cloud. Add a kolla-ansible
 image which packages the tool, as Kolla packages every service.
 
-Collections are installed at build time into the only path Ansible
-searches, so nothing is fetched at run time and ~/.ansible cannot
-shadow them. Labels cannot hold build output, so the versions and
-source commits are recorded in /etc/kolla-ansible/deployer.json.
+This change adds a kolla-ansible image which packages the deployment
+tool itself, in the same way as Kolla packages every service.
 
 Assisted-By: Claude Opus 5.5 (1M context, high effort) <noreply@anthropic.com>
 Co-Authored-By: Claude Opus 5.5 (1M context, high effort) <noreply@anthropic.com>
