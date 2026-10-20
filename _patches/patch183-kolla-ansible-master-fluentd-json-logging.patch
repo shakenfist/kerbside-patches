@@ -1,6 +1,6 @@
-commit cc5f7f45ea8122d65fdaa542febec7068a26d9b8
+commit 76507086a190e7927fb9ec2208973c3192548ce5
 Author: Michael Still <mikal@stillhq.com>
-Date:   Tue Oct 13 18:41:01 2026 +1100
+Date:   Tue Oct 20 18:12:50 2026 +1100
 
     Add a fluentd path for JSON formatted OpenStack logs.
     
@@ -31,7 +31,7 @@ Date:   Tue Oct 13 18:41:01 2026 +1100
     Signed-off-by: Michael Still <mikal@stillhq.com>
 
 diff --git a/ansible/group_vars/all/common.yml b/ansible/group_vars/all/common.yml
-index 52a6a6005..80ad355d7 100644
+index 602997e9e..76c89f0f8 100644
 --- a/ansible/group_vars/all/common.yml
 +++ b/ansible/group_vars/all/common.yml
 @@ -311,6 +311,7 @@ openstack_release: "master"

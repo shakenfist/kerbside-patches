@@ -1,6 +1,6 @@
-commit 26c026b119cb4cb73abda4d6a1ae60341ece8318
+commit a3f586ae364fa18b3611db350f2daffe1e04810b
 Author: Michael Still <mikal@stillhq.com>
-Date:   Tue Oct 13 18:39:47 2026 +1100
+Date:   Tue Oct 20 18:10:58 2026 +1100
 
     dhcp: Report pending updates in agent state
     
@@ -35,7 +35,7 @@ index 31ec7a6ee0..2f8c863b99 100644
              agent_status = self.state_rpc.report_state(
                  ctx, self.agent_state, True)
 diff --git a/neutron/tests/unit/agent/dhcp/test_agent.py b/neutron/tests/unit/agent/dhcp/test_agent.py
-index b72cda465e..83ad75ad9b 100644
+index 3d761e9abe..69e7727dfa 100644
 --- a/neutron/tests/unit/agent/dhcp/test_agent.py
 +++ b/neutron/tests/unit/agent/dhcp/test_agent.py
 @@ -865,6 +865,21 @@ class TestDhcpAgent(base.BaseTestCase):
