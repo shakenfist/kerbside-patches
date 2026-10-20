@@ -4680,6 +4680,99 @@ and `_build/build-containers.sh`, and passed on command lines.
 *Corrected at source.* The survey's ansible-collection-kolla bullet,
 which gave the wrong reason for the directory's existence.
 
+#### Resolving the findings
+
+Planning effort: medium. The audit merged as #1933 (`30a2210ab`). This
+is the follow-up pull request Decision 6 names: it fixes findings 1 to
+17 here, carries A1 and A2 as a pull request in shakenfist/actions, and
+closes the plan out. Michael asked for it to be planned before it is
+implemented.
+
+**In scope:** the findings classed *fix* in the Outcome's table, and
+nothing else. **Out of scope:** #1931 and #1932, which predate the plan
+and have their own issues; the Future work entries; pushing to Gerrit,
+which is still Michael's decision once the messages are trimmed.
+
+*Decisions.*
+
+1. **A protected `/etc/kolla-ansible` is refused, not skipped.** Adding
+   it to `_PROTECTED_TREES` makes `mount_for` raise its existing "refusing
+   to mount ... over the deployer image" error for a configuration
+   directory, inventory or `-e @file` there, and mount a single file
+   under it only where `is_protected` allows. A clear refusal is the
+   launcher's existing behaviour for protected paths, and the operator's
+   fix (move the directory) is one line in the error.
+
+2. **Path-valued `ANSIBLE_*` variables are mounted from a fixed list.**
+   `ANSIBLE_CONFIG`, `ANSIBLE_INVENTORY`, `ANSIBLE_VAULT_PASSWORD_FILE`,
+   `ANSIBLE_PRIVATE_KEY_FILE` and `ANSIBLE_LOG_PATH`, through the same
+   `mount_for` the arguments use (`ANSIBLE_INVENTORY` may be a
+   comma-separated list). A fixed list is predictable and can be
+   documented; guessing at every forwarded value would mount whatever
+   happens to look like a path. Any other variable naming a file is
+   documented as not mounted.
+
+3. **The launcher inventory stays a checked copy, not a generated one.**
+   A pre-commit hook (`tools/check-launcher-inventory`) fails when the two
+   inventories differ by anything but the launcher file's header and its
+   connection lines. Generating it would move the file CI reads into
+   `tools/bootstrap-kolla-ansible`, where a reviewer cannot see it.
+
+4. **Trimmed commit messages lose nothing.** Each of the seven messages
+   is cut to `propose-upstream-patch`'s two paragraphs of four lines.
+   Anything cut that is stated nowhere else (the patch's release note, its
+   docs, the proposal) moves into the proposal's description of that
+   patch, which is where the Gerrit comment would come from.
+   `tools/gerrit-pre-push-lint --stack` over both series, applied in
+   scratch clones, is the check.
+
+5. **Patch edits are in place.** Every patch here is master-only, and
+   Phase 8 Decision 1's one copy of each holds; `find-patch-usage.py`
+   confirms the users before each edit, and both `ORDER` files that list
+   a patch see the same change.
+
+| Step | Effort | Model | Isolation | Brief for sub-agent |
+|---|---|---|---|---|
+| R1 | high | opus | none | Fix findings 1 and 9 of the Phase 9 Outcome in `deployer/launcher/`, per Decisions 1 and 2 of *Resolving the findings*. 1: add `/etc/kolla-ansible` to `_PROTECTED_TREES` in `mounts.py`, with tests for a configuration directory and an inventory under it (refused) and the image paths untouched. 9: mount the five listed `ANSIBLE_*` variables' paths in `command.py`'s `collect_mounts`, through `mounts_mod.mount_for`, handling a comma-separated `ANSIBLE_INVENTORY` and an unset or empty value; tests for each. Update `docs/deployer-launcher.md`'s protected-path list and its account of forwarded variables, saying which are mounted. Standard library only, 120 columns. One commit per finding. Subjects: "Refuse to mount over the image's kolla-ansible config." and "Mount the files ANSIBLE_* variables name." |
+| R2 | medium | sonnet | none | Fix findings 10 and 11. 10: write `tools/check-launcher-inventory`, a short shell script that strips the leading comment block and the `ansible_connection`/`ansible_remote_tmp` lines from `etc/inventory-all-in-one-launcher-master` and diffs the rest against `etc/inventory-all-in-one-master` (read both first and decide the exact normalisation from the real difference), and add it to `.pre-commit-config.yaml` for those two files and itself; prove it fails on a copy with a group added to one file only. 11: make `_build/calculate-container-hash.sh` exit 1, with its message, on a `src/` tree that is not a git repository, as it does when it finds no trees; update the comment above it and `docs/building.md`'s description of the hash (which still says it hashes each file by name and content). Shellcheck clean. One commit per finding. Subjects: "Check the launcher inventory matches the venv one." and "Fail the hash on a source tree that is not git." |
+| R3 | high | opus | none | Fix findings 2, 3, 4, 6 and 7 in `_patches/`, per Decision 5. Read `.claude/skills/rebase-patch/SKILL.md` and `.claude/skills/propose-upstream-patch/SKILL.md` first. For each: apply the series to a scratch clone at the `source_sha` in `kolla-ansible-deployer/config.yaml` (and `kolla-deployer/` where relevant) with `git apply -C1`, make the change in the tree, and regenerate the patch so its hunks and counts are exact (`tools/recount-patch.py`; pre-commit's recount hook checks it). 2: patch206's second release note says it refuses a record showing an older release; the code refuses an older deployer than the record. 3: "Deployer checks" (206) and "Build manifests" (209) take `~~~` underlines, matching "Upgrade procedure"'s siblings in `doc/source/user/operating-kolla.rst`; check the rendered order still reads sensibly. 4: add `Assisted-By: Claude Code` to patch200 and patch201, in both the `.patch` header and `.patch-message`, matching the other five. 6: patch214 adds `all-in-one-deployer` to `doc/source/contributor/adding-a-new-service.rst`'s list of inventories to update. 7: one sentence in 209's release note and its `operating-kolla.rst` section that, on Docker's classic image store, `prune-images` removes images pulled only by digest that no container uses, so stage images with `pull` after pruning. Then `_build/test-apply.sh` with tests for `kolla-ansible-deployer` and `kolla-ansible`. One commit per finding, except that 3 touches two patches in one commit. |
+| R4 | medium | opus | none | Fix finding 5, per Decision 4, after R3. Trim the commit messages of patches 199, 200, 201, 206, 208, 209 and 214 (both `.patch` header and `.patch-message`; keep them identical) to `propose-upstream-patch`'s rules; keep footers. Move anything cut and stated nowhere else into the matching patch's entry in `docs/containerised-deployer-proposal.md`. Prove with `tools/gerrit-pre-push-lint --stack N` in scratch clones with each series applied as commits (`git am` or apply-and-commit with the messages). Report each message's before and after paragraph counts. One commit. Subject: "Trim the deployer patches' commit messages." |
+| R5 | medium | opus | none | Fix findings 8 and 12 to 17, after R1 to R4, against the tree they leave. 8: in the proposal, the coordinated landing order of patch209 and patch147 (patch210's three conversions ride with whichever lands second), Open question 4 to name patch199's `sources.yaml` `reference: master` beside `override-checkout`, and patch201's series row marked as needed only if upstream adopts the launcher. 12: `AGENTS.md:36-37`. 13: `ARCHITECTURE.md`'s layout gains the two deployer series directories. 14 to 17: the rows of the Outcome's table, each checked against the code before editing; Phase 9's 9d report is summarised in those rows, so re-verify each claim rather than trusting the row. No plan phase or decision citations in the docs. One commit per finding. |
+| R6 | medium | sonnet | worktree in `../actions` | Fix A1 and A2 in shakenfist/actions, in a new worktree of `/srv/kasm_profiles/mikal/vscode/src/shakenfist/actions` on branch `deployer-inputs-docs` from `origin/main`. A1: document `deploy-kolla-ansible`'s `deployer` input and `setup-kerbside-environment`'s `install_docker` in `docs/actions.md`, with the precondition the latter's description states. A2: treat an empty `deployer` as `venv` (`-n` and `!= venv`), and accept only `true` or `false` for `install_docker`, failing on anything else. Run that repository's `pre-commit run --all-files` and unit tests. One commit per finding, following that repository's AGENTS.md. Do not push. |
+| R7 | low | n/a | none | Management session. Run the checks below, record a short *Resolution* paragraph under this section (commits, test-apply counts, the actions pull request), and close out: Phase 9 `Complete` in the Execution table and the plan's row in `docs/plans/index.md` `Complete`. Commit subject: "Close out the containerised deployer plan." |
+
+R1 to R5 run in sequence in this worktree, because each runs
+pre-commit or test-apply over the shared tree, and R5's documents
+describe what R1 and R3 changed. R6 runs alongside them in its own
+repository.
+
+The R7 checks:
+
+```bash
+# Finding 1: the image's config directory is protected.
+grep -q "'/etc/kolla-ansible'" deployer/launcher/kolla_ansible_launcher/mounts.py
+# Finding 4: every upstream-bound patch carries a disclosure.
+for p in 199 200 201 206 208 209 214; do
+    grep -q '^Assisted-By:' _patches/patch${p}-*kolla-ansible-*.patch-message
+done
+# Finding 2: the release note no longer says the record is refused for
+# being older.
+! grep -q 'record shows an older release' \
+    _patches/patch206-kolla-ansible-*.patch
+# Finding 3: no new section underlined with dashes.
+! grep -A1 -E '^\+(Deployer checks|Build manifests)$' \
+    _patches/patch20[69]-kolla-ansible-*.patch | grep -q -- '^+---'
+# Finding 10: the inventory check exists and passes.
+tools/check-launcher-inventory
+./_build/test-apply.sh kolla-deployer kolla-ansible-deployer
+pre-commit run --all-files
+```
+
+**Back brief gate.** Before R4 edits anything, the management session
+shows Michael one trimmed message (patch209's, the longest) beside the
+original. The other six follow its pattern, so agreeing it once is
+cheap; rewriting seven after the fact is not.
+
 ## Agent guidance
 
 Follow `PLAN-TEMPLATE.md`. Implementation is done by sub-agents,
