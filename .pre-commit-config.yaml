@@ -138,5 +138,6 @@ repos:
         name: ci-merge-group-current unit tests
         entry: python tools/test-ci-merge-group-current.py
         language: python
+        additional_dependencies: ['pyyaml']
         pass_filenames: false
-        files: ^(tools/(ci-merge-group-current\.sh|test-ci-merge-group-current\.py)|\.github/workflows/functional-tests\.yml)$
+        files: ^(tools/(ci-merge-group-current\.sh|test-ci-merge-group-current\.py)|\.github/workflows/(functional-tests|rebase-tests|local-container-builds)\.yml)$

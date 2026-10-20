@@ -25,6 +25,10 @@ on:
       patch_tests:
         type: string
         required: true
+    secrets:
+      DAILY_REBASE_TOKEN:
+        description: 'Checks out and pushes the automated lint fixer''s commits, so that the push triggers CI.'
+        required: false
 
 jobs:
   # Guard against infinite loops: skip automated fixers if the last
