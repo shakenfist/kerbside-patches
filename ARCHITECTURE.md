@@ -46,6 +46,8 @@ kerbside-patches/
         write-build-manifest  # Image digests, build marker
         gerrit-pre-push-lint  # Gerrit pre-push linter
     ansible-collection-kolla/ # Kolla collection pin (no patches)
+    kolla-deployer/          # Deployer patches on pristine Kolla (no repush)
+    kolla-ansible-deployer/  # Deployer patches on pristine Kolla-Ansible (no repush)
     kolla/                   # Kolla master patches
     kolla-2025.1/            # Kolla epoxy patches
     kolla-2025.2/            # Kolla flamingo patches
