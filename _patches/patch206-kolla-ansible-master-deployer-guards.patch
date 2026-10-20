@@ -332,7 +332,7 @@ index 4b29b43ba..263a8050e 100644
 +      when: kolla_action in ['deploy', 'deploy-containers', 'reconfigure', 'upgrade', 'migrate-container-engine']
 +  tags: always
 diff --git a/doc/source/user/operating-kolla.rst b/doc/source/user/operating-kolla.rst
-index 44e3ddd88..53e1868f8 100644
+index 44e3ddd88..8e2a13bd1 100644
 --- a/doc/source/user/operating-kolla.rst
 +++ b/doc/source/user/operating-kolla.rst
 @@ -197,6 +197,40 @@ After this command is complete, the containers will have been recreated from
@@ -340,7 +340,7 @@ index 44e3ddd88..53e1868f8 100644
  for you.
  
 +Deployer checks
-+---------------
++~~~~~~~~~~~~~~~
 +
 +Each successful ``deploy``, ``deploy-containers``, ``reconfigure``,
 +``upgrade`` and ``migrate-container-engine`` records what changed each host in

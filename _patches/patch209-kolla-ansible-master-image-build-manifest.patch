@@ -1371,7 +1371,7 @@ index b60b480fa..a868d91aa 100644
  watcher_api_dimensions: "{{ default_container_dimensions }}"
  watcher_applier_dimensions: "{{ default_container_dimensions }}"
 diff --git a/doc/source/user/operating-kolla.rst b/doc/source/user/operating-kolla.rst
-index 53e1868f8..3770ac3e2 100644
+index 8e2a13bd1..6a7e49c6e 100644
 --- a/doc/source/user/operating-kolla.rst
 +++ b/doc/source/user/operating-kolla.rst
 @@ -231,6 +231,58 @@ record but does not check it.
@@ -1379,7 +1379,7 @@ index 53e1868f8..3770ac3e2 100644
  after an upgrade done by hand outside these rules.
  
 +Build manifests
-+---------------
++~~~~~~~~~~~~~~~
 +
 +A deployer image may carry a build manifest at
 +``/etc/kolla-ansible/manifest.json`` (``kolla_image_manifest_path``), naming
