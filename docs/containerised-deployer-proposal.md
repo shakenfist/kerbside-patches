@@ -10,7 +10,7 @@ evidence behind every number below, see
 [the containerised deployer plan](plans/containerised-deployer.md).
 
 The changes were checked against Kolla `f738a5e56` and Kolla-Ansible
-`24644b3ba`.
+`24644b3ba`, the pins at the time of writing.
 
 **Subject:** `[kolla] Running Kolla-Ansible from a Kolla-built image, pinned by digest`
 

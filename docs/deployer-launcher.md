@@ -7,7 +7,8 @@ installs a `kolla-ansible` command, and the four password tools
 `kolla-writepwd`. Each runs the same command inside the deployer
 image, as the invoking user, with the files it names mounted in.
 
-This is a prototype. The design and the phases still to come are in
+This is a prototype. The design, and the record of how it was built
+and measured, are in
 [the containerised deployer plan](plans/containerised-deployer.md).
 The source is in `deployer/launcher/`. It uses only the Python
 standard library.
@@ -72,9 +73,11 @@ image that only exists on this host has no registry digest. It is
 pinned by its local image ID, with a warning that the ID means
 nothing on another host.
 
-`kolla-ansible launcher show` prints the file, whether the image is
-pinned, the engine, and the image's labels. It exits non-zero if the
-image speaks a launcher protocol this launcher does not.
+`kolla-ansible launcher show` prints the launcher's version, the
+fields it parsed from the file (path, image, engine, `host_namespaces`
+and `mounts`), whether the image is pinned, the image's labels, and
+its launcher protocol. It exits non-zero if the image speaks a
+launcher protocol this launcher does not.
 
 ## Installing an engine
 
@@ -508,7 +511,11 @@ voting, in [the containerised deployer plan](plans/containerised-deployer.md).
   a colon, and two different paths that would land at one mount point.
 
 Each error is one line on stderr, prefixed with the tool name, and
-exit status 1.
+the exit status is 1. The exceptions are a mistake in the arguments to
+`launcher` itself, which argparse reports with a usage line and exit
+status 2 (as does `launcher` with no action, after printing its
+help), and `bootstrap-servers` failing to run the image's
+`kolla-ansible` inside the chroot, which exits with status 127.
 
 The deployer checks above and the build manifest's refusals are
 refusals too, but come from Kolla-Ansible, not from the launcher, and

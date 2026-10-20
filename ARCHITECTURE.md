@@ -185,8 +185,8 @@ tools/write-build-manifest deployer-state <tag>
     kolla-ansible:<tag> missing or already labelled -> stop
     |
     v
-tools/write-build-manifest write <tag> manifest.json --images-file archive/images
-    archive/images: image names kolla-build built
+tools/write-build-manifest write <tag> manifest.json --images-file archive/images-<tag>
+    archive/images-<tag>: image names kolla-build built
     registry: HEAD /v2/<repo>/manifests/<tag> -> digest
     |
     v
