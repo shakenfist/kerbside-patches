@@ -657,6 +657,20 @@ index 000000000..f955bb261
 +
 +[letsencrypt-lego:children]
 +letsencrypt
+diff --git a/doc/source/contributor/adding-a-new-service.rst b/doc/source/contributor/adding-a-new-service.rst
+index cac9f5eba..fa8f02842 100644
+--- a/doc/source/contributor/adding-a-new-service.rst
++++ b/doc/source/contributor/adding-a-new-service.rst
+@@ -8,7 +8,8 @@ which Kolla uses throughout and which should be followed.
+ * The sample inventories
+ 
+   Entries should be added for the service in each of
+-  ``ansible/inventory/multinode`` and ``ansible/inventory/all-in-one``.
++  ``ansible/inventory/multinode``, ``ansible/inventory/all-in-one`` and
++  ``ansible/inventory/all-in-one-deployer``.
+ 
+ * The playbook
+ 
 diff --git a/releasenotes/notes/all-in-one-deployer-inventory-7df5e3655e059a3f.yaml b/releasenotes/notes/all-in-one-deployer-inventory-7df5e3655e059a3f.yaml
 new file mode 100644
 index 000000000..a611d3267
