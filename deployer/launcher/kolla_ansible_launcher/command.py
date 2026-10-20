@@ -57,7 +57,7 @@ def collect_mounts(tool, argv, cwd, environ, configdir, home, extra=()):
     for path in extra:
         if not os.path.exists(path):
             raise LauncherError('deployer.conf lists %s in mounts, but it does not exist' % path)
-        if os.path.isdir(path) and mounts_mod.is_protected(path):
+        if mounts_mod.is_protected(path):
             raise LauncherError('refusing to mount %s over the deployer image' % path)
         mounts.append(Mount(path))
 

@@ -135,13 +135,28 @@ launcher cannot see those on the command line. Each must exist.
 ### Protected directories
 
 Mounting `/etc` over the image would replace the image's own `/etc`.
-So these are never mounted as directories: `/`, `/etc`, `/var`,
-`/var/lib`, `/run`, `/opt`, and everything at or below `/usr`, `/bin`,
-`/sbin`, `/lib` and its variants, `/boot`, `/dev`, `/proc`, `/sys`,
-`/var/lib/kolla` and `/var/lib/kolla-ansible`. A single file in one of
-them, such as a vault password in `/etc`, is mounted alone. Any other
-path there is refused with a message saying to move it. The current
-directory is silently not mounted if it is protected.
+So `/`, `/etc`, `/var`, `/var/lib`, `/run` and `/opt` are never
+mounted as directories. A single file directly in one of them, such as
+a vault password in `/etc`, is mounted alone.
+
+Nothing at all is mounted at or below `/usr`, `/bin`, `/sbin`, `/lib`
+and its variants, `/boot`, `/dev`, `/proc`, `/sys`, `/var/lib/kolla`,
+`/var/lib/kolla-ansible` or `/etc/kolla-ansible`, not even a single
+file. `/etc/kolla-ansible` holds the image's `deployer.json` and
+`manifest.json`; a host directory mounted over it would hide them, and
+the deployer checks and digest pinning would silently not happen. So
+a configuration directory, inventory, `-e @file` or `mounts` entry
+kept there must move, for example to `/etc/kolla`, before the
+launcher will run.
+
+Any other path that needs a protected directory mounted is refused,
+with a message saying to move it, for example:
+
+```
+kolla-ansible: error: refusing to mount /etc/kolla-ansible over the deployer image, which /etc/kolla-ansible/inventory needs; move it elsewhere
+```
+
+The current directory is silently not mounted if it is protected.
 
 ## The identity in the container
 

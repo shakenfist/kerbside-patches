@@ -8,9 +8,11 @@ host_vars/ from beside an inventory file, and @file vars commonly include
 their neighbours.
 
 A directory the image itself depends on (/, /etc, /usr and so on) is never
-mounted over the image. A file in one is mounted alone instead; anything else
-there is refused. This guard is the launcher's own addition to the plan: a
-vault password file in /etc would otherwise replace the container's /etc.
+mounted over the image. A file directly in one, such as /etc, is mounted alone
+instead; anything else there is refused, as is any path at all in a protected
+tree such as /usr or /etc/kolla-ansible. This guard is the launcher's own
+addition to the plan: a vault password file in /etc would otherwise replace
+the container's /etc.
 """
 
 import os
@@ -21,9 +23,10 @@ from kolla_ansible_launcher import LauncherError
 # Mounting any of these directories themselves would hide the image's own.
 _PROTECTED_DIRS = frozenset(('/', '/etc', '/var', '/var/lib', '/run', '/opt'))
 
-# Nothing at or below these is mounted as a directory.
-_PROTECTED_TREES = ('/bin', '/boot', '/dev', '/lib', '/lib32', '/lib64', '/libx32', '/proc', '/sbin', '/sys', '/usr',
-                    '/var/lib/kolla', '/var/lib/kolla-ansible')
+# mount_for mounts nothing at or below these, not even a single file. /etc/kolla-ansible holds the image's deployer.json
+# and manifest.json, without which the deployer checks and the digest pinning are silently skipped.
+_PROTECTED_TREES = ('/bin', '/boot', '/dev', '/etc/kolla-ansible', '/lib', '/lib32', '/lib64', '/libx32', '/proc',
+                    '/sbin', '/sys', '/usr', '/var/lib/kolla', '/var/lib/kolla-ansible')
 
 
 class Mount:

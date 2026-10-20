@@ -1,8 +1,11 @@
+import contextlib
 import os
 import tempfile
 import unittest
+from unittest import mock
 
 from kolla_ansible_launcher import LauncherError
+from kolla_ansible_launcher import command
 from kolla_ansible_launcher import mounts
 from kolla_ansible_launcher.mounts import Mount
 
@@ -44,6 +47,54 @@ class MountForTestCase(unittest.TestCase):
         self.assertFalse(mounts.is_protected('/etc/kolla'))
         self.assertFalse(mounts.is_protected('/var/lib/kolla-other'))
         self.assertFalse(mounts.is_protected('/usrdata'))
+        self.assertFalse(mounts.is_protected('/etc/kolla-ansible-old'))
+
+
+class HostKollaAnsibleConfigTestCase(unittest.TestCase):
+    """A host /etc/kolla-ansible must not hide the image's deployer.json and manifest.json."""
+
+    DIRS = ('/', '/etc', '/etc/kolla-ansible', '/srv/kolla')
+    FILES = ('/etc/kolla-ansible/inventory', '/etc/kolla-ansible/globals.yml')
+
+    @contextlib.contextmanager
+    def host(self):
+        with mock.patch('os.path.isdir', side_effect=lambda p: p in self.DIRS), \
+                mock.patch('os.path.isfile', side_effect=lambda p: p in self.FILES), \
+                mock.patch('os.path.exists', side_effect=lambda p: p in self.DIRS + self.FILES):
+            yield
+
+    def mount_for(self, path):
+        with self.host():
+            return mounts.mount_for(path)
+
+    def assert_refused(self, path):
+        with self.assertRaises(LauncherError) as e:
+            self.mount_for(path)
+        self.assertEqual('refusing to mount /etc/kolla-ansible over the deployer image, which %s needs; move it '
+                         'elsewhere' % path, str(e.exception))
+
+    def test_configuration_directory_is_refused(self):
+        self.assert_refused('/etc/kolla-ansible')
+
+    def test_inventory_is_refused(self):
+        # Unlike a file directly in /etc, which is mounted alone.
+        self.assert_refused('/etc/kolla-ansible/inventory')
+
+    def test_missing_file_is_refused(self):
+        self.assert_refused('/etc/kolla-ansible/passwords.yml')
+
+    def test_file_in_deployer_conf_mounts_is_refused(self):
+        with self.host():
+            for path in ('/etc/kolla-ansible', '/etc/kolla-ansible/globals.yml'):
+                with self.subTest(path=path):
+                    with self.assertRaises(LauncherError) as e:
+                        command.collect_mounts('kolla-ansible', [], '/srv/kolla', {}, '/srv/kolla', '/home/op',
+                                               [path])
+                    self.assertEqual('refusing to mount %s over the deployer image' % path, str(e.exception))
+
+    def test_image_files_are_protected(self):
+        for path in ('/etc/kolla-ansible', '/etc/kolla-ansible/deployer.json', '/etc/kolla-ansible/manifest.json'):
+            self.assertTrue(mounts.is_protected(path), path)
 
 
 class DeduplicateTestCase(unittest.TestCase):
