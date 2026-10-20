@@ -65,6 +65,7 @@ PRs and issues with the `DAILY_REBASE_TOKEN` secret.
 | `postinstall-kolla-ansible` | Post-installation tasks after Kolla-Ansible deployment. |
 | `install-openstack-clients` | Installs patched OpenStack clients (openstacksdk, python-openstackclient) from source. |
 | `ka` | Shortcut wrapper for running kolla-ansible commands. |
+| `check-launcher-inventory` | Fails if `etc/inventory-all-in-one-launcher-master` differs from `etc/inventory-all-in-one-master` by anything but its leading comment block and the `ansible_connection` settings. Run by pre-commit. |
 
 ### Testing and Debugging
 

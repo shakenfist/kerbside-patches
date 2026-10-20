@@ -58,6 +58,18 @@ repos:
         language: system
         files: ^_patches/.*\.patch(-message)?$
 
+  # The launcher inventory is the venv inventory with a different connection
+  # for the kolla host. Nothing else keeps them in step, so a group added to
+  # one would pass CI on the other.
+  - repo: local
+    hooks:
+      - id: check-launcher-inventory
+        name: launcher inventory matches the venv inventory
+        entry: tools/check-launcher-inventory
+        language: system
+        pass_filenames: false
+        files: ^(etc/inventory-all-in-one(-launcher)?-master|tools/check-launcher-inventory)$
+
   # Documentation names code by symbol, not by line number: a line number
   # goes stale on the next edit to the code, in a change that never touches
   # the document. Plans are exempt, being a dated record. The daily
