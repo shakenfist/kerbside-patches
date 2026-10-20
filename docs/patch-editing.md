@@ -210,6 +210,14 @@ examples. Its `config.yaml` differs from the main series in four keys:
 | `repush` | `true` | lets `repush-openstack.sh` push the series to Gerrit |
 | `skip_rebase` | `false` (or absent) | see below |
 
+A series that is a discussion starter rather than a change ready for
+review sets `wip: true` as well. `repush-openstack.sh` then pushes it
+with `git review --wip`, so every change in the series lands in Gerrit
+marked work in progress, and reviewers are not asked for votes. Gerrit
+keeps that state on later patchsets pushed without the flag, so removing
+the key is not enough to take a series out of work in progress: push it
+once with `git review --ready`, or press "Start Review" on each change.
+
 `skip_rebase: true` stops `test-patches-for-ci.sh` -- and so the daily
 rebase and its Claude fixer -- from applying the series. It does not
 stop `bump-source-shas.sh` moving the series' `source_sha` every day. Set

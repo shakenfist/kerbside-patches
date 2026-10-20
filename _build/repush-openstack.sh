@@ -9,6 +9,7 @@ for project in ${projects}; do
     destination_branch=$(yq -r .destination_branch ${project}/config.yaml)
     directory=$(yq -r .directory ${project}/config.yaml)
     repush=$(yq -r '.repush // false' ${project}/config.yaml)
+    wip=$(yq -r '.wip // false' ${project}/config.yaml)
     number_of_patches=$(cat ${project}/ORDER | wc -l)
 
     echo
@@ -27,6 +28,7 @@ for project in ${projects}; do
         echo "Source branch: ${source_branch}"
         echo "Destination branch: ${destination_branch}"
         echo "Repush: ${repush}"
+        echo "Work in progress: ${wip}"
         echo "Expected number of patches: ${number_of_patches}"
         echo
 
@@ -44,7 +46,11 @@ for project in ${projects}; do
 	echo "Proceed (y to go, anything else to skip)?"
         read -r proceed
         if [ "${proceed}" == "y" ]; then
-            git review
+            review_args=()
+            if [ "${wip}" == "true" ]; then
+                review_args+=(--wip)
+            fi
+            git review "${review_args[@]}"
         fi
 
         cd ../..
