@@ -15,6 +15,7 @@ Date:   Sat Oct 3 06:05:27 2026 +1000
     localhost. It is set once in the role defaults, so the per-service
     config_validate.yml files need no changes.
     
+    Assisted-By: Claude Opus 5.5 (1M context, low effort) <noreply@anthropic.com>
     Change-Id: I05c5fb2cf7360c4c3dbbf493b9eb3e735a4c2e45
     Signed-off-by: Michael Still <mikal@stillhq.com>
 
