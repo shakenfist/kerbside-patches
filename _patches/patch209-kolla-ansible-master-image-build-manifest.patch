@@ -1371,10 +1371,10 @@ index b60b480fa..a868d91aa 100644
  watcher_api_dimensions: "{{ default_container_dimensions }}"
  watcher_applier_dimensions: "{{ default_container_dimensions }}"
 diff --git a/doc/source/user/operating-kolla.rst b/doc/source/user/operating-kolla.rst
-index 53e1868f8..41873bef3 100644
+index 53e1868f8..3770ac3e2 100644
 --- a/doc/source/user/operating-kolla.rst
 +++ b/doc/source/user/operating-kolla.rst
-@@ -231,6 +231,54 @@ record but does not check it.
+@@ -231,6 +231,58 @@ record but does not check it.
  ``--override-deployer-checks`` turns each refusal into a warning, for example
  after an upgrade done by hand outside these rules.
  
@@ -1425,6 +1425,10 @@ index 53e1868f8..41873bef3 100644
 +Switching between images given by tag and by digest changes every container's
 +image reference, so every container is recreated once, including MariaDB and
 +RabbitMQ. Do it during an upgrade.
++
++With Docker's classic image store, ``prune-images`` removes images pulled
++only by digest that no container uses, so run ``pull`` after pruning, not
++before.
 +
  
  CLI Command Completion
@@ -1935,10 +1939,10 @@ index 000000000..b4f721823
 +                          [BASE + 'nova-api'], **self.config())
 diff --git a/releasenotes/notes/image-build-manifest-99ad22b32ba0b6ac.yaml b/releasenotes/notes/image-build-manifest-99ad22b32ba0b6ac.yaml
 new file mode 100644
-index 000000000..386780217
+index 000000000..7673c41b1
 --- /dev/null
 +++ b/releasenotes/notes/image-build-manifest-99ad22b32ba0b6ac.yaml
-@@ -0,0 +1,37 @@
+@@ -0,0 +1,42 @@
 +---
 +features:
 +  - |
@@ -1976,6 +1980,11 @@ index 000000000..386780217
 +    pull by tag, and ``--override-deployer-checks`` does not change that.
 +    To pull every image by tag regardless, set ``kolla_image_manifest_path``
 +    to a path which does not exist.
++issues:
++  - |
++    With Docker's classic image store, ``prune-images`` removes images
++    pulled only by digest that no container uses, so run ``pull`` after
++    pruning, not before.
 diff --git a/tox.ini b/tox.ini
 index 30271d8a2..dbde79f81 100644
 --- a/tox.ini
