@@ -1273,7 +1273,7 @@ index 000000000..f2dc857e1
 +                                     'reconfigure', HOST, PATH))
 diff --git a/releasenotes/notes/deployer-checks-5c3bf4aaabef98ac.yaml b/releasenotes/notes/deployer-checks-5c3bf4aaabef98ac.yaml
 new file mode 100644
-index 000000000..e27a6e843
+index 000000000..fd145d3c3
 --- /dev/null
 +++ b/releasenotes/notes/deployer-checks-5c3bf4aaabef98ac.yaml
 @@ -0,0 +1,24 @@
@@ -1291,13 +1291,13 @@ index 000000000..e27a6e843
 +    When Kolla Ansible runs from a containerised deployer image, every action
 +    except ``destroy`` first checks the deployer. It refuses an
 +    ``openstack_tag`` or ``openstack_release`` that differs from the image's.
-+    It refuses a host whose record shows an older release, or the same
-+    release with an older Kolla Ansible version. Before an upgrade, a deployer
-+    for a newer release may run only ``bootstrap-servers``, ``pull``,
-+    ``prechecks``, ``gather-facts`` and ``upgrade``, and ``upgrade`` may move
-+    only to the next release, or from a ``.1`` release to the next ``.1``.
-+    ``master`` counts as newer than every release, so a host last deployed
-+    from ``master`` refuses a deployer for a stable release. The new
++    It refuses a deployer for an older release than a host's record shows, or
++    for the same release with an older Kolla Ansible version. Before an
++    upgrade, a deployer for a newer release may run only ``bootstrap-servers``,
++    ``pull``, ``prechecks``, ``gather-facts`` and ``upgrade``, and ``upgrade``
++    may move only to the next release, or from a ``.1`` release to the next
++    ``.1``. ``master`` counts as newer than every release, so a host last
++    deployed from ``master`` refuses a deployer for a stable release. The new
 +    ``--override-deployer-checks`` option turns each refusal into a warning.
 +    Kolla Ansible installed with ``pip`` writes the record but does not check
 +    it.
