@@ -1,0 +1,202 @@
+{
+  "builds": [
+    {
+      "name": "build-debian-trixie-master",
+      "release": "master",
+      "base": "debian:12",
+      "baseuser": "debian",
+      "container_distro": "debian",
+      "container_distro_version": "trixie",
+      "tiers": [
+        "smoke",
+        "merge"
+      ]
+    },
+    {
+      "name": "build-ubuntu-noble-master",
+      "release": "master",
+      "base": "debian:12",
+      "baseuser": "debian",
+      "container_distro": "ubuntu",
+      "container_distro_version": "noble",
+      "tiers": [
+        "smoke",
+        "merge"
+      ]
+    },
+    {
+      "name": "build-rocky-10-master",
+      "release": "master",
+      "base": "debian:12",
+      "baseuser": "debian",
+      "container_distro": "rocky",
+      "container_distro_version": "10",
+      "tiers": [
+        "smoke",
+        "merge"
+      ]
+    }
+  ],
+  "installs": [
+    {
+      "name": "master-h-debian13-c-ubuntu2404-aio",
+      "description": "master ubuntu 24.04 images on debian 13 all-in-one",
+      "release": "master",
+      "base": "debian:13",
+      "baseuser": "debian",
+      "topology": "all-in-one",
+      "runs_on": "debian-13",
+      "container_distro": "ubuntu",
+      "container_distro_version": "noble",
+      "enable_kerbside": "true",
+      "tiers": [
+        "smoke",
+        "merge"
+      ]
+    },
+    {
+      "name": "master-h-debian13-c-debian13-aio-nokerbside",
+      "description": "master debian 13 images on debian 13 all-in-one with no kerbside",
+      "release": "master",
+      "base": "debian:13",
+      "baseuser": "debian",
+      "topology": "all-in-one",
+      "runs_on": "debian-13",
+      "container_distro": "debian",
+      "container_distro_version": "trixie",
+      "enable_kerbside": "false",
+      "tiers": [
+        "smoke",
+        "merge"
+      ]
+    },
+    {
+      "name": "master-h-debian13-c-debian13-aio",
+      "description": "master debian 13 images on debian 13 all-in-one",
+      "release": "master",
+      "base": "debian:13",
+      "baseuser": "debian",
+      "topology": "all-in-one",
+      "runs_on": "debian-13",
+      "container_distro": "debian",
+      "container_distro_version": "trixie",
+      "tiers": [
+        "smoke",
+        "merge"
+      ]
+    },
+    {
+      "name": "master-h-debian13-c-debian13-aio-launcher",
+      "description": "master debian 13 images on debian 13 all-in-one with the containerised deployer",
+      "release": "master",
+      "base": "debian:13",
+      "baseuser": "debian",
+      "topology": "all-in-one",
+      "runs_on": "debian-13",
+      "container_distro": "debian",
+      "container_distro_version": "trixie",
+      "deployer": "launcher",
+      "tiers": [
+        "smoke",
+        "merge"
+      ]
+    },
+    {
+      "name": "master-h-rocky10-c-debian-13-aio",
+      "description": "master debian 13 images on rocky 10 all-in-one",
+      "release": "master",
+      "base": "rocky:10",
+      "baseuser": "cloud-user",
+      "topology": "all-in-one",
+      "runs_on": "debian-13",
+      "container_distro": "debian",
+      "container_distro_version": "trixie",
+      "tiers": [
+        "smoke",
+        "merge"
+      ]
+    },
+    {
+      "name": "master-h-rocky10-c-debian-13-aio-launcher",
+      "description": "master debian 13 images on rocky 10 all-in-one with the containerised deployer",
+      "release": "master",
+      "base": "rocky:10",
+      "baseuser": "cloud-user",
+      "topology": "all-in-one",
+      "runs_on": "debian-13",
+      "container_distro": "debian",
+      "container_distro_version": "trixie",
+      "deployer": "launcher",
+      "tiers": [
+        "smoke",
+        "merge"
+      ]
+    },
+    {
+      "name": "master-h-rocky10-c-rocky10-aio",
+      "description": "master rocky 10 images on rocky 10 all-in-one",
+      "release": "master",
+      "base": "rocky:10",
+      "baseuser": "cloud-user",
+      "topology": "all-in-one",
+      "runs_on": "debian-13",
+      "container_distro": "rocky",
+      "container_distro_version": "10",
+      "tiers": [
+        "smoke",
+        "merge"
+      ]
+    },
+    {
+      "name": "master-h-debian13-c-debian13-multi",
+      "description": "master debian 13 images on debian 13 multinode",
+      "release": "master",
+      "base": "debian:13",
+      "baseuser": "debian",
+      "topology": "multinode-2",
+      "runs_on": "debian-13",
+      "container_distro": "debian",
+      "container_distro_version": "trixie",
+      "tiers": [
+        "smoke",
+        "merge"
+      ]
+    }
+  ],
+  "patch_tests": [
+    {
+      "name": "debian-13",
+      "description": "debian 13",
+      "runs_on": "debian-13",
+      "projects": [
+        "kolla",
+        "kolla-ansible",
+        "kolla-deployer",
+        "kolla-ansible-deployer"
+      ],
+      "tiers": [
+        "smoke",
+        "merge"
+      ]
+    },
+    {
+      "name": "rocky-9",
+      "description": "rocky 9",
+      "runs_on": "rocky-9",
+      "projects": [
+        "kolla",
+        "kolla-ansible"
+      ],
+      "tiers": [
+        "smoke",
+        "merge"
+      ]
+    }
+  ],
+  "local_build": {
+    "tiers": [
+      "smoke",
+      "merge"
+    ]
+  }
+}

@@ -17,10 +17,10 @@ permissions:
 
 on:
   workflow_run:
+    # The patch tests and the local build run as reusable workflows inside
+    # "Build test clouds", so its runs carry their failures too.
     workflows:
       - "Build test clouds"
-      - "Ensure local container builds work"
-      - "Rebase tests"
     types: [completed]
 
 jobs:

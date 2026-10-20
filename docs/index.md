@@ -18,6 +18,9 @@ and tracks the health of the pipelines involved.
   hunk header, the `recount-patch.py` tool that keeps them correct, why
   a too-small count is more dangerous than a too-large one, and the
   `check-depends-on.py` validation of `Depends-On` footers.
+- [Continuous integration](ci.md) — the two CI tiers and their lanes,
+  the path filter, the lane file, the `Can enqueue` and `Can merge`
+  gates, and the concurrency key every VM job takes.
 - [CI data collection and reporting](ci-data.md) — the container layer
   data time series and the upstream OpenDev CI reliability reports.
 - [Security scanning](security-scanning.md) — the gitleaks credential

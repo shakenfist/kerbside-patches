@@ -4,10 +4,12 @@ name: Rebase tests
 # which is available as GITHUB_WORKSPACE. You can find other environment
 # variables at https://docs.github.com/en/actions/learn-github-actions/environment-variables
 #
-# These jobs run directly on conductor-provisioned VM runners (debian-13
-# and rocky-9). The runner is already the OS under test, so the patch test
-# suites run locally via _build/test-apply.sh -- there is no longer any
-# bare-metal runner or nested Shakenfist VM involved.
+# This workflow is called from functional-tests.yml rather than being
+# triggered directly on pull requests. These jobs run directly on
+# conductor-provisioned VM runners (debian-13 and rocky-9). The runner is
+# already the OS under test, so the patch test suites run locally via
+# _build/test-apply.sh -- there is no longer any bare-metal runner or
+# nested Shakenfist VM involved.
 
 # Checkout only. The automated lint fixer checks out and pushes with
 # DAILY_REBASE_TOKEN, which carries its own scope.
@@ -15,20 +17,25 @@ permissions:
   contents: read
 
 on:
-  pull_request:
-    branches:
-      - develop
-      - v*-releases
-    paths-ignore:
-      - 'data/**'
-      - 'docs/**'
+  workflow_call:
+    inputs:
+      tier:
+        type: string
+        required: true
+      patch_tests:
+        type: string
+        required: true
+    secrets:
+      DAILY_REBASE_TOKEN:
+        description: 'Checks out and pushes the automated lint fixer''s commits, so that the push triggers CI.'
+        required: false
 
 jobs:
   # Guard against infinite loops: skip automated fixers if the last
   # commit was from the bot.
   check_bot_commit:
     name: "Check bot commit"
-    runs-on: [self-hosted, vm, debian-13, s]
+    runs-on: [self-hosted, static]
     outputs:
       is_bot: ${{ steps.check.outputs.is_bot }}
     steps:
@@ -57,7 +64,11 @@ jobs:
     outputs:
       linters_failed: ${{ steps.lint.outcome == 'failure' }}
     concurrency:
-      group: ${{ github.workflow }}-${{ github.ref }}-lint
+      group: >-
+        ${{ github.workflow }}-patch-lint-${{ inputs.tier }}-${{
+        github.event_name == 'merge_group' && github.run_attempt == '1' &&
+        format('merge_group-{0}', github.event.merge_group.base_ref) ||
+        github.ref }}
       cancel-in-progress: true
 
     defaults:
@@ -99,9 +110,14 @@ jobs:
     if: >-
       ${{ always() &&
           needs.lint_check.outputs.linters_failed == 'true' &&
-          needs.check_bot_commit.outputs.is_bot != 'true' }}
+          needs.check_bot_commit.outputs.is_bot != 'true' &&
+          github.event_name == 'pull_request' }}
     concurrency:
-      group: ${{ github.workflow }}-${{ github.ref }}-lint-fixer
+      group: >-
+        ${{ github.workflow }}-patch-lint-fixer-${{ inputs.tier }}-${{
+        github.event_name == 'merge_group' && github.run_attempt == '1' &&
+        format('merge_group-{0}', github.event.merge_group.base_ref) ||
+        github.ref }}
       cancel-in-progress: true
 
     steps:
@@ -120,52 +136,19 @@ jobs:
         run: |
           tools/fix-lint-with-claude.sh --ci
 
-  functional_matrix:
-    name: "Rebase ${{ matrix.test.description }}"
+  patch_tests:
+    name: "Patch tests on ${{ matrix.test.description }}"
     strategy:
       fail-fast: false
-      matrix:
-        test: [
-          {
-              'description': "kolla on debian 13",
-              'name': 'debian-13-kolla',
-              'project': 'kolla',
-              'runs_on': 'debian-13'
-          },
-          {
-              'description': "kolla on rocky 9",
-              'name': 'rocky-9-kolla',
-              'project': 'kolla',
-              'runs_on': 'rocky-9'
-          },
-          {
-              'description': "kolla-ansible on debian 13",
-              'name': 'debian-13-kolla-ansible',
-              'project': 'kolla-ansible',
-              'runs_on': 'debian-13'
-          },
-          {
-              'description': "kolla-ansible on rocky 9",
-              'name': 'rocky-9-kolla-ansible',
-              'project': 'kolla-ansible',
-              'runs_on': 'rocky-9'
-          },
-          {
-              'description': "kolla deployer on debian 13",
-              'name': 'debian-13-kolla-deployer',
-              'project': 'kolla-deployer',
-              'runs_on': 'debian-13'
-          },
-          {
-              'description': "kolla-ansible deployer on debian 13",
-              'name': 'debian-13-kolla-ansible-deployer',
-              'project': 'kolla-ansible-deployer',
-              'runs_on': 'debian-13'
-          },
-        ]
+      matrix: ${{ fromJSON(inputs.patch_tests) }}
     runs-on: [self-hosted, vm, '${{ matrix.test.runs_on }}', 'xl']
+    timeout-minutes: 150
     concurrency:
-      group: ${{ github.workflow }}-${{ github.ref }}-${{ matrix.test.name }}
+      group: >-
+        ${{ github.workflow }}-patch-tests-${{ matrix.test.name }}-${{ inputs.tier }}-${{
+        github.event_name == 'merge_group' && github.run_attempt == '1' &&
+        format('merge_group-{0}', github.event.merge_group.base_ref) ||
+        github.ref }}
       cancel-in-progress: true
 
     defaults:
@@ -192,7 +175,26 @@ jobs:
           cd ${GITHUB_WORKSPACE}/kerbside-patches
           tools/ci-install-test-deps.sh
 
-      - name: Deep test patches (master)
+      - name: Deep test patches for kolla
+        if: ${{ !cancelled() && contains(matrix.test.projects, 'kolla') }}
         run: |
           cd ${GITHUB_WORKSPACE}/kerbside-patches
-          ./_build/test-apply.sh ${{ matrix.test.project }}
+          ./_build/test-apply.sh kolla
+
+      - name: Deep test patches for kolla-ansible
+        if: ${{ !cancelled() && contains(matrix.test.projects, 'kolla-ansible') }}
+        run: |
+          cd ${GITHUB_WORKSPACE}/kerbside-patches
+          ./_build/test-apply.sh kolla-ansible
+
+      - name: Deep test patches for kolla-deployer
+        if: ${{ !cancelled() && contains(matrix.test.projects, 'kolla-deployer') }}
+        run: |
+          cd ${GITHUB_WORKSPACE}/kerbside-patches
+          ./_build/test-apply.sh kolla-deployer
+
+      - name: Deep test patches for kolla-ansible-deployer
+        if: ${{ !cancelled() && contains(matrix.test.projects, 'kolla-ansible-deployer') }}
+        run: |
+          cd ${GITHUB_WORKSPACE}/kerbside-patches
+          ./_build/test-apply.sh kolla-ansible-deployer

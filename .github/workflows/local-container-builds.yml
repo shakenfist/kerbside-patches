@@ -7,6 +7,9 @@ name: Ensure local container builds work
 #
 # This workflow should closely follow the instructions from README.md,
 # although there are some minor githubisms in here (git clones mostly).
+#
+# It is called from functional-tests.yml, and can still be dispatched by
+# hand.
 
 # Checkout only; this workflow builds images and writes nothing back.
 permissions:
@@ -14,12 +17,11 @@ permissions:
 
 on:
   workflow_dispatch:
-  pull_request:
-    branches:
-      - develop
-    paths-ignore:
-      - 'data/**'
-      - 'docs/**'
+  workflow_call:
+    inputs:
+      tier:
+        type: string
+        required: true
 
 jobs:
   local_build_matrix:
@@ -35,15 +37,20 @@ jobs:
           },
         ]
     runs-on: [self-hosted, vm, 'debian-13', 'xl']
+    timeout-minutes: 120
     concurrency:
-      group: ${{ github.workflow }}-${{ github.ref }}-local-${{ matrix.test.release }}
+      group: >-
+        ${{ github.workflow }}-local-build-${{ matrix.test.release }}-${{ inputs.tier }}-${{
+        github.event_name == 'merge_group' && github.run_attempt == '1' &&
+        format('merge_group-{0}', github.event.merge_group.base_ref) ||
+        github.ref }}
       cancel-in-progress: true
 
     steps:
       - name: Set environment variables
         shell: bash
         run: |
-          echo "SF_HEAD_SHA=${{ github.event.pull_request.head.sha }}" >> $GITHUB_ENV
+          echo "SF_HEAD_SHA=${{ github.event.pull_request.head.sha || github.sha }}" >> $GITHUB_ENV
           echo "SHAKENFIST_NAMESPACE=$(hostname)" >> $GITHUB_ENV
 
       - name: Checkout kerbside-patches
