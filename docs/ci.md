@@ -239,3 +239,5 @@ that one by name, and `rebase-tests.yml` declares it as an optional
 `workflow_call` secret. Do not change this to `secrets: inherit`: the
 fleet's reusable-workflow-secrets audit rejects it, and it would give
 the called workflow every secret.
+
+<!-- Throwaway docs-only CI check; do not merge. -->
