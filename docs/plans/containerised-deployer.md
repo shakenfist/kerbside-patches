@@ -367,7 +367,7 @@ against `develop`.
 | 6. Build manifest | Complete | #1881 (`784e95d9e`) |
 | 7. Make the prototype entry voting | Complete | #1896 (`1af58c137`), #1919 (`3b8ff103d`) |
 | 8. Documentation and upstream proposal | Complete | #1925 (`54b8bb270`) |
-| 9. Push audit | In progress | #1933 (`30a2210ab`) |
+| 9. Push audit | Complete | #1933 (`30a2210ab`) |
 
 The order is deliberate. Phase 0 comes first so that every later
 phase is proven in CI as it lands, rather than CI arriving at the
@@ -4772,6 +4772,33 @@ pre-commit run --all-files
 shows Michael one trimmed message (patch209's, the longest) beside the
 original. The other six follow its pattern, so agreeing it once is
 cheap; rewriting seven after the fact is not.
+
+*Resolution.* Done on 2026-10-20 (AEDT). R1 and R6 ran in parallel, and
+R2 to R5 in sequence, as planned. Michael approved patch209's trimmed
+message at the gate. Every finding classed *fix* is fixed, in one
+commit each: 1 (`8ce132c6c`), 9 (`3ff820dde`), 10 (`826732347`), 11
+(`f0aa0091d`), 4 (`cc8cfca2e`), 2 (`ebf0653ec`), 6 (`1874341c0`), 7
+(`8cd3954cd`), 3 (`5b643a7e1`), 5 (`be4c35520`), 12 (`aa3fc8d35`), 13
+(`9a4cdac50`), 14 (`82144f81c`), 15 (`1552bf293`), 16 (`e965ec2bf`), 8
+(`f0f371922`) and 17 (`007d84dc6`). These are branch SHAs; the merge
+commit of this pull request is the record. A1 and A2 are
+shakenfist/actions#189, which should merge before this pull request.
+
+Departures from the plan. R1 also applies the protected check to files
+listed in `deployer.conf`'s mounts, which skipped it for files; that
+closed the same hole by another route, so it was kept in finding 1's
+commit. R3 gave patch200 and patch201 the model form of `Assisted-By`
+the other five carry, not the bare `Claude Code` the brief named.
+R4 kept the seven subjects, so `gerrit-pre-push-lint` still warns that
+they end with a period and have no area prefix; the body warnings are
+gone. Change the subjects before pushing to Gerrit if that matters.
+
+Checks, on the branch before this commit: the R7 greps pass,
+`tools/check-launcher-inventory` passes, `pre-commit run --all-files`
+is clean, and `_build/test-apply.sh` with tests passes for
+`kolla-deployer` (172 tests) and `kolla-ansible-deployer` (all six
+patches; the last py3 run 577 passed, 0 failed; pep8 and linters
+clean). R3 also ran `kolla-ansible` with tests, with the same counts.
 
 ## Agent guidance
 
