@@ -17,10 +17,11 @@ CI data pipeline is [docs/ci-data.md](docs/ci-data.md), and
 kerbside-patches/
     .github/
         workflows/
-            functional-tests.yml  # CI: build, deploy, test
+            functional-tests.yml  # CI: the one gated workflow
             daily-rebase-checks.yml  # Daily upstream rebase
             trigger-downstream.yml  # Trigger kerbside CI on develop push
-            local-container-builds.yml  # Test local builds work
+            local-container-builds.yml  # Local build (reusable)
+            rebase-tests.yml  # Patch tests (reusable)
             heal-data-prs.yml  # Auto-resolve conflicted data PRs
     _build/                  # Build and CI scripts
         common.sh            # Shared functions and CLI parsing
@@ -292,21 +293,39 @@ packages have available security fixes.
 
 ### Functional Tests Workflow
 
-The main CI workflow (`functional-tests.yml`) runs on PRs:
+The one gated workflow, `functional-tests.yml` ("Build test clouds"),
+runs on pull requests, merge queue entries and manual dispatches. A
+`check_paths` job filters out docs-only and data-only changes and
+selects the lanes for the event from `.github/ci-lanes.json`; the
+rest of the workflow reads its matrices from that selection:
 
-1. **build** (matrix) -- builds container images for each
-   target release and distro combination. After the build,
+1. **lint** and **assemble_source** -- pre-commit, and the patched
+   source tree.
+2. **build_images** (matrix) -- builds container images for each
+   selected release and distro combination. After the build,
    clingwrap collects Docker daemon diagnostics (using the
    `openstack-kolla-ansible` target) to help debug build
    failures such as Docker daemon hangs. The diagnostics
    bundle is included in the build artifact.
-2. **deploy** -- deploys OpenStack via kolla-ansible and
-   runs functional tests (VM creation, console access)
-3. **collect_layer_data** -- appends each build's layer
+3. **test_installs** (matrix) -- deploys OpenStack via
+   kolla-ansible and runs functional tests (VM creation, console
+   access)
+4. **patch_tests** and **local_build** -- calls of the reusable
+   workflows `rebase-tests.yml` and `local-container-builds.yml`,
+   so that their results are part of this run.
+5. **can_enqueue** and **can_merge** -- the two gates a ruleset
+   requires. They need every job above directly and pass only on
+   success or skip.
+6. **collect_layer_data** -- appends each build's layer
    records to the per-image time series in `data/layers/`
-   and proposes a PR. Runs even when some builds fail (uses
-   `!cancelled()`) so that layer data from successful builds
-   is still collected.
+   and proposes a PR. Runs on pull requests only, and even when
+   some builds fail (uses `!cancelled()`) so that layer data from
+   successful builds is still collected. It is skipped when the
+   builds were. It is outside the gates.
+
+There are two tiers of lanes, smoke for pull requests and merge for
+the queue. The merge queue is not enabled yet, so every lane is in
+both. See `docs/ci.md`.
 
 Because each data PR appends a line to the same per-image
 files, data PRs open concurrently conflict as soon as one of
@@ -322,16 +341,20 @@ and pushed rather than just configured.
 
 ### Rebase Tests Workflow
 
-The `rebase-tests.yml` workflow runs on PRs and includes:
+`rebase-tests.yml` is a reusable workflow, called from
+`functional-tests.yml` as `Patch tests`; it has no runs of its own.
+It includes:
 
 1. **lint_check** -- lightweight job that applies patches
    and runs `tox -elinters` for kolla-ansible projects.
-   Runs in parallel with the full test matrix.
-2. **functional_matrix** -- deep tests that apply patches
-   with full test suites on rocky and debian runners
-3. **automated_lint_fixer** -- triggers when `lint_check`
-   fails and last commit is not from the bot. Uses Claude
-   Code to fix ansible-lint errors in patch files.
+   Runs in parallel with the deep tests.
+2. **patch_tests** -- deep tests that apply patches with full test
+   suites, one job per host OS (debian-13 and rocky-9) with a step
+   per project.
+3. **automated_lint_fixer** -- triggers on pull requests when
+   `lint_check` fails and last commit is not from the bot. Uses
+   Claude Code to fix ansible-lint errors in patch files, pushing
+   with `DAILY_REBASE_TOKEN`, which the caller passes by name.
 4. **check_bot_commit** -- prevents infinite loops by
    skipping automated fixers when the last commit was
    from the bot (same pattern as shakenfist).

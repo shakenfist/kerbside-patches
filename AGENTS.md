@@ -22,6 +22,7 @@ the only tested container OS: RHEL and Rocky dropped SPICE support.
 | How do I hand-edit a patch file? | [docs/patch-editing.md](docs/patch-editing.md) |
 | How do I build patched container images? | [docs/building.md](docs/building.md) |
 | What does each helper script do? | [docs/script-reference.md](docs/script-reference.md) |
+| How is CI laid out, and how do I change a lane? | [docs/ci.md](docs/ci.md) |
 | How does CI data collection work? | [docs/ci-data.md](docs/ci-data.md) |
 | How do the Zuul and Tempest jobs run? | [docs/kolla-ansible-tempest-jobs.md](docs/kolla-ansible-tempest-jobs.md) |
 | How do I iterate quickly on Kerbside? | [docs/kolla-devmode.md](docs/kolla-devmode.md) |
@@ -120,11 +121,26 @@ per-image per-stage JSONL files are produced. Data flows:
 ### Modifying GitHub Actions Workflows
 
 The main workflow is `.github/workflows/functional-tests.yml`.
-It is large and has several jobs:
+It is large and has several jobs, described in
+[docs/ci.md](docs/ci.md):
 
+- `check_paths` -- path filter and lane selection
+- `lint`, `assemble_source` -- pre-commit, and the patched source
 - `build_images` -- builds container images (matrix strategy)
 - `test_installs` -- deploys with kolla-ansible and runs tests
+- `patch_tests`, `local_build` -- call `rebase-tests.yml` and
+  `local-container-builds.yml`
 - `collect_layer_data` -- aggregates layer data from builds
+- `can_enqueue`, `can_merge` -- the gates a ruleset requires
+
+Three conventions apply to it:
+
+- Lanes live in `.github/ci-lanes.json`, not in the workflow.
+- Never put `paths-ignore` or `paths` on its triggers; `check_paths`
+  filters, so that the gates always report.
+- A new VM job takes the merge-group concurrency key used by the
+  existing jobs, and a called workflow's suffix must not repeat its
+  caller's.
 
 The deploy steps (bootstrap, prechecks, pull, deploy,
 install-clients, post-install) are shared with kerbside's
@@ -152,12 +168,14 @@ patch files are rewritten wholesale on every upstream rebase. See
 [docs/security-scanning.md](docs/security-scanning.md).
 
 Other workflows:
-- `rebase-tests.yml` -- applies the patch stack and runs the
-  test suites (`_build/test-apply.sh`) for kolla and
-  kolla-ansible on both debian-13 and rocky-9 VM runners
+- `rebase-tests.yml` -- reusable, called from
+  `functional-tests.yml` as `Patch tests`: applies the patch
+  stack and runs the test suites (`_build/test-apply.sh`) on
+  debian-13 and rocky-9 VM runners
 - `trigger-downstream.yml` -- triggers kerbside CI on push
   to develop (e.g. after daily rebase PR merges)
-- `local-container-builds.yml` -- tests local builds work
+- `local-container-builds.yml` -- tests local builds work; called
+  from `functional-tests.yml` as `Local build`, and dispatchable
 - `daily-rebase-checks.yml` -- daily upstream rebase with
   Claude-assisted patch fixing
 - `ci-reporting.yml` -- on-demand refresh of the OpenDev CI
