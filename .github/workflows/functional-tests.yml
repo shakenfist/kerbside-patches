@@ -1,7 +1,29 @@
 name: Build test clouds
 
+# auto-retry-infra-failures.yml finds this workflow by its name, so a rename
+# needs a matching change there.
+#
+# Two tier CI. Every pull request runs the smoke tier, and merge queue
+# entries run the merge tier on the commit that will actually land. Which
+# lanes sit in which tier is data rather than workflow: .github/ci-lanes.json
+# lists every image build, install test and patch test lane with the tiers
+# it runs in, and check_paths selects them for the event, so each kind of
+# job below has exactly one definition. A manual dispatch runs the smoke
+# tier unless it asks for tier=full, which runs the merge tier's lanes.
+#
+# The patch tests (rebase-tests.yml) and the local build
+# (local-container-builds.yml) are reusable workflows called from here, so
+# that this one workflow carries every result the merge gates need.
+#
+# The can_enqueue / can_merge collection job scheme is as described at:
+# https://boinkor.net/2023/11/neat-github-actions-patterns-for-github-merge-queues/
+# Both are meant to be the required status checks: can_enqueue reports on
+# pull requests and dispatches, can_merge on merge queue entries, and each
+# is skipped (which GitHub treats as success) for the other event.
+
 # Checkout only. The layer-data pull request at the end of the run is
-# made with DAILY_REBASE_TOKEN, which carries its own scope.
+# made with DAILY_REBASE_TOKEN, which carries its own scope. The few jobs
+# that need more of GITHUB_TOKEN grant it themselves.
 permissions:
   contents: read
 
@@ -12,21 +34,167 @@ on:
         description: 'Subdirectory of data/ for layer time series files'
         required: false
         default: 'layers'
+      tier:
+        description: 'Which lanes to run: smoke (the pull request lanes) or full (the merge queue lanes)'
+        type: choice
+        options:
+          - smoke
+          - full
+        default: smoke
+  merge_group:
+  # Deliberately no trigger-level paths-ignore; check_paths explains why.
   pull_request:
     branches:
       - develop
-    paths-ignore:
-      - 'data/**'
-      - 'docs/**'
-      - README.md
 
 jobs:
+  # Detect changes touching only docs/, data/ (the time series the CI bots
+  # write) or README.md so the heavy jobs can skip.
+  # This replaces the old trigger-level paths-ignore, which cannot
+  # coexist with required status checks: a required check in a
+  # paths-ignore'd workflow never reports on a filtered PR, and a
+  # required check that never reports blocks the merge forever. With a
+  # filter job the workflow always reports, the heavy jobs skip on its
+  # output, and a skipped required check counts as satisfied. On
+  # workflow_dispatch the filter step is skipped and the output
+  # defaults to code_changed=true so all selected lanes run.
+  #
+  # The filter also runs on merge_group, so a docs-only or data-only
+  # queue entry skips the whole matrix as well.
+  #
+  # After the verdict the job selects the lanes for the event, and on
+  # merge_group it cancels the run if the queue entry has been rebuilt onto
+  # a newer base; see the last step. Both read the tree, so unlike the
+  # filter the checkout runs on every event, dispatches included.
+  check_paths:
+    name: "Check paths"
+    runs-on: [self-hosted, static]
+    timeout-minutes: 10
+    # actions: write is for the last step, which cancels its own run.
+    # Naming any scope sets every unnamed one to none, so contents: read
+    # is restated for the checkout. The filter needs no pull-requests:
+    # read because this repository is public.
+    permissions:
+      contents: read
+      actions: write
+    outputs:
+      code_changed: ${{ steps.filter.outputs.code || 'true' }}
+      builds: ${{ steps.lanes.outputs.builds }}
+      installs: ${{ steps.lanes.outputs.installs }}
+      patch_tests: ${{ steps.lanes.outputs.patch_tests }}
+      run_builds: ${{ steps.lanes.outputs.run_builds }}
+      run_installs: ${{ steps.lanes.outputs.run_installs }}
+      run_patch_tests: ${{ steps.lanes.outputs.run_patch_tests }}
+      run_local_build: ${{ steps.lanes.outputs.run_local_build }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: dorny/paths-filter@v4
+        id: filter
+        if: github.event_name != 'workflow_dispatch'
+        with:
+          # On merge_group, compare against the base_sha fixed in the
+          # event payload, the develop commit the queue built this
+          # entry on, not against the develop branch itself. The
+          # branch moves: once the queue has merged this entry, develop
+          # contains the queued commit, so a "Re-run all jobs" of the
+          # run would diff against a base already holding HEAD, find
+          # nothing, and let "Can merge" go green on skips having
+          # tested nothing. A re-run keeps its original payload, so it
+          # sees the same diff as the first attempt. On pull_request
+          # events the action ignores base and compares against the
+          # PR's base branch; develop is only the fallback for an event
+          # with no merge_group payload.
+          base: ${{ github.event.merge_group.base_sha || 'develop' }}
+          # By default a file matches the filter if it matches ANY
+          # listed pattern, which makes '**' match everything and
+          # silently defeats the exclusions. 'every' requires a file
+          # to match ALL patterns, which is the correct semantics for
+          # an "everything except docs and data" filter.
+          predicate-quantifier: 'every'
+          filters: |
+            code:
+              - '**'
+              - '!docs/**'
+              - '!data/**'
+              - '!README.md'
+      # Make the verdict visible in the log rather than inferred from
+      # which downstream jobs skipped.
+      - name: Report verdict
+        run: echo "code_changed=${{ steps.filter.outputs.code || 'true (defaulted)' }}"
+
+      # Prints the build, install and patch test matrices for this event,
+      # and a run_ flag beside each. A job whose fromJSON matrix is empty
+      # fails rather than skips, so each matrix job is gated on its flag
+      # instead. The selection is echoed to the log as well; shell: bash
+      # adds pipefail, so a selector failure is not hidden by tee.
+      - name: Select lanes
+        id: lanes
+        shell: bash
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          TIER: ${{ inputs.tier }}
+          CODE_CHANGED: ${{ steps.filter.outputs.code || 'true' }}
+        run: |
+          tools/ci-select-lanes.py --lanes .github/ci-lanes.json \
+              --event "${EVENT_NAME}" --tier "${TIER}" \
+              --code-changed "${CODE_CHANGED}" | tee -a "$GITHUB_OUTPUT"
+
+      # A superseded merge group run cancels itself here, before any of its
+      # jobs enter the merge-group-keyed concurrency groups below. Without
+      # this, which of two runs for the same queue entry survives is decided
+      # by whose Check paths finishes last, and it can be the stale one
+      # (shakenfist/shakenfist#3998). It must stay the last step of the job
+      # every queue job needs: the check is only as good as the gap between
+      # it and those jobs entering their groups is short. The script
+      # explains why that gap is safe, and which way it fails when it cannot
+      # tell.
+      - name: Cancel this run if the merge group is superseded
+        if: github.event_name == 'merge_group'
+        timeout-minutes: 5
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          BASE_REF: ${{ github.event.merge_group.base_ref }}
+          BASE_SHA: ${{ github.event.merge_group.base_sha }}
+          RUN_ID: ${{ github.run_id }}
+        run: tools/ci-merge-group-current.sh
+
   lint:
     name: "Lint shell scripts and workflows"
+    needs: check_paths
+    if: needs.check_paths.outputs.code_changed == 'true'
     runs-on: [self-hosted, vm, debian-13, s]
     timeout-minutes: 30
+    # On every event except merge_group, github.ref identifies the thing
+    # being tested and is the right concurrency key. On merge_group it is
+    # the per-attempt queue branch, gh-readonly-queue/develop/pr-NNN-SHA,
+    # and GitHub mints a fresh SHA every time it rebuilds the group --
+    # which it does on each push to develop. Keying on it would put every
+    # rebuild in a group of its own, so cancel-in-progress would never
+    # match and superseded runs would build whole clouds on the shared
+    # under-cloud to completion, starving the one group that can merge.
+    #
+    # Cancelling them is safe while the develop ruleset keeps
+    # max_entries_to_build at 1: the queue then builds one entry at a time,
+    # and any other first attempt of a merge_group run is by definition
+    # superseded. Those runs are keyed on the base branch so they share one
+    # group. A re-run is not a queue build, though. It keeps its original
+    # event, so with the base-branch key a "Re-run jobs" on an old queue
+    # run would cancel the live queue entry or be cancelled by it. Re-runs
+    # therefore keep their own queue branch's group. The merge_group-
+    # prefix keeps a queue run from colliding with a workflow_dispatch run
+    # on develop, whose github.ref is the same branch.
+    #
+    # Every job here on a vm or bound runner is keyed this way, and so are
+    # the jobs of the workflows called below. Inside a called workflow
+    # github.workflow is this workflow's name, so the called jobs use
+    # patch- and local-build- prefixes, which no job here may reuse.
     concurrency:
-      group: ${{ github.workflow }}-${{ github.ref }}-lint
+      group: >-
+        ${{ github.workflow }}-lint-${{
+        github.event_name == 'merge_group' && github.run_attempt == '1'
+        && format('merge_group-{0}', github.event.merge_group.base_ref)
+        || github.ref }}
       cancel-in-progress: true
     steps:
       - name: Checkout kerbside-patches
@@ -53,6 +221,8 @@ jobs:
 
   assemble_source:
     name: "Assemble source for ${{ matrix.test.release }}"
+    needs: check_paths
+    if: needs.check_paths.outputs.code_changed == 'true'
     strategy:
       fail-fast: false
       matrix:
@@ -66,8 +236,13 @@ jobs:
         ]
     runs-on: [self-hosted, vm, 'debian-13', 'xl']
     timeout-minutes: 30
+    # Keyed as lint's is, for the reasons given there.
     concurrency:
-      group: ${{ github.workflow }}-${{ github.ref }}-source-${{ matrix.test.release }}
+      group: >-
+        ${{ github.workflow }}-source-${{ matrix.test.release }}-${{
+        github.event_name == 'merge_group' && github.run_attempt == '1'
+        && format('merge_group-{0}', github.event.merge_group.base_ref)
+        || github.ref }}
       cancel-in-progress: true
 
     # NOTE(mikal): git repos are checked out to /srv/github/_work/{org}/{repo}
@@ -111,48 +286,23 @@ jobs:
 
   build_images:
     name: "Images for ${{ matrix.test.release }} on ${{ matrix.test.container_distro }} ${{ matrix.test.container_distro_version }}"
+    needs: [check_paths, assemble_source]
+    # The lanes are the builds in .github/ci-lanes.json that check_paths
+    # selected for this event. An empty matrix would fail the job, so it is
+    # gated on the selector's flag rather than on the matrix.
+    if: needs.check_paths.outputs.run_builds == 'true'
     strategy:
       fail-fast: false
-      matrix:
-        test: [
-          # {
-          #   'name': 'build-debian-2026.1',
-          #   'release': '2026.1',
-          #   'base': 'debian:12',
-          #   'baseuser': 'debian',
-          #   'container_distro': 'debian',
-          #   'container_distro_version': 'trixie'
-          # },
-          {
-            'name': 'build-debian-trixie-master',
-            'release': 'master',
-            'base': 'debian:12',
-            'baseuser': 'debian',
-            'container_distro': 'debian',
-            'container_distro_version': 'trixie'
-          },
-          {
-            'name': 'build-ubuntu-noble-master',
-            'release': 'master',
-            'base': 'debian:12',
-            'baseuser': 'debian',
-            'container_distro': 'ubuntu',
-            'container_distro_version': 'noble'
-          },
-          {
-            'name': 'build-rocky-10-master',
-            'release': 'master',
-            'base': 'debian:12',
-            'baseuser': 'debian',
-            'container_distro': 'rocky',
-            'container_distro_version': '10'
-          },
-        ]
-    needs: assemble_source
+      matrix: ${{ fromJSON(needs.check_paths.outputs.builds) }}
     runs-on: [self-hosted, vm, 'debian-13', 'xl']
     timeout-minutes: 180
+    # Keyed as lint's is, for the reasons given there.
     concurrency:
-      group: ${{ github.workflow }}-${{ github.ref }}-${{ matrix.test.name }}
+      group: >-
+        ${{ github.workflow }}-${{ matrix.test.name }}-${{
+        github.event_name == 'merge_group' && github.run_attempt == '1'
+        && format('merge_group-{0}', github.event.merge_group.base_ref)
+        || github.ref }}
       cancel-in-progress: true
 
     # NOTE(mikal): git repos are checked out to /srv/github/_work/{org}/{repo}
@@ -389,10 +539,12 @@ jobs:
           if-no-files-found: error
           path: /tmp/result.json
 
+  # Only downloads artifacts and joins some JSON, so it holds no VM.
   aggregate_results:
     name: "Aggregate results"
     needs: build_images
-    runs-on: [self-hosted, vm, 'debian-13', 'm']
+    runs-on: [self-hosted, static]
+    timeout-minutes: 15
     outputs:
       all_results: ${{ steps.combine.outputs.results }}
     steps:
@@ -417,115 +569,13 @@ jobs:
 
   test_installs:
     name: "${{ matrix.test.description }} using ${{ matrix.test.container_distro }} containers"
+    needs: [check_paths, build_images, aggregate_results]
+    # The lanes are the installs in .github/ci-lanes.json that check_paths
+    # selected for this event, gated on its flag as build_images is.
+    if: needs.check_paths.outputs.run_installs == 'true'
     strategy:
       fail-fast: false
-      matrix:
-        test: [
-          # {
-          #   'name': '2026.1-h-debian13-c-debian13-aio',
-          #   'description': '2026.1 debian 13 images on debian 13 all-in-one',
-          #   'release': '2026.1',
-          #   'base': 'debian:13',
-          #   'baseuser': 'debian',
-          #   'topology': 'all-in-one',
-          #   'runs_on': 'debian-13',
-          #   'container_distro': 'debian',
-          #   'container_distro_version': 'trixie',
-          #   'enable_kerbside': 'true'
-          # },
-          {
-            'name': 'master-h-debian13-c-ubuntu2404-aio',
-            'description': 'master ubuntu 24.04 images on debian 13 all-in-one',
-            'release': 'master',
-            'base': 'debian:13',
-            'baseuser': 'debian',
-            'topology': 'all-in-one',
-            'runs_on': 'debian-13',
-            'container_distro': 'ubuntu',
-            'container_distro_version': 'noble',
-            'enable_kerbside': 'true'
-          },
-          {
-            'name': 'master-h-debian13-c-debian13-aio-nokerbside',
-            'description': 'master debian 13 images on debian 13 all-in-one with no kerbside',
-            'release': 'master',
-            'base': 'debian:13',
-            'baseuser': 'debian',
-            'topology': 'all-in-one',
-            'runs_on': 'debian-13',
-            'container_distro': 'debian',
-            'container_distro_version': 'trixie',
-            'enable_kerbside': 'false'
-          },
-          {
-            'name': 'master-h-debian13-c-debian13-aio',
-            'description': 'master debian 13 images on debian 13 all-in-one',
-            'release': 'master',
-            'base': 'debian:13',
-            'baseuser': 'debian',
-            'topology': 'all-in-one',
-            'runs_on': 'debian-13',
-            'container_distro': 'debian',
-            'container_distro_version': 'trixie'
-          },
-          {
-            'name': 'master-h-debian13-c-debian13-aio-launcher',
-            'description': 'master debian 13 images on debian 13 all-in-one with the containerised deployer',
-            'release': 'master',
-            'base': 'debian:13',
-            'baseuser': 'debian',
-            'topology': 'all-in-one',
-            'runs_on': 'debian-13',
-            'container_distro': 'debian',
-            'container_distro_version': 'trixie',
-            'deployer': 'launcher'
-          },
-          {
-            'name': 'master-h-rocky10-c-debian-13-aio',
-            'description': 'master debian 13 images on rocky 10 all-in-one',
-            'release': 'master',
-            'base': 'rocky:10',
-            'baseuser': 'cloud-user',
-            'topology': 'all-in-one',
-            'runs_on': 'debian-13',
-            'container_distro': 'debian',
-            'container_distro_version': 'trixie'
-          },
-          {
-            'name': 'master-h-rocky10-c-debian-13-aio-launcher',
-            'description': 'master debian 13 images on rocky 10 all-in-one with the containerised deployer',
-            'release': 'master',
-            'base': 'rocky:10',
-            'baseuser': 'cloud-user',
-            'topology': 'all-in-one',
-            'runs_on': 'debian-13',
-            'container_distro': 'debian',
-            'container_distro_version': 'trixie',
-            'deployer': 'launcher'
-          },
-          {
-            'name': 'master-h-rocky10-c-rocky10-aio',
-            'description': 'master rocky 10 images on rocky 10 all-in-one',
-            'release': 'master',
-            'base': 'rocky:10',
-            'baseuser': 'cloud-user',
-            'topology': 'all-in-one',
-            'runs_on': 'debian-13',
-            'container_distro': 'rocky',
-            'container_distro_version': '10'
-          },
-          {
-            'name': 'master-h-debian13-c-debian13-multi',
-            'description': 'master debian 13 images on debian 13 multinode',
-            'release': 'master',
-            'base': 'debian:13',
-            'baseuser': 'debian',
-            'topology': 'multinode-2',
-            'runs_on': 'debian-13',
-            'container_distro': 'debian',
-            'container_distro_version': 'trixie'
-          },
-        ]
+      matrix: ${{ fromJSON(needs.check_paths.outputs.installs) }}
     # This job is an orchestrator, not the machine under test: the cloud
     # being deployed is built as instances on the Shaken Fist cluster by
     # the actions repository's kerbside-*-node playbooks, and the runner
@@ -538,11 +588,18 @@ jobs:
     # otherwise take it), and the "bind-" token is unique per run,
     # attempt and matrix row. See shakenfist/private-ci
     # docs/capacity-claims.md, "Binding a job to its runner".
+    # strategy.job-index counts within one job only, so the token stays
+    # unique only while this is the one job in the workflow binding its
+    # runners with the build-test-clouds token.
     runs-on: [self-hosted, 'bound-${{ matrix.test.runs_on }}', bound-s, "bind-${{ github.run_id }}-${{ github.run_attempt }}-build-test-clouds-${{ strategy.job-index }}"]
-    needs: [build_images, aggregate_results]
     timeout-minutes: 120
+    # Keyed as lint's is, for the reasons given there.
     concurrency:
-      group: ${{ github.workflow }}-${{ github.ref }}-${{ matrix.test.name }}
+      group: >-
+        ${{ github.workflow }}-${{ matrix.test.name }}-${{
+        github.event_name == 'merge_group' && github.run_attempt == '1'
+        && format('merge_group-{0}', github.event.merge_group.base_ref)
+        || github.ref }}
       cancel-in-progress: true
 
     # NOTE(mikal): git repos are checked out to /srv/github/_work/{org}/{repo}
@@ -1104,11 +1161,51 @@ jobs:
           if-no-files-found: error
           path: /tmp/bundle.zip
 
+  # The patch tests live in their own reusable workflow and run here so
+  # that their result gates the merge like every other lane's. The tier
+  # passed down keys the called jobs' concurrency groups, and is merge for
+  # a queue entry, smoke for a pull request and the requested tier for a
+  # dispatch; local_build passes the same expression. The one secret passed
+  # is for the automated lint fixer, which pushes with it; naming it rather
+  # than inheriting keeps the called workflow from seeing every other.
+  patch_tests:
+    name: "Patch tests"
+    needs: check_paths
+    if: needs.check_paths.outputs.run_patch_tests == 'true'
+    uses: ./.github/workflows/rebase-tests.yml
+    with:
+      tier: >-
+        ${{ github.event_name == 'merge_group' && 'merge'
+        || github.event_name == 'pull_request' && 'smoke'
+        || inputs.tier || 'smoke' }}
+      patch_tests: ${{ needs.check_paths.outputs.patch_tests }}
+    secrets:
+      DAILY_REBASE_TOKEN: ${{ secrets.DAILY_REBASE_TOKEN }}
+
+  # Builds every image without the CI registry, as a user would on their
+  # own machine. It is the only build of the unfiltered image set.
+  local_build:
+    name: "Local build"
+    needs: check_paths
+    if: needs.check_paths.outputs.run_local_build == 'true'
+    uses: ./.github/workflows/local-container-builds.yml
+    with:
+      tier: >-
+        ${{ github.event_name == 'merge_group' && 'merge'
+        || github.event_name == 'pull_request' && 'smoke'
+        || inputs.tier || 'smoke' }}
+
   collect_layer_data:
     name: "Collect layer data and create PR"
     needs: [build_images]
     runs-on: [self-hosted, static]
-    if: github.event_name == 'pull_request' && !cancelled()
+    # !cancelled() lets this run when some builds failed, so the builds
+    # that succeeded still record their layers. When check_paths skipped
+    # the builds (a docs-only or data-only change) there is nothing to
+    # collect, and the status function would otherwise run it anyway.
+    if: >-
+      github.event_name == 'pull_request' && !cancelled()
+      && needs.build_images.result != 'skipped'
     env:
       DATA_PREFIX: ${{ inputs.data_prefix || 'layers' }}
 
@@ -1295,3 +1392,62 @@ jobs:
               --title "${DATA_PREFIX} data from ${DATESTAMP} (run ${RUN_ID}, attempt ${CURRENT_ATTEMPT})" \
               --body-file "${RUNNER_TEMP}/pr-body.md" \
               --head "${branch_name}"
+
+  # Each collection job needs every gated job directly rather than through
+  # another job: a job skipped because its own needs failed reports
+  # skipped, which the jq below would pass. They run under always(), not
+  # !cancelled(), so that a cancelled run fails its gate rather than
+  # skipping it, and the jq passes only success and skipped, so a cancelled
+  # dependency fails too. collect_layer_data is deliberately in neither
+  # list: it publishes data rather than testing anything.
+  can_enqueue:
+    name: "Can enqueue"
+    needs:
+      - check_paths
+      - lint
+      - assemble_source
+      - build_images
+      - aggregate_results
+      - test_installs
+      - patch_tests
+      - local_build
+    if: always() && github.event_name != 'merge_group'
+    permissions:
+      actions: read
+    runs-on: [self-hosted, static]
+    # A jq expression over the needs context.
+    timeout-minutes: 5
+    steps:
+      - env:
+          NEEDS_JSON: "${{toJSON(needs)}}"
+        name: Transform outcomes
+        run: |
+          echo "ALL_SUCCESS=$(echo "$NEEDS_JSON" | jq '. | to_entries | map([.value.result == "success", .value.result == "skipped"] | any) | all')" >>$GITHUB_ENV
+      - name: Check outcomes
+        run: "[ $ALL_SUCCESS == true ]"
+
+  can_merge:
+    name: "Can merge"
+    needs:
+      - check_paths
+      - lint
+      - assemble_source
+      - build_images
+      - aggregate_results
+      - test_installs
+      - patch_tests
+      - local_build
+    if: always() && github.event_name == 'merge_group'
+    permissions:
+      actions: read
+    runs-on: [self-hosted, static]
+    # A jq expression over the needs context.
+    timeout-minutes: 5
+    steps:
+      - env:
+          NEEDS_JSON: "${{toJSON(needs)}}"
+        name: Transform outcomes
+        run: |
+          echo "ALL_SUCCESS=$(echo "$NEEDS_JSON" | jq '. | to_entries | map([.value.result == "success", .value.result == "skipped"] | any) | all')" >>$GITHUB_ENV
+      - name: Check outcomes
+        run: "[ $ALL_SUCCESS == true ]"

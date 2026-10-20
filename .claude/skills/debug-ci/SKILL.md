@@ -5,13 +5,20 @@ description: Diagnose a failed kerbside-patches CI run - which job failed, which
 
 # Debugging a CI Failure
 
-## Workflows
+## Jobs
 
-| Workflow | What fails there |
-|----------|------------------|
-| `Rebase tests` | Patches no longer apply, or upstream test suites break |
-| `Ensure local container builds work` | Image builds |
-| `Build test clouds` | Real Kolla-Ansible deployments on test VMs, plus the SPICE console test |
+Pull requests run one workflow, `Build test clouds`. Look in its jobs:
+
+| Job | What fails there |
+|-----|------------------|
+| `Check paths` | The path filter or lane selection (`tools/ci-select-lanes.py`); on a merge group, the superseded-run check |
+| `Patch tests / ...` | Patches no longer apply, or upstream test suites break (and `Patch tests / Ansible lint check` for lint) |
+| `Local build / ...` | Image builds without the CI registry |
+| `Images for ...` | Image builds in CI |
+| `... using ... containers` | Real Kolla-Ansible deployments on test VMs, plus the SPICE console test |
+| `Can enqueue`, `Can merge` | Nothing of their own: they fail because a job they need failed or was cancelled |
+
+See `docs/ci.md` for how the jobs fit together.
 
 ## Finding the failing step
 
