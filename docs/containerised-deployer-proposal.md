@@ -212,7 +212,27 @@ order listed.
 patch214 is upstream's `all-in-one` copied with an 18-line header
 comment, two `[all:vars]` lines (the nsenter connection and an
 absolute `ansible_remote_tmp`), and the host renamed from `localhost`
-to `kolla` on its six group lines. Nothing else differs.
+to `kolla` on its six group lines. Nothing else differs: like
+`all-in-one`, it does not pin `ansible_python_interpreter`, so
+interpreter discovery on the host is unchanged.
+
+A few points the commit messages leave for review:
+
+* **patch199** takes the `openstack.kolla` collection from a git
+  plugin source because `ansible-collection-kolla` publishes no
+  tarballs. Both new sources have `kolla_build_sources` and
+  `required-projects` entries, so Zuul builds the image from its own
+  checkouts and `Depends-On` works. The `kolla_ansible_launcher_protocol`
+  label lets a wrapper check that it can drive an image before running
+  it.
+* **patch208** leaves `get_image_id` alone: its `images(name=...)`
+  filter already matches a digest reference with both the classic and
+  the containerd image stores.
+* **patch209** uses a lookup rather than a filter because a lookup can
+  read the play's variables, so `<service>_image_full` need not repeat
+  the registry, namespace and manifest path. An image the manifest does
+  not name, such as `rabbitmq-upgrade.yml`'s versioned RabbitMQ image,
+  is pulled by tag.
 
 ## Open questions
 

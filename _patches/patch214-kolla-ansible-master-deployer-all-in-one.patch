@@ -4,36 +4,15 @@ Date:   Sat Oct 17 08:09:03 2026 +1100
 
     Add an all-in-one inventory for the deployer.
     
-    Kolla Ansible can be run from a container on the host it deploys to,
-    such as the kolla-ansible image built by Kolla. The container then
-    reaches its own host through the community.docker.nsenter connection
-    plugin, with no SSH. The all-in-one inventory cannot be used for that
-    with only its connection changed, because it names the deploy host
-    localhost.
+    Running Kolla Ansible from a container on the host it deploys, over
+    community.docker.nsenter, needs the deploy host not to be named
+    localhost, so all-in-one cannot simply change its connection. Add
+    all-in-one-deployer, which names the host kolla.
     
-    Some tasks run with delegate_to: localhost and connection: local, using
-    paths that exist only where Ansible runs. Keystone's fernet cron
-    generator, for example, runs a script from its role directory with
-    ansible_playbook_python. An inventory host named localhost replaces
-    Ansible's implicit one, and a host's ansible_connection takes precedence
-    over a task's connection keyword, so those tasks would run on the host
-    and fail.
-    
-    This change adds all-in-one-deployer beside all-in-one. It differs only
-    in that:
-    
-    * the deploy host is named kolla, so that every use of localhost stays
-      in the container;
-    * ansible_connection=community.docker.nsenter in [all:vars] replaces
-      ansible_connection=local on each host line; and
-    * ansible_remote_tmp is an absolute path. The nsenter plugin assumes
-      that remote_user is root, and passes the container's environment,
-      including HOME, to commands on the host, so the default
-      ~/.ansible/tmp names a directory in the container's HOME, which the
-      host does not have.
-    
-    Neither all-in-one nor this inventory pins ansible_python_interpreter,
-    so interpreter discovery on the host is unchanged.
+    A host named localhost replaces Ansible's implicit one, and its
+    ansible_connection overrides the connection: local of tasks delegated
+    to localhost, sending them to the host. ansible_remote_tmp is absolute
+    because the plugin passes the container's HOME to the host.
     
     Assisted-By: Claude Opus 5.5 (1M context, high effort) <noreply@anthropic.com>
     Co-Authored-By: Claude Opus 5.5 (1M context, high effort) <noreply@anthropic.com>
