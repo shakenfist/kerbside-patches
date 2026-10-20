@@ -299,8 +299,8 @@ the launcher (Phase 7).
 What the timings support (Phase 7, 26 pairs of launcher and control
 jobs from the same runs, 2026-10-10 to 2026-10-13):
 
-* **The bootstrap section is shorter by about two minutes at the
-  median.** The launcher takes `ansible-galaxy` and
+* **The bootstrap section is shorter at the median, by about 130s on
+  the Debian host and 95s on the Rocky host.** The launcher takes `ansible-galaxy` and
   `kolla-ansible install-deps` out of bootstrap. `install-deps` alone
   had a median of 107s on the Debian host and 131s on the Rocky host,
   and a range of 42s to 493s.

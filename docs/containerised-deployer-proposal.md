@@ -96,9 +96,10 @@ These are from the CI described below, pairing each launcher job with
 a virtualenv control from the same run.
 
 Across 26 pairs of launcher and virtualenv jobs from the same CI runs
-(2026-10-10 to 2026-10-13), the bootstrap section was shorter by
-about two minutes at the median, because the launcher does not run
-`ansible-galaxy` or `kolla-ansible install-deps`. `install-deps`
+(2026-10-10 to 2026-10-13), the bootstrap section was shorter at the
+median by about 130s on the Debian host and 95s on the Rocky host,
+because the launcher does not run `ansible-galaxy` or
+`kolla-ansible install-deps`. `install-deps`
 alone had a median of 107s on the Debian host and 131s on the Rocky
 host, and ranged from 42s to 493s.
 
