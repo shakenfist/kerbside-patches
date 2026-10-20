@@ -8,8 +8,10 @@ The container is run with --rm, -i, -t only when stdin is a terminal,
 rootless podman, whose --userns=keep-id already keeps them), the mounts,
 --workdir set to the current directory, --privileged --pid=host unless
 host_namespaces is off, and the ANSIBLE_*, KOLLA_* and SSH_AUTH_SOCK variables
-forwarded by name. There is no --init: the image's entrypoint is already
-dumb-init --single-child.
+forwarded by name. The files that ANSIBLE_CONFIG, ANSIBLE_INVENTORY,
+ANSIBLE_PRIVATE_KEY_FILE, ANSIBLE_VAULT_PASSWORD_FILE and ANSIBLE_LOG_PATH name
+are mounted; no other variable's value is. There is no --init: the image's
+entrypoint is already dumb-init --single-child.
 """
 
 import os
@@ -27,6 +29,13 @@ FORWARD_NAMES = ('SSH_AUTH_SOCK',)
 # value, typically left over from a native install, would hide them.
 NOT_FORWARDED = ('ANSIBLE_COLLECTIONS_PATH', 'ANSIBLE_COLLECTIONS_PATHS')
 
+# The forwarded variables whose values name files, which are mounted like path arguments. Ansible only reads the
+# first four, so they are mounted read-only and only when they exist; ANSIBLE_INVENTORY is a comma-separated list.
+# The log file may not exist yet, so its nearest existing directory is mounted, as for --log-file.
+READ_PATH_VARIABLES = ('ANSIBLE_CONFIG', 'ANSIBLE_INVENTORY', 'ANSIBLE_PRIVATE_KEY_FILE', 'ANSIBLE_VAULT_PASSWORD_FILE')
+WRITE_PATH_VARIABLES = ('ANSIBLE_LOG_PATH',)
+LIST_VARIABLES = ('ANSIBLE_INVENTORY',)
+
 # The image's entrypoint runs kolla-ansible; the password tools replace it.
 ENTRYPOINT = 'dumb-init'
 ENTRYPOINT_ARGS = ('--single-child', '--')
@@ -39,13 +48,26 @@ def forwarded_env(environ):
     return sorted(names)
 
 
+def variable_paths(environ, cwd):
+    """Return (name, absolute path, readonly) for each file a path-valued variable names."""
+    found = []
+    for name in READ_PATH_VARIABLES + WRITE_PATH_VARIABLES:
+        value = environ.get(name, '')
+        values = value.split(',') if name in LIST_VARIABLES else [value]
+        for path in (v.strip() for v in values):
+            if path:
+                found.append((name, args_mod.absolute(path, cwd), name in READ_PATH_VARIABLES))
+    return found
+
+
 def collect_mounts(tool, argv, cwd, environ, configdir, home, extra=()):
     """Return the same-path mounts a run needs, deduplicated.
 
     These are the current directory, the configuration directory, every path
-    argument, the paths listed in deployer.conf, ~/.ssh (read-only, and also
-    in the container's home directory) and the SSH agent socket. home is the
-    user's home directory on the host.
+    argument, the files the path-valued ANSIBLE_* variables name, the paths
+    listed in deployer.conf, ~/.ssh (read-only, and also in the container's
+    home directory) and the SSH agent socket. home is the user's home
+    directory on the host.
     """
     mounts = []
     if not mounts_mod.is_protected(cwd):
@@ -53,6 +75,16 @@ def collect_mounts(tool, argv, cwd, environ, configdir, home, extra=()):
     mounts.append(mounts_mod.mount_for(configdir))
     for path in args_mod.host_paths(tool, argv, cwd):
         mounts.append(mounts_mod.mount_for(path))
+
+    for name, path, readonly in variable_paths(environ, cwd):
+        if readonly and not os.path.exists(path):
+            # Nothing to make visible; Ansible names the missing file itself.
+            continue
+        try:
+            m = mounts_mod.mount_for(path)
+        except LauncherError as e:
+            raise LauncherError('%s: %s' % (name, e))
+        mounts.append(Mount(m.source, readonly=readonly))
 
     for path in extra:
         if not os.path.exists(path):

@@ -119,6 +119,15 @@ unchanged.
   parent directory, not the file alone. Ansible reads `group_vars/`
   and `host_vars/` from beside an inventory, and `@file` variable
   files often include their neighbours.
+* The files named by five forwarded variables, in the same way:
+  `ANSIBLE_CONFIG`, `ANSIBLE_INVENTORY` (a comma-separated list),
+  `ANSIBLE_PRIVATE_KEY_FILE` and `ANSIBLE_VAULT_PASSWORD_FILE`
+  read-only, and only if they exist, and `ANSIBLE_LOG_PATH`
+  read-write, whether or not the log exists yet. A relative value is
+  taken against the current directory, and a refusal names the
+  variable. No other variable's value is mounted, so a file that some
+  other `ANSIBLE_*` or `KOLLA_*` variable names must be in a mounted
+  directory or in the `mounts` key.
 * The user's `~/.ssh`, read-only, at its own path and also at
   `/var/lib/kolla-ansible/.ssh`, which is where OpenSSH looks.
 * The SSH agent socket named by `SSH_AUTH_SOCK`. It is the socket
@@ -176,7 +185,9 @@ container. That is why `~/.ssh` is mounted at both places.
 ## What it forwards
 
 * The environment variables `ANSIBLE_*`, `KOLLA_*` and
-  `SSH_AUTH_SOCK`, by name.
+  `SSH_AUTH_SOCK`, by name. Only the five variables listed under
+  [What it mounts](#what-it-mounts), and the agent socket, have the
+  file they name mounted too.
 * Not `ANSIBLE_COLLECTIONS_PATH` or `ANSIBLE_COLLECTIONS_PATHS`. The
   image sets its own, and a stale host value would hide the
   collections it carries.
