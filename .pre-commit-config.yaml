@@ -82,7 +82,7 @@ repos:
     rev: 7.4.1
     hooks:
       - id: flake8
-        files: ^(deployer/|tools/(write-build-manifest|test-write-build-manifest\.py|measure-deployer-bootstrap|test-measure-deployer-bootstrap\.py)$)
+        files: ^(deployer/|tools/(write-build-manifest|test-write-build-manifest\.py|measure-deployer-bootstrap|test-measure-deployer-bootstrap\.py|ci-select-lanes\.py|test-ci-select-lanes\.py)$)
         args: ['--max-line-length=120']
 
   - repo: local
@@ -117,3 +117,15 @@ repos:
         additional_dependencies: ['click']
         pass_filenames: false
         files: ^tools/(measure-deployer-bootstrap|test-measure-deployer-bootstrap\.py)$
+
+  # The lane selector reads the lanes data file with the standard library
+  # only, so this hook needs no venv dependencies. It reruns when the real
+  # lanes file changes because one test validates it.
+  - repo: local
+    hooks:
+      - id: ci-select-lanes-tests
+        name: ci-select-lanes unit tests
+        entry: python tools/test-ci-select-lanes.py
+        language: python
+        pass_filenames: false
+        files: ^(tools/(ci-select-lanes|test-ci-select-lanes)\.py|\.github/ci-lanes\.json)$
