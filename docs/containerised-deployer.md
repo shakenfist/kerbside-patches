@@ -446,10 +446,13 @@ These were not run, and nothing on this page claims them:
 | Digest references in `kolla_container` | openstack/kolla-ansible | `patch208` |
 | The build manifest lookup | openstack/kolla-ansible | `patch209` |
 | Kerbside's images through the manifest | This repository only | `patch210` |
+| An all-in-one inventory for a deployer image | openstack/kolla-ansible | `patch214` |
 | The launcher | Undecided | `deployer/launcher/` |
 | The manifest build step and CI checks | This repository | `_build/`, `tools/` |
 
-The patches are on the main `kolla/` and `kolla-ansible/` series, so
-every CI entry, virtualenv ones included, runs them. Nothing has been
+All but `patch214` are on the main `kolla/` and `kolla-ansible/`
+series, so every CI entry, virtualenv ones included, runs them.
+`patch214` is only in `kolla-ansible-deployer/`, since CI deploys with
+this repository's own launcher inventory instead. Nothing has been
 proposed upstream yet; that is what
 [the proposal](containerised-deployer-proposal.md) is for.
