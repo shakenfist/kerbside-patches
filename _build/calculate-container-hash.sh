@@ -29,14 +29,16 @@ for dir in ${*}; do
             # the image tag. The trees are git repositories both locally and in
             # CI, as assemble-source.sh tars each clone with its .git directory.
             # A directory which is not a git repository cannot be hashed this
-            # way, so it is skipped with a warning rather than hashed wrongly.
+            # way, and skipping it would let a change there reuse a stale tag,
+            # so it is an error, as is finding no trees at all.
             echo "Using src hashing for ${dir}..." >&2
             tree_list=""
             for tree in $(find . -mindepth 1 -maxdepth 1 -type d -printf '%f\n' | LC_ALL=C sort); do
                 if tree_id=$(git -C "${tree}" rev-parse 'HEAD^{tree}' 2>/dev/null); then
                     tree_list="${tree_list}${tree} ${tree_id}"$'\n'
                 else
-                    echo "WARNING: src/${tree} is not a git repository, skipping it." >&2
+                    echo "ERROR: src/${tree} is not a git repository, refusing to hash." >&2
+                    exit 1
                 fi
             done
             if [ -z "${tree_list}" ]; then

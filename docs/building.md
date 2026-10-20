@@ -202,8 +202,12 @@ covers the patched source, `_build`, `tools` and the date. A rerun, or a
 second run on the same day with the same patches, computes the same tag,
 and `build-containers.sh` skips the build when that tag is already built.
 That needs the hash to be the same on every runner, so
-`calculate-container-hash.sh` hashes each file by name and content in a
-fixed (`LC_ALL=C`) order, never in the order the filesystem lists them.
+`calculate-container-hash.sh` hashes `src` as one line per source tree, its
+name and the git tree id of its `HEAD`, and `_build`, `etc` and `tools` as one
+line per file, its content hash and name. Both are in a fixed (`LC_ALL=C`)
+order, never the order the filesystem lists them. A tree under `src` that is
+not a git repository, or an empty `src`, fails the script rather than being
+skipped, so a change there can never reuse a stale tag.
 
 "Already built" is recorded explicitly. The last thing a successful build
 does, after every push has landed, the deployer has its manifest and the
