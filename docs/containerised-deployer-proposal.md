@@ -201,7 +201,7 @@ order listed.
 |---|---|---|---|---|
 | The `kolla-ansible` deployer image | `openstack/kolla` | `patch199-kolla-ansible-deployer-image.patch` | applies to pristine upstream with git apply -C1; not on Gerrit | py3 (172) and pep8 pass on pristine Kolla |
 | `validate-config` without controller-side `become` | `openstack/kolla-ansible` | `patch200-kolla-ansible-master-validate-config-become.patch` | applies to pristine upstream with git apply -C1; not on Gerrit | py3, pep8 and linters pass on pristine Kolla-Ansible, applied in this order |
-| Ignore `deployer.conf` in `tests/check-config.sh` | `openstack/kolla-ansible` | `patch201-kolla-ansible-master-check-config-deployer-conf.patch` | applies to pristine upstream with git apply -C1; not on Gerrit | py3, pep8 and linters pass on pristine Kolla-Ansible, applied in this order |
+| Ignore `deployer.conf` in `tests/check-config.sh` (needed only if upstream adopts the launcher, which is all that writes the file) | `openstack/kolla-ansible` | `patch201-kolla-ansible-master-check-config-deployer-conf.patch` | applies to pristine upstream with git apply -C1; not on Gerrit | py3, pep8 and linters pass on pristine Kolla-Ansible, applied in this order |
 | Version safeguards (deployer against configuration and deployment) | `openstack/kolla-ansible` | `patch206-kolla-ansible-master-deployer-guards.patch` | applies to pristine upstream with git apply -C1; not on Gerrit | py3, pep8 and linters pass on pristine Kolla-Ansible, applied in this order |
 | Digest references in `kolla_container` | `openstack/kolla-ansible` | `patch208-kolla-ansible-master-kolla-container-digests.patch` | applies to pristine upstream with git apply -C1; not on Gerrit | py3, pep8 and linters pass on pristine Kolla-Ansible, applied in this order |
 | Pull by digest from a build manifest (`kolla_image_full`) | `openstack/kolla-ansible` | `patch209-kolla-ansible-master-image-build-manifest.patch` | applies to pristine upstream with git apply -C1, after 206 and 208; not on Gerrit | py3, pep8 and linters pass on pristine Kolla-Ansible, applied in this order |
@@ -216,6 +216,16 @@ absolute `ansible_remote_tmp`), and the host renamed from `localhost`
 to `kolla` on its six group lines. Nothing else differs: like
 `all-in-one`, it does not pin `ansible_python_interpreter`, so
 interpreter discovery on the host is unchanged.
+
+patch209 and our Kerbside role (patch147, already on Gerrit in the
+Kerbside series) must land in an agreed order. Both edit the
+`nova_libvirt` image lines in `nova-cell`'s defaults, so whichever
+goes second is rebased over the other. The Kerbside role also adds
+three `*_image_full` defaults of its own; we convert them to the
+`kolla_image_full` lookup in patch210, which is not proposed on its
+own. Those three conversions must ride with whichever of patch147 and
+patch209 lands second, or Kerbside's images are pulled by tag and
+bypass the manifest.
 
 A few points the commit messages leave for review:
 
@@ -250,9 +260,10 @@ A few points the commit messages leave for review:
    Rootless podman cannot work where the deploy host is also a
    target, because its PID 1 is not the host's, so `nsenter` reaches
    the wrong namespaces.
-4. **The collection's `override-checkout: master`.** patch199 adds
+4. **The collection's two `master` references.** patch199 adds
    `openstack/ansible-collection-kolla` to Kolla's jobs with
-   `override-checkout: master` in `zuul.d/base.yaml`. That must
+   `override-checkout: master` in `zuul.d/base.yaml`, and to
+   `kolla/common/sources.yaml` with `reference: "master"`. Both must
    change when Kolla branches.
 5. **Registry retention.** A deployment pinned by digest needs the
    registry to keep manifests that no tag points to any more. How
