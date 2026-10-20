@@ -367,7 +367,7 @@ against `develop`.
 | 6. Build manifest | Complete | #1881 (`784e95d9e`) |
 | 7. Make the prototype entry voting | Complete | #1896 (`1af58c137`), #1919 (`3b8ff103d`) |
 | 8. Documentation and upstream proposal | Complete | #1925 (`54b8bb270`) |
-| 9. Push audit | In progress | |
+| 9. Push audit | In progress | #1933 (`30a2210ab`) |
 
 The order is deliberate. Phase 0 comes first so that every later
 phase is proven in CI as it lands, rather than CI arriving at the
