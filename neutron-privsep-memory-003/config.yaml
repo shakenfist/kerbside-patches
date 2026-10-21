@@ -1,0 +1,10 @@
+repo: https://opendev.org/openstack/neutron
+source_branch: master
+destination_branch: privsep-memory
+shallow_clone: true
+directory: neutron
+release: master-neutron-privsep-memory-003
+depends_on: ''
+source_sha: 0eeadaca2891e1075ef1f61d5da9c2cc944c066d
+previous_source_sha: 0eeadaca2891e1075ef1f61d5da9c2cc944c066d
+repush: false

@@ -78,6 +78,39 @@ with nova 34.0.0, neutron 29.0.0 and oslo.privsep 3.12.0.
   of the job, after swap has emptied the daemons, so the number it
   reports looks small.
 
+## Patch series
+
+There is one independent series per upstream repository. The numeric
+suffix gives the order they are meant to land in:
+
+| Series | Repository | Patches | Phase |
+|--------|------------|---------|-------|
+| `devstack-privsep-memory-001` | devstack | patch215 (tolerate zombies), patch216 (memory telemetry) | 2 |
+| `oslo.privsep-privsep-memory-002` | oslo.privsep | patch217 (only inspect eventlet if already imported) | 3 |
+| `neutron-privsep-memory-003` | neutron | patch218 (no `neutron.common.utils`), patch219 (no `neutron_lib`) | 4 |
+
+- **One Gerrit topic.** All three set `destination_branch:
+  privsep-memory`, so the changes share that topic across the three
+  repositories.
+- **Not pushed yet.** All three start with `repush: false`. Flip a
+  series to `true` when it is ready to push: 001 once the Phase 1 bug
+  exists, and the others after their Depends-On is in place.
+- **Depends-On.** Once 001 is in Gerrit, add a `Depends-On:` footer
+  pointing at its telemetry change (patch216). Put it only on the root
+  patch of each other series, patch217 and patch218. Zuul then runs
+  the changes' own devstack jobs with the telemetry applied:
+  oslo.privsep's `tempest-full-py3` (from `lib-forward-testing-python3`)
+  and neutron's tempest and grenade jobs.
+  - The footers also stop 002 and 003 merging before 001, which is the
+    order we want. Once 001 merges the footers are satisfied and do no
+    harm.
+- **Before numbers.** 001's own jobs give the baseline for jobs that
+  devstack shares with the other repositories. For neutron-only jobs,
+  push a DNM neutron change that carries only the Depends-On, as a
+  control.
+- **Bug reference.** When the Phase 1 bug exists, add `Related-Bug:` to
+  every patch.
+
 ## Phase 1 --- file the bug
 
 File an oslo.privsep bug, with a neutron task added, containing the
@@ -87,8 +120,8 @@ gets something to point at. Mikal files it; Claude drafts it.
 
 ## Phase 2 --- devstack telemetry and a baseline
 
-There are two changes to `tools/get-stats.py`. A draft is in the
-investigating session's scratchpad (`devstack-get-stats.patch`).
+There are two changes to `tools/get-stats.py`, carried as series
+`devstack-privsep-memory-001`.
 
 1. **Tolerate zombie processes.** Today a zombie on the node makes
    `proc.cmdline()` raise `psutil.ZombieProcess`, which aborts the
@@ -126,10 +159,11 @@ nothing for two services:
 - **cinder:** `cinder/__init__.py` imports eventlet itself.
 
 1010664 removes eventlet support, so it is a breaking change and will
-not backport. The prototype also tried a roughly 10-line alternative
-that only touches eventlet when it is already in `sys.modules`. It
-gives the same numbers, does not change behaviour, and can be
-backported. Propose it if 1010664 stalls.
+not backport. Series 002 carries the alternative: import eventlet only
+when it is already in `sys.modules`. It gives the same numbers, does
+not change behaviour, and can be backported, so it can be offered as
+the stable-branch fix alongside 1010664. Whether to push it while
+1010664 is open is still undecided.
 
 A follow-up would make oslo.service import its backend lazily. That
 would save about 12 MB more per neutron daemon: a warm neutron daemon
@@ -149,8 +183,8 @@ figures are for a warm `neutron.privileged.default` daemon;
 | Change | Warm RSS / anon MB | Modules |
 |---|---|---|
 | neutron master | 118 / 107 | 2382 |
-| Change 1: move `read_file` and the two `cidr_broadcast_address*` helpers into a new `neutron/common/privsep_safe_utils.py`, which `neutron.common.utils` re-exports | 90 / 81 | 1438 |
-| Change 2: also drop the `neutron_lib` imports from privileged `ip_lib`, `utils` and `tc_lib` | 57 / 50 | 999 |
+| Change 1 (patch218): move `read_file` and the two `cidr_broadcast_address*` helpers into a new `neutron/common/privsep_safe_utils.py`, which `neutron.common.utils` re-exports | 90 / 81 | 1438 |
+| Change 2 (patch219): also drop the `neutron_lib` imports from privileged `ip_lib`, `utils` and `tc_lib` | 57 / 50 | 999 |
 
 - **Change 1 should not be controversial.** It also adds a test that
   imports every privileged module in a fresh interpreter and fails if

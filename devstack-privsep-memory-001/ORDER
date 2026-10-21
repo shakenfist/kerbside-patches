@@ -1,0 +1,2 @@
+../_patches/patch215-devstack-master-get-stats-tolerate-zombies.patch
+../_patches/patch216-devstack-master-get-stats-memory-telemetry.patch

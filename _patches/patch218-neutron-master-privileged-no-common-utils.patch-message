@@ -1,0 +1,18 @@
+privileged: Do not import neutron.common.utils
+
+Each privsep daemon imports the module holding an entrypoint on first
+use. The privileged ip_lib and utils modules import neutron.common.utils
+for three small helpers, which drags openstacksdk, SQLAlchemy and pecan
+into every neutron privsep daemon: about 28MB of RSS each.
+
+Move read_file() and the two cidr_broadcast_address helpers into a new
+privsep_safe_utils module, which neutron.common.utils re-exports, and
+add a test that stops privileged modules importing neutron.common.utils.
+
+Prompt: Mikal asked for privsep memory fixes that can be landed one at a
+time and measured in devstack CI; neutron daemons are the largest.
+Assisted-By: Claude Opus 5.5 (1M context, low effort) <noreply@anthropic.com>
+Co-Authored-By: Claude Opus 5.5 (1M context, low effort) <noreply@anthropic.com>
+
+Change-Id: I56798a31723d45a92a564f8231c563a580f6faeb
+Signed-off-by: Michael Still <mikal@stillhq.com>

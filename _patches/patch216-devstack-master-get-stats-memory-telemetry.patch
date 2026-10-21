@@ -1,0 +1,87 @@
+commit 13e4b524c7a4675ee8dc0272bf5701bb54bd48f5
+Author: Michael Still <mikal@stillhq.com>
+Date:   Thu Oct 22 06:38:51 2026 +1100
+
+    Record peak, anonymous and swapped memory in get-stats.py
+    
+    performance.json records each tracked process's RSS once, at the end of
+    the job, after memory pressure has swapped much of it out. Also record
+    peak RSS, anonymous RSS and swap from /proc/PID/status, which is world
+    readable, and the node's swap counters from /proc/vmstat.
+    
+    The end-of-job RSS of privsep daemons, which the script already tracks
+    by default, understates them by a factor of five or more on swapping
+    nodes, and swap traffic is what slows those nodes down.
+    
+    Prompt: Mikal asked for CI telemetry that shows how much memory privsep
+    daemons use, so that fixes can be landed one at a time and measured.
+    Assisted-By: Claude Opus 5.5 (1M context, low effort) <noreply@anthropic.com>
+    Co-Authored-By: Claude Opus 5.5 (1M context, low effort) <noreply@anthropic.com>
+    
+    Change-Id: If243a81154b924a8cfc47951a6e0be17f38169b5
+    Signed-off-by: Michael Still <mikal@stillhq.com>
+
+diff --git a/tools/get-stats.py b/tools/get-stats.py
+index e913269..b5e1a6e 100755
+--- a/tools/get-stats.py
++++ b/tools/get-stats.py
+@@ -60,6 +60,22 @@ def get_services_stats():
+             for service in services]
+ 
+ 
++def get_process_memory(pid):
++    # /proc/PID/status is world-readable, unlike smaps, so this works for
++    # root-owned processes such as privsep-helper without privileges.
++    fields = {'VmHWM': 'rss_peak', 'RssAnon': 'rss_anon', 'VmSwap': 'swap'}
++    stats = {}
++    try:
++        with open('/proc/%i/status' % pid) as f:
++            for line in f:
++                key, _, value = line.partition(':')
++                if key in fields:
++                    stats[fields[key]] = int(value.split()[0]) * 1024
++    except FileNotFoundError:
++        pass
++    return stats
++
++
+ def get_process_stats(proc):
+     cmdline = proc.cmdline()
+     if 'python' in cmdline[0]:
+@@ -67,7 +83,8 @@ def get_process_stats(proc):
+     return {'cmd': cmdline[0],
+             'pid': proc.pid,
+             'args': ' '.join(cmdline[1:]),
+-            'rss': proc.memory_info().rss}
++            'rss': proc.memory_info().rss,
++            **get_process_memory(proc.pid)}
+ 
+ 
+ def get_processes_stats(matches):
+@@ -89,6 +106,18 @@ def get_processes_stats(matches):
+         if proc_matches(proc)]
+ 
+ 
++def get_swap_stats():
++    # Swap traffic since boot; zswpin/zswpout only exist with zswap.
++    counters = ('pswpin', 'pswpout', 'zswpin', 'zswpout')
++    stats = {}
++    with open('/proc/vmstat') as f:
++        for line in f:
++            key, value = line.split()
++            if key in counters:
++                stats[key] = int(value)
++    return stats
++
++
+ def get_db_stats(host, user, passwd):
+     dbs = []
+     try:
+@@ -218,6 +247,7 @@ if __name__ == '__main__':
+                                                         args.db_pass) or [],
+         'processes': psutil and get_processes_stats(args.process) or [],
+         'api': get_http_stats(args.apache_log),
++        'swap': get_swap_stats(),
+         'report': get_report_info(),
+     }
+ 

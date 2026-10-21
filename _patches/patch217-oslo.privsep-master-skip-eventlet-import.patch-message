@@ -1,0 +1,19 @@
+Only inspect eventlet if it is already imported
+
+daemon.py imports eventlet at module level to find out whether it has
+been monkey patched. That import pulls in dnspython, cryptography and
+pyOpenSSL, which stay resident in every privsep daemon for about 20MB
+each. Look eventlet up in sys.modules instead.
+
+If nothing has imported eventlet it cannot have patched anything, so
+behaviour is unchanged. Unlike removing eventlet support entirely, this
+is safe to backport.
+
+Prompt: Mikal asked for oslo.privsep memory fixes that can be landed one
+at a time and measured in devstack CI; this is the minimal,
+behaviour-preserving alternative to the eventlet-removal change.
+Assisted-By: Claude Opus 5.5 (1M context, low effort) <noreply@anthropic.com>
+Co-Authored-By: Claude Opus 5.5 (1M context, low effort) <noreply@anthropic.com>
+
+Change-Id: Ic25f2a29380c349c5f87f4a74964bcffe42c4d8e
+Signed-off-by: Michael Still <mikal@stillhq.com>
