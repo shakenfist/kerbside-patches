@@ -4,45 +4,15 @@ Date:   Sun Oct 11 09:07:28 2026 +1100
 
     Guard deployments against the wrong deployer.
     
-    A Kolla Ansible deployer image packages one version of the deployment
-    tool and is built alongside one set of service images. Nothing stops an
-    operator from running it against a configuration naming other images,
-    against a deployment a newer deployer has already changed, or as an
-    upgrade across more releases than upstream supports. Each of these
-    fails late and messily, if it fails at all.
+    A deployer image can be run against a configuration naming other
+    images, or a host a newer deployer has changed. Each deploy now records
+    its deployer on each host, and checks refuse a deployer for an older
+    release than a host's record, or an upgrade upstream does not support.
     
-    This change adds checks which run before anything changes a host, in
-    every playbook except destroy.yml, which must work whatever the versions
-    so that a mistake can always be cleaned up.
-    
-    * Every successful deploy, deploy-containers, reconfigure, upgrade and
-      migrate-container-engine writes a record of what changed each host to
-      /etc/kolla/kolla-ansible-deployment.json on that host: the release,
-      the Kolla Ansible version and git commit, the tag, the action and the
-      time. It is owned by config_owner_user and config_owner_group with
-      mode 0600, like other configuration. It is written whatever tags were
-      given, because a partial deploy has still changed the host.
-    * When /etc/kolla-ansible/deployer.json exists, that is when Kolla
-      Ansible runs from a deployer image, the new deployer-checks.yml play
-      refuses an openstack_tag or openstack_release which differs from the
-      image's, and compares the image with each target's record. An older
-      release, or the same release with an older Kolla Ansible version, is
-      refused. A newer release may run only bootstrap-servers, pull,
-      prechecks, gather-facts and upgrade, and upgrade may move only to the
-      next release, or from a .1 release to the next .1. An upgrade to
-      master is allowed with a warning.
-    * A virtualenv install cannot tell which release it is for, because
-      openstack_release is set by the operator, so it writes the record but
-      does not check it.
-    * The new --override-deployer-checks option turns each refusal into a
-      warning, for example after an upgrade done by hand.
-    * The rules are in a filter plugin, so that they are unit tested.
-      gather-facts.yml imports the play after gathering facts, so that it
-      runs once for every playbook which gathers facts. It must come after,
-      because its first module run on a host adds the discovered interpreter
-      to ansible_facts, and gather-facts.yml skips hosts which have facts.
-      Playbooks which act on the deploy host alone check the configuration
-      only.
+    The rules are in a filter plugin so that they are unit tested. Only a
+    deployer image knows its release, so a virtualenv writes the record but
+    is not checked. destroy.yml is never checked, so that a mistake can
+    always be cleaned up.
     
     Assisted-By: Claude Opus 5.5 (1M context, high effort) <noreply@anthropic.com>
     Co-Authored-By: Claude Opus 5.5 (1M context, high effort) <noreply@anthropic.com>
@@ -332,7 +302,7 @@ index 4b29b43ba..263a8050e 100644
 +      when: kolla_action in ['deploy', 'deploy-containers', 'reconfigure', 'upgrade', 'migrate-container-engine']
 +  tags: always
 diff --git a/doc/source/user/operating-kolla.rst b/doc/source/user/operating-kolla.rst
-index 44e3ddd88..53e1868f8 100644
+index 44e3ddd88..8e2a13bd1 100644
 --- a/doc/source/user/operating-kolla.rst
 +++ b/doc/source/user/operating-kolla.rst
 @@ -197,6 +197,40 @@ After this command is complete, the containers will have been recreated from
@@ -340,7 +310,7 @@ index 44e3ddd88..53e1868f8 100644
  for you.
  
 +Deployer checks
-+---------------
++~~~~~~~~~~~~~~~
 +
 +Each successful ``deploy``, ``deploy-containers``, ``reconfigure``,
 +``upgrade`` and ``migrate-container-engine`` records what changed each host in
@@ -1273,7 +1243,7 @@ index 000000000..f2dc857e1
 +                                     'reconfigure', HOST, PATH))
 diff --git a/releasenotes/notes/deployer-checks-5c3bf4aaabef98ac.yaml b/releasenotes/notes/deployer-checks-5c3bf4aaabef98ac.yaml
 new file mode 100644
-index 000000000..e27a6e843
+index 000000000..fd145d3c3
 --- /dev/null
 +++ b/releasenotes/notes/deployer-checks-5c3bf4aaabef98ac.yaml
 @@ -0,0 +1,24 @@
@@ -1291,13 +1261,13 @@ index 000000000..e27a6e843
 +    When Kolla Ansible runs from a containerised deployer image, every action
 +    except ``destroy`` first checks the deployer. It refuses an
 +    ``openstack_tag`` or ``openstack_release`` that differs from the image's.
-+    It refuses a host whose record shows an older release, or the same
-+    release with an older Kolla Ansible version. Before an upgrade, a deployer
-+    for a newer release may run only ``bootstrap-servers``, ``pull``,
-+    ``prechecks``, ``gather-facts`` and ``upgrade``, and ``upgrade`` may move
-+    only to the next release, or from a ``.1`` release to the next ``.1``.
-+    ``master`` counts as newer than every release, so a host last deployed
-+    from ``master`` refuses a deployer for a stable release. The new
++    It refuses a deployer for an older release than a host's record shows, or
++    for the same release with an older Kolla Ansible version. Before an
++    upgrade, a deployer for a newer release may run only ``bootstrap-servers``,
++    ``pull``, ``prechecks``, ``gather-facts`` and ``upgrade``, and ``upgrade``
++    may move only to the next release, or from a ``.1`` release to the next
++    ``.1``. ``master`` counts as newer than every release, so a host last
++    deployed from ``master`` refuses a deployer for a stable release. The new
 +    ``--override-deployer-checks`` option turns each refusal into a warning.
 +    Kolla Ansible installed with ``pip`` writes the record but does not check
 +    it.

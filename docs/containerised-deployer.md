@@ -299,8 +299,8 @@ the launcher (Phase 7).
 What the timings support (Phase 7, 26 pairs of launcher and control
 jobs from the same runs, 2026-10-10 to 2026-10-13):
 
-* **The bootstrap section is shorter by about two minutes at the
-  median.** The launcher takes `ansible-galaxy` and
+* **The bootstrap section is shorter at the median, by about 130s on
+  the Debian host and 95s on the Rocky host.** The launcher takes `ansible-galaxy` and
   `kolla-ansible install-deps` out of bootstrap. `install-deps` alone
   had a median of 107s on the Debian host and 131s on the Rocky host,
   and a range of 42s to 493s.
@@ -446,10 +446,13 @@ These were not run, and nothing on this page claims them:
 | Digest references in `kolla_container` | openstack/kolla-ansible | `patch208` |
 | The build manifest lookup | openstack/kolla-ansible | `patch209` |
 | Kerbside's images through the manifest | This repository only | `patch210` |
+| An all-in-one inventory for a deployer image | openstack/kolla-ansible | `patch214` |
 | The launcher | Undecided | `deployer/launcher/` |
 | The manifest build step and CI checks | This repository | `_build/`, `tools/` |
 
-The patches are on the main `kolla/` and `kolla-ansible/` series, so
-every CI entry, virtualenv ones included, runs them. Nothing has been
+All but `patch214` are on the main `kolla/` and `kolla-ansible/`
+series, so every CI entry, virtualenv ones included, runs them.
+`patch214` is only in `kolla-ansible-deployer/`, since CI deploys with
+this repository's own launcher inventory instead. Nothing has been
 proposed upstream yet; that is what
 [the proposal](containerised-deployer-proposal.md) is for.

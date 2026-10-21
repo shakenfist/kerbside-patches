@@ -1,15 +1,14 @@
 Allow validate-config to skip become on localhost.
 
-The service-config-validate role writes the oslo-config-validator
-output on the deploy host using become. Where the deploy host user
-cannot escalate, such as inside a containerised deployer, the play
-fails with "sudo: a password is required" before it can report any
-configuration errors.
+service-config-validate writes its output on the deploy host with
+become, so it fails with "sudo: a password is required" where that
+user cannot escalate, as in a containerised deployer. Add
+service_config_validate_output_become to make that become optional.
 
-Add service_config_validate_output_become, defaulting to true so
-behaviour is unchanged, and use it for the two tasks delegated to
-localhost. It is set once in the role defaults, so the per-service
-config_validate.yml files need no changes.
+It defaults to true, so behaviour is unchanged, and is used only by the
+two tasks delegated to localhost. It is set in the role defaults, so
+the per-service config_validate.yml files need no changes.
 
+Assisted-By: Claude Opus 5.5 (1M context, low effort) <noreply@anthropic.com>
 Change-Id: I05c5fb2cf7360c4c3dbbf493b9eb3e735a4c2e45
 Signed-off-by: Michael Still <mikal@stillhq.com>

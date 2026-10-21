@@ -1,0 +1,21 @@
+#!/bin/bash
+# Assert that the launcher inventory is the venv inventory with only the way
+# the kolla host is reached changed. The launcher file begins with a comment
+# block and an [all:vars] section, ending at the first blank line, and its
+# host lines have no ansible_connection. Both are removed before comparing, so
+# a group, host or variable added to one file only is reported.
+#
+#   tools/check-launcher-inventory
+
+etc=${CHECK_ETC:-etc}
+venv=${etc}/inventory-all-in-one-master
+launcher=${etc}/inventory-all-in-one-launcher-master
+
+if diff -u --label "${venv}" --label "${launcher}" \
+    <(sed -E 's/[[:space:]]+ansible_connection=[^[:space:]]+//' "${venv}") \
+    <(sed -E '1,/^$/d' "${launcher}"); then
+    echo "PASS: ${launcher} matches ${venv}"
+else
+    echo "FAIL: ${launcher} differs from ${venv} beyond its header and connection lines" >&2
+    exit 1
+fi

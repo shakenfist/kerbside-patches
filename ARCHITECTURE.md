@@ -46,6 +46,8 @@ kerbside-patches/
         write-build-manifest  # Image digests, build marker
         gerrit-pre-push-lint  # Gerrit pre-push linter
     ansible-collection-kolla/ # Kolla collection pin (no patches)
+    kolla-deployer/          # Deployer patches on pristine Kolla (no repush)
+    kolla-ansible-deployer/  # Deployer patches on pristine Kolla-Ansible (no repush)
     kolla/                   # Kolla master patches
     kolla-2025.1/            # Kolla epoxy patches
     kolla-2025.2/            # Kolla flamingo patches
@@ -183,8 +185,8 @@ tools/write-build-manifest deployer-state <tag>
     kolla-ansible:<tag> missing or already labelled -> stop
     |
     v
-tools/write-build-manifest write <tag> manifest.json --images-file archive/images
-    archive/images: image names kolla-build built
+tools/write-build-manifest write <tag> manifest.json --images-file archive/images-<tag>
+    archive/images-<tag>: image names kolla-build built
     registry: HEAD /v2/<repo>/manifests/<tag> -> digest
     |
     v

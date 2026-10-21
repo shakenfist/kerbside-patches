@@ -7,7 +7,8 @@ installs a `kolla-ansible` command, and the four password tools
 `kolla-writepwd`. Each runs the same command inside the deployer
 image, as the invoking user, with the files it names mounted in.
 
-This is a prototype. The design and the phases still to come are in
+This is a prototype. The design, and the record of how it was built
+and measured, are in
 [the containerised deployer plan](plans/containerised-deployer.md).
 The source is in `deployer/launcher/`. It uses only the Python
 standard library.
@@ -72,9 +73,11 @@ image that only exists on this host has no registry digest. It is
 pinned by its local image ID, with a warning that the ID means
 nothing on another host.
 
-`kolla-ansible launcher show` prints the file, whether the image is
-pinned, the engine, and the image's labels. It exits non-zero if the
-image speaks a launcher protocol this launcher does not.
+`kolla-ansible launcher show` prints the launcher's version, the
+fields it parsed from the file (path, image, engine, `host_namespaces`
+and `mounts`), whether the image is pinned, the image's labels, and
+its launcher protocol. It exits non-zero if the image speaks a
+launcher protocol this launcher does not.
 
 ## Installing an engine
 
@@ -119,6 +122,15 @@ unchanged.
   parent directory, not the file alone. Ansible reads `group_vars/`
   and `host_vars/` from beside an inventory, and `@file` variable
   files often include their neighbours.
+* The files named by five forwarded variables, in the same way:
+  `ANSIBLE_CONFIG`, `ANSIBLE_INVENTORY` (a comma-separated list),
+  `ANSIBLE_PRIVATE_KEY_FILE` and `ANSIBLE_VAULT_PASSWORD_FILE`
+  read-only, and only if they exist, and `ANSIBLE_LOG_PATH`
+  read-write, whether or not the log exists yet. A relative value is
+  taken against the current directory, and a refusal names the
+  variable. No other variable's value is mounted, so a file that some
+  other `ANSIBLE_*` or `KOLLA_*` variable names must be in a mounted
+  directory or in the `mounts` key.
 * The user's `~/.ssh`, read-only, at its own path and also at
   `/var/lib/kolla-ansible/.ssh`, which is where OpenSSH looks.
 * The SSH agent socket named by `SSH_AUTH_SOCK`. It is the socket
@@ -135,13 +147,28 @@ launcher cannot see those on the command line. Each must exist.
 ### Protected directories
 
 Mounting `/etc` over the image would replace the image's own `/etc`.
-So these are never mounted as directories: `/`, `/etc`, `/var`,
-`/var/lib`, `/run`, `/opt`, and everything at or below `/usr`, `/bin`,
-`/sbin`, `/lib` and its variants, `/boot`, `/dev`, `/proc`, `/sys`,
-`/var/lib/kolla` and `/var/lib/kolla-ansible`. A single file in one of
-them, such as a vault password in `/etc`, is mounted alone. Any other
-path there is refused with a message saying to move it. The current
-directory is silently not mounted if it is protected.
+So `/`, `/etc`, `/var`, `/var/lib`, `/run` and `/opt` are never
+mounted as directories. A single file directly in one of them, such as
+a vault password in `/etc`, is mounted alone.
+
+Nothing at all is mounted at or below `/usr`, `/bin`, `/sbin`, `/lib`
+and its variants, `/boot`, `/dev`, `/proc`, `/sys`, `/var/lib/kolla`,
+`/var/lib/kolla-ansible` or `/etc/kolla-ansible`, not even a single
+file. `/etc/kolla-ansible` holds the image's `deployer.json` and
+`manifest.json`; a host directory mounted over it would hide them, and
+the deployer checks and digest pinning would silently not happen. So
+a configuration directory, inventory, `-e @file` or `mounts` entry
+kept there must move, for example to `/etc/kolla`, before the
+launcher will run.
+
+Any other path that needs a protected directory mounted is refused,
+with a message saying to move it, for example:
+
+```
+kolla-ansible: error: refusing to mount /etc/kolla-ansible over the deployer image, which /etc/kolla-ansible/inventory needs; move it elsewhere
+```
+
+The current directory is silently not mounted if it is protected.
 
 ## The identity in the container
 
@@ -161,7 +188,9 @@ container. That is why `~/.ssh` is mounted at both places.
 ## What it forwards
 
 * The environment variables `ANSIBLE_*`, `KOLLA_*` and
-  `SSH_AUTH_SOCK`, by name.
+  `SSH_AUTH_SOCK`, by name. Only the five variables listed under
+  [What it mounts](#what-it-mounts), and the agent socket, have the
+  file they name mounted too.
 * Not `ANSIBLE_COLLECTIONS_PATH` or `ANSIBLE_COLLECTIONS_PATHS`. The
   image sets its own, and a stale host value would hide the
   collections it carries.
@@ -446,12 +475,10 @@ created 2026-10-10 to 2026-10-13, the bootstrap sub-step took a median of 99s
 (launcher) against 231s (venv) on a Debian 13 host, and 144s against
 239s on Rocky 10; the venv's `install-deps` alone ranged from 42s to
 493s. The "Deploy Kolla-Ansible" step as a whole took 1583s against
-1866s on Debian and 1875s against 1841s on Rocky, with per-pair
-differences of up to 900 seconds either way (the launcher was faster in
-9 of 13 Debian pairs and slower in 8 of 13 Rocky pairs). The launcher's
-own costs are small: about two seconds more per call before Ansible
-starts, and 18s (Debian) to 27s (Rocky) to pull and unpack the deployer
-image. Of the 982 venv jobs since 2026-07-16, four hit a Galaxy failure
+1866s on Debian and 1875s against 1841s on Rocky, and per-pair
+differences ranged from -947s to +777s. The launcher's own costs are
+small: about two seconds more per call before Ansible starts, and 18s
+(Debian) to 27s (Rocky) to pull and unpack the deployer image. Of the 982 venv jobs since 2026-07-16, four hit a Galaxy failure
 and one of them failed the job. Durations depend on the cluster's load
 and are noisy.
 
@@ -484,7 +511,11 @@ voting, in [the containerised deployer plan](plans/containerised-deployer.md).
   a colon, and two different paths that would land at one mount point.
 
 Each error is one line on stderr, prefixed with the tool name, and
-exit status 1.
+the exit status is 1. The exceptions are a mistake in the arguments to
+`launcher` itself, which argparse reports with a usage line and exit
+status 2 (as does `launcher` with no action, after printing its
+help), and `bootstrap-servers` failing to run the image's
+`kolla-ansible` inside the chroot, which exits with status 127.
 
 The deployer checks above and the build manifest's refusals are
 refusals too, but come from Kolla-Ansible, not from the launcher, and

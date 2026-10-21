@@ -155,8 +155,8 @@ sudo kolla-ansible -i /etc/kolla/inventory deploy
 When a build pushes to the CI registry (`--use-ci-registry`), the last
 thing `build-containers.sh` does, once every push has landed, is record
 which image digests that build produced. `tools/write-build-manifest`
-takes the image names `kolla-build` recorded as built (`archive/images`),
-and reads each one's digest from the registry with a
+takes the image names `kolla-build` recorded as built
+(`archive/images-<tag>`), and reads each one's digest from the registry with a
 `HEAD /v2/<repo>/manifests/<tag>`; an image that was built but is missing
 from the registry fails the build. It does not use the GitLab API, which the
 CI registry token cannot be relied on for. The names equal the repository
@@ -183,11 +183,14 @@ every image of its build. A copy of the manifest is left at
 
 The step:
 
-* does nothing when no CI registry is in use, as in a local build;
+* does nothing when no CI registry is in use, as in a local build, or
+  when there are no registry credentials;
 * does nothing when `kolla-ansible:<tag>` is not in the registry, because
   the build did not include the deployer;
 * does nothing when `kolla-ansible:<tag>` already carries the label, so a
-  rerun that skipped the build because it is already built is a no-op; and
+  rerun that skipped the build because it is already built is a no-op;
+* fails the build when the deployer carries no manifest and this run
+  built nothing, so there is no image list to make one from; and
 * fails the build if any image's digest cannot be read, rather than
   writing a partial manifest, and if the label is not there after the
   push.
@@ -198,12 +201,16 @@ section of [the containerised deployer plan](plans/containerised-deployer.md).
 ## Skipping a tag that is already built
 
 A CI image tag is `<release>-<distro>-<version>-<hash>`, where the hash
-covers the patched source, `_build`, `tools` and the date. A rerun, or a
+covers the patched source, `_build`, `etc`, `tools` and the date. A rerun, or a
 second run on the same day with the same patches, computes the same tag,
 and `build-containers.sh` skips the build when that tag is already built.
 That needs the hash to be the same on every runner, so
-`calculate-container-hash.sh` hashes each file by name and content in a
-fixed (`LC_ALL=C`) order, never in the order the filesystem lists them.
+`calculate-container-hash.sh` hashes `src` as one line per source tree, its
+name and the git tree id of its `HEAD`, and `_build`, `etc` and `tools` as one
+line per file, its content hash and name. Both are in a fixed (`LC_ALL=C`)
+order, never the order the filesystem lists them. A tree under `src` that is
+not a git repository, or an empty `src`, fails the script rather than being
+skipped, so a change there can never reuse a stale tag.
 
 "Already built" is recorded explicitly. The last thing a successful build
 does, after every push has landed, the deployer has its manifest and the
