@@ -11,6 +11,7 @@ nodes, and swap traffic is what slows those nodes down.
 
 Prompt: Mikal asked for CI telemetry that shows how much memory privsep
 daemons use, so that fixes can be landed one at a time and measured.
+
 Assisted-By: Claude Opus 5.5 (1M context, low effort) <noreply@anthropic.com>
 Co-Authored-By: Claude Opus 5.5 (1M context, low effort) <noreply@anthropic.com>
 
