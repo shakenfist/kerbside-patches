@@ -1,6 +1,6 @@
-commit 123a9fc897b913e3c9ce7b6b4cfce8d091fa84db
+commit e84760e7aae8588456b1772081eead053966c3e1
 Author: Michael Still <mikal@stillhq.com>
-Date:   Tue Oct 13 18:41:02 2026 +1100
+Date:   Tue Oct 20 18:12:52 2026 +1100
 
     Exercise JSON logging in the telemetry scenario.
     
@@ -18,10 +18,10 @@ Date:   Tue Oct 13 18:41:02 2026 +1100
     Signed-off-by: Michael Still <mikal@stillhq.com>
 
 diff --git a/tests/templates/globals-default.j2 b/tests/templates/globals-default.j2
-index fa4a659e4..f89c293da 100644
+index 10d0176fc..885c96555 100644
 --- a/tests/templates/globals-default.j2
 +++ b/tests/templates/globals-default.j2
-@@ -280,6 +280,7 @@ skyline_enable_sso: "yes"
+@@ -285,6 +285,7 @@ skyline_enable_sso: "yes"
  {% endif %}
  
  {% if scenario == "telemetry" %}

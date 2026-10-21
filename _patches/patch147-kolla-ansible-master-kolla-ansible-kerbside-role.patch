@@ -1,6 +1,6 @@
-commit e08e8ecd40a81e0644ab589083f6c5f35d03e6fa
+commit 5bf9eacbf79b406fb1813d75125d8b9f1597595f
 Author: Michael Still <mikal@stillhq.com>
-Date:   Tue Oct 13 18:40:20 2026 +1100
+Date:   Tue Oct 20 18:11:36 2026 +1100
 
     Deploy Kerbside with Kolla-Ansible.
     

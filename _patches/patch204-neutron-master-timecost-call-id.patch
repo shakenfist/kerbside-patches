@@ -1,6 +1,6 @@
-commit 601a72f01c27bd76d9e05a433a704f220c60e10a
+commit 292b5b3793bace50eaf2a43d22bd2e8e2750b205
 Author: Michael Still <mikal@stillhq.com>
-Date:   Tue Oct 13 18:41:47 2026 +1100
+Date:   Tue Oct 20 18:14:33 2026 +1100
 
     common: Generate a timecost call id for every call
     
@@ -23,7 +23,7 @@ Date:   Tue Oct 13 18:41:47 2026 +1100
     Signed-off-by: Michael Still <mikal@stillhq.com>
 
 diff --git a/neutron/common/utils.py b/neutron/common/utils.py
-index 28a840d3c5..849ba7b97e 100644
+index 583687b59c..33c00f56d4 100644
 --- a/neutron/common/utils.py
 +++ b/neutron/common/utils.py
 @@ -960,16 +960,18 @@ def spawn_n(func, *args, **kwargs):

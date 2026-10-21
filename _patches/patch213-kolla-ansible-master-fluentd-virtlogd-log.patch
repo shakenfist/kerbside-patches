@@ -1,6 +1,6 @@
-commit e3712aee01c6af7f7c4af40004c4f675fd2d2c62
+commit 528293ba8c0cf319a6ac9fd986abd94af6c35e9c
 Author: Michael Still <mikal@stillhq.com>
-Date:   Thu Oct 15 08:51:38 2026 +1100
+Date:   Tue Oct 20 18:15:33 2026 +1100
 
     fluentd: Collect the nova_libvirt virtlogd log
     
@@ -22,6 +22,7 @@ Date:   Thu Oct 15 08:51:38 2026 +1100
     Change-Id: Idd0a221f53ea3cffc7c198e9f429c5f70b9b3b07
     Signed-off-by: Michael Still <mikal@stillhq.com>
     Assisted-By: Claude Opus 5.5 (1M context, low effort) <noreply@anthropic.com>
+    Signed-off-by: Michael Still <mikal@stillhq.com>
 
 diff --git a/ansible/roles/fluentd/templates/conf/input/05-libvirt.conf.j2 b/ansible/roles/fluentd/templates/conf/input/05-libvirt.conf.j2
 index 4765c9608..1b173db74 100644
@@ -53,7 +54,7 @@ index f8a42bf13..67317b1b1 100644
      "permissions": [
 diff --git a/releasenotes/notes/fluentd-virtlogd-log-7c2e9d41a5b3f806.yaml b/releasenotes/notes/fluentd-virtlogd-log-7c2e9d41a5b3f806.yaml
 new file mode 100644
-index 000000000..394745b01
+index 000000000..c5adc5438
 --- /dev/null
 +++ b/releasenotes/notes/fluentd-virtlogd-log-7c2e9d41a5b3f806.yaml
 @@ -0,0 +1,5 @@
@@ -62,4 +63,3 @@ index 000000000..394745b01
 +  - |
 +    Fluentd now collects ``/var/log/kolla/libvirt/virtlogd.log``, which the
 +    ``nova_libvirt`` container writes its ``virtlogd`` log to.
-
