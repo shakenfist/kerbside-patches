@@ -1,6 +1,6 @@
-commit 2116464d82ad89f55f9445eb3386b08e4d4e2d9d
+commit 07801e3e594d342c3cbc1069f3e7675f33ad778c
 Author: Michael Still <mikal@stillhq.com>
-Date:   Thu Oct 22 06:38:35 2026 +1100
+Date:   Thu Oct 22 08:14:27 2026 +1100
 
     Tolerate zombie processes in get-stats.py
     
@@ -19,7 +19,7 @@ Date:   Thu Oct 22 06:38:35 2026 +1100
     Signed-off-by: Michael Still <mikal@stillhq.com>
 
 diff --git a/tools/get-stats.py b/tools/get-stats.py
-index b958af6..e913269 100755
+index b958af61..e9132693 100755
 --- a/tools/get-stats.py
 +++ b/tools/get-stats.py
 @@ -75,9 +75,13 @@ def get_processes_stats(matches):
