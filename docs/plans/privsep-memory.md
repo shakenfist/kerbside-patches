@@ -19,9 +19,9 @@ about five years without anyone acting, and he declined to file a bug.
 | Phase | What | Status | Merged |
 |-------|------|--------|--------|
 | 1 | File the bug with the evidence below | Not started | |
-| 2 | devstack telemetry in `get-stats.py`, plus a baseline | In review: [1011786](https://review.opendev.org/c/openstack/devstack/+/1011786), [1011787](https://review.opendev.org/c/openstack/devstack/+/1011787) | |
-| 3 | oslo.privsep: stop importing eventlet in the daemon | Not started | |
-| 4 | neutron: cut the privileged import chain | Not started | |
+| 2 | devstack telemetry in `get-stats.py`, plus a baseline | In review: [1011786](https://review.opendev.org/c/openstack/devstack/+/1011786), [1011787](https://review.opendev.org/c/openstack/devstack/+/1011787), [1011794](https://review.opendev.org/c/openstack/devstack/+/1011794) | |
+| 3 | oslo.privsep: stop importing eventlet in the daemon | In review: [1011795](https://review.opendev.org/c/openstack/oslo.privsep/+/1011795) | |
+| 4 | neutron: cut the privileged import chain | In review: [1011796](https://review.opendev.org/c/openstack/neutron/+/1011796), [1011797](https://review.opendev.org/c/openstack/neutron/+/1011797) | |
 | 5 | Decide on structural changes (fewer contexts) | Not started | |
 | 6 | Report back to the TC and openstack-discuss | Not started | |
 
@@ -92,10 +92,11 @@ suffix gives the order they are meant to land in:
 - **One Gerrit topic.** All three set `destination_branch:
   privsep-memory`, so the changes share that topic across the three
   repositories.
-- **Pushing.** All three start with `repush: false`. 001 was pushed by
-  hand on 2026-10-22, before the Phase 1 bug, as 1011786 (patch215)
-  and 1011787 (patch216). Flip the others to `true` when they are ready
-  to push.
+- **Pushed.** All six changes were pushed by hand on 2026-10-22,
+  before the Phase 1 bug: devstack 1011786, 1011787 and 1011794
+  (patch215, 216, 220), oslo.privsep 1011795 (patch217) and neutron
+  1011796 and 1011797 (patch218, 219). All three series now have
+  `repush: true`, so the daily rebase pushes new revisions.
 - **Depends-On.** patch217 and patch218, the root patches of 002 and
   003, carry `Depends-On:` 1011787, the telemetry change. Its parent
   1011786 comes with it, so no other patch repeats it. Zuul then runs
