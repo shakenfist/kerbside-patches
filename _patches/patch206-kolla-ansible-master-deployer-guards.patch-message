@@ -1,9 +1,11 @@
 WIP / PoC: Guard deployments against the wrong deployer.
 
-A deployer image can be run against a configuration naming other
-images, or a host a newer deployer has changed. Each deploy now records
-its deployer on each host, and checks refuse a deployer for an older
-release than a host's record, or an upgrade upstream does not support.
+A Kolla Ansible deployer image packages one version of the deployment
+tool and is built alongside one set of service images. Nothing stops an
+operator from running it against a configuration naming other images,
+against a deployment a newer deployer has already changed, or as an
+upgrade across more releases than upstream supports. Each of these
+fails late and messily, if it fails at all.
 
 This change adds checks which run before anything changes a host, in
 every playbook except destroy.yml, which must work whatever the versions

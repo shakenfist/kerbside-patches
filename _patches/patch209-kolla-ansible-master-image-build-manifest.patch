@@ -1,13 +1,14 @@
-commit bd46b40a9446115f9e1f434386d7924a2ba24db4
+commit 990e531b0c0bb519d294ccfffe9a6820e612097c
 Author: Michael Still <mikal@stillhq.com>
-Date:   Mon Oct 12 19:26:56 2026 +1100
+Date:   Fri Oct 23 07:13:53 2026 +1100
 
     WIP / PoC: Pull images by digest from a build manifest.
     
     A tag can be pushed again, so a deployment pulling by tag may run images
-    other than the ones its deployer was built with. When the deployer image
-    carries a build manifest, each <service>_image_full now resolves through
-    a kolla_image_full lookup, which pulls the images it names by digest.
+    other than the ones its deployer was built and tested with: a node added
+    months later, or a pull during a publish window, gets whatever the tag
+    names at that moment. A containerised deployer image can say exactly
+    which images it was built with.
     
     When the deployer image carries a build manifest,
     /etc/kolla-ansible/manifest.json (kolla_image_manifest_path), naming the
@@ -125,7 +126,7 @@ index 000000000..7d21a41a4
 +            'kolla_image_manifest_check': image_manifest.manifest_check,
 +        }
 diff --git a/ansible/group_vars/all/common.yml b/ansible/group_vars/all/common.yml
-index fb81264ce..1c4d879a9 100644
+index 6be9b8aa4..40846a9cb 100644
 --- a/ansible/group_vars/all/common.yml
 +++ b/ansible/group_vars/all/common.yml
 @@ -316,6 +316,10 @@ openstack_tag_suffix: ""
@@ -963,12 +964,12 @@ index 93ec57321..7c0d80946 100644
  neutron_agent_dimensions: "{{ default_container_dimensions }}"
  
 diff --git a/ansible/roles/nova-cell/defaults/main.yml b/ansible/roles/nova-cell/defaults/main.yml
-index 7cbd48811..7fac5e2bc 100644
+index 9e194ee54..4a7bd5fd4 100644
 --- a/ansible/roles/nova-cell/defaults/main.yml
 +++ b/ansible/roles/nova-cell/defaults/main.yml
 @@ -300,36 +300,36 @@ nova_tag: "{{ openstack_tag }}"
  
- nova_libvirt_image: "{{ docker_image_url }}{{ 'nova-libvirt-spice' if enable_kerbside else 'nova-libvirt' }}"
+ nova_libvirt_image: "{{ docker_image_url }}nova-libvirt"
  nova_libvirt_tag: "{{ nova_tag }}"
 -nova_libvirt_image_full: "{{ nova_libvirt_image }}:{{ nova_libvirt_tag }}"
 +nova_libvirt_image_full: "{{ lookup('kolla_image_full', nova_libvirt_image, nova_libvirt_tag) }}"
@@ -1012,7 +1013,7 @@ index 7cbd48811..7fac5e2bc 100644
  nova_libvirt_default_dimensions:
    ulimits:
 diff --git a/ansible/roles/nova/defaults/main.yml b/ansible/roles/nova/defaults/main.yml
-index 88549c2d3..3334672fa 100644
+index 35ea0bb95..edb93541f 100644
 --- a/ansible/roles/nova/defaults/main.yml
 +++ b/ansible/roles/nova/defaults/main.yml
 @@ -117,15 +117,15 @@ nova_tag: "{{ openstack_tag }}"
@@ -1255,7 +1256,7 @@ index 293cc413c..5aa1f6c28 100644
  prometheus_server_dimensions: "{{ default_container_dimensions }}"
  prometheus_mysqld_exporter_dimensions: "{{ default_container_dimensions }}"
 diff --git a/ansible/roles/rabbitmq/defaults/main.yml b/ansible/roles/rabbitmq/defaults/main.yml
-index 4f403ad40..ea7a69965 100644
+index 4b01efb90..c27268594 100644
 --- a/ansible/roles/rabbitmq/defaults/main.yml
 +++ b/ansible/roles/rabbitmq/defaults/main.yml
 @@ -34,7 +34,7 @@ rabbitmq_services:

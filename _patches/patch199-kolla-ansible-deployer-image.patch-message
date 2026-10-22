@@ -1,9 +1,12 @@
 WIP / PoC: Add a kolla-ansible deployer image.
 
-Kolla-Ansible is installed onto the deploy host with pip and fetches
-its collections from Galaxy and git, so two deploy hosts installed a
-day apart can run different code against one cloud. Add a kolla-ansible
-image which packages the tool, as Kolla packages every service.
+Kolla-Ansible is today installed onto the deploy host with pip, and
+its Ansible collections are then fetched from Galaxy and git by
+"kolla-ansible install-deps". The result depends on what those
+sources serve on the day, on the host's Python, and on whatever is
+already in the operator's ~/.ansible/collections, which is searched
+before any system path. Two deploy hosts installed a day apart can
+therefore run different code against the same cloud.
 
 This change adds a kolla-ansible image which packages the deployment
 tool itself, in the same way as Kolla packages every service.

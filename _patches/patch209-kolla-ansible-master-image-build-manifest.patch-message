@@ -1,9 +1,10 @@
 WIP / PoC: Pull images by digest from a build manifest.
 
 A tag can be pushed again, so a deployment pulling by tag may run images
-other than the ones its deployer was built with. When the deployer image
-carries a build manifest, each <service>_image_full now resolves through
-a kolla_image_full lookup, which pulls the images it names by digest.
+other than the ones its deployer was built and tested with: a node added
+months later, or a pull during a publish window, gets whatever the tag
+names at that moment. A containerised deployer image can say exactly
+which images it was built with.
 
 When the deployer image carries a build manifest,
 /etc/kolla-ansible/manifest.json (kolla_image_manifest_path), naming the
