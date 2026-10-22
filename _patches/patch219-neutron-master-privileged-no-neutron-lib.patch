@@ -1,6 +1,6 @@
-commit 6933ad2cf916f5b10fa0ed92276153d04d39ca36
+commit ab2806f73b53ec54d3a397985dd1e230391818da
 Author: Michael Still <mikal@stillhq.com>
-Date:   Thu Oct 22 06:41:20 2026 +1100
+Date:   Fri Oct 23 06:39:20 2026 +1100
 
     privileged: Do not import neutron_lib
     
@@ -24,7 +24,7 @@ Date:   Thu Oct 22 06:41:20 2026 +1100
     Signed-off-by: Michael Still <mikal@stillhq.com>
 
 diff --git a/neutron/common/privsep_safe_utils.py b/neutron/common/privsep_safe_utils.py
-index 0815e806..648fa9fb 100644
+index 0815e8063a..648fa9fb21 100644
 --- a/neutron/common/privsep_safe_utils.py
 +++ b/neutron/common/privsep_safe_utils.py
 @@ -17,11 +17,18 @@
@@ -73,25 +73,22 @@ index 0815e806..648fa9fb 100644
      """Return the content of a text file as a string
  
 diff --git a/neutron/privileged/agent/linux/ip_lib.py b/neutron/privileged/agent/linux/ip_lib.py
-index e5604e81..d2afa013 100644
+index e5604e8159..9f7bfb228d 100644
 --- a/neutron/privileged/agent/linux/ip_lib.py
 +++ b/neutron/privileged/agent/linux/ip_lib.py
-@@ -14,8 +14,13 @@ import errno
+@@ -14,8 +14,10 @@ import errno
  import os
  import socket
  
 +# NOTE(mikal): every module imported here stays resident in each privsep
-+# daemon. Do not import neutron_lib (any neutron_lib module pulls in
-+# neutron_lib.db.api and SQLAlchemy) or neutron.common.utils (the DB, API and
-+# SDK layers). Put what privileged code needs in
-+# neutron.common.privsep_safe_utils instead; PrivilegedImportsTestCase checks
-+# this.
++# daemon. Do not import neutron_lib or neutron.common.utils. Put what
++# privileged code needs in neutron.common.privsep_safe_utils instead.
  import netaddr
 -from neutron_lib import constants
  from oslo_log import log as logging
  import pyroute2
  from pyroute2 import iproute
-@@ -357,7 +362,7 @@ def flush_ip_addresses(ip_version, device, namespace):
+@@ -357,7 +359,7 @@ def flush_ip_addresses(ip_version, device, namespace):
  
  @privileged.default.entrypoint
  def create_interface(ifname, namespace, kind, **kwargs):
@@ -101,20 +98,17 @@ index e5604e81..d2afa013 100644
          with get_iproute(namespace) as ip:
              physical_interface = kwargs.pop("physical_interface", None)
 diff --git a/neutron/privileged/agent/linux/tc_lib.py b/neutron/privileged/agent/linux/tc_lib.py
-index d4477ab1..988fb435 100644
+index d4477ab10c..ca01b33253 100644
 --- a/neutron/privileged/agent/linux/tc_lib.py
 +++ b/neutron/privileged/agent/linux/tc_lib.py
-@@ -15,18 +15,24 @@
+@@ -15,18 +15,21 @@
  import errno
  import socket
  
 -from neutron_lib import constants as n_constants
 +# NOTE(mikal): every module imported here stays resident in each privsep
-+# daemon. Do not import neutron_lib (any neutron_lib module pulls in
-+# neutron_lib.db.api and SQLAlchemy) or neutron.common.utils (the DB, API and
-+# SDK layers). Put what privileged code needs in
-+# neutron.common.privsep_safe_utils instead; PrivilegedImportsTestCase checks
-+# this.
++# daemon. Do not import neutron_lib or neutron.common.utils. Put what
++# privileged code needs in neutron.common.privsep_safe_utils instead.
  import pyroute2
  from pyroute2 import protocols as pyroute2_protocols
  
@@ -133,24 +127,21 @@ index d4477ab1..988fb435 100644
  
  class TrafficControlClassNotFound(RuntimeError):
 diff --git a/neutron/privileged/agent/linux/utils.py b/neutron/privileged/agent/linux/utils.py
-index 732de88c..941ce8b9 100644
+index 732de88cc6..861b7f8e46 100644
 --- a/neutron/privileged/agent/linux/utils.py
 +++ b/neutron/privileged/agent/linux/utils.py
-@@ -18,7 +18,12 @@ import re
+@@ -18,7 +18,9 @@ import re
  import signal
  import subprocess
  
 -from neutron_lib.utils import helpers
 +# NOTE(mikal): every module imported here stays resident in each privsep
-+# daemon. Do not import neutron_lib (any neutron_lib module pulls in
-+# neutron_lib.db.api and SQLAlchemy) or neutron.common.utils (the DB, API and
-+# SDK layers). Put what privileged code needs in
-+# neutron.common.privsep_safe_utils instead; PrivilegedImportsTestCase checks
-+# this.
++# daemon. Do not import neutron_lib or neutron.common.utils. Put what
++# privileged code needs in neutron.common.privsep_safe_utils instead.
  from oslo_concurrency import processutils
  from oslo_utils import fileutils
  
-@@ -79,8 +84,8 @@ def execute_process(cmd, _process_input, addl_env):
+@@ -79,8 +81,8 @@ def execute_process(cmd, _process_input, addl_env):
      _stdout, _stderr = obj.communicate(_process_input)
      returncode = obj.returncode
      obj.stdin.close()
@@ -162,7 +153,7 @@ index 732de88c..941ce8b9 100644
  
  
 diff --git a/neutron/tests/unit/common/test_privsep_safe_utils.py b/neutron/tests/unit/common/test_privsep_safe_utils.py
-index b5b78de4..3f6c754e 100644
+index b5b78de4fe..3f6c754e96 100644
 --- a/neutron/tests/unit/common/test_privsep_safe_utils.py
 +++ b/neutron/tests/unit/common/test_privsep_safe_utils.py
 @@ -16,6 +16,10 @@
@@ -208,7 +199,7 @@ index b5b78de4..3f6c754e 100644
 +            self.assertEqual(helpers.safe_decode_utf8(value),
 +                             privsep_safe_utils.safe_decode_utf8(value))
 diff --git a/releasenotes/notes/privsep-daemon-lighter-imports-5af0a070701bf51d.yaml b/releasenotes/notes/privsep-daemon-lighter-imports-5af0a070701bf51d.yaml
-index 463f20b2..50aa5086 100644
+index 463f20b2c9..50aa5086cc 100644
 --- a/releasenotes/notes/privsep-daemon-lighter-imports-5af0a070701bf51d.yaml
 +++ b/releasenotes/notes/privsep-daemon-lighter-imports-5af0a070701bf51d.yaml
 @@ -1,6 +1,7 @@

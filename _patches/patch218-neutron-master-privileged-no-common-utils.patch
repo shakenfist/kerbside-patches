@@ -1,6 +1,6 @@
-commit ba4f37291d7b7194ee5ca1e3d11bd7c444f1d9d6
+commit 2573aa33594e7c17e2588c11c77ba38ee27411d3
 Author: Michael Still <mikal@stillhq.com>
-Date:   Thu Oct 22 06:41:00 2026 +1100
+Date:   Fri Oct 23 06:39:20 2026 +1100
 
     privileged: Do not import neutron.common.utils
     
@@ -25,7 +25,7 @@ Date:   Thu Oct 22 06:41:00 2026 +1100
 
 diff --git a/neutron/common/privsep_safe_utils.py b/neutron/common/privsep_safe_utils.py
 new file mode 100644
-index 00000000..0815e806
+index 0000000000..0815e8063a
 --- /dev/null
 +++ b/neutron/common/privsep_safe_utils.py
 @@ -0,0 +1,69 @@
@@ -99,7 +99,7 @@ index 00000000..0815e806
 +    except FileNotFoundError:
 +        return ''
 diff --git a/neutron/common/utils.py b/neutron/common/utils.py
-index 583687b5..3e93b3fd 100644
+index 583687b59c..3e93b3fdf3 100644
 --- a/neutron/common/utils.py
 +++ b/neutron/common/utils.py
 @@ -61,12 +61,18 @@ from sqlalchemy.sql.expression import func as sql_func
@@ -181,7 +181,7 @@ index 583687b5..3e93b3fd 100644
      """Converts timestamp (in seconds) to datetime"""
      return datetime.datetime.fromtimestamp(timestamp, tz=datetime.UTC)
 diff --git a/neutron/privileged/agent/linux/ip_lib.py b/neutron/privileged/agent/linux/ip_lib.py
-index 6b504b0c..e5604e81 100644
+index 6b504b0cd0..e5604e8159 100644
 --- a/neutron/privileged/agent/linux/ip_lib.py
 +++ b/neutron/privileged/agent/linux/ip_lib.py
 @@ -27,7 +27,7 @@ from pyroute2 import netns
@@ -204,7 +204,7 @@ index 6b504b0c..e5604e81 100644
              _run_iproute_addr('add',
                                device,
 diff --git a/neutron/privileged/agent/linux/utils.py b/neutron/privileged/agent/linux/utils.py
-index eb892dc8..732de88c 100644
+index eb892dc8f9..732de88cc6 100644
 --- a/neutron/privileged/agent/linux/utils.py
 +++ b/neutron/privileged/agent/linux/utils.py
 @@ -22,7 +22,7 @@ from neutron_lib.utils import helpers
@@ -227,7 +227,7 @@ index eb892dc8..732de88c 100644
  @privileged.default.entrypoint
 diff --git a/neutron/tests/unit/common/test_privsep_safe_utils.py b/neutron/tests/unit/common/test_privsep_safe_utils.py
 new file mode 100644
-index 00000000..b5b78de4
+index 0000000000..b5b78de4fe
 --- /dev/null
 +++ b/neutron/tests/unit/common/test_privsep_safe_utils.py
 @@ -0,0 +1,47 @@
@@ -280,7 +280,7 @@ index 00000000..b5b78de4
 +        self.assertEqual('', out.strip())
 diff --git a/releasenotes/notes/privsep-daemon-lighter-imports-5af0a070701bf51d.yaml b/releasenotes/notes/privsep-daemon-lighter-imports-5af0a070701bf51d.yaml
 new file mode 100644
-index 00000000..463f20b2
+index 0000000000..463f20b2c9
 --- /dev/null
 +++ b/releasenotes/notes/privsep-daemon-lighter-imports-5af0a070701bf51d.yaml
 @@ -0,0 +1,6 @@
