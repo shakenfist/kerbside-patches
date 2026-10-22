@@ -447,7 +447,7 @@ Every phase lands as its own pull request against `develop`.
 
 | Phase | Status | Merged |
 |-------|--------|--------|
-| 1. One gated workflow | In progress | |
+| 1. One gated workflow | Complete | `6a0403851` |
 | 2. Re-queue on infrastructure failure | Not started | |
 | 3. Split the tiers and enable the queue | Not started | |
 | 4. Soak and measure | Not started | |
@@ -734,6 +734,23 @@ Departures from the table, each reviewed in the management session:
   `docs/containerised-deployer.md`, `renovate`,
   `ci-review-automation`) predate this phase and touch none of its
   files.
+
+Exit checks (1h), recorded at close-out because the pull request
+(#1935) merged as `6a0403851` on 2026-10-20 18:42 UTC, before the
+last two had run. Both of those therefore ran against `develop` at
+`291437298`, which carries the same workflow code as the branch.
+
+| Check | Run | Result |
+|-------|-----|--------|
+| Pull request run | 39348729439 | builds 3, installs 8, patch 2, local 1, `Can enqueue` 1, all `success` |
+| `tier=full` dispatch on `develop` | 39481681665 | the same counts, all `success`; `Can merge` skipped |
+| Throwaway docs-only pull request #1944 | 39481760414 | `Check paths` and `Can enqueue` `success`, the other nine jobs `skipped`; closed and its branch deleted |
+
+The dispatch took 24 hours of wall clock, 15 of them with its eight
+installs queued for bound runners behind three earlier pull request
+runs: fleet capacity, not this change. The `paths-ignore` check above
+finds three comment lines in `functional-tests.yml` explaining why
+the trigger has none; the trigger itself has none.
 
 #### Back brief
 
