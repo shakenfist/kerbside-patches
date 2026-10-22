@@ -19,7 +19,7 @@ about five years without anyone acting, and he declined to file a bug.
 | Phase | What | Status | Merged |
 |-------|------|--------|--------|
 | 1 | File the bug with the evidence below | Not started | |
-| 2 | devstack telemetry in `get-stats.py`, plus a baseline | Not started | |
+| 2 | devstack telemetry in `get-stats.py`, plus a baseline | In review: [1011786](https://review.opendev.org/c/openstack/devstack/+/1011786), [1011787](https://review.opendev.org/c/openstack/devstack/+/1011787) | |
 | 3 | oslo.privsep: stop importing eventlet in the daemon | Not started | |
 | 4 | neutron: cut the privileged import chain | Not started | |
 | 5 | Decide on structural changes (fewer contexts) | Not started | |
@@ -92,12 +92,13 @@ suffix gives the order they are meant to land in:
 - **One Gerrit topic.** All three set `destination_branch:
   privsep-memory`, so the changes share that topic across the three
   repositories.
-- **Not pushed yet.** All three start with `repush: false`. Flip a
-  series to `true` when it is ready to push: 001 once the Phase 1 bug
-  exists, and the others after their Depends-On is in place.
-- **Depends-On.** Once 001 is in Gerrit, add a `Depends-On:` footer
-  pointing at its telemetry change (patch216). Put it only on the root
-  patch of each other series, patch217 and patch218. Zuul then runs
+- **Pushing.** All three start with `repush: false`. 001 was pushed by
+  hand on 2026-10-22, before the Phase 1 bug, as 1011786 (patch215)
+  and 1011787 (patch216). Flip the others to `true` when they are ready
+  to push.
+- **Depends-On.** patch217 and patch218, the root patches of 002 and
+  003, carry `Depends-On:` 1011787, the telemetry change. Its parent
+  1011786 comes with it, so no other patch repeats it. Zuul then runs
   the changes' own devstack jobs with the telemetry applied:
   oslo.privsep's `tempest-full-py3` (from `lib-forward-testing-python3`)
   and neutron's tempest and grenade jobs.
