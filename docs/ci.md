@@ -230,6 +230,65 @@ infrastructure (a runner that lost its connection, for example) rather
 than the change. Since the patch tests and the local build now run as
 jobs of that workflow, it is the only workflow it needs to watch.
 
+## When a merge-tier lane fails
+
+The merge queue is not enabled yet, so none of this happens today. It
+is what `tools/ci-auto-retry.sh` is built to do once it is, and the
+same workflow, `auto-retry-infra-failures.yml`, also fires on
+`Build test clouds` runs of a `merge_group`.
+
+A merge queue run has no pull request of its own, so re-running it
+cannot land anything: GitHub has already taken the entry out of the
+queue. The script therefore works on the queue entry. It finds the
+pull request from the queue branch name, and the head that was tested
+from the second parent of the merge group commit.
+
+**Re-queued automatically.** If every failed job other than `Can
+merge` matched an infrastructure pattern (the same list, in the same
+annotations and job logs, that decides pull request retries), the
+script puts the pull request back in the queue. `Can merge` is not
+classified, since it fails whenever anything else does. A re-queue
+runs the whole merge tier again, so a mixed failure is not re-queued.
+It happens once per tested head, only while the pull request is open,
+out of the queue, and still at the head that was tested, and it asks
+GitHub to refuse if the head has moved, so untested code is never
+queued. It never jumps the queue. The re-queue is the one thing done
+with `DAILY_REBASE_TOKEN`, as shakenfist-bot, so that the new merge
+group runs workflows; the comment that follows uses the workflow's own
+token, like every other comment. The re-queue comes first, so one
+that fails leaves no marker and the step fails.
+
+**Left for a human, with a comment.** Any other ejection gets one
+comment listing the failed jobs, the step each failed in, and which
+matched an infrastructure pattern: a genuine failure, a mixed one, a
+queue run with no failed job but `Can merge`, or a second
+infrastructure failure of a head that was already re-queued once. If
+the change is at fault, fix it on the pull request, which runs the
+smoke tier again. Either way the pull request has to be added to the
+queue again by hand.
+
+**Timeouts.** A merge queue run which passed, but whose entry had
+already been removed from the queue after the run started, is what
+the check timeout looks like. It gets one comment giving the run's
+duration and the reason GitHub recorded, quoted as given. It is not
+re-queued, because a second attempt would very likely time out again;
+whether to try is a human call.
+
+Each comment carries a marker so that a repeat event for the same run
+or head does nothing. To diagnose a failure, use the `merge-ci-triage`
+skill. To reproduce a lane on a branch before re-queueing, dispatch
+`Build test clouds` with `tier=full` as described above. The failure
+comment is a stopgap: it is expected to give way to the fleet's shared
+merge triager, and the re-queue will stay.
+
+To see what the script would do against a real run without writing
+anything, set `GH_TOKEN`, `REPO`, `RUN_ID`, `RUN_URL` and
+`WORKFLOW_NAME` (and, for a merge queue run, `EVENT`, `CONCLUSION`,
+`HEAD_BRANCH` and `HEAD_SHA`) and pass `--dry-run`: it reads
+everything and prints each write as `DRY RUN: ...`. A dry run that
+reaches a re-queue still checks that `REQUEUE_TOKEN` is set, so give
+it any value; it is never used.
+
 ## The lint fixer's token
 
 `Automated lint fixer` pushes to the pull request's branch with
