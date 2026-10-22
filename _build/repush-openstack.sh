@@ -46,7 +46,7 @@ for project in ${projects}; do
 	echo "Proceed (y to go, anything else to skip)?"
         read -r proceed
         if [ "${proceed}" == "y" ]; then
-            review_args=()
+            review_args=(--yes)
             if [ "${wip}" == "true" ]; then
                 review_args+=(--wip)
             fi
