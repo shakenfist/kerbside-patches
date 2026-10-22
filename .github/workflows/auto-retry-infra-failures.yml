@@ -3,12 +3,19 @@ name: Auto-retry infrastructure failures
 # This workflow monitors CI runs and automatically retries jobs that fail
 # due to infrastructure issues (e.g., self-hosted runner losing connection).
 # It does NOT retry jobs that fail due to actual test failures.
+#
+# A merge queue run cannot be re-run into a merge, so for those the script
+# re-queues an entry ejected purely on infrastructure, comments on any other
+# ejection, and also looks at merge queue runs which passed, to report an
+# entry which was ejected while its run was still going.
 
-# The only workflow here that drives GITHUB_TOKEN itself rather than
+# Almost everything here drives GITHUB_TOKEN rather than
 # DAILY_REBASE_TOKEN, so these are the scopes it actually exercises:
 # reading a workflow run and its job logs, reading the check-run
 # annotations it greps for infrastructure failures, commenting on the
-# pull request, and re-running the failed jobs.
+# pull request, and re-running the failed jobs. The one exception is
+# putting a pull request back in the merge queue, which the script does
+# with DAILY_REBASE_TOKEN so that the merge group it creates runs workflows.
 permissions:
   actions: write
   checks: read
@@ -25,184 +32,31 @@ on:
 
 jobs:
   check-and-retry:
-    if: github.event.workflow_run.conclusion == 'failure'
+    if: >-
+      github.event.workflow_run.conclusion == 'failure' ||
+      (github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.event == 'merge_group')
     runs-on: [self-hosted, static]
     steps:
+      # A workflow_run job always runs the default branch's copy of this
+      # workflow. Leave "ref" unset so the checkout is that branch too, and
+      # never check out the pull request's head: this job holds tokens which
+      # can comment on the pull request, re-run its jobs and queue it.
+      - name: Check out the retry script
+        uses: actions/checkout@v7
+
       - name: Check for infrastructure failures and retry
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          set -e
-
-          RUN_ID="${{ github.event.workflow_run.id }}"
-          REPO="${{ github.repository }}"
-          RUN_URL="${{ github.event.workflow_run.html_url }}"
-          WORKFLOW_NAME="${{ github.event.workflow_run.name }}"
-
-          echo "Checking run $RUN_ID for infrastructure failures..."
-
-          # Infrastructure failure patterns to match in job annotations or
-          # in job logs. opendev.org git server flakes intermittently and
-          # the failure surfaces inside a job step (ansible-lint clones
-          # ansible-collection-kolla during tox -elinters), so we have to
-          # grep the logs for those — annotations only carry the generic
-          # "Process completed with exit code 1".
-          INFRA_PATTERNS=(
-            "self-hosted runner lost communication"
-            "runner has received a shutdown signal"
-            "runner process exited"
-            "No space left on device"
-            "runner is offline"
-            "Job cancelled because the runner went offline"
-            "Failed to connect to opendev.org"
-            "unable to access 'https://opendev.org"
-            "Could not resolve host: opendev.org"
-            # A truncated artifact download surfaces as a gzip/tar EOF when
-            # the source tarball is extracted (actions/download-artifact can
-            # silently deliver a partial file); seen 2026-07-03 where the
-            # same artifact extracted fine on sibling runners.
-            "gzip: stdin: unexpected end of file"
-            "tar: Unexpected EOF in archive"
-            # apt mirror/metadata failures at test-VM provision time; seen
-            # 2026-07-03 failing identically on all seven multinode VMs at
-            # the same instant.
-            "No package matching 'git' is available"
-            # A runner VM with failing storage; seen 2026-07-18 where even
-            # /usr/bin/sleep returned EIO and the build produced garbage
-            # (empty container hash, dead occystrap proxy).
-            "Input/output error"
-            # GitHub's own error when a job never reaches a runner. Seen
-            # 2026-09-13 on run 34732771730, where all six "Build test
-            # clouds" matrix jobs failed three minutes after starting with
-            # runner_name empty, no steps recorded and no log to download.
-            # The full sentence is matched rather than "internal error"
-            # because the same list is grepped against job logs below, and
-            # a bare "internal error" is a plausible thing for a test under
-            # test to print. This one only ever appears as an annotation.
-            "GitHub Actions has encountered an internal error"
-            # The Shaken Fist cluster could not place a test cloud's
-            # instance, either refusing the create outright (a 507 which
-            # sfcbr itself marks "transient": true) or leaving it queued in
-            # preflight until the wait timed out. Seen 2026-10-12 on runs
-            # 38177402085 and 38237936810, both failing in "Setup test
-            # environment" before any change under test had run.
-            "No nodes remaining at scheduling stage"
-            "second timeout (last state: preflight)"
-          )
-
-          # Get PR number if this was a PR-triggered run
-          PR_NUMBER=$(gh api "repos/$REPO/actions/runs/$RUN_ID" \
-            --jq '.pull_requests[0].number // empty')
-
-          if [ -z "$PR_NUMBER" ]; then
-            echo "Not a PR run, skipping (run_id: $RUN_ID)"
-            exit 0
-          fi
-
-          echo "PR number: $PR_NUMBER"
-
-          # Get all failed jobs
-          FAILED_JOBS=$(gh api "repos/$REPO/actions/runs/$RUN_ID/jobs" \
-            --jq '.jobs[] | select(.conclusion == "failure") | "\(.id)|\(.name)"')
-
-          if [ -z "$FAILED_JOBS" ]; then
-            echo "No failed jobs found"
-            exit 0
-          fi
-
-          # Track which jobs have infrastructure failures
-          INFRA_FAILED_JOBS=""
-
-          while IFS='|' read -r JOB_ID JOB_NAME; do
-            [ -z "$JOB_ID" ] && continue
-            echo "Checking job '$JOB_NAME' (id: $JOB_ID)..."
-
-            # Get annotations for this job
-            ANNOTATIONS=$(gh api "repos/$REPO/check-runs/$JOB_ID/annotations" \
-              --jq '.[].message' 2>/dev/null || echo "")
-
-            matched=""
-            for PATTERN in "${INFRA_PATTERNS[@]}"; do
-              if echo "$ANNOTATIONS" | grep -qi "$PATTERN"; then
-                matched="$PATTERN"
-                break
-              fi
-            done
-
-            if [ -z "$matched" ]; then
-              # Annotations didn't match — check the job log for in-job
-              # transient errors (e.g. opendev.org clone failures).
-              # Tail to keep memory bounded. Newer gh refuses to print a
-              # response containing terminal escape sequences, even into a
-              # pipe, and almost every job log has ANSI colour in it; with
-              # stderr discarded that made this fallback silently match
-              # nothing (run 38478931745's sfcbr 507 went unretried on
-              # 2026-10-14). Pass the flag when this gh knows it, and say
-              # when the log could not be read rather than hiding it.
-              LOG_ARGS=()
-              if gh api --help 2>/dev/null | grep -q -- '--allow-escape-sequences'; then
-                LOG_ARGS=(--allow-escape-sequences)
-              fi
-              LOG_TEXT=$(gh api "${LOG_ARGS[@]}" \
-                "repos/$REPO/actions/jobs/$JOB_ID/logs" \
-                2>"$RUNNER_TEMP/log-fetch.err" | tail -n 2000 || echo "")
-              if [ -z "$LOG_TEXT" ]; then
-                echo "  (could not read job log: $(head -c 300 "$RUNNER_TEMP/log-fetch.err"))"
-              fi
-              for PATTERN in "${INFRA_PATTERNS[@]}"; do
-                if echo "$LOG_TEXT" | grep -qi "$PATTERN"; then
-                  matched="$PATTERN"
-                  break
-                fi
-              done
-            fi
-
-            if [ -n "$matched" ]; then
-              echo "  -> Found infrastructure failure matching: $matched"
-              INFRA_FAILED_JOBS="$INFRA_FAILED_JOBS$JOB_NAME\n"
-            fi
-          done <<< "$FAILED_JOBS"
-
-          if [ -z "$INFRA_FAILED_JOBS" ]; then
-            echo "No infrastructure failures detected, not retrying"
-            exit 0
-          fi
-
-          # Check if we've already retried this run by looking for our comment
-          RETRY_MARKER="<!-- auto-retry-infra: $RUN_ID -->"
-          EXISTING_COMMENT=$(gh api "repos/$REPO/issues/$PR_NUMBER/comments" \
-            --jq ".[] | select(.body | contains(\"$RETRY_MARKER\")) | .id" \
-            | head -1)
-
-          if [ -n "$EXISTING_COMMENT" ]; then
-            echo "::warning::Already retried run $RUN_ID, not retrying again"
-            exit 0
-          fi
-
-          # Format the list of failed jobs for the comment
-          JOBS_LIST=$(echo -e "$INFRA_FAILED_JOBS" | sed '/^$/d' | sed 's/^/- /')
-
-          # Build comment body
-          COMMENT_BODY="${RETRY_MARKER}
-          **Auto-retry triggered for infrastructure failure**
-
-          The following job(s) in workflow **${WORKFLOW_NAME}** failed due to infrastructure issues (not test failures):
-
-          ${JOBS_LIST}
-
-          Automatically retrying the failed jobs. [View run](${RUN_URL})
-
-          _This is an automated action. If the retry also fails with infrastructure issues, manual intervention may be needed._"
-
-          # Remove leading whitespace from each line (caused by YAML indentation)
-          # shellcheck disable=SC2001
-          COMMENT_BODY=$(echo "$COMMENT_BODY" | sed 's/^          //')
-
-          echo "Commenting on PR #$PR_NUMBER..."
-          gh pr comment "$PR_NUMBER" --repo "$REPO" --body "$COMMENT_BODY"
-
-          # Trigger rerun of failed jobs only
-          echo "Triggering rerun of failed jobs..."
-          gh run rerun "$RUN_ID" --failed --repo "$REPO"
-
-          echo "Done! Retried run $RUN_ID"
+          REPO: ${{ github.repository }}
+          RUN_ID: ${{ github.event.workflow_run.id }}
+          RUN_URL: ${{ github.event.workflow_run.html_url }}
+          WORKFLOW_NAME: ${{ github.event.workflow_run.name }}
+          EVENT: ${{ github.event.workflow_run.event }}
+          CONCLUSION: ${{ github.event.workflow_run.conclusion }}
+          HEAD_BRANCH: ${{ github.event.workflow_run.head_branch }}
+          HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
+          # Used for the merge queue re-queue alone; every other call,
+          # comments included, stays on GH_TOKEN.
+          REQUEUE_TOKEN: ${{ secrets.DAILY_REBASE_TOKEN }}
+        run: tools/ci-auto-retry.sh
