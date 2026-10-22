@@ -5,12 +5,12 @@ images, or a host a newer deployer has changed. Each deploy now records
 its deployer on each host, and checks refuse a deployer for an older
 release than a host's record, or an upgrade upstream does not support.
 
-The rules are in a filter plugin so that they are unit tested. Only a
-deployer image knows its release, so a virtualenv writes the record but
-is not checked. destroy.yml is never checked, so that a mistake can
-always be cleaned up.
+This change adds checks which run before anything changes a host, in
+every playbook except destroy.yml, which must work whatever the versions
+so that a mistake can always be cleaned up.
 
 Assisted-By: Claude Opus 5.5 (1M context, high effort) <noreply@anthropic.com>
 Co-Authored-By: Claude Opus 5.5 (1M context, high effort) <noreply@anthropic.com>
+
 Change-Id: I0791c64ba93126ac97a0b789c2900302808e3980
 Signed-off-by: Michael Still <mikal@stillhq.com>

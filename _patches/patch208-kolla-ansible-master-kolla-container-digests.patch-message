@@ -1,4 +1,4 @@
-Support image digests in kolla_container.
+WIP / PoC: Support image digests in kolla_container.
 
 With Docker, kolla_container splits a digest reference such as
 repository@sha256:<hex> at the colon inside the digest, and looks for
@@ -12,5 +12,6 @@ already works.
 
 Assisted-By: Claude Opus 5.5 (1M context, high effort) <noreply@anthropic.com>
 Co-Authored-By: Claude Opus 5.5 (1M context, high effort) <noreply@anthropic.com>
+
 Change-Id: If0363f9d97763b1fe5f74c1596074e76b91ef4cd
 Signed-off-by: Michael Still <mikal@stillhq.com>
