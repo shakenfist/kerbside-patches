@@ -94,7 +94,7 @@ repos:
     rev: 7.4.1
     hooks:
       - id: flake8
-        files: ^(deployer/|tools/(write-build-manifest|test-write-build-manifest\.py|measure-deployer-bootstrap|test-measure-deployer-bootstrap\.py|ci-select-lanes\.py|test-ci-select-lanes\.py|test-ci-merge-group-current\.py)$)
+        files: ^(deployer/|tools/(write-build-manifest|test-write-build-manifest\.py|measure-deployer-bootstrap|test-measure-deployer-bootstrap\.py|ci-select-lanes\.py|test-ci-select-lanes\.py|test-ci-merge-group-current\.py|test-ci-auto-retry\.py)$)
         args: ['--max-line-length=120']
 
   - repo: local
@@ -153,3 +153,15 @@ repos:
         additional_dependencies: ['pyyaml']
         pass_filenames: false
         files: ^(tools/(ci-merge-group-current\.sh|test-ci-merge-group-current\.py)|\.github/workflows/(functional-tests|rebase-tests|local-container-builds)\.yml)$
+
+  # The infrastructure retry script reads job annotations and logs through
+  # gh, so its tests stub gh and read the workflow with pyyaml.
+  - repo: local
+    hooks:
+      - id: ci-auto-retry-tests
+        name: ci-auto-retry unit tests
+        entry: python tools/test-ci-auto-retry.py
+        language: python
+        additional_dependencies: ['pyyaml']
+        pass_filenames: false
+        files: ^(tools/(ci-auto-retry\.sh|test-ci-auto-retry\.py)|\.github/workflows/auto-retry-infra-failures\.yml)$
