@@ -16,6 +16,7 @@ Date:   Thu Oct 22 06:41:20 2026 +1100
     Prompt: Mikal asked for privsep memory fixes that can be landed one at a
     time and measured in devstack CI; this follows the neutron.common.utils
     change and halves a warm neutron privsep daemon from 118MB to 57MB.
+    
     Assisted-By: Claude Opus 5.5 (1M context, low effort) <noreply@anthropic.com>
     Co-Authored-By: Claude Opus 5.5 (1M context, low effort) <noreply@anthropic.com>
     
