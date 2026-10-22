@@ -85,7 +85,7 @@ suffix gives the order they are meant to land in:
 
 | Series | Repository | Patches | Phase |
 |--------|------------|---------|-------|
-| `devstack-privsep-memory-001` | devstack | patch215 (tolerate zombies), patch216 (memory telemetry) | 2 |
+| `devstack-privsep-memory-001` | devstack | patch215 (tolerate zombies), patch216 (memory telemetry), patch220 (CentOS and Rocky) | 2 |
 | `oslo.privsep-privsep-memory-002` | oslo.privsep | patch217 (only inspect eventlet if already imported) | 3 |
 | `neutron-privsep-memory-003` | neutron | patch218 (no `neutron.common.utils`), patch219 (no `neutron_lib`) | 4 |
 
@@ -101,7 +101,8 @@ suffix gives the order they are meant to land in:
   1011786 comes with it, so no other patch repeats it. Zuul then runs
   the changes' own devstack jobs with the telemetry applied:
   oslo.privsep's `tempest-full-py3` (from `lib-forward-testing-python3`)
-  and neutron's tempest and grenade jobs.
+  and neutron's tempest jobs. Grenade jobs do not run the
+  `capture-performance-data` role, so they produce no telemetry.
   - The footers also stop 002 and 003 merging before 001, which is the
     order we want. Once 001 merges the footers are satisfied and do no
     harm.
@@ -121,8 +122,7 @@ gets something to point at. Mikal files it; Claude drafts it.
 
 ## Phase 2 --- devstack telemetry and a baseline
 
-There are two changes to `tools/get-stats.py`, carried as series
-`devstack-privsep-memory-001`.
+There are three changes, carried as series `devstack-privsep-memory-001`.
 
 1. **Tolerate zombie processes.** Today a zombie on the node makes
    `proc.cmdline()` raise `psutil.ZombieProcess`, which aborts the
@@ -136,6 +136,20 @@ There are two changes to `tools/get-stats.py`, carried as series
    - Add a top-level `swap` object with `pswpin`, `pswpout`, `zswpin`
      and `zswpout` from `/proc/vmstat`. clarkb's claim is about swap
      traffic, and zswap is enabled on CI nodes.
+
+3. **Fix the empty file on CentOS Stream and Rocky.** The
+   `capture-performance-data` role always calls
+   `setup_devstack_virtualenv`, but `GLOBAL_VENV` is False on those
+   distributions, so no venv exists and `performance.json` is empty in
+   every build. Use the venv's python when it exists, and otherwise
+   `python${PYTHON3_VERSION}`, where devstack installed psutil and
+   PyMySQL.
+
+1011787's own jobs confirmed changes 1 and 2 work: every Debian and
+Ubuntu build has the new fields. A peak of 568 MB of privsep on
+`tempest-full-py3` (8 daemons) and 1128 MB on
+`devstack-platform-ubuntu-noble-ovs` (14 daemons), against an
+end-of-job RSS of 140 and 402 MB.
 
 clarkb's dstat change (devstack 1011544) gives a time series alongside
 these; this phase does not duplicate it.

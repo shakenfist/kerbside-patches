@@ -1,0 +1,18 @@
+Generate performance.json without a global venv
+
+The capture-performance-data role always calls setup_devstack_virtualenv.
+Where GLOBAL_VENV is False, as on CentOS Stream and Rocky, there is no
+venv: the function tries to create one with an unset $PYTHON, then runs
+get-stats.py from a venv that does not exist, leaving an empty file.
+
+Use the global venv's python when it exists, and otherwise the python
+that devstack installed packages with, so these jobs report again.
+
+Prompt: Mikal asked for a fix for the empty performance.json on CentOS
+and Rocky jobs, found while checking the new privsep memory telemetry.
+
+Assisted-By: Claude Opus 5.5 (1M context, low effort) <noreply@anthropic.com>
+Co-Authored-By: Claude Opus 5.5 (1M context, low effort) <noreply@anthropic.com>
+
+Change-Id: I3b786c3e3bc8c0da616f7f09f506672aadf72543
+Signed-off-by: Michael Still <mikal@stillhq.com>
