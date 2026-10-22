@@ -356,8 +356,11 @@ run cannot land anything, so recovery is always a re-queue.
   `auto-retry-infra-failures.yml` already classifies failures by log
   pattern. For a `merge_group` run, it takes the pull request number
   from the queue branch (`gh-readonly-queue/develop/pr-<N>-<sha>`)
-  and re-enqueues it as shakenfist-bot. A marker comment keyed on the
-  head SHA stops it doing so twice. Since 2026-09-20, 17 of 89 first
+  and re-enqueues it as shakenfist-bot, but only when every failed
+  job matched. The `<sha>` there is the base, not the pull request's
+  head. The tested head is the merge group commit's second parent,
+  and the re-queue happens only while the pull request is still at
+  it. A marker comment keyed on that head stops it doing so twice. Since 2026-09-20, 17 of 89 first
   attempts (19%) failed only in infrastructure steps, so this alone
   should save most ejections.
 * **Anything else stays ejected and gets a comment** naming the
@@ -448,7 +451,7 @@ Every phase lands as its own pull request against `develop`.
 | Phase | Status | Merged |
 |-------|--------|--------|
 | 1. One gated workflow | Complete | `6a0403851` |
-| 2. Re-queue on infrastructure failure | Not started | |
+| 2. Re-queue on infrastructure failure | In progress | |
 | 3. Split the tiers and enable the queue | Not started | |
 | 4. Soak and measure | Not started | |
 | 5. Push audit | Not started | |
@@ -764,22 +767,233 @@ without his go-ahead.
 ### Phase 2: Re-queue on infrastructure failure
 
 Planning effort: medium. The classification already exists, and the
-new behaviour is narrow.
+new behaviour is narrow. Planned in detail on 2026-10-22 against
+`develop` at `98b7b24c7`. Branch `ci-tiers-phase-2`.
 
-Move the inline script from `auto-retry-infra-failures.yml` into a
-shell script in `tools/`, as Michael prefers for long workflow steps,
-and teach it the `merge_group` case from Decision 4. The new code
-stays dormant until Phase 3 creates merge groups, so this phase
-proves it with tests rather than live runs.
+#### Scope
+
+In: move the inline script in `auto-retry-infra-failures.yml` to
+`tools/ci-auto-retry.sh`, unchanged for pull request runs, with
+tests; then teach it the `merge_group` case from Decision 4: re-queue
+an entry ejected on infrastructure, once per tested head; comment on
+any other ejection; and comment when a merge group passed after its
+entry had already been ejected, which is what the 360-minute check
+timeout looks like. Document it in `docs/ci.md`.
+
+Out: any ruleset or repository setting (3d); a model-driven triage
+verdict, which the fleet's shared triager will bring (finding 4);
+retrying `workflow_dispatch` runs, which the inline script skips
+today and this phase still skips (Bugs fixed during this work); and
+new infrastructure patterns, since the existing ones already match
+(finding 2).
+
+#### What the survey found
+
+Every factual claim in this section's original brief was checked
+against the tree, GitHub, and the fleet's own merge queue tooling.
+These were wrong, missing, or have changed since the plan was
+written. The ones that a Decision stated are corrected in Decision 4
+and the Risks above.
+
+1. **Phase 1 left the workflow watching "Build test clouds" alone**,
+   so patch tests and the local build reach this script as jobs of
+   that run (`Patch tests / ...`, `Local build / ...`). The job has
+   no checkout step today, because the script is inline. A script in
+   `tools/` needs one. `workflow_run` always runs the default
+   branch's copy of the workflow, so the checkout is `develop`, never
+   the pull request's head.
+2. **The existing patterns already match the three runs the brief
+   names.** In attempt 1 of 38971535327, 38820775821 and 38792591006,
+   every failed job failed `Setup test environment` with sfcbr's
+   `No nodes remaining at scheduling stage`. That is on line 1981 of
+   2459, 1978 of 2456 and 2101 of 2579 of the job logs checked
+   (117274276492, 116788589228, 116683261774). The script reads only
+   the last 2000 lines, so each match is 478 lines inside that
+   window. No annotation matches (they say only `Process completed
+   with exit code` and an empty artifact upload), so the log fallback
+   is what matches. No new
+   pattern is needed.
+3. **The SHA in a queue branch name is the base, not the pull
+   request's head.** shakenfist's merge group run 39676235178 ran on
+   `gh-readonly-queue/develop/pr-4597-3aa55390fc…`. `3aa55390fc` is
+   the previous entry's merge commit. The commit it tested,
+   `b3dc0c65da`, has parents `3aa55390fc` and `02d4959dd9`. The
+   second is #4597's head. So "once per PR head SHA" must take the
+   head from the merge group commit's second parent, not from the
+   branch name. Decision 4 is corrected.
+4. **The fleet triages merge failures, but nothing in it re-queues.**
+   `enqueuePullRequest` appears in no shakenfist repository except
+   this plan. shakenfist's `merge-failure-triage.yml` asks Claude for
+   a verdict on every ejection, posts it on the pull request, and the
+   conductor ledgers it. private-ci's `PLAN-fleet-merge-triage.md`
+   (Not started) will move that triager into `shakenfist/actions`
+   and give every repository with a `merge_group` trigger a caller,
+   with an audit to enforce it. This repository has had a
+   `merge_group` trigger since Phase 1. Once that lands here, it
+   would duplicate the plain failure comment this phase adds. The
+   re-queue is this repository's alone.
+5. **A run's `pull_requests` empties once its pull request merges or
+   closes.** None of the three runs in finding 2 reports one now. The
+   original exit check, re-running "a real failed pull request run",
+   therefore needs an open pull request's run, and running the real
+   script on it would really re-run it. A `--dry-run` mode replaces
+   it (Decision 6).
+6. **shakenfist-bot is an admin of this repository and a member of
+   `sf-can-skip-merge-queue`** (team 11722172), the bypass actor the
+   ruleset will copy. `enqueuePullRequest` queues regardless. A merge
+   call from the bot's token could skip the queue, so the script must
+   never make one.
+7. **The master plan's Risks gave 2a the timeout case**: an entry
+   whose `Can merge` never reports. The 2a brief did not say so. On
+   timeout the entry is ejected but its run carries on, and may well
+   finish green. A workflow that fires only on `failure` would never
+   see it.
+8. **The repository tests scripts in Python, not bash.** Phase 1's
+   `tools/test-ci-merge-group-current.py` runs a shell script with
+   `gh` and `git` stubbed on `PATH`, from a pre-commit hook. `bats`
+   is not installed. The brief's `tools/test-ci-auto-retry.sh` becomes
+   a `.py` on that model.
+9. **`set -euo pipefail` would invert the log match.** The script
+   matches with `echo "$LOG_TEXT" | grep -qi "$PATTERN"`. Under
+   `pipefail`, `grep -q` exits at the first match, `echo` takes
+   SIGPIPE on a 2000-line log, and the pipeline returns 141, so a
+   match reads as a miss. It is harmless under today's `set -e`, and
+   the move must switch to here-strings.
+10. **`merge-ci-triage` is a user-level skill**, in Michael's
+    `~/.claude/skills`, not in this repository. A comment can name
+    it, and should not link it.
+
+Nothing else in the original brief was wrong.
+
+#### Decisions
+
+1. **Move first, then change.** 2a moves the script, and its tests
+   prove that pull request runs behave exactly as before. 2b adds the
+   merge-group path on top. The move is the part that can silently
+   break today's retries, so it gets a commit and a review of its own.
+2. **Re-queue only when every failed job is infrastructure.** A pull
+   request run re-runs only its failed jobs, so retrying a mixed
+   failure costs little. A re-queue re-runs the whole merge tier, 2.5
+   to 4 hours, so a mixed failure stays ejected. `Can merge` itself is
+   left out of the classification, since it fails whenever anything
+   else does.
+3. **Re-queue the head that was tested, and nothing else.** The
+   tested head is the merge group commit's second parent (finding 3).
+   The script re-queues only if the pull request is open, not already
+   queued, and its `headRefOid` still equals the tested head, and it
+   passes that SHA as `expectedHeadOid`, so a push in between makes
+   GitHub refuse rather than queue untested code. It never sets
+   `jump`. The once-only marker is
+   `<!-- auto-requeue-infra: <tested head> -->`. A second
+   infrastructure ejection of the same head gets a comment instead.
+4. **Enqueue with `DAILY_REBASE_TOKEN`; everything else with
+   `GITHUB_TOKEN`.** The bot token creates the merge group so that it
+   runs workflows, as the master plan says. The comments stay on
+   `GITHUB_TOKEN` as today, and the workflow's `permissions:` do not
+   change. The script makes exactly one mutation with the bot token,
+   `enqueuePullRequest`, and a test pins that (finding 6). The enqueue
+   happens before its comment, so a failed enqueue leaves no marker
+   and fails the step where Michael sees it.
+5. **Keep a plain failure comment for now.** It lists the failed jobs
+   and their first failed step, links the run, and names the
+   `merge-ci-triage` skill and `tier=full` dispatches. Without it,
+   Phase 3 would go live with ejections that say nothing until the
+   fleet triager arrives, and that plan has no date. When the triager
+   reaches this repository, the comment goes and the re-queue stays.
+   Future work records that. This is the decision most open to
+   argument: it builds something the fleet will replace. It is about
+   thirty lines with no model in it, and a gap between Phase 3 and the
+   triager would cost every ejection a log read.
+6. **`--dry-run` instead of a live exit check.** The script does all
+   its reads, then prints each write (`gh pr comment`, `gh run rerun`,
+   the GraphQL enqueue) prefixed `DRY RUN:` instead of making it. The
+   environment names the repository and run, so the management
+   session can point it at a real open pull request's failed run, and
+   at a real failed merge group in shakenfist/shakenfist, with no
+   write to either.
+7. **Timeout ejections are reported, not re-queued.** The workflow
+   also fires on a `success` from a `merge_group` run. If the pull
+   request did not merge and has a `RemovedFromMergeQueueEvent` after
+   the run started, the script comments once with the run's duration
+   and the event's `reason`, quoted as given, because its values are
+   not documented. A re-queue would very likely time out again, so
+   that call is Michael's. Phase 4 counts these comments.
+
+#### Steps
+
+Run in order, one at a time, in this worktree. Each step runs
+pre-commit over the shared tree, and 2b builds on 2a's tests.
 
 | Step | Effort | Model | Isolation | Brief for sub-agent |
 |------|--------|-------|-----------|---------------------|
-| 2a | high | opus | worktree | Move the `run:` body of `.github/workflows/auto-retry-infra-failures.yml` to `tools/ci-auto-retry.sh` (shellcheck-clean, `set -euo pipefail`), unchanged for pull request runs. Add the merge-group path. Read the run's `event` and `head_branch`. When the event is `merge_group`, parse `pr-<N>-<sha>` out of `gh-readonly-queue/develop/pr-<N>-<sha>`, classify failed jobs with the same `INFRA_PATTERNS`, and on an infrastructure failure re-enqueue PR N. Use `gh api graphql` `enqueuePullRequest` with the pull request's node id, authenticated with `DAILY_REBASE_TOKEN`: events caused by `GITHUB_TOKEN` do not start workflows, and we want the merge group to run. Do this at most once per PR head SHA, recorded by a marker comment `<!-- auto-requeue-infra: <head sha> -->`, then comment that it was re-queued. On any other failure, comment once (marker keyed on the run id) listing the failed jobs and their first failed step, and pointing at the `merge-ci-triage` skill. Never call `gh run rerun` for a merge group. Pass `DAILY_REBASE_TOKEN` to the step as a second env var, and keep the workflow's `permissions:` as they are. Before writing any patterns, check that the existing ones match the `Setup test environment` failures of runs 38971535327, 38820775821 and 38792591006 (attempt 1). If they do not, add the narrowest pattern that does, and say which line matched. Add `tools/test-ci-auto-retry.sh` (bats is not installed; plain bash with a stubbed `gh` on `PATH`) covering: a pull request infra failure re-runs; a merge-group infra failure enqueues; a second merge-group failure on the same head SHA does not; a merge-group test failure comments and does not enqueue; and an unparseable head branch exits 0 with a warning. Commit subject: "Re-queue a merge group that failed on infrastructure." |
-| 2b | low | sonnet | none | Add a "When a merge-tier lane fails" section to `docs/ci.md`: what is re-queued automatically and once, what is left for a human, the `merge-ci-triage` skill, and `tier=full` dispatches for reproducing a lane. Commit subject: "Document merge queue failure handling." |
+| 2a | medium | sonnet | none | Read Phase 2 of `docs/plans/ci-tiers.md` first (findings 1, 8 and 9 and Decisions 1 and 6). Move the `run:` body of `.github/workflows/auto-retry-infra-failures.yml` into `tools/ci-auto-retry.sh` (`#!/bin/bash`, `set -euo pipefail`, executable, shellcheck-clean), keeping its comments, `INFRA_PATTERNS` and its comment text exactly. Behaviour on every run must be unchanged. Inputs come from the environment: `GH_TOKEN`, `REPO`, `RUN_ID`, `RUN_URL` and `WORKFLOW_NAME`. Use a `mktemp` file where it used `$RUNNER_TEMP` if that is unset. Replace every `echo "$X" \| grep -q...` with `grep -q... -- "$PATTERN" <<< "$X"`, because under `pipefail` an early `grep -q` exit makes the pipeline fail and reads as no match. Add `--dry-run`: every read happens, and every write (`gh pr comment`, `gh run rerun`) is printed as `DRY RUN: <command>` instead of run. In the workflow, add an `actions/checkout@v7` step (no `ref`, so it checks out the default branch, with a comment saying never to check out the pull request) and replace the step's body with `run: tools/ci-auto-retry.sh`, passing the five values through `env:` from `github.event.workflow_run` and `github.repository`. Leave no `${{ }}` inside `run:`. Keep `permissions:`, the trigger and the job `if:`. Add `tools/test-ci-auto-retry.py` modelled on `tools/test-ci-merge-group-current.py`: unittest, the real script run with `gh` stubbed on `PATH`, the stub answering `gh api` paths from fixture files and logging every call with its `GH_TOKEN`. Cover these cases. An infrastructure annotation re-runs with `--failed` and posts one comment carrying the run's marker. A pattern found only in the log does the same. A pattern on the first line of a 2000-line log tail matches (the SIGPIPE case). A pattern above the last 2000 lines does not. A failure with no pattern writes nothing. An existing marker writes nothing. A run with no pull request exits 0 and writes nothing. `--dry-run` writes nothing and prints both planned writes. Add a workflow-shape test (pyyaml) that the step runs the script, contains no `${{`, and that the job checks out without a `ref`. Add a pre-commit hook `ci-auto-retry-tests` (`language: python`, `additional_dependencies: [pyyaml]`, `pass_filenames: false`, `files: ^(tools/(ci-auto-retry\.sh\|test-ci-auto-retry\.py)\|\.github/workflows/auto-retry-infra-failures\.yml)$`), add the test to the `flake8` hook's `files`, and add both files to `docs/script-reference.md`. Mutation-check on a copy of the script: restoring the `echo \| grep` form, or dropping `--failed`, must fail a test. Run `pre-commit run --all-files` after `git add -N` on new files. Leave everything uncommitted. Commit subject: "Move the infrastructure retry into a script." |
+| 2b | high | opus | none | Read Phase 2 of `docs/plans/ci-tiers.md` first (findings 3, 4, 6 and 7, and Decisions 2 to 7, which define this step), and Decision 4 above it. Extend `tools/ci-auto-retry.sh` and its tests for `merge_group` runs, taking `EVENT`, `CONCLUSION`, `HEAD_BRANCH` and `HEAD_SHA` from `github.event.workflow_run` through `env:`, and `REQUEUE_TOKEN` from `secrets.DAILY_REBASE_TOKEN`. Widen the job's `if:` to `conclusion == 'failure' \|\| (conclusion == 'success' && event == 'merge_group')`. Keep the pull request path exactly as 2a left it. For a merge group: parse the PR number from `^gh-readonly-queue/.+/pr-([0-9]+)-[0-9a-f]+$`, and on no match warn and exit 0. Take the tested head from `gh api repos/$REPO/commits/$HEAD_SHA --jq '.parents[1].sha'`, never from the branch name. Read the PR's `id`, `state`, `headRefOid`, `isInMergeQueue` and its last `RemovedFromMergeQueueEvent` (`createdAt`, `reason`) in one `gh api graphql` call. On `failure`, classify every failed job except `Can merge` with `INFRA_PATTERNS`, logging the verdict per job before any state check, so `--dry-run` shows it. If the PR is not open, is already queued, or its head is no longer the tested head, log why and exit 0. If every classified job is infrastructure and there is no `<!-- auto-requeue-infra: <tested head> -->` comment, enqueue: `gh api graphql` with `enqueuePullRequest(input: {pullRequestId: $id, expectedHeadOid: $head})`, with `GH_TOKEN` set to `REQUEUE_TOKEN` for that one call only. Then comment with that marker, naming the infrastructure jobs. If `REQUEUE_TOKEN` is empty, or the enqueue fails, exit non-zero with a clear message and post no marker. Otherwise (a mixed or genuine failure, or a second infrastructure failure of the same head), comment once, with marker `<!-- auto-retry-merge-group: <run id> -->`. List each failed job with its first failed step, link the run, say whether it was the second infrastructure failure, and name the `merge-ci-triage` skill (by name, no link) and a `tier=full` dispatch for reproducing a lane. On `success`: if the PR is open, not queued, still at the tested head, and has a `RemovedFromMergeQueueEvent` after the run's `run_started_at`, comment once (the same run-id marker) saying the entry was ejected while its run was still going, which is the 360-minute check timeout. Give the run's duration and quote the event's `reason` verbatim. Otherwise exit 0. Never call `gh run rerun`, `mergePullRequest`, `gh pr merge` or `jump` on this path. Add tests for: an all-infrastructure ejection enqueues once with `expectedHeadOid` and the `REQUEUE_TOKEN`; a second ejection of the same head comments and does not enqueue; a mixed failure comments and does not enqueue; a failed `Can merge` alone does not count as genuine; a head that moved, a closed PR and an already-queued PR do nothing; an unparseable branch warns and exits 0; a missing `REQUEUE_TOKEN` exits non-zero with no marker; a green run after an ejection comments, and a green run that merged does nothing; and, over every merge-group case, the stub log never shows `run rerun`, `mergePullRequest`, `pr merge` or `jump`, and shows `REQUEUE_TOKEN` used for the enqueue alone. Extend the workflow-shape test for the new `env:` and `if:`. Mutation-check on copies: taking the head from the branch name, or dropping `expectedHeadOid`, must fail a test. Run `pre-commit run --all-files`. Leave everything uncommitted. Commit subject: "Re-queue a merge group that failed on infrastructure." |
+| 2c | low | sonnet | none | Read Phase 2 of `docs/plans/ci-tiers.md`, then `tools/ci-auto-retry.sh` as 2b left it. Add a "When a merge-tier lane fails" section to `docs/ci.md`, before any section on the merge tier going live. Cover: what is re-queued automatically (an entry whose every failed job matched an infrastructure pattern, once per tested head, as shakenfist-bot); what is left for a human and gets a comment instead (a mixed or genuine failure, or a second infrastructure failure); the timeout comment and what to do about it; re-queue, not re-run, and why; the `merge-ci-triage` skill; a `tier=full` dispatch to reproduce a lane on a branch; and that the plain comment is expected to give way to the fleet's shared merge triager. Say the queue is not yet enabled. Describe behaviour and name scripts, jobs and steps, but no `file:<line>` references (the `docs-line-references` hook rejects them), and no plan phase or decision numbers. Run `pre-commit run --all-files`. Leave it uncommitted. Commit subject: "Document merge queue failure handling." |
+| 2d | medium | opus | none | Management session, not a sub-agent: the exit checks below. Read-only throughout. No commit unless a check fails. |
 
-Exit: the tests pass, and `tools/ci-auto-retry.sh` re-runs a real
-failed pull request run, chosen by the management session, exactly
-as the inline script did.
+#### Risks
+
+* **The enqueue cannot be exercised before Phase 3.** Without a
+  ruleset there are no merge groups, and `enqueuePullRequest` with
+  this token has never run here. Mitigation: the dry-run against a
+  real shakenfist merge group covers everything up to the write. The
+  write fails the job loudly rather than quietly. Phase 3's exit and
+  Phase 4's soak watch for the first real re-queue.
+* **The bot can bypass the queue** (finding 6). Mitigation:
+  Decision 4's single mutation, pinned by 2b's tests and by the
+  definition of done's `rg`.
+* **A re-queue costs a whole entry**, 2.5 to 4 hours, and goes to
+  the back of the queue. Mitigation: only all-infrastructure
+  ejections, once per head. Phase 4 measures how often it fires.
+* **The new workflow only runs once merged.** `workflow_run` uses
+  `develop`'s copy, so this pull request's own CI never runs it.
+  Mitigation: the dry-run, and the first real pull request retry
+  after merge, recorded at close-out.
+* **The sfcbr failure sits 478 lines inside the log window.** A
+  later step that logs more could push the match out of the last
+  2000 lines, and the retry would stop. Mitigation: 2a's test pins
+  the window. Widening it is a one-line change if Phase 4 sees
+  misses.
+* **Two comments per ejection once the fleet triager arrives.**
+  Mitigation: the Future work entry.
+
+#### Definition of done
+
+* `pre-commit run --all-files` passes, including
+  `ci-auto-retry-tests`.
+* The workflow's retry step is `run: tools/ci-auto-retry.sh`, with
+  no `${{` inside `run:`, and its `permissions:` are unchanged:
+  `git diff origin/develop -- .github/workflows/auto-retry-infra-failures.yml
+  | rg '^[-+] *(actions|checks|contents|pull-requests):'` finds
+  nothing.
+* `rg -n 'mergePullRequest|pr merge|jump|--admin' tools/ci-auto-retry.sh`
+  finds nothing, and `rg -c enqueuePullRequest tools/ci-auto-retry.sh`
+  is 1.
+* **Pull request path, dry run.** The management session takes the
+  most recent failed `Build test clouds` run whose pull request is
+  still open, and the `Auto-retry infrastructure failures` run that
+  handled it. It then runs
+  `REPO=shakenfist/kerbside-patches RUN_ID=<run> RUN_URL=<url>
+  WORKFLOW_NAME='Build test clouds' tools/ci-auto-retry.sh --dry-run`.
+  The jobs it calls infrastructure, and whether it would comment and
+  re-run, match that handler's log. The run and the pull request show
+  no new attempt or comment afterwards.
+* **Merge group path, dry run.** The same, with `EVENT=merge_group`
+  and the `HEAD_BRANCH`, `HEAD_SHA` and `CONCLUSION` of a recent
+  failed shakenfist/shakenfist merge group
+  (`gh run list -R shakenfist/shakenfist --event merge_group --status
+  failure`), and `REPO=shakenfist/shakenfist`. It prints the pull
+  request number, a tested head equal to that pull request's head,
+  and a per-job verdict. It then stops at the pull request state
+  (most will have merged), writing nothing.
+* `docs/ci.md` has the section, and `docs/script-reference.md` lists
+  `tools/ci-auto-retry.sh` and its test.
+
+#### Back brief
+
+Before 2a, back brief Michael on this section. 2d is read-only by
+design, so this phase needs no live go-ahead beyond the push and the
+pull request. Ask for those in the back brief.
 
 ### Phase 3: Split the tiers and enable the queue
 
@@ -854,8 +1068,8 @@ pull request.
   978 minutes of wall clock on a first attempt. The merge tier only
   fits if per-push load falls enough to cut queueing, and that is a
   prediction, not a measurement. Phase 4's gate exists for this. An
-  entry ejected on timeout looks like a failure, so 2a's comment says
-  when `Can merge` never reported.
+  entry ejected on timeout looks like a failure, so 2b's comment says
+  when an entry was ejected while its run was still going.
 * **Merges become serial.** A burst of five merges that takes an
   afternoon today will take most of a day. This is the design's price
   and `docs/ci.md` says so. The tempting way out,
@@ -877,6 +1091,12 @@ pull request.
 * **Auto-merge is repository-wide.** Turning it on lets anyone with
   write access set it on any pull request. Here that is Michael and
   the bot.
+* **The bot can bypass the queue.** shakenfist-bot is an admin here
+  and in `sf-can-skip-merge-queue`, the bypass team the ruleset
+  copies. Anything that merges with `DAILY_REBASE_TOKEN` must enqueue
+  (`enqueuePullRequest`, or `gh pr merge --auto` against a queue),
+  never merge directly or pass `--admin`. 3b's auto-merge is checked
+  for the same.
 * **A bot push to a queued pull request removes it from the queue.**
   The lint fixer only runs on `pull_request`, and the healer only
   touches conflicted data pull requests, which the queue has already
@@ -934,6 +1154,10 @@ We will know this plan has succeeded when the following are true:
 * `daily-rebase-checks.yml` reads `github.event.pull_request.head.sha`
   into `SF_HEAD_SHA` as `local-container-builds.yml` did, and gets the
   same empty value outside `pull_request`.
+* Drop `tools/ci-auto-retry.sh`'s plain merge-group failure comment
+  once the fleet's shared merge triager (shakenfist/private-ci
+  `PLAN-fleet-merge-triage.md`, phase 4) reaches this repository, and
+  keep the re-queue. That triager posts a verdict on every ejection.
 
 ### Bugs fixed during this work
 
