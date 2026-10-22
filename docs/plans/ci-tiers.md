@@ -989,6 +989,46 @@ pre-commit over the shared tree, and 2b builds on 2a's tests.
 * `docs/ci.md` has the section, and `docs/script-reference.md` lists
   `tools/ci-auto-retry.sh` and its test.
 
+#### Execution notes
+
+Steps 2a to 2c ran on 2026-10-22 (UTC), in table order, one at a
+time. Back brief answer: this session may push and open the pull
+request.
+
+* **2a** kept the agent's extras: the check for missing environment
+  variables, rejection of unknown arguments, and the gh help probe and
+  marker lookup moved off pipes for the same `pipefail` reason as the
+  log match. Restoring the `echo | grep` log match on a copy fails the
+  SIGPIPE test, reproduced in review.
+* **2b** made the pattern match one function shared by both paths,
+  put the run marker on the re-queue comment too, and paginates jobs
+  and comments on the merge path; all kept. A failed `Can merge` with
+  nothing else failed gets its own wording and no re-queue. Taking the
+  head from the first parent instead of the second fails the tests,
+  reproduced in review.
+* **2c** said the comment after a re-queue is posted as
+  shakenfist-bot. It is posted with the workflow's `GITHUB_TOKEN`;
+  corrected in review.
+* **A race to watch in Phase 4.** On a failed merge group the script
+  reads the pull request once. If GitHub has not yet ejected the entry
+  when the handler runs, `isInMergeQueue` is still true and the script
+  logs "already in the merge queue, nothing to do", so an
+  infrastructure ejection goes unre-queued without a comment. The
+  ejection happens when `Can merge` reports and the handler waits for
+  a static runner after that, so it is not expected. Phase 4 checks
+  the handler logs of failed merge groups for that line.
+
+Exit checks (2d), all read-only:
+
+| Check | Result |
+|-------|--------|
+| Static items above | pass: `permissions:` unchanged, the step is `run: tools/ci-auto-retry.sh`, no merge, `jump` or `--admin`, one `enqueuePullRequest` |
+| Pull request dry run, run 39481415077 (#1934, open) | checked the same three jobs and printed "No infrastructure failures detected, not retrying", as handler run 39653047177 did; afterwards the run was still on attempt 1 and #1934 had no comments |
+| Merge group dry run, shakenfist run 39555035238 (`pr-4588-ce8d0641b7…`) | PR #4588, tested head `3b179dc032` equal to its `headRefOid`, both failed smoke-test jobs "not infrastructure", `Can merge` not classified, then "PR #4588 is MERGED, nothing to do"; nothing written |
+
+Neither run reached a re-queue or a comment, so the write paths are
+proven only by the stubbed tests until the queue exists.
+
 #### Back brief
 
 Before 2a, back brief Michael on this section. 2d is read-only by
