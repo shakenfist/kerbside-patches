@@ -3,12 +3,19 @@ name: Auto-retry infrastructure failures
 # This workflow monitors CI runs and automatically retries jobs that fail
 # due to infrastructure issues (e.g., self-hosted runner losing connection).
 # It does NOT retry jobs that fail due to actual test failures.
+#
+# A merge queue run cannot be re-run into a merge, so for those the script
+# re-queues an entry ejected purely on infrastructure, comments on any other
+# ejection, and also looks at merge queue runs which passed, to report an
+# entry which was ejected while its run was still going.
 
-# The only workflow here that drives GITHUB_TOKEN itself rather than
+# Almost everything here drives GITHUB_TOKEN rather than
 # DAILY_REBASE_TOKEN, so these are the scopes it actually exercises:
 # reading a workflow run and its job logs, reading the check-run
 # annotations it greps for infrastructure failures, commenting on the
-# pull request, and re-running the failed jobs.
+# pull request, and re-running the failed jobs. The one exception is
+# putting a pull request back in the merge queue, which the script does
+# with DAILY_REBASE_TOKEN so that the merge group it creates runs workflows.
 permissions:
   actions: write
   checks: read
@@ -25,13 +32,16 @@ on:
 
 jobs:
   check-and-retry:
-    if: github.event.workflow_run.conclusion == 'failure'
+    if: >-
+      github.event.workflow_run.conclusion == 'failure' ||
+      (github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.event == 'merge_group')
     runs-on: [self-hosted, static]
     steps:
       # A workflow_run job always runs the default branch's copy of this
       # workflow. Leave "ref" unset so the checkout is that branch too, and
-      # never check out the pull request's head: this job holds a token which
-      # can comment on the pull request and re-run its jobs.
+      # never check out the pull request's head: this job holds tokens which
+      # can comment on the pull request, re-run its jobs and queue it.
       - name: Check out the retry script
         uses: actions/checkout@v7
 
@@ -42,4 +52,11 @@ jobs:
           RUN_ID: ${{ github.event.workflow_run.id }}
           RUN_URL: ${{ github.event.workflow_run.html_url }}
           WORKFLOW_NAME: ${{ github.event.workflow_run.name }}
+          EVENT: ${{ github.event.workflow_run.event }}
+          CONCLUSION: ${{ github.event.workflow_run.conclusion }}
+          HEAD_BRANCH: ${{ github.event.workflow_run.head_branch }}
+          HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
+          # Used for the merge queue re-queue alone; every other call,
+          # comments included, stays on GH_TOKEN.
+          REQUEUE_TOKEN: ${{ secrets.DAILY_REBASE_TOKEN }}
         run: tools/ci-auto-retry.sh
