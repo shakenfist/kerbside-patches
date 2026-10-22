@@ -1,0 +1,29 @@
+# One service role per line: ROLE MODULE [MODULE ...]
+#
+# The modules are the role's entry point plus the plugins devstack configures,
+# which services load at runtime and so would otherwise be missed. The uWSGI
+# wsgi modules build their application at import time and need config files,
+# so the API roles import the modules the app factory loads instead.
+# call:package.module.function runs a setup function, see probe.py.
+python-baseline sys
+privsep-idle oslo_privsep.daemon
+nova-compute nova.cmd.compute nova.compute.manager nova.virt.libvirt.driver vif_plug_ovs.ovs os_brick.initiator.connector
+nova-conductor nova.cmd.conductor nova.conductor.manager
+nova-scheduler nova.cmd.scheduler nova.scheduler.manager
+nova-novncproxy nova.cmd.novncproxy nova.console.websocketproxy
+nova-api nova.api.openstack.wsgi_app nova.api.openstack.compute.routes
+nova-api-meta nova.api.openstack.wsgi_app nova.api.metadata.handler
+neutron-api neutron.server.api neutron.pecan_wsgi.app neutron.plugins.ml2.plugin neutron.plugins.ml2.drivers.ovn.mech_driver.mech_driver neutron.services.ovn_l3.plugin neutron.services.trunk.plugin neutron.services.segments.plugin
+neutron-rpc-server neutron.cmd.server neutron.plugins.ml2.plugin neutron.plugins.ml2.drivers.ovn.mech_driver.mech_driver neutron.services.ovn_l3.plugin
+neutron-ovn-agent neutron.cmd.agents.ovn_neutron_agent neutron.agent.ovn.agent.ovn_neutron_agent neutron.agent.ovn.extensions.metadata
+neutron-openvswitch-agent neutron.cmd.agents.ovs_neutron_agent neutron.plugins.ml2.drivers.openvswitch.agent.ovs_neutron_agent neutron.plugins.ml2.drivers.openvswitch.agent.openflow.native.main
+neutron-dhcp-agent neutron.cmd.agents.dhcp neutron.agent.dhcp.agent neutron.agent.linux.dhcp
+neutron-l3-agent neutron.cmd.agents.l3 neutron.agent.l3.agent
+neutron-metadata-agent neutron.cmd.agents.metadata neutron.agent.metadata.agent
+cinder-volume cinder.cmd.volume call:cinder.objects.register_all cinder.volume.manager cinder.volume.drivers.lvm
+cinder-scheduler cinder.cmd.scheduler call:cinder.objects.register_all cinder.scheduler.manager
+cinder-backup cinder.cmd.backup call:cinder.objects.register_all cinder.backup.manager cinder.backup.drivers.swift
+cinder-api cinder.wsgi.wsgi call:cinder.objects.register_all cinder.api.v3.router
+glance-api glance.common.wsgi_app glance.api.v2.router glance_store._drivers.filesystem
+keystone keystone.server.wsgi keystone.server.flask.application
+placement placement.wsgi placement.deploy placement.handler

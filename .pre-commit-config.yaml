@@ -94,7 +94,7 @@ repos:
     rev: 7.4.1
     hooks:
       - id: flake8
-        files: ^(deployer/|tools/(write-build-manifest|test-write-build-manifest\.py|measure-deployer-bootstrap|test-measure-deployer-bootstrap\.py|ci-select-lanes\.py|test-ci-select-lanes\.py|test-ci-merge-group-current\.py|test-ci-auto-retry\.py|test-collect-layer-data-pr\.py|test-data-pr-auto-merge\.py)$)
+        files: ^(deployer/|tools/(write-build-manifest|test-write-build-manifest\.py|measure-deployer-bootstrap|test-measure-deployer-bootstrap\.py|ci-select-lanes\.py|test-ci-select-lanes\.py|test-ci-merge-group-current\.py|test-ci-auto-retry\.py|test-collect-layer-data-pr\.py|test-data-pr-auto-merge\.py|import-memory/[^/]+\.py)$)
         args: ['--max-line-length=120']
 
   - repo: local

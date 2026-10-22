@@ -1,4 +1,4 @@
-# Plan: oslo.privsep memory in devstack CI
+# Plan: OpenStack memory in devstack CI
 
 ## Goal
 
@@ -7,6 +7,10 @@ devstack CI nodes. Do it in an order that leaves a public record
 OpenDev will accept: land telemetry in devstack first, record a
 baseline, then land one fix at a time and show the change in the same
 telemetry after each one.
+
+The plan began with oslo.privsep. A follow-up on 2026-10-23 found that
+unneeded imports in the services themselves cost as much again, so
+Phase 5 covers those with the same telemetry and the same report.
 
 The trigger was the TC meeting on 2026-10-20 (log:
 <https://meetings.opendev.org/meetings/tc/2026/tc.2026-10-20-17.00.log.html>).
@@ -22,8 +26,9 @@ about five years without anyone acting, and he declined to file a bug.
 | 2 | devstack telemetry in `get-stats.py`, plus a baseline | In review: [1011786](https://review.opendev.org/c/openstack/devstack/+/1011786), [1011787](https://review.opendev.org/c/openstack/devstack/+/1011787), [1011794](https://review.opendev.org/c/openstack/devstack/+/1011794) | |
 | 3 | oslo.privsep: stop importing eventlet in the daemon | In review: [1011795](https://review.opendev.org/c/openstack/oslo.privsep/+/1011795) | |
 | 4 | neutron: cut the privileged import chain | In review: [1011796](https://review.opendev.org/c/openstack/neutron/+/1011796), [1011797](https://review.opendev.org/c/openstack/neutron/+/1011797) | |
-| 5 | Decide on structural changes (fewer contexts) | Not started | |
-| 6 | Report back to the TC and openstack-discuss | Not started | |
+| 5 | Services: stop importing what they do not use | Not started | |
+| 6 | Decide on structural changes (fewer contexts) | Not started | |
+| 7 | Report back to the TC and openstack-discuss | Not started | |
 
 ## Situation
 
@@ -233,15 +238,92 @@ node. Phase 2's telemetry should confirm it.
 Phase 4 does more than Phase 3 and does not depend on it, so it may
 land first if neutron reviews faster.
 
-## Phase 5 --- structural changes, decided on the numbers
+## Phase 5 --- services: stop importing what they do not use
 
-Decide only once phases 3 and 4 have landed and been measured. The
+Found on 2026-10-23, after 1011787's builds showed which processes
+are large. A service's steady-state memory is mostly the code it
+imports: the import-only RSS measured below is within about 10% of the
+CI peak for the scheduler, novncproxy and the neutron agents. So
+packages that a process loads but never calls cost real memory, in
+every worker and parent process.
+
+**Method.** A container built from master installs nova, neutron,
+cinder, glance, keystone and placement. For each service it imports
+the entry point and the plugins devstack configures, then records
+anonymous RSS, `sys.modules`, and the importer chain that first pulled
+in each package. The cost of a suspect package is the anonymous RSS it
+adds on top of a common base (oslo.config, oslo.log, requests,
+cryptography, keystoneauth, webob). tracemalloc is no use here,
+because it charges code objects to `importlib`, not to the package.
+The scripts are in `tools/import-memory/`, and
+[../import-memory-scans.md](../import-memory-scans.md) explains how to
+run a scan like this one again.
+
+**Findings.** All of these are still on master. Process counts come
+from `tempest-full-py3` (OVN all-in-one) and
+`devstack-platform-ubuntu-noble-ovs` (ML2/OVS) in 1011787's builds.
+
+| # | Cause | Per process | Per node (OVN / ML2-OVS) | Fix lives in |
+|---|---|---|---|---|
+| 1 | `futurist/_utils.py` imports eventlet at module level. Every service already on threads loads it anyway: neutron, nova-api, nova-api-meta and glance. keystone and placement get it through oslo.messaging's import of oslo.service's eventlet backend | +11 MB | ~190 / ~240 MB | futurist, oslo.service |
+| 2 | `neutron_lib/__init__.py` imports `neutron_lib.db.api` (oslo.db, sqlalchemy, pecan, mako, pygments) in every agent. This is LP #1802369 again, the root cause behind patch219 | +25 MB | ~50 / ~200 MB | neutron-lib |
+| 3 | `neutron/api/extensions.py` imports `openstack.connection` at module level, for the optional `ProjectIdMiddleware` alone. Agents load it through `neutron.common.utils` -> `neutron.api.api_common` | +13 MB | ~65 / ~155 MB | neutron |
+| 4 | `neutron_lib/api/validators/__init__.py` imports `os_ken.lib.packet.ether_types`, which loads the whole os_ken packet library for one constants table. It hits every neutron process except the OVS agent | +8.5 MB | ~70 / ~120 MB | neutron-lib |
+| 5 | `neutron/db/models/agent.py` imports `neutron.agent.common.utils` for `is_agent_down`, so every server process loads pyroute2 and `neutron.privileged` | +10 MB | ~60 MB | neutron |
+| 6 | `keystone/api/_shared/saml.py` imports `keystone.federation.idp`, and with it pysaml2, unconditionally | +15 MB | 30 MB | keystone |
+| 7 | `placement/deploy.py` imports alembic at module level, though it only uses it when `sync_on_startup` is set, which is off by default | +11 MB | 22 MB | placement |
+| 8 | nova-compute loads oslo.db and sqlalchemy through `nova.context`, but never uses a database | +17 MB | 17 MB per compute node | nova |
+
+That is roughly 0.5 GB per OVN node and 0.85 GB per ML2/OVS
+controller, comparable to phases 3 and 4. The totals add up
+per-package costs that share dependencies, and they count shared
+copy-on-write pages in both parent and worker, so treat them as upper
+bounds. These pages are as cold as privsep's, and the same caution
+about swap volume versus swap thrash applies.
+
+Checked and not counted, because the process does use them: networkx
+in cinder (taskflow runs its flows), openstacksdk in nova (the placement
+client), paramiko in nova (keypairs). Not import problems, but worth
+noting for Phase 6: devstack sets `lazy-apps = true` for every uWSGI
+service, so each worker imports the app separately and shares nothing
+with the others.
+
+**Order.** Cheapest and least controversial first, one series per
+repository, each with a test that imports the module in a fresh
+interpreter and fails if the dropped package is loaded (the pattern
+patch218 uses):
+
+1. #3, #6 and #7: move one import into the function that uses it.
+2. #4 and #5: small refactors.
+3. #1: futurist must keep `GreenThreadPoolExecutor` working when
+   eventlet is installed but not yet imported, so the detection has
+   to move to construction time. This is the largest single saving.
+   Fixing oslo.service's default backend for keystone and placement
+   is separate work.
+4. #2: the neutron-lib root-cause fix. Raise it with neutron
+   reviewers alongside patch219's judgement call, because it changes
+   when ORM event listeners are registered.
+5. #8: only if nova reviewers want it, because `nova.context` is
+   central.
+
+**Telemetry.** `performance.json` cannot show these changes yet,
+because `get-stats.py`'s default process list leaves out the OpenStack
+services, and its `services` figures are end-of-job cgroup totals that
+include page cache. Either add the service processes to the default
+list in a follow-up to 1011787, which gives them `rss_peak` and
+`rss_anon`, or build the baseline from `memory_tracker` per-process
+peaks. The first is better, because it is the same record the TC
+report already uses.
+
+## Phase 6 --- structural changes, decided on the numbers
+
+Decide only once phases 3 to 5 have landed and been measured. The
 candidates are fewer neutron contexts per agent (each was added in
 2021 for least privilege, so this is a security trade-off neutron must
 agree to), or sharing one daemon between agents. Record the decision
 here, including a decision not to proceed.
 
-## Phase 6 --- report back
+## Phase 7 --- report back
 
 Reply on openstack-discuss and at a TC meeting with the baseline and
 the before/after telemetry. Be plain about what the data shows. If

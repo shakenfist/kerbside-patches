@@ -86,6 +86,16 @@ PRs and issues with the `DAILY_REBASE_TOKEN` secret.
 | `summarize_layers.py` | Analyzes the per-image layer data time series in `data/layers/`. The `growth` report tracks image size over time and attributes growth to specific layers, the `reuse` report tracks layer reuse between builds, and the `stages` report compares the effect of each occystrap pipeline stage. Use `--build` and `--image` to narrow the analysis. |
 | `collect-layer-data.py` | Used by the `collect_layer_data` CI job to convert a build's `layers.tar.gz` artifact into appends to the per-image time series files in `data/layers/`. Writes the compact version 2 record format, maintains the per-build `commands.jsonl` dictionary, and caps each series at `--max-records` runs (90 by default). |
 
+### Memory Analysis Tools (`tools/import-memory/`)
+
+| Script | Description |
+|--------|-------------|
+| `scan.sh build\|probe\|marginal\|shell` | Builds a container of the OpenStack services from master and runs the probes below in it. See [import-memory-scans.md](import-memory-scans.md). |
+| `probe.py ROLE MODULE...` | Imports a service role's entry point and plugins in a fresh interpreter and reports its RSS, its modules per package, and the import chain that loaded each package. Roles live in `roles.txt`. |
+| `report.py PROBE.jsonl [--packages a,b] [--chain PACKAGE]` | Summarises `probe.py` output as a package-by-role table, or shows where a package is imported in each role. |
+| `marginal.py BASE TARGET` | The anonymous RSS that importing `TARGET` adds on top of `BASE`: what a process saves by not importing it. |
+| `memory-tracker-peaks.py LOG [--group] [--grep RE]` | Ranks the processes on a devstack CI node by peak RSS, from its `screen-memory_tracker.txt`; `--group` totals the Python services per project. |
+
 ### Automated Data PRs
 
 | Script | Description |
