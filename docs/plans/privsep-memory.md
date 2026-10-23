@@ -733,6 +733,48 @@ briefs do not repeat:
 | 6i | medium | sonnet | none | Series `placement-import-memory-009`, two patches. patch229: `placement/deploy.py` imports `placement.db.sqlalchemy.migration` at module level, which loads alembic (about 11 MB), but `update_database()` calls `migration.upgrade('head')` only when `conf.placement_database.sync_on_startup` is set, which is off by default. Import it inside that branch, and check with `grep -rn "deploy.migration" placement/tests` for tests that mock `placement.deploy.migration`. Add a fresh-interpreter test that `placement.deploy` does not load `alembic`. patch230: as patch228, in `placement/__init__.py`, which is empty today, with a reno note, measured with `--with src/futurist` too. Commit subjects: "Import migrations only when syncing on startup." and "Prefer the threading oslo.service backend." |
 | 6j | medium | sonnet | none | Measure the whole phase. Run `_build/test-apply.sh --skip-tests` for every Phase 6 series. Then run `scan.sh probe` with no `--with` and save the output as `before.jsonl`. Run it again with `--with` for `src/futurist`, `src/neutron-lib`, `src/neutron` (series 007 applied), `src/keystone` and `src/placement`, and save that as `after.jsonl`. Run `report.py` on both with `--packages eventlet,os_ken,openstack,pyroute2,saml2,alembic,sqlalchemy,pecan`. In Phase 6's findings table in `docs/plans/privsep-memory.md`, replace each estimate with the measured figure, and add a per-role before and after table of anonymous RSS. If #2 (patch224) is excluded because it is WIP, give the figures with and without it. Commit subject: "Record Phase 6's measured savings." |
 
+#### Chain fixes for eventlet and `neutron_lib.db.api`
+
+Added on 2026-10-24, after steps 6c and 6e. The findings table sized #1
+and #2 with `marginal.py`, which measures what a package costs on top of
+a base set. That is the cost of the whole package, not what removing one
+import site saves. Both packages load through several independent
+chains, so patch222 (futurist) and the neutron-lib change each save
+nothing alone. Mikal chose to add the remaining chain fixes to this
+phase, rather than defer them.
+
+What tracing found so far, with each fix applied in a scratch copy in
+turn:
+
+| Package | Roles | Import sites, in the order they appear |
+|---|---|---|
+| eventlet | neutron-api, neutron-rpc-server, glance-api | futurist (patch222); `oslo_utils.eventletutils`, a deprecated module imported by at least four oslo.messaging modules; `oslo_messaging/_utils.py`'s own `try_import('eventlet')`; `oslo_service.wsgi`, imported by `neutron.common.config` |
+| eventlet | keystone, placement, nova-api | futurist; oslo.service's default backend when no hook chooses threading (6h and 6i add the hooks; nova-api is out of scope); then presumably the oslo.messaging chain |
+| eventlet | neutron agents | futurist; python-ovs `ovs/poller.py`, which is Open vSwitch, not OpenStack |
+| `neutron_lib.db.api` | neutron agents | `neutron_lib/__init__.py`; `neutron_lib.context` and `neutron_lib.db.utils` (the option (a) design, written and tested in neutron-lib; diff kept as `step-6e/patch224-src.diff` in the session scratchpad); then neutron's `neutron.common.utils`, `neutron.service` and `neutron.common.ovn.utils`; then agents importing DB models (`neutron.db.models_v2`, and `neutron_lib.db.standard_attr` through `neutron.extensions.revisions`) |
+
+The table is incomplete: tracing stopped at each layer. So the chain
+fixes start with a survey, and the patch steps it produces are planned
+from its results, not here.
+
+| Step | Effort | Model | Isolation | Brief for sub-agent |
+|------|--------|-------|-----------|---------------------|
+| 6k | high | opus | none | Map every import chain that loads eventlet in each role in `tools/import-memory/roles.txt`, and every chain that loads `neutron_lib.db.api` in each neutron agent role. Work only in scratch copies of the source trees (clone each project with `git clone --depth 1` into the scratch directory, starting from patch222's futurist and the option (a) neutron-lib diff). Repeat: probe with every scratch tree as `--with`; trace the first importer of the package with a `sys.meta_path` hook that ignores `importlib.util.find_spec` lookups (Python 3.12 shows those frames as `<frozen importlib.util>`); make the smallest scratch edit that removes that site; until the role no longer loads the package or the next site is outside OpenStack. Scratch edits may be crude, but they must keep each module importable; note any that would not be a valid fix. Output, for the plan: one row per import site (project, file, what it uses the package for, the proposed real fix and whether it changes behaviour), and a per-role table of anonymous RSS for the full set against `import-memory:phase6` with no `--with`. Also say which sites are shared by many roles, so the patch order puts the widest saving first. Commit subject: "Map the eventlet and DB API import chains." |
+
+After 6k, the management session plans one patch step per project from
+its table, in the form of the rows above, with a back brief to Mikal
+before any of them starts. Each patch goes in a series of its own in
+the `import-memory` topic, and the commit messages say that the saving
+needs the rest of the chain, naming the other changes. patch222 and
+the neutron-lib db.api change are held until then, so they are pushed
+with the rest of their chain. python-ovs is Open vSwitch, reviewed on
+the ovs-dev mailing list, so a fix there is prepared for Mikal to send
+rather than added to `_patches/`.
+
+6h and 6i split: their lazy imports (patch227 and patch229) go ahead
+as planned. Their backend hooks (patch228 and patch230) wait for 6k,
+because they save nothing while the oslo.messaging chain remains.
+
 Between step 6b and step 6c there is a gate, which is the management
 session's job, not a sub-agent's. Mikal pushes patch221 by hand
 (Decision 7), and the session records its change number under
@@ -774,6 +816,9 @@ Mikal to push.
   uncontroversial changes rather than leave them stuck.
 
 #### Definition of done
+
+- 6k's chain table is in this section, and every row has either a
+  patch step or a recorded reason for none.
 
 - `pre-commit run --all-files` passes, and `_build/test-apply.sh
   <series>` passes for series 001 and 004 to 009.
@@ -832,6 +877,19 @@ Mikal's own act, and patch221's hand push still waits for his go.
   himself. Corrected at the source.
 - The gate after 6b: Mikal pushed patch221 as 1011992, recorded under
   Decision 7.
+- 2026-10-24. 6c, 6d and 6e ran in parallel, 6c and 6e in worktrees of
+  their own made from this branch (`kerbside-patches-wt-p6-6c` and
+  `-6e`), since the Agent tool's isolation would have branched from the
+  session's other worktree. Patch numbers were assigned in advance so
+  they could not collide. Every measurement uses the image tagged
+  `import-memory:phase6`, kept from pruning by a stopped container,
+  `import-memory-phase6-pin`, to be removed when the phase is done.
+- 6d (patch223) measured 8 MB in neutron-api, the OVN agent and the L3
+  agent. Its release note was removed in review (Decision 8).
+- 6c (patch222) and 6e saved nothing alone; see "Chain fixes" above.
+  The 6e back brief chose option (a) (register the listeners from
+  `model_base`, lazy `db_api` in `context.py` and `db/utils.py`), and
+  Mikal then chose to add the chain fixes to this phase.
 
 #### Future work
 
