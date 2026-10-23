@@ -1,0 +1,21 @@
+Import eventlet only for the WSGI server
+
+Only the deprecated Server uses eventlet and greenlet, yet neutron
+imports oslo_service.wsgi everywhere for Loader, Request and
+register_opts. Import them in Server's methods; protocol now defaults
+to None, which still means eventlet.wsgi.HttpProtocol.
+
+The saving also needs eventlet gone from futurist, oslo.utils'
+eventletutils, oslo.messaging's _utils and oslo.privsep (1011795). With
+all of them, neutron's L3 and metadata agents drop eventlet, from 117MB
+to 106MB and 103MB anonymous; its servers keep it through python-ovs.
+
+Prompt: Mikal asked for the rest of the eventlet import chain to be
+fixed, so that neutron's threaded agents stop loading eventlet; this is
+the oslo.service part of it.
+
+Assisted-By: Claude Opus 5.5 (high effort)
+
+Depends-On: https://review.opendev.org/c/openstack/devstack/+/1011992
+Change-Id: Id8f23667d2b188af9a51de07ca48eaa5409f0f6f
+Signed-off-by: Michael Still <mikal@stillhq.com>
