@@ -1,0 +1,19 @@
+db: Keep is_agent_down out of the agent utilities
+
+is_agent_down() lived in neutron.agent.common.utils, which pulls in
+pyroute2, oslo.privsep and neutron.privileged. The agent model and five
+other server modules use it, costing neutron-api and the RPC server 7
+to 9MB of anonymous memory each (117 to 110MB and 116 to 107MB).
+
+Move it to a new neutron.common.agent_status module and use that in
+tree. The old name remains as an alias, but mocking it no longer
+affects in-tree callers. Add a test that importing the agent model
+does not load pyroute2 or neutron.privileged.
+
+Prompt: Mikal asked for privsep memory fixes that can be landed one at a
+time and measured in devstack CI; neutron daemons are the largest.
+
+Assisted-By: Claude Opus 5.5 (high effort)
+
+Change-Id: Ib49e83c5cd59aa84839fba9c06329735f922b042
+Signed-off-by: Michael Still <mikal@stillhq.com>
