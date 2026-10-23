@@ -548,16 +548,21 @@ jobs:
         uses: actions/download-artifact@v8
         with:
           pattern: buildresult-*
+          # Every artifact holds a file named result.json, so they cannot be
+          # merged. A pattern matching one artifact (a pull request builds
+          # one image set) is extracted directly into the path; several are
+          # extracted into a subdirectory each. The combine step reads both.
+          path: buildresults
 
       - name: Combine results and expose as an output
         id: combine
         run: |
           # Collect all results into a JSON array
           results="["
-          for dir in buildresult-*/; do
-            value=$(cat "${dir}result.json")
+          while read -r file; do
+            value=$(cat "${file}")
             results="${results}${value},"
-          done
+          done < <(find buildresults -name result.json | sort)
 
           # Terminate array and remove trailing comma
           results="${results%,}]"
