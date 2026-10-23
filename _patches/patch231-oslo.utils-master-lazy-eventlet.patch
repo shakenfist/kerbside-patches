@@ -1,0 +1,353 @@
+commit 29615831ca1acf9fd0939ae59447a0fe15b66419
+Author: Michael Still <mikal@stillhq.com>
+Date:   Sat Oct 24 09:50:38 2026 +1100
+
+    Do not import eventlet in eventletutils until used
+    
+    Seven oslo.messaging modules import eventletutils, which imports
+    eventlet. Find eventlet with importlib.util.find_spec() instead, and
+    import it when a function needs it: nothing can be monkey patched
+    before eventlet is imported. The public API behaves as before.
+    
+    This saves nothing alone. With futurist's "Do not import eventlet until
+    it is needed" and oslo.messaging's "Find patched threading without
+    importing eventlet", glance-api's modules no longer load eventlet, and
+    their anonymous memory falls from 91MB to 82MB.
+    
+    Prompt: Mikal asked for import-memory fixes that can be landed one at a
+    time and measured in devstack CI; eventletutils is one of the modules
+    that import eventlet in the threaded API services.
+    
+    Assisted-By: Claude Opus 5.5 (high effort)
+    
+    Depends-On: https://review.opendev.org/c/openstack/devstack/+/1011992
+    Change-Id: I62185395a2171e937205bbcc6a6b9fe9ef864414
+    Signed-off-by: Michael Still <mikal@stillhq.com>
+
+diff --git a/oslo_utils/eventletutils.py b/oslo_utils/eventletutils.py
+index c6d9ffa..3c86a2f 100644
+--- a/oslo_utils/eventletutils.py
++++ b/oslo_utils/eventletutils.py
+@@ -21,8 +21,11 @@ Eventlet utils helper module.
+ from __future__ import annotations
+ 
+ from collections.abc import Sequence
++import importlib.util
++import sys
+ import threading
+-from typing import TYPE_CHECKING
++from types import ModuleType
++from typing import Any, TYPE_CHECKING
+ import warnings
+ 
+ from oslo_utils import importutils
+@@ -36,14 +39,49 @@ warnings.warn(
+     DeprecationWarning,
+ )
+ 
+-# These may or may not exist; so carefully import them if we can...
+-_eventlet = importutils.try_import('eventlet')
+-_patcher = importutils.try_import('eventlet.patcher')
++# eventlet and eventlet.patcher, or None if eventlet is not installed. They
++# are not bound here, so that importing this module does not import eventlet;
++# __getattr__ imports them the first time they are needed.
++_eventlet: ModuleType | None
++_patcher: ModuleType | None
++
++
++def __getattr__(name: str) -> Any:
++    if name == '_eventlet':
++        module = importutils.try_import('eventlet')
++    elif name == '_patcher':
++        module = importutils.try_import('eventlet.patcher')
++    else:
++        raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
++    globals()[name] = module
++    return module
++
++
++def _get(name: str) -> Any:
++    # Use the value already bound, which may be one a test has replaced.
++    try:
++        return globals()[name]
++    except KeyError:
++        return __getattr__(name)
++
++
++def _get_patcher() -> Any:
++    # Nothing can be monkey patched until eventlet has been imported, so do
++    # not import it just to ask.
++    if '_patcher' not in globals() and 'eventlet' not in sys.modules:
++        return None
++    return _get('_patcher')
++
+ 
+ # Attribute that can be used by others to see if eventlet is even currently
+ # useable (can be used in unittests to skip test cases or test classes that
+ # require eventlet to work).
+-EVENTLET_AVAILABLE = all((_eventlet, _patcher))
++try:
++    EVENTLET_AVAILABLE = importlib.util.find_spec('eventlet') is not None
++except (ImportError, ValueError):
++    # An import hook may refuse eventlet, as nova's does when it runs with
++    # native threads.
++    EVENTLET_AVAILABLE = False
+ 
+ # Taken from eventlet.py (v0.16.1) patcher code (it's not a accessible set
+ # for some reason...)
+@@ -78,9 +116,12 @@ def fetch_current_thread_functor() -> threading.Thread | greenlet.greenlet:
+     if not EVENTLET_AVAILABLE:
+         return threading.current_thread  # type: ignore
+     else:
+-        green_threaded = _patcher.is_monkey_patched('thread')
++        patcher = _get_patcher()
++        green_threaded = patcher is not None and patcher.is_monkey_patched(
++            'thread'
++        )
+         if green_threaded:
+-            return _eventlet.getcurrent  # type: ignore
++            return _get('_eventlet').getcurrent  # type: ignore
+         else:
+             return threading.current_thread  # type: ignore
+ 
+@@ -123,7 +164,8 @@ def warn_eventlet_not_patched(
+                     )
+                 else:
+                     expanded_patched_modules.add(m)
+-    if EVENTLET_AVAILABLE:
++    patcher = _get_patcher()
++    if EVENTLET_AVAILABLE and patcher is not None:
+         try:
+             # The patcher code stores a dictionary here of all modules
+             # names -> whether it was patched...
+@@ -133,7 +175,7 @@ def warn_eventlet_not_patched(
+             # >>> _patcher.monkey_patch(os=True)
+             # >>> print(_patcher.already_patched)
+             # {'os': True}
+-            maybe_patched = bool(_patcher.already_patched)
++            maybe_patched = bool(patcher.already_patched)
+         except AttributeError:
+             # Assume it is patched (the attribute used here doesn't appear
+             # to be a public documented API so we will assume that everything
+@@ -142,7 +184,7 @@ def warn_eventlet_not_patched(
+         if maybe_patched:
+             not_patched = []
+             for m in sorted(expanded_patched_modules):
+-                if not _patcher.is_monkey_patched(m):
++                if not patcher.is_monkey_patched(m):
+                     not_patched.append(m)
+             if not_patched:
+                 warnings.warn(
+@@ -162,9 +204,10 @@ def is_monkey_patched(module: str) -> bool:
+     :return Bool: True if module is patched, False otherwise
+     """
+ 
+-    if _patcher is None:
++    patcher = _get_patcher()
++    if patcher is None:
+         return False
+-    return _patcher.is_monkey_patched(module)  # type: ignore
++    return patcher.is_monkey_patched(module)  # type: ignore
+ 
+ 
+ class EventletEvent:
+@@ -181,7 +224,7 @@ class EventletEvent:
+     def clear(self) -> None:
+         if getattr(self, '_set', True):
+             self._set = False
+-            self._event = _eventlet.event.Event()
++            self._event = _get('_eventlet').event.Event()
+ 
+     def is_set(self) -> bool:
+         return self._set
+@@ -197,7 +240,7 @@ class EventletEvent:
+         with timeutils.StopWatch(timeout) as sw:
+             while True:
+                 event = self._event
+-                with _eventlet.timeout.Timeout(
++                with _get('_eventlet').timeout.Timeout(
+                     sw.leftover(return_none=True), False
+                 ):
+                     event.wait()
+diff --git a/oslo_utils/tests/test_eventletutils.py b/oslo_utils/tests/test_eventletutils.py
+index 6b8006e..c2be94e 100644
+--- a/oslo_utils/tests/test_eventletutils.py
++++ b/oslo_utils/tests/test_eventletutils.py
+@@ -12,6 +12,9 @@
+ #    License for the specific language governing permissions and limitations
+ #    under the License.
+ 
++import subprocess
++import sys
++import textwrap
+ import threading
+ from unittest import mock
+ import warnings
+@@ -234,3 +237,167 @@ class EventletUtilsTest(test_base.BaseTestCase):
+         event.set()
+         event.clear()
+         self.assertEqual(1, old_event.send.call_count)
++
++
++class LazyEventletTest(test_base.BaseTestCase):
++    def _run(self, code):
++        # Run in a fresh interpreter: the test process has already imported
++        # eventlet.
++        cmd = [sys.executable, '-W', 'ignore', '-c', textwrap.dedent(code)]
++        proc = subprocess.run(cmd, capture_output=True, text=True)
++        self.assertEqual(0, proc.returncode, proc.stderr)
++        return proc.stdout.splitlines()
++
++    def test_import_does_not_load_eventlet(self):
++        out = self._run(
++            """
++            import sys
++
++            from oslo_utils import eventletutils
++
++            print('eventlet' in sys.modules)
++            print(eventletutils.EVENTLET_AVAILABLE)
++            """
++        )
++        self.assertEqual(['False', 'True'], out)
++
++    def test_not_patched_before_eventlet_is_imported(self):
++        out = self._run(
++            """
++            import sys
++            import threading
++            import warnings
++
++            from oslo_utils import eventletutils
++
++            print(eventletutils.is_monkey_patched('thread'))
++            print(
++                eventletutils.fetch_current_thread_functor()
++                is threading.current_thread
++            )
++            print(type(eventletutils.Event()) is threading.Event)
++            with warnings.catch_warnings(record=True) as capture:
++                warnings.simplefilter('always')
++                eventletutils.warn_eventlet_not_patched()
++            print(len(capture))
++            print('eventlet' in sys.modules)
++            """
++        )
++        self.assertEqual(['False', 'True', 'True', '0', 'False'], out)
++
++    def test_patched_after_import(self):
++        out = self._run(
++            """
++            import warnings
++
++            from oslo_utils import eventletutils
++
++            import eventlet
++            eventlet.monkey_patch()
++
++            print(eventletutils.is_monkey_patched('thread'))
++            print(
++                eventletutils.fetch_current_thread_functor()
++                is eventlet.getcurrent
++            )
++            event = eventletutils.Event()
++            print(type(event).__name__)
++            waiter = eventlet.spawn(event.wait, 1)
++            eventlet.sleep(0)
++            event.set()
++            print(waiter.wait(), event.wait(0))
++            event.clear()
++            print(event.wait(0.01))
++            with warnings.catch_warnings(record=True) as capture:
++                warnings.simplefilter('always')
++                eventletutils.warn_eventlet_not_patched(
++                    ['os', 'select', 'socket', 'thread', 'time']
++                )
++            print(len(capture))
++            print(eventletutils._eventlet is eventlet)
++            print(eventletutils._patcher is eventlet.patcher)
++            """
++        )
++        self.assertEqual(
++            [
++                'True',
++                'True',
++                'EventletEvent',
++                'True True',
++                'False',
++                '0',
++                'True',
++                'True',
++            ],
++            out,
++        )
++
++    def test_partly_patched_after_import(self):
++        out = self._run(
++            """
++            import threading
++            import warnings
++
++            from oslo_utils import eventletutils
++
++            import eventlet
++            eventlet.monkey_patch(os=True)
++
++            print(eventletutils.is_monkey_patched('os'))
++            print(eventletutils.is_monkey_patched('thread'))
++            print(
++                eventletutils.fetch_current_thread_functor()
++                is threading.current_thread
++            )
++            print(type(eventletutils.Event()) is threading.Event)
++            for modules in (['os'], ['os', 'thread']):
++                with warnings.catch_warnings(record=True) as capture:
++                    warnings.simplefilter('always')
++                    eventletutils.warn_eventlet_not_patched(modules)
++                print([str(w.message) for w in capture])
++            """
++        )
++        self.assertEqual(['True', 'False', 'True', 'True', '[]'], out[:5])
++        self.assertIn("['thread'] modules are monkey patched", out[5])
++
++    def test_eventlet_event_imports_eventlet(self):
++        out = self._run(
++            """
++            import sys
++
++            from oslo_utils import eventletutils
++
++            event = eventletutils.EventletEvent()
++            print('eventlet' in sys.modules)
++            event.set()
++            print(event.is_set(), event.wait(0))
++            """
++        )
++        self.assertEqual(['True', 'True True'], out)
++
++    def test_eventlet_refused(self):
++        out = self._run(
++            """
++            import sys
++            import threading
++
++            class RefuseEventlet:
++                def find_spec(self, fullname, path, target=None):
++                    if fullname.partition('.')[0] == 'eventlet':
++                        raise ImportError('eventlet is not allowed')
++
++            sys.meta_path.insert(0, RefuseEventlet())
++
++            from oslo_utils import eventletutils
++
++            print(eventletutils.EVENTLET_AVAILABLE)
++            print(eventletutils.is_monkey_patched('thread'))
++            print(
++                eventletutils.fetch_current_thread_functor()
++                is threading.current_thread
++            )
++            eventletutils.warn_eventlet_not_patched()
++            print(eventletutils._eventlet, eventletutils._patcher)
++            """
++        )
++        self.assertEqual(['False', 'False', 'True', 'None None'], out)

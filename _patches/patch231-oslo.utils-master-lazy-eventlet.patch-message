@@ -1,0 +1,21 @@
+Do not import eventlet in eventletutils until used
+
+Seven oslo.messaging modules import eventletutils, which imports
+eventlet. Find eventlet with importlib.util.find_spec() instead, and
+import it when a function needs it: nothing can be monkey patched
+before eventlet is imported. The public API behaves as before.
+
+This saves nothing alone. With futurist's "Do not import eventlet until
+it is needed" and oslo.messaging's "Find patched threading without
+importing eventlet", glance-api's modules no longer load eventlet, and
+their anonymous memory falls from 91MB to 82MB.
+
+Prompt: Mikal asked for import-memory fixes that can be landed one at a
+time and measured in devstack CI; eventletutils is one of the modules
+that import eventlet in the threaded API services.
+
+Assisted-By: Claude Opus 5.5 (high effort)
+
+Depends-On: https://review.opendev.org/c/openstack/devstack/+/1011992
+Change-Id: I62185395a2171e937205bbcc6a6b9fe9ef864414
+Signed-off-by: Michael Still <mikal@stillhq.com>
