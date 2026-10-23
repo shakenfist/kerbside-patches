@@ -22,7 +22,7 @@ The draft is a snapshot. Check these against the current state first:
 - **1010664.** Check whether the change that removes eventlet from
   oslo.privsep has merged or been abandoned, and update the oslo.privsep
   paragraph to match.
-- **The "Not privsep, but related" paragraph.** Phase 5's findings are
+- **The "Not privsep, but related" paragraph.** Phase 6's findings are
   meant to be filed against their own projects. If any of those bugs
   exist by then, link them here instead of describing the findings.
 - **After filing.** Add `Related-Bug:` to every patch in the plan's

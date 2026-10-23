@@ -7,7 +7,7 @@ calls costs real memory, in every worker and parent process on every node.
 in, and measures what removing it would save.
 
 The tools were written for the devstack CI memory work in
-[plans/privsep-memory.md](plans/privsep-memory.md). Phase 5 of that plan
+[plans/privsep-memory.md](plans/privsep-memory.md). Phase 6 of that plan
 records the first scan, made on 2026-10-23, which found about 0.5 GB per OVN
 all-in-one node and 0.85 GB per ML2/OVS controller.
 
