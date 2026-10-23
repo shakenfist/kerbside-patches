@@ -1,21 +1,55 @@
-commit bd46b40a9446115f9e1f434386d7924a2ba24db4
+commit 990e531b0c0bb519d294ccfffe9a6820e612097c
 Author: Michael Still <mikal@stillhq.com>
-Date:   Mon Oct 12 19:26:56 2026 +1100
+Date:   Fri Oct 23 07:13:53 2026 +1100
 
-    Pull images by digest from a build manifest.
+    WIP / PoC: Pull images by digest from a build manifest.
     
     A tag can be pushed again, so a deployment pulling by tag may run images
-    other than the ones its deployer was built with. When the deployer image
-    carries a build manifest, each <service>_image_full now resolves through
-    a kolla_image_full lookup, which pulls the images it names by digest.
+    other than the ones its deployer was built and tested with: a node added
+    months later, or a pull during a publish window, gets whatever the tag
+    names at that moment. A containerised deployer image can say exactly
+    which images it was built with.
     
-    Other images, and every image when there is no manifest, are pulled by
-    tag as before. The deployer checks refuse a manifest built for another
-    tag, and an unreadable manifest fails rather than falling back to tags.
-    Moving a deployment to digests recreates each container once.
+    When the deployer image carries a build manifest,
+    /etc/kolla-ansible/manifest.json (kolla_image_manifest_path), naming the
+    digest of every image built with it, each image it names is now pulled
+    by digest:
+    
+        {"format_version": 1, "tag": "<build tag>",
+         "images": {"nova-api": "sha256:<hex>", ...}}
+    
+    Each key is the image's repository within docker_namespace, that is the
+    kolla-build name with any docker_image_name_prefix, so a manifest still
+    applies when the images are mirrored unchanged to another registry.
+    
+    Every <service>_image_full now resolves through a new kolla_image_full
+    lookup plugin, whose rules are in kolla_ansible/image_manifest.py. It
+    returns <image>@<digest> when the manifest names the image and the
+    image's tag is the manifest's tag, and <image>:<tag> otherwise, so an
+    overridden <service>_tag, an image outside docker_registry and
+    docker_namespace, and an image the manifest does not name, such as
+    rabbitmq-upgrade.yml's versioned RabbitMQ image, are pulled by tag as
+    before. A lookup, unlike a filter, can read the play's variables, so the
+    variables need not repeat the registry, namespace and manifest path. The
+    parsed manifest is cached by path, and re-read only if the file changes,
+    because these variables are templated on every use.
+    
+    The deployer checks also check the manifest. A deployer image without
+    one warns once, and pulls every image by tag. A manifest built with a
+    tag other than the deployer's is refused unless
+    --override-deployer-checks is given. A manifest which cannot be read, or
+    whose format_version is not understood, fails both the checks and the
+    lookup, whatever the override, because pulling by tag is what the
+    manifest exists to prevent; pointing kolla_image_manifest_path at a path
+    which does not exist pulls by tag instead.
+    
+    Switching a deployment between tag and digest references changes every
+    container's image, so every container is recreated once. The release
+    note says so.
     
     Assisted-By: Claude Opus 5.5 (1M context, high effort) <noreply@anthropic.com>
     Co-Authored-By: Claude Opus 5.5 (1M context, high effort) <noreply@anthropic.com>
+    
     Change-Id: I5d6e93ad1df4f5d95d85d7a8e8f46b1d06f86196
     Signed-off-by: Michael Still <mikal@stillhq.com>
 
@@ -92,7 +126,7 @@ index 000000000..7d21a41a4
 +            'kolla_image_manifest_check': image_manifest.manifest_check,
 +        }
 diff --git a/ansible/group_vars/all/common.yml b/ansible/group_vars/all/common.yml
-index fb81264ce..1c4d879a9 100644
+index 6be9b8aa4..40846a9cb 100644
 --- a/ansible/group_vars/all/common.yml
 +++ b/ansible/group_vars/all/common.yml
 @@ -316,6 +316,10 @@ openstack_tag_suffix: ""
@@ -930,12 +964,12 @@ index 93ec57321..7c0d80946 100644
  neutron_agent_dimensions: "{{ default_container_dimensions }}"
  
 diff --git a/ansible/roles/nova-cell/defaults/main.yml b/ansible/roles/nova-cell/defaults/main.yml
-index 7cbd48811..7fac5e2bc 100644
+index 9e194ee54..4a7bd5fd4 100644
 --- a/ansible/roles/nova-cell/defaults/main.yml
 +++ b/ansible/roles/nova-cell/defaults/main.yml
 @@ -300,36 +300,36 @@ nova_tag: "{{ openstack_tag }}"
  
- nova_libvirt_image: "{{ docker_image_url }}{{ 'nova-libvirt-spice' if enable_kerbside else 'nova-libvirt' }}"
+ nova_libvirt_image: "{{ docker_image_url }}nova-libvirt"
  nova_libvirt_tag: "{{ nova_tag }}"
 -nova_libvirt_image_full: "{{ nova_libvirt_image }}:{{ nova_libvirt_tag }}"
 +nova_libvirt_image_full: "{{ lookup('kolla_image_full', nova_libvirt_image, nova_libvirt_tag) }}"
@@ -979,7 +1013,7 @@ index 7cbd48811..7fac5e2bc 100644
  nova_libvirt_default_dimensions:
    ulimits:
 diff --git a/ansible/roles/nova/defaults/main.yml b/ansible/roles/nova/defaults/main.yml
-index 88549c2d3..3334672fa 100644
+index 35ea0bb95..edb93541f 100644
 --- a/ansible/roles/nova/defaults/main.yml
 +++ b/ansible/roles/nova/defaults/main.yml
 @@ -117,15 +117,15 @@ nova_tag: "{{ openstack_tag }}"
@@ -1222,7 +1256,7 @@ index 293cc413c..5aa1f6c28 100644
  prometheus_server_dimensions: "{{ default_container_dimensions }}"
  prometheus_mysqld_exporter_dimensions: "{{ default_container_dimensions }}"
 diff --git a/ansible/roles/rabbitmq/defaults/main.yml b/ansible/roles/rabbitmq/defaults/main.yml
-index 4f403ad40..ea7a69965 100644
+index 4b01efb90..c27268594 100644
 --- a/ansible/roles/rabbitmq/defaults/main.yml
 +++ b/ansible/roles/rabbitmq/defaults/main.yml
 @@ -34,7 +34,7 @@ rabbitmq_services:

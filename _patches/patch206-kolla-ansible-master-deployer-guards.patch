@@ -1,21 +1,23 @@
-commit ac71f80575467fa9d8f14bea07fbaf6b558a14d0
+commit 6307d01157a7160d80a1a6f7abc78c9656e8c95a
 Author: Michael Still <mikal@stillhq.com>
-Date:   Sun Oct 11 09:07:28 2026 +1100
+Date:   Fri Oct 23 07:13:53 2026 +1100
 
-    Guard deployments against the wrong deployer.
+    WIP / PoC: Guard deployments against the wrong deployer.
     
-    A deployer image can be run against a configuration naming other
-    images, or a host a newer deployer has changed. Each deploy now records
-    its deployer on each host, and checks refuse a deployer for an older
-    release than a host's record, or an upgrade upstream does not support.
+    A Kolla Ansible deployer image packages one version of the deployment
+    tool and is built alongside one set of service images. Nothing stops an
+    operator from running it against a configuration naming other images,
+    against a deployment a newer deployer has already changed, or as an
+    upgrade across more releases than upstream supports. Each of these
+    fails late and messily, if it fails at all.
     
-    The rules are in a filter plugin so that they are unit tested. Only a
-    deployer image knows its release, so a virtualenv writes the record but
-    is not checked. destroy.yml is never checked, so that a mistake can
-    always be cleaned up.
+    This change adds checks which run before anything changes a host, in
+    every playbook except destroy.yml, which must work whatever the versions
+    so that a mistake can always be cleaned up.
     
     Assisted-By: Claude Opus 5.5 (1M context, high effort) <noreply@anthropic.com>
     Co-Authored-By: Claude Opus 5.5 (1M context, high effort) <noreply@anthropic.com>
+    
     Change-Id: I0791c64ba93126ac97a0b789c2900302808e3980
     Signed-off-by: Michael Still <mikal@stillhq.com>
 
@@ -175,7 +177,7 @@ index 4b7de2ee3..ad16014d3 100644
 +- name: Check the deployer
 +  import_playbook: deployer-checks.yml
 diff --git a/ansible/group_vars/all/common.yml b/ansible/group_vars/all/common.yml
-index 52a6a6005..fb81264ce 100644
+index 602997e9e..6be9b8aa4 100644
 --- a/ansible/group_vars/all/common.yml
 +++ b/ansible/group_vars/all/common.yml
 @@ -310,6 +310,17 @@ openstack_release: "master"
@@ -269,10 +271,10 @@ index 4bb3cbdb0..1c8b0b0d9 100644
    hosts: rabbitmq
    tasks:
 diff --git a/ansible/site.yml b/ansible/site.yml
-index 4b29b43ba..263a8050e 100644
+index 5ab1bb251..d99585f13 100644
 --- a/ansible/site.yml
 +++ b/ansible/site.yml
-@@ -1024,3 +1024,28 @@
+@@ -1017,3 +1017,28 @@
         default(100) }}
    roles:
      - { role: skyline, tags: skyline }

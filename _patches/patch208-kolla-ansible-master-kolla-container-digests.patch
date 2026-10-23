@@ -1,21 +1,37 @@
-commit 2ee4087da90a2bdfdef40e220512d98a8b917a7b
+commit 6cc203974299a3dee4261fd5ee45e96fbea8021a
 Author: Michael Still <mikal@stillhq.com>
-Date:   Mon Oct 12 19:05:11 2026 +1100
+Date:   Fri Oct 23 07:13:53 2026 +1100
 
-    Support image digests in kolla_container.
+    WIP / PoC: Support image digests in kolla_container.
     
-    With Docker, kolla_container splits a digest reference such as
-    repository@sha256:<hex> at the colon inside the digest, and looks for
-    it only in RepoTags, so it can neither pull the image nor match it.
-    The Docker worker now splits it at the "@" and checks RepoDigests.
+    An operator can pin a service to an exact image by giving its
+    <service>_image_full as a digest reference, repository@sha256:<hex>.
+    Podman pulls such an image, but the Docker worker cannot, and would not
+    recognise it once pulled:
     
-    The Engine API takes a digest wherever it takes a tag, so the digest is
-    passed as the tag. The shared parse_image is unchanged, because
-    podman-py rejoins the repository and tag with a colon, so Podman
-    already works.
+    * parse_image splits an image at its last colon, which falls inside the
+      digest, so pull_image asked docker-py for the repository
+      "repository@sha256" with the tag "<hex>". docker-py strips the
+      "@sha256" and the daemon is asked for a tag named after the bare hex
+      string, which does not exist.
+    * check_image only compares an image's RepoTags. With Docker's classic
+      image store an image pulled by digest has no tags, only RepoDigests, so
+      compare_image would report every such container as differing from its
+      image, and it would be recreated on every run.
+    
+    The Docker worker now splits a digest reference at the "@" and passes
+    the digest as the tag, which the Engine API accepts in place of one, and
+    looks a digest reference up in RepoDigests. A tag given alongside a
+    digest is dropped, as Docker ignores it. The shared parse_image is
+    unchanged, because podman-py rebuilds the reference by joining the
+    repository and tag with a colon, which is why Podman already worked.
+    
+    get_image_id is unchanged: its images(name=...) filter matches a digest
+    reference with both the classic and the containerd image stores.
     
     Assisted-By: Claude Opus 5.5 (1M context, high effort) <noreply@anthropic.com>
     Co-Authored-By: Claude Opus 5.5 (1M context, high effort) <noreply@anthropic.com>
+    
     Change-Id: If0363f9d97763b1fe5f74c1596074e76b91ef4cd
     Signed-off-by: Michael Still <mikal@stillhq.com>
 
