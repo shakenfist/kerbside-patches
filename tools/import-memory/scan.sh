@@ -29,11 +29,15 @@ with_args=()
 
 # Runs a command in the image. Each --with tree is copied before the command
 # starts, because pbr writes egg-info into the tree and so a read-only mount
-# cannot be installed directly. PBR_VERSION stops pbr asking git for a version
-# in a copy that git considers to belong to another user. A failed install
-# stops the run, so unpatched figures are never reported as patched ones.
+# cannot be installed directly. The copy belongs to another user, so git is
+# told to trust it: pbr takes the list of files to install from git, and
+# without it a project that names only its top-level package (oslo.utils
+# does) silently loses its subpackages. PBR_VERSION saves pbr working out a
+# version from history the copy may not have. A failed install stops the
+# run, so unpatched figures are never reported as patched ones.
 run() {
     docker run --rm -v "${here}:/probe:ro" "${with_args[@]}" "${image}" sh -c '
+        git config --global --add safe.directory "*"
         for d in /with/*; do
             [ -d "$d" ] || continue
             cp -a "$d" "/tmp/$(basename "$d")"

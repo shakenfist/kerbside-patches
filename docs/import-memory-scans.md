@@ -132,6 +132,10 @@ tools/import-memory/report.py after.jsonl
 and installs the copy with `pip install --no-deps` over the image's
 version of the project, before any role is probed. If an install fails
 the run stops with the error rather than reporting unpatched figures.
+The copy is marked safe for git, because pbr takes the files to install
+from git: without that, a project whose packaging names only its
+top-level package (oslo.utils is one) would install without its
+subpackages and no error.
 Repeat `--with` when
 a change needs another project's patch as well, for example
 `--with src/keystone --with src/futurist`. Each role still runs in its
