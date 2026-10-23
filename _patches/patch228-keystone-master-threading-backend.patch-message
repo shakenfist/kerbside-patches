@@ -1,0 +1,19 @@
+Prefer the threading oslo.service backend
+
+oslo.messaging selects an oslo.service backend when first imported, and
+with no hook registered that is eventlet, which keystone does not use.
+Register a default hook, as glance does, so threading is chosen unless a
+backend was selected explicitly.
+
+This saves nothing alone: futurist ("Do not import eventlet until it is
+needed."), oslo.utils eventletutils and oslo_messaging/_utils.py also
+import eventlet. With those fixed, anonymous RSS in the probe falls from
+95MB to 73MB (81MB with the previous change alone).
+
+Prompt: Mikal asked for privsep memory fixes that can be landed one at a
+time and measured in devstack CI; keystone is one of the larger services.
+
+Assisted-By: Claude Sonnet 5.5 (medium effort)
+
+Change-Id: I1acb4962d554a0e78e4bcf60928f4db437d5c2ee
+Signed-off-by: Michael Still <mikal@stillhq.com>

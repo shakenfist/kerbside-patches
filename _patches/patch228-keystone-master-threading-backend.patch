@@ -1,0 +1,143 @@
+commit b6a02656c172d866ca203a6faee526c61ebc75b3
+Author: Michael Still <mikal@stillhq.com>
+Date:   Sat Oct 24 09:45:22 2026 +1100
+
+    Prefer the threading oslo.service backend
+    
+    oslo.messaging selects an oslo.service backend when first imported, and
+    with no hook registered that is eventlet, which keystone does not use.
+    Register a default hook, as glance does, so threading is chosen unless a
+    backend was selected explicitly.
+    
+    This saves nothing alone: futurist ("Do not import eventlet until it is
+    needed."), oslo.utils eventletutils and oslo_messaging/_utils.py also
+    import eventlet. With those fixed, anonymous RSS in the probe falls from
+    95MB to 73MB (81MB with the previous change alone).
+    
+    Prompt: Mikal asked for privsep memory fixes that can be landed one at a
+    time and measured in devstack CI; keystone is one of the larger services.
+    
+    Assisted-By: Claude Sonnet 5.5 (medium effort)
+    
+    Change-Id: I1acb4962d554a0e78e4bcf60928f4db437d5c2ee
+    Signed-off-by: Michael Still <mikal@stillhq.com>
+
+diff --git a/keystone/__init__.py b/keystone/__init__.py
+index e69de29..8ffa17e 100644
+--- a/keystone/__init__.py
++++ b/keystone/__init__.py
+@@ -0,0 +1,21 @@
++# Licensed under the Apache License, Version 2.0 (the "License"); you may
++# not use this file except in compliance with the License. You may obtain
++# a copy of the License at
++#
++#      http://www.apache.org/licenses/LICENSE-2.0
++#
++# Unless required by applicable law or agreed to in writing, software
++# distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
++# WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
++# License for the specific language governing permissions and limitations
++# under the License.
++
++from oslo_service import backend
++
++# Keystone does not use eventlet. Make the threading backend the default
++# for oslo.service so that oslo.messaging, which asks for a backend when it
++# is first imported, does not select eventlet and import it. This must be
++# registered before anything imports oslo.messaging, so it lives here in the
++# package __init__. It sets a default only: an operator or a test that has
++# already called backend.init_backend() keeps its choice.
++backend.register_backend_default_hook(lambda: backend.BackendType.THREADING)
+diff --git a/keystone/tests/unit/test_backend_selection.py b/keystone/tests/unit/test_backend_selection.py
+new file mode 100644
+index 0000000..9c4da09
+--- /dev/null
++++ b/keystone/tests/unit/test_backend_selection.py
+@@ -0,0 +1,61 @@
++# Licensed under the Apache License, Version 2.0 (the "License"); you may
++# not use this file except in compliance with the License. You may obtain
++# a copy of the License at
++#
++#      http://www.apache.org/licenses/LICENSE-2.0
++#
++# Unless required by applicable law or agreed to in writing, software
++# distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
++# WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
++# License for the specific language governing permissions and limitations
++# under the License.
++
++import subprocess
++import sys
++
++import testtools
++
++
++class OsloServiceBackendTestCase(testtools.TestCase):
++    """Check which oslo.service backend keystone selects.
++
++    The backend is process wide and cannot be unselected, so each case runs
++    in a fresh interpreter.
++    """
++
++    def _run(self, script):
++        result = subprocess.run(
++            [sys.executable, '-c', script], capture_output=True, text=True
++        )
++        self.assertEqual(0, result.returncode, result.stderr)
++        return result.stdout.strip()
++
++    def test_default_is_threading(self):
++        out = self._run(
++            'import keystone\n'
++            'from oslo_service import backend\n'
++            'backend.get_backend()\n'
++            'print(backend.get_backend_type().value)\n'
++        )
++        self.assertEqual('threading', out)
++
++    def test_importing_oslo_messaging_selects_threading(self):
++        # oslo.messaging fixes the backend when it is first imported, so the
++        # default has to be registered before that happens.
++        out = self._run(
++            'import keystone\n'
++            'import oslo_messaging\n'
++            'from oslo_service import backend\n'
++            'print(backend.get_backend_type().value)\n'
++        )
++        self.assertEqual('threading', out)
++
++    def test_explicit_backend_wins(self):
++        out = self._run(
++            'from oslo_service import backend\n'
++            'backend.init_backend(backend.BackendType.EVENTLET)\n'
++            'import keystone\n'
++            'backend.get_backend()\n'
++            'print(backend.get_backend_type().value)\n'
++        )
++        self.assertEqual('eventlet', out)
+diff --git a/releasenotes/notes/oslo-service-threading-backend-5f0c1d7a3b9e4c28.yaml b/releasenotes/notes/oslo-service-threading-backend-5f0c1d7a3b9e4c28.yaml
+new file mode 100644
+index 0000000..d4c815c
+--- /dev/null
++++ b/releasenotes/notes/oslo-service-threading-backend-5f0c1d7a3b9e4c28.yaml
+@@ -0,0 +1,8 @@
++---
++other:
++  - |
++    Keystone now selects the ``threading`` oslo.service backend by default,
++    rather than ``eventlet``. Keystone does not use eventlet itself, so this
++    stops eventlet being imported into each keystone process, which saves
++    memory. A backend chosen explicitly through
++    ``oslo_service.backend.init_backend()`` is not affected.
+diff --git a/requirements.txt b/requirements.txt
+index fe94267..f4f9e0e 100644
+--- a/requirements.txt
++++ b/requirements.txt
+@@ -22,6 +22,7 @@ oslo.log>=3.44.0 # Apache-2.0
+ oslo.middleware>=3.31.0 # Apache-2.0
+ oslo.policy>=6.0.0 # Apache-2.0
+ oslo.serialization!=2.19.1,>=2.18.0 # Apache-2.0
++oslo.service[threading]>=4.2.0 # Apache-2.0
+ oslo.upgradecheck>=1.3.0 # Apache-2.0
+ oslo.utils>=3.33.0 # Apache-2.0
+ oauthlib>=0.6.2 # BSD
