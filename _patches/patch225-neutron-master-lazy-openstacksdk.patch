@@ -1,0 +1,113 @@
+commit a70ec31ef11229910fd389bf7e648a0a39665a6f
+Author: Michael Still <mikal@stillhq.com>
+Date:   Sat Oct 24 08:23:53 2026 +1100
+
+    api: Import openstacksdk only for ProjectIdMiddleware
+    
+    neutron.api.extensions imported openstack.connection at module level,
+    but only ProjectIdMiddleware uses it, and only for a request that names
+    a project. That loaded openstacksdk into the OVN agent, L3 agent and RPC
+    server, costing 11 to 13MB of anonymous memory each.
+    
+    Import it where the Nova connection is first built, and add tests that
+    importing the module does not load openstack and that the middleware
+    still builds its connection and looks the project up.
+    
+    Prompt: Mikal asked for privsep memory fixes that can be landed one at a
+    time and measured in devstack CI; neutron daemons are the largest.
+    
+    Assisted-By: Claude Sonnet 5.5 (medium effort)
+    
+    Depends-On: https://review.opendev.org/c/openstack/devstack/+/1011992
+    Change-Id: If8ebc573bb2ed46e4ef54ec2c78eabdb32dc89a1
+    Signed-off-by: Michael Still <mikal@stillhq.com>
+
+diff --git a/neutron/api/extensions.py b/neutron/api/extensions.py
+index dbfbd1b2ba..6ae6ce8fcd 100644
+--- a/neutron/api/extensions.py
++++ b/neutron/api/extensions.py
+@@ -21,7 +21,6 @@ from keystoneauth1 import loading as ks_loading
+ from neutron_lib.api import extensions as api_extensions
+ from neutron_lib import exceptions
+ from neutron_lib.plugins import directory
+-from openstack import connection
+ from oslo_config import cfg
+ from oslo_log import log as logging
+ from oslo_middleware import base
+@@ -674,6 +673,11 @@ class ProjectIdMiddleware(base.ConfigurableMiddleware):
+         project = req.params.get('project_id') or req.params.get('tenant_id')
+         if project:
+             if not _NOVA_CONNECTION:
++                # Imported here because openstacksdk is large and only this
++                # middleware needs it.
++                # pylint: disable=import-outside-toplevel
++                from openstack import connection
++
+                 auth = ks_loading.load_auth_from_conf_options(cfg.CONF, 'nova')
+                 keystone_session = ks_loading.load_session_from_conf_options(
+                     cfg.CONF, 'nova', auth=auth)
+diff --git a/neutron/tests/unit/api/test_extensions.py b/neutron/tests/unit/api/test_extensions.py
+index de5de34545..3aa66c3f5d 100644
+--- a/neutron/tests/unit/api/test_extensions.py
++++ b/neutron/tests/unit/api/test_extensions.py
+@@ -14,6 +14,8 @@
+ #    under the License.
+ 
+ import copy
++import subprocess
++import sys
+ from unittest import mock
+ 
+ import fixtures
+@@ -568,6 +570,51 @@ class RequestExtensionTest(base.BaseTestCase):
+         return _setup_extensions_test_app(manager)
+ 
+ 
++class ExtensionsImportsTest(base.BaseTestCase):
++
++    def test_openstacksdk_not_imported(self):
++        # Run in a fresh interpreter: the test process may already have
++        # imported openstack. Only ProjectIdMiddleware needs it.
++        code = ('import sys\n'
++                'import neutron.api.extensions\n'
++                'import neutron.common.utils\n'
++                'print(",".join(m for m in sys.modules\n'
++                '               if m == "openstack" or\n'
++                '               m.startswith("openstack.")))\n')
++        out = subprocess.check_output(  # noqa: S603
++            [sys.executable, '-c', code], text=True)
++        self.assertEqual('', out.strip())
++
++
++class ProjectIdMiddlewareTest(base.BaseTestCase):
++
++    def setUp(self):
++        super().setUp()
++        mock.patch.object(extensions, '_NOVA_CONNECTION', None).start()
++        mock.patch.object(extensions.ks_loading,
++                          'load_auth_from_conf_options').start()
++        mock.patch.object(extensions.ks_loading,
++                          'load_session_from_conf_options').start()
++        self.conn = mock.patch(
++            'openstack.connection.Connection').start().return_value
++        self.app = extensions.ProjectIdMiddleware(
++            webob.Response(body=b'ok'))
++
++    def _get(self, project):
++        return webob.Request.blank(
++            '/?project_id=%s' % project).get_response(self.app)
++
++    def test_project_exists(self):
++        self.conn.get_project.return_value = mock.Mock()
++        self.assertEqual(200, self._get('project1').status_code)
++        self.conn.get_project.assert_called_once_with('project1')
++
++    def test_project_missing(self):
++        self.conn.get_project.return_value = None
++        self.assertEqual(404, self._get('project1').status_code)
++        self.conn.get_project.assert_called_once_with('project1')
++
++
+ class ExtensionManagerTest(base.BaseTestCase):
+ 
+     def test_optional_extensions_no_error(self):
