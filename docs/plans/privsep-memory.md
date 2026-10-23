@@ -669,6 +669,10 @@ Two more things were found:
    pushes it whenever Mikal runs it. Nothing pushes to Gerrit
    automatically. The new series start with `repush: false`, so the
    script skips them until Mikal decides to push them.
+   - patch221 is
+     [1011992](https://review.opendev.org/c/openstack/devstack/+/1011992),
+     pushed by Mikal on 2026-10-23. Every new series root carries
+     `Depends-On: https://review.opendev.org/c/openstack/devstack/+/1011992`.
 
 8. **Release notes only where behaviour changes.** patch228 and
    patch230 change which oslo.service backend keystone and placement
@@ -826,8 +830,8 @@ Mikal's own act, and patch221's hand push still waits for his go.
 - Decision 7 said the daily rebase would push series 001. Nothing
   pushes to Gerrit automatically; Mikal runs `repush-openstack.sh`
   himself. Corrected at the source.
-- Waiting at the gate after 6b: Mikal pushes patch221. Its change
-  number goes under Decision 7 before 6c starts.
+- The gate after 6b: Mikal pushed patch221 as 1011992, recorded under
+  Decision 7.
 
 #### Future work
 
