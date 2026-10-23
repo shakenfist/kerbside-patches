@@ -405,21 +405,23 @@ lanes. Phase 4 measures how close entries come to it.
   bypass. Whether a rebase that needed no Claude fixes should
   enqueue itself is an open question.
 * **Data pull requests** (layers and CI reporting): the bot sets
-  auto-merge when it creates one (`gh pr merge --auto --merge`),
-  which with a queue means "enqueue once `Can enqueue` passes". Both
-  tiers skip on the path filter, so an entry takes minutes on static
-  runners. `create-data-pr.sh` refuses to set auto-merge on a pull
-  request that changes anything outside `data/`. This needs
-  `allow_auto_merge: true` on the repository. It also ends the hand
-  merging of about 4 data pull requests a day.
+  auto-merge when it creates one (`gh pr merge --auto`, with no
+  strategy flag), which with a queue means "enqueue once
+  `Can enqueue` passes". Both tiers skip on the path filter, so an
+  entry takes minutes on static runners. The helper that sets it
+  refuses unless `develop` has a merge queue and every changed file
+  is under `data/`, because without a queue auto-merge would merge
+  directly. This needs `allow_auto_merge: true` on the repository.
+  It also ends the hand merging of about 4 data pull requests a day.
 * **Conflicting data pull requests**: once one data entry merges, the
-  next conflicts. GitHub drops it from the queue, which also disables
-  its auto-merge. `heal-data-prs.sh` already heals it on the push to
-  `develop`. After a heal it now sets auto-merge again.
+  next conflicts, and GitHub drops it from the queue.
+  `heal-data-prs.sh` already heals it on the push to `develop`. After
+  a heal it now sets auto-merge again, whether or not GitHub kept
+  it.
 * **Layer data comes from the merge tier**: `collect_layer_data` runs
   on `merge_group`, not on pull requests. The merge tier builds all
   three variants once per pull request, so the time series gets every
-  variant, at one point per landed change rather than one per push,
+  variant, at one point per queue entry rather than one per push,
   and with fewer conflicting data pull requests. The source pull
   request comes from the queue branch name. It stays outside
   `Can merge`'s `needs`, as it is outside the gate today.
@@ -434,10 +436,11 @@ lanes. Phase 4 measures how close entries come to it.
 2. **Do bot data pull requests need a human at all?** Decision 5
    assumes not. If Michael wants to eyeball them, drop the
    auto-merge half of Phase 3 and he enqueues them by hand.
-3. **Should merge-group jobs get priority in the conductor?** It
-   would cut queue latency more than anything here, but it is
-   private-ci's call. Default: not pursued unless Phase 4 shows
-   queueing, not work, dominates entry time.
+3. **Should merge-group jobs get priority in the conductor?**
+   Answered by the fleet before this plan needed it: since
+   private-ci#154 (merged 2026-10-15) the conductor provisions any
+   combination holding a `merge_group` job first. Phase 3's survey
+   has the numbers.
 4. **Do `-aio-nokerbside` and the Rocky-host launcher lane earn
    their place?** Neither has caught anything another lane missed.
    Default: keep both in the merge tier, and decide with Phase 4's
@@ -452,7 +455,7 @@ Every phase lands as its own pull request against `develop`.
 |-------|--------|--------|
 | 1. One gated workflow | Complete | `6a0403851` |
 | 2. Re-queue on infrastructure failure | Complete | `63b8602b0` |
-| 3. Split the tiers and enable the queue | Not started | |
+| 3. Split the tiers and enable the queue | In progress | |
 | 4. Soak and measure | Not started | |
 | 5. Push audit | Not started | |
 
@@ -1044,23 +1047,273 @@ pull request. Ask for those in the back brief.
 
 Planning effort: high. It is the switch, it needs admin changes
 outside the repository, and it has to be ordered so that no lane goes
-untested in between.
+untested in between. Planned in detail on 2026-10-23 against
+`develop` at `9fd1f3990`. Branch `ci-tiers-phase-3`.
+
+#### Scope
+
+In:
+
+* move the long lanes to the merge tier (3a);
+* move `collect_layer_data`'s inline script into `tools/` (3b);
+* collect layer data from merge groups, and have data pull requests
+  queue themselves (3c);
+* document the live queue (3d);
+* the admin switch: the ruleset and `allow_auto_merge`, with this
+  phase's own pull request as the first queue entry (3e).
+
+Out:
+
+* the nightly tier, which is Phase 4's fallback;
+* re-queueing on timeout, which stays Michael's call;
+* changes to the conductor;
+* a self-enqueueing daily rebase (Open Question 1, default no);
+* draining the data pull requests already open at the switch. These
+  queue themselves the next time the healer touches them, or Michael
+  enqueues them.
+
+#### What the survey found
+
+Every claim in this section's original brief was checked against the
+tree, GitHub, private-ci and the fleet audits. The master plan's own
+statements that these findings contradict are corrected at their
+source: Decision 5, Open Question 3, Risks, Future work, Agent
+guidance and Phase 5.
+
+1. **3a is a data edit, as planned.** `.github/ci-lanes.json` has
+   every lane on both tiers. `tools/ci-select-lanes.py` already
+   refuses a selection in which an install has no build. The smoke
+   installs (`-aio`, `-aio-launcher`) need only the Debian trixie
+   build, which stays on both tiers. `.github/` is outside the image
+   hash, so 3a rebuilds nothing. `tools/test-ci-select-lanes.py`'s
+   `RealLanesTest.test_pull_request_selection` pins today's 3 builds,
+   8 installs and 2 patch tests, and has no `merge_group` counterpart.
+2. **Data pull requests are created and healed as shakenfist-bot.**
+   `collect_layer_data` and `ci-reporting.yml` pass
+   `DAILY_REBASE_TOKEN` to `tools/create-data-pr.sh`, and
+   `heal-data-prs.yml` pushes with it. So their `pull_request` runs
+   fire, and `Can enqueue` will report on them. #1966's run
+   39876200072 skipped everything and passed in two minutes. An
+   auto-merge set with that token also creates merge groups that run
+   workflows.
+3. **Auto-merge cannot be set until 3e, and without a queue it would
+   merge directly.** `allow_auto_merge` is `false` and the repository
+   has no ruleset and no branch protection. Once the setting is on,
+   `gh pr merge --auto` on a branch with no queue merges as soon as
+   the pull request is mergeable. The original brief's unconditional
+   call would therefore fail until 3e, and would skip the queue if the
+   ruleset were ever disabled. Decision 4 guards it.
+4. **gh 2.103 enqueues when the branch requires a merge queue.** Its
+   help says no merge strategy is needed then, and that `--admin`
+   bypasses the queue. shakenfist-bot is in the bypass team, so
+   `--admin` must never appear (the master plan's Risks).
+5. **A data pull request touches hundreds of files.** `gh pr view
+   --json files` stops at 100: it reports 100 for #1966, whose
+   `changed_files` is 254. A data-only check must page through
+   `pulls/<N>/files`.
+6. **`merge_group.head_ref` is a full ref**
+   (`refs/heads/gh-readonly-queue/develop/pr-<N>-<base sha>`), unlike
+   the `workflow_run.head_branch` Phase 2 parses. The payload carries
+   no pull request title.
+7. **`collect_layer_data`'s step is a 155-line inline script**, and
+   the step before it puts `${{ github.run_id }}` inside a `run:`. The
+   repository's rule is that scripts of more than a few lines live in
+   `tools/`. It also switches the
+   working tree to `develop` part-way through. That is why it copies
+   `tools/collect-layer-data.py` and `tools/create-data-pr.sh` to
+   `$RUNNER_TEMP` first, and any script it becomes must run from such
+   a copy too. Under GitHub's default `bash -e` its
+   `tar tzf | grep -q` is safe. Under `pipefail` it is the SIGPIPE
+   inversion Phase 2's finding 9 described.
+8. **The `data_prefix` dispatch input is dead.** `collect_layer_data`
+   has only ever run on `pull_request`, where `inputs` is empty, so
+   the prefix has always been `layers`.
+9. **`docs/ci-data.md` is stale.** It still says the workflow skips
+   data-only changes by configuration, which was `paths-ignore`. Phase
+   1 replaced that with `check_paths`.
+10. **The queue's timeout looks unreachable from today's numbers, but
+    the conductor already serves merge groups first.**
+    * First-attempt code runs of `Build test clouds` completed in a
+      median of 179 minutes in early July and 1,079 minutes since
+      2026-10-16. Of those seven recent runs, none finished inside
+      360 minutes, and the fastest took 424.
+    * Even the quietest of them started its eight installs over 170
+      minutes, about three at a time.
+    * However, private-ci#154 (`a7889d0`, merged 2026-10-15) makes the
+      conductor provision any combination holding a `merge_group` job
+      first. Since then shakenfist's last 40 merge groups took a
+      median of 175 minutes (max 379), and kerbside's 13 a median
+      of 76.
+    * So Open Question 3 has been answered by the fleet. A
+      `workflow_dispatch` with `tier=full` gets no such priority and
+      cannot measure this in advance (Decision 6).
+11. **Nothing pushes to `develop` directly.** No workflow or script
+    does, and `develop` has no first-parent non-merge commit since
+    2026-09-01. Copying client-python-k3s's `pull_request` rule is
+    therefore safe.
+12. **client-python-k3s's ruleset 20595671 matches the plan, with
+    three things it did not name.**
+    * `min_entries_to_merge_wait_minutes: 5`, which is inert at
+      `min_entries_to_merge: 1` (`merge-queue-config.md`).
+    * A `pull_request` rule with no required approvals.
+    * That rule's `require_extra_approval_for_unattributed_changes:
+      true`, which the survey found no documentation for. The
+      `merge-queue-config` audit enforces only the two entry counts.
+13. **`export-repo-config.yml` exists**, as 3e assumes.
+
+#### Decisions
+
+1. **Enable the queue before this phase merges, and send this phase's
+   pull request through it as the first entry.** The original order,
+   3a merging and then the admin change, left a window in which the
+   merge-tier lanes ran nowhere. Reversed, there is no window, because
+   every lane still runs on pull requests until 3a lands, and 3a lands
+   through the queue.
+   * The pull request's own `pull_request` run uses its own lane file,
+     so it runs the two-install smoke tier.
+   * Its merge group runs the merge-group commit's workflow and lane
+     file, so it runs the full matrix and 3c's merge-group data
+     collection.
+   * The data pull request that merge group opens is the first to
+     queue itself.
+
+   So the switch is also the exit check. The cost is one queue entry
+   during which any other pull request carries the old lane file and
+   runs the full matrix twice. Michael holds other merges for that
+   entry. This is the decision most open to argument, because it puts
+   a ruleset on `develop` before the code that expects it has merged.
+   The other order has a coverage gap and an untested first entry.
+2. **The smoke tier is the master plan's Decision 1, unchanged:**
+   * lint;
+   * the Debian 13 patch tests;
+   * the Debian trixie build;
+   * the `-aio` and `-aio-launcher` installs.
+
+   Everything else, the local build included, is merge only.
+3. **Move the layer data script first, then change it.** As in Phase
+   2, the move (3b) keeps pull request behaviour and gets tests of its
+   own. Only then does 3c change the trigger. The script uses
+   `set -euo pipefail`, with the tarball check rewritten so that it
+   does not read through a pipe (finding 7).
+4. **One helper sets auto-merge, and only where it is safe.**
+   `tools/data-pr-auto-merge.sh <N>` is called by
+   `tools/create-data-pr.sh` on every path where the pull request
+   exists, and by `tools/heal-data-prs.sh` after each healed push. It
+   acts only when all of these hold:
+   * `develop` has a `merge_queue` rule (`rules/branches/develop`);
+   * the pull request's base is `develop`;
+   * every changed file, paged, is under `data/`.
+
+   Then it runs `gh pr merge <N> --auto`, with no strategy, because
+   the queue's own MERGE method applies, and never with `--admin`. Any
+   refusal is a warning, not a failure, because the data is already
+   safe in the pull request. Until 3e the helper finds no queue and
+   does nothing, so 3b to 3d can merge in any order.
+5. **The source pull request comes from the queue ref, and the title
+   is looked up.** 3c parses `head_ref` allowing the `refs/heads/`
+   prefix (finding 6), and fetches the title with `gh pr view`.
+   * If the ref does not parse, the data is still collected, and the
+     body names the merge group run instead of a pull request.
+   * Layer data now records one point per entry, including entries
+     later ejected. Today it records every push of every pull request,
+     so that is still fewer stray points.
+   * The dead `data_prefix` input goes (finding 8).
+6. **Switch on the conductor's priority, not on a forecast.** A
+   dispatched full run cannot show what a merge group will take
+   (finding 10), so the first entry is the measurement.
+   * If it is ejected on the timeout, Phase 2's comment says so.
+   * Michael then chooses between bypass-merging this pull request and
+     setting the ruleset's `enforcement` to `disabled`, a one-call
+     rollback that 3e records.
+   * Phase 4's gate stays as written.
+7. **Copy the ruleset as k3s has it, including the `pull_request`
+   rule** (finding 12), so this repository matches the fleet
+   reference. 3e creates the ruleset before turning on
+   `allow_auto_merge`. With the helper's queue check this is
+   belt-and-braces, but it means auto-merge never exists here without
+   a queue.
+
+#### Steps
+
+Run in order, one at a time, in this worktree. Each step runs
+pre-commit over the shared tree, and 3c builds on 3b's tests.
 
 | Step | Effort | Model | Isolation | Brief for sub-agent |
 |------|--------|-------|-----------|---------------------|
-| 3a | low | sonnet | none | In `.github/ci-lanes.json`, set `"tiers": ["merge"]` on the Ubuntu and Rocky builds; on the `-aio-nokerbside`, Ubuntu, both Rocky-host and Rocky-image installs and the multinode install; on the rocky-9 patch tests; and on `local_build`. Leave everything else on both tiers. Update `tools/test-ci-select-lanes.py` so the `pull_request` case expects exactly 1 build, 2 installs (`-aio`, `-aio-launcher`) and 1 patch test. Commit subject: "Move the long lanes to the merge queue." |
-| 3b | medium | sonnet | none | In `.github/workflows/functional-tests.yml`, make `collect_layer_data` run `if: github.event_name == 'merge_group' && !cancelled()` (`!cancelled()`, as today, not the aggregators' `always()`: a superseded run's partial builds are not data), and read the source pull request number from `github.event.merge_group.head_ref` (`gh-readonly-queue/develop/pr-<N>-<sha>`) instead of `github.event.pull_request`. Drop `PR_TITLE` from the commit and body if no title is available. It must stay out of both aggregators' `needs`. In `tools/create-data-pr.sh`, after the pull request exists, set auto-merge with `gh pr merge <N> --auto --merge`, but only if `git diff --name-only origin/develop...<head>` lists nothing outside `data/`; otherwise warn and leave it. In `tools/heal-data-prs.sh`, after a successful heal and push, set auto-merge again the same way. Commit subject: "Queue data pull requests automatically." |
-| 3c | medium | sonnet | none | Update `docs/ci.md` (the merge tier is live; the bot pull request rules from Decision 5; that a bypass merge skips the merge tier), `docs/ci-data.md` (layer data now comes from merge groups) and `ARCHITECTURE.md`'s CI/CD section to match. Commit subject: "Document the merge queue." |
-| 3d | medium | opus | none | Management session, with Michael's explicit go-ahead, after the 3a-3c pull request has merged: set `allow_auto_merge: true` (`gh api -X PATCH repos/shakenfist/kerbside-patches -F allow_auto_merge=true`). Create the ruleset by fetching client-python-k3s's ruleset 20595671, keeping `name`, `target`, `enforcement`, `conditions`, `rules` and `bypass_actors`, and `POST`ing it to `repos/shakenfist/kerbside-patches/rulesets`. Check that the response has `max_entries_to_build: 1` and `check_response_timeout_minutes: 360`. Run the `export-repo-config` workflow so `.github/exported-config/` records both changes in its own pull request. No commit from this step itself. |
+| 3a | low | sonnet | none | Read Phase 3 of `docs/plans/ci-tiers.md` (finding 1, Decision 2). In `.github/ci-lanes.json` set `"tiers": ["merge"]` on: builds `build-ubuntu-noble-master` and `build-rocky-10-master`; installs `master-h-debian13-c-ubuntu2404-aio`, `master-h-debian13-c-debian13-aio-nokerbside`, `master-h-rocky10-c-debian-13-aio`, `master-h-rocky10-c-debian-13-aio-launcher`, `master-h-rocky10-c-rocky10-aio` and `master-h-debian13-c-debian13-multi`; patch test `rocky-9`; and `local_build`. Leave `build-debian-trixie-master`, `master-h-debian13-c-debian13-aio`, `master-h-debian13-c-debian13-aio-launcher` and patch test `debian-13` on both. In `tools/test-ci-select-lanes.py`, make `RealLanesTest.test_pull_request_selection` expect exactly those smoke lanes by name (1 build, 2 installs, 1 patch test) and `run_local_build=false`, and add `test_merge_group_selection` expecting 3 builds, 8 installs, 2 patch tests and `run_local_build=true`, by name. Run `pre-commit run --all-files`. Leave it uncommitted. Commit subject: "Move the long lanes to the merge queue." |
+| 3b | medium | sonnet | none | Read Phase 3 of `docs/plans/ci-tiers.md` (findings 7 and 8, Decision 3), and `tools/ci-auto-retry.sh` and `tools/test-ci-auto-retry.py` as models. Move the `run:` body of `collect_layer_data`'s "Collect layer data and prepare PR" step in `.github/workflows/functional-tests.yml` into `tools/collect-layer-data-pr.sh` (`#!/bin/bash`, `set -euo pipefail`, executable, shellcheck-clean), keeping its comments, commit message and pull request body text (without the YAML indentation). Behaviour on a pull request must not change. Fold the "Set environment variables" step into the script: it computes `DATESTAMP` itself and takes the run id from `GITHUB_RUN_ID`. Other inputs come from the environment: `GITHUB_TOKEN`, `PR_NUMBER`, `PR_TITLE`, `CURRENT_ATTEMPT`, `DATA_PREFIX` (default `layers`) and `ARTIFACTS_DIR` (default `/tmp/build-artifacts`). Check the required ones up front. The script switches the working tree to `develop`, so it must not run from `tools/`: the workflow step copies `tools/collect-layer-data-pr.sh`, `tools/collect-layer-data.py` and `tools/create-data-pr.sh` to `$RUNNER_TEMP` and runs the copy, and the script finds its siblings with `$(dirname "$0")`. Say so in a comment. Replace `tar tzf ... \| grep -q` with a form that does not read through a pipe under `pipefail` (list to a file, or a here-string). Leave no `${{` in `run:`; pass values through `env:`. Keep the step's `if:`, checkout and download steps. Add `tools/test-collect-layer-data-pr.py` (unittest, modelled on `tools/test-ci-auto-retry.py`): a temporary repository with a bare `origin` holding `develop`, fixture artifact directories, and stub `collect-layer-data.py` and `create-data-pr.sh` beside a copy of the script, each logging its arguments. Cover: an artifact from another attempt is excluded and listed as such; one with no `run_attempt` is excluded; a tarball with no `.jsonl` is excluded; no included build exits 0 with no push; a tarball listing of several thousand entries whose `.jsonl` comes first still counts; the happy path pushes `<prefix>-data-<datestamp>-run<id>` based on `develop`, and passes a body file naming `#<PR_NUMBER>` to `create-data-pr.sh`. Add a workflow-shape test (pyyaml) that the step runs the copy from `$RUNNER_TEMP` and has no `${{` in `run:`. Add a pre-commit hook `collect-layer-data-pr-tests` on the model of `ci-auto-retry-tests`, add the test to the `flake8` hook's `files`, and add both files to `docs/script-reference.md`. Mutation-check on copies, each under `timeout`: dropping the attempt filter, or restoring the `tar \| grep -q` pipe, must fail a test. Run `pre-commit run --all-files` after `git add -N` on new files. Leave it uncommitted. Commit subject: "Move layer data collection into a script." |
+| 3c | medium | opus | none | Read Phase 3 of `docs/plans/ci-tiers.md` (findings 2 to 6, Decisions 4, 5 and 7), and the master plan's Decision 5 and Risks. Two commits' worth, in separate files. **(1)** In `functional-tests.yml`, make `collect_layer_data` run on `github.event_name == 'merge_group' && !cancelled() && needs.build_images.result != 'skipped'` (keep `!cancelled()`, not `always()`), still outside both aggregators' `needs`. Pass `QUEUE_REF: ${{ github.event.merge_group.head_ref }}` instead of `PR_NUMBER`/`PR_TITLE`. Drop the `data_prefix` dispatch input and its `env:`. In `tools/collect-layer-data-pr.sh`, take the pull request number from `QUEUE_REF` with `^(refs/heads/)?gh-readonly-queue/.+/pr-([0-9]+)-[0-9a-f]+$`, look the title up with `gh pr view <N> --json title` (omit it if that fails), and if the ref does not parse, warn and name the run instead of a pull request in the commit and body. Tests: a full ref and a bare branch both parse; an unparseable ref still collects; a failed title lookup still collects. Commit subject: "Collect layer data from merge groups." **(2)** Add `tools/data-pr-auto-merge.sh <N>` per Decision 4. Repository from `GITHUB_REPOSITORY`, default `shakenfist/kerbside-patches`. In order: `gh api repos/$repo/rules/branches/develop` has a `merge_queue` rule; `gh pr view <N> --json baseRefName,state` is `develop` and `OPEN`; `gh api --paginate repos/$repo/pulls/<N>/files --jq '.[].filename'` is non-empty and all under `data/`. Then `gh pr merge <N> --repo $repo --auto`, with no strategy flag and never `--admin`. Log why at each refusal and exit 0. A failed `gh pr merge` warns and exits 0. Call it from `tools/create-data-pr.sh` on every path where the pull request exists (already existing, created, created despite an error), and from `tools/heal-data-prs.sh` after each successful push, never in `--dry-run`. `collect-layer-data-pr.sh`'s caller must now also copy the helper to `$RUNNER_TEMP`. Add `tools/test-data-pr-auto-merge.py` with `gh` stubbed: no queue, a non-`develop` base, a closed pull request, a non-data file on the second page of files, and an empty file list each make no merge call; the all-data case makes exactly `pr merge <N> --repo ... --auto`; a failing merge exits 0. Over every case the stub log never shows `--admin`, `--merge`, `--squash`, `--rebase` or `mergePullRequest`. Add tests or a shape check that `create-data-pr.sh` and `heal-data-prs.sh` call the helper. Add a pre-commit hook `data-pr-auto-merge-tests`, the `flake8` entry and `docs/script-reference.md` rows. Mutation-check on copies under `timeout`: dropping the queue check or `--paginate` must fail a test. Commit subject: "Queue data pull requests automatically." Run `pre-commit run --all-files`. Leave everything uncommitted, and report which files belong to which commit. |
+| 3d | medium | sonnet | none | Read Phase 3 of `docs/plans/ci-tiers.md`, then the code as 3a to 3c left it. Update the docs to describe the live queue. Name scripts, jobs and steps; give no `file:<line>` references and no plan phase or decision numbers. **`docs/ci.md`:** what each tier now runs (a table of smoke against merge lanes); remove every "not yet" or "today the tiers are the same" statement, including in "Running the full tier by hand" and "When a merge-tier lane fails"; how to land a pull request (enqueue with the button or `gh pr merge <N> --auto`, never `--admin`); the latency to expect; that a bypass merge skips the merge tier; that data pull requests queue themselves only when every file is under `data/` and a queue exists, and that a healed one is queued again; and that `collect_layer_data` runs on merge groups. **`docs/ci-data.md`:** replace the stale paragraph about skipping data-only changes (finding 9) with how `check_paths` skips them, and say that layer data now comes from merge groups, one point per entry, all three build variants, including entries later ejected. **`ARCHITECTURE.md`'s CI/CD section:** `collect_layer_data` runs on merge groups, and the two tiers differ. **`AGENTS.md`:** one convention bullet saying that pull requests land through the merge queue, and that automation must enqueue (`gh pr merge --auto`, `enqueuePullRequest`), never merge directly or pass `--admin`, because shakenfist-bot can bypass the queue. Update the `collect_layer_data` line there. Run `pre-commit run --all-files`. Leave it uncommitted. Commit subject: "Document the merge queue." |
+| 3e | medium | opus | none | Management session, not a sub-agent, after this phase's pull request is green and reviewed, with Michael's explicit go-ahead in the session, and while no other pull request is about to merge. (1) Fetch client-python-k3s's ruleset 20595671, keep `name`, `target`, `enforcement`, `conditions`, `rules` and `bypass_actors`, and `POST` it to `repos/shakenfist/kerbside-patches/rulesets`. Check `gh api repos/shakenfist/kerbside-patches/rules/branches/develop` for the merge queue with `max_entries_to_build: 1`, `min_entries_to_merge: 1` and `check_response_timeout_minutes: 360`, and for both required checks. Record the ruleset id and the rollback: `gh api -X PUT repos/shakenfist/kerbside-patches/rulesets/<id> -f enforcement=disabled`. (2) Then `gh api -X PATCH repos/shakenfist/kerbside-patches -F allow_auto_merge=true`. (3) Michael enqueues this pull request. Watch the merge group and the data pull request it opens to the exit below, and record run ids and times in Execution notes. (4) Dispatch `export-repo-config.yml` so `.github/exported-config/` records both changes in a pull request of its own. |
 
-The admin step comes last on purpose. Between 3a merging and 3d,
-merge-tier lanes run on nothing. That window should be minutes, and
-3d should happen while no other pull request is about to merge.
+#### Risks
 
-Exit: the first human pull request through the queue shows
-`Can enqueue` from a two-install smoke run and `Can merge` from a
-full merge group, and lands. A data pull request enqueues itself and
-lands without a human. A daily rebase lands through the queue.
+* **The first entry times out**, and with it every later one. That is
+  finding 10's numbers without the conductor's priority. Mitigation:
+  this phase's pull request is that entry, and the session watches it.
+  Decision 6's rollback is one call. Phase 2's timeout comment names
+  it.
+* **A pull request with the old lane file enters the queue during the
+  switch** and runs the full matrix twice. Mitigation: 3e waits for a
+  quiet moment, and Michael holds other merges until this phase lands.
+* **`gh pr merge --auto` with no strategy flag** relies on gh's help
+  text for a queued branch. Mitigation: the helper only warns on
+  refusal, and the exit check, a data pull request queuing itself,
+  shows it.
+* **The bot can bypass the queue.** Mitigation: Decision 4. The
+  helper's tests, and the definition of done's `rg`, pin that
+  `--admin` and direct merges never appear.
+* **Layer data from an ejected entry** records images of a tree that
+  never landed. Mitigation: accepted (Decision 5). There is still less
+  of it than today, when every push records.
+* **Data pull requests open at the switch** have no auto-merge.
+  Mitigation: the healer sets it the next time one conflicts, and
+  Michael can enqueue the rest.
+
+#### Definition of done
+
+* `pre-commit run --all-files` passes, including
+  `ci-select-lanes-tests`, `collect-layer-data-pr-tests` and
+  `data-pr-auto-merge-tests`.
+* `tools/ci-select-lanes.py --lanes .github/ci-lanes.json --event
+  pull_request --code-changed true` selects exactly
+  `build-debian-trixie-master`, the `-aio` and `-aio-launcher`
+  installs, and patch test `debian-13`, with `run_local_build=false`.
+  The same with `--event merge_group` selects 3 builds, 8 installs,
+  2 patch tests and `run_local_build=true`.
+* `rg -n -- '--admin|mergePullRequest' tools/*.sh` finds nothing, and
+  `rg -l 'pr merge' tools/*.sh` lists only
+  `tools/data-pr-auto-merge.sh`.
+* `collect_layer_data` in `functional-tests.yml` has the
+  `merge_group` condition, no `github.event.pull_request`, and no
+  `${{` inside any `run:`. `rg -n data_prefix .github/workflows`
+  finds nothing.
+* `rg -n -i 'not enabled|not yet|no merge queue' docs/ci.md` finds no
+  statement about the queue, and `docs/ci-data.md` no longer says the
+  workflow is configured to skip.
+* After 3e: `rules/branches/develop` shows the merge queue parameters
+  and both required checks, `allow_auto_merge` is `true`, and the
+  export pull request records both.
+* Exit:
+  * This phase's pull request lands through the queue, with
+    `Can enqueue` from a smoke run of two installs and `Can merge`
+    from a merge group of eight.
+  * The data pull request that merge group opens queues itself and
+    lands with no human.
+  * The first daily rebase after the switch lands through the queue.
+    If it has not happened by the time Phase 4 is planned, Phase 4's
+    close-out records it.
+
+#### Back brief
+
+Before 3a, back brief Michael on this section, and ask for:
+
+* permission to push and open the pull request;
+* agreement to Decision 1's order, and that he will enqueue this pull
+  request himself;
+* the explicit go-ahead for 3e's two admin changes. They are asked
+  for again at the moment, because they come days later;
+* whether to copy k3s's `pull_request` rule as it is (Decision 7).
 
 ### Phase 4: Soak and measure
 
@@ -1103,18 +1356,21 @@ that diff, and a read of every documentation page the plan changed.
 patches. The checklist's second item gets the most attention here:
 the nightly run, if Phase 4 added one, and the bot's automatic
 re-queues must each report a failure somewhere Michael sees. The
-ruleset and repository setting changes from 3d are audited against
+ruleset and repository setting changes from 3e are audited against
 the exported configuration, not the diff. Findings land as their own
 pull request.
 
 ## Risks
 
 * **The 360-minute check timeout.** Today's full matrix takes 504 to
-  978 minutes of wall clock on a first attempt. The merge tier only
-  fits if per-push load falls enough to cut queueing, and that is a
-  prediction, not a measurement. Phase 4's gate exists for this. An
-  entry ejected on timeout looks like a failure, so 2b's comment says
-  when an entry was ejected while its run was still going.
+  978 minutes of wall clock on a first attempt, and since 2026-10-16
+  a median of 1,079. The merge tier only fits because the conductor
+  serves merge-group jobs first (Open Question 3), and if per-push
+  load falls enough to cut queueing. That is a prediction, not a
+  measurement. Phase 3's first entry is the first measurement, and
+  Phase 4's gate exists for this. An entry ejected on timeout looks
+  like a failure, so 2b's comment says when an entry was ejected
+  while its run was still going.
 * **Merges become serial.** A burst of five merges that takes an
   afternoon today will take most of a day. This is the design's price
   and `docs/ci.md` says so. The tempting way out,
@@ -1140,8 +1396,8 @@ pull request.
   and in `sf-can-skip-merge-queue`, the bypass team the ruleset
   copies. Anything that merges with `DAILY_REBASE_TOKEN` must enqueue
   (`enqueuePullRequest`, or `gh pr merge --auto` against a queue),
-  never merge directly or pass `--admin`. 3b's auto-merge is checked
-  for the same.
+  never merge directly or pass `--admin`. The data pull request
+  auto-merge helper is checked for the same.
 * **A bot push to a queued pull request removes it from the queue.**
   The lint fixer only runs on `pull_request`, and the healer only
   touches conflicted data pull requests, which the queue has already
@@ -1154,7 +1410,7 @@ pull request.
 ## Agent guidance
 
 Follow `PLAN-TEMPLATE.md`. Implementation is done by sub-agents and
-reviewed in the management session before any commit. Step 3d is the
+reviewed in the management session before any commit. Step 3e is the
 exception: it is an administrative change to the repository's
 settings and ruleset, made only with Michael's explicit approval in
 the session. Each phase's table is refined in the first commit of
@@ -1192,7 +1448,6 @@ We will know this plan has succeeded when the following are true:
   2026.1 entries still commented out in the matrix.
 * Extract the 600-line install job into a reusable workflow, if the
   file's size still bothers anyone once the tiers exist.
-* Conductor priority for merge-group jobs (Open Question 3).
 * Lint docs-only pull requests. Phase 1 keeps today's behaviour, where
   pre-commit does not run on a change confined to `docs/` or `data/`,
   so the `docs-line-references` hook only runs locally on those.
