@@ -22,7 +22,7 @@ about five years without anyone acting, and he declined to file a bug.
 
 | Phase | What | Status | Merged |
 |-------|------|--------|--------|
-| 1 | File the bug with the evidence below | Not started | |
+| 1 | File the bug with the evidence below | Drafted, held until upstream is ready: [draft](../privsep-memory-bug-draft.md) | |
 | 2 | devstack telemetry in `get-stats.py`, plus a baseline | In review: [1011786](https://review.opendev.org/c/openstack/devstack/+/1011786), [1011787](https://review.opendev.org/c/openstack/devstack/+/1011787), [1011794](https://review.opendev.org/c/openstack/devstack/+/1011794) | |
 | 3 | oslo.privsep: stop importing eventlet in the daemon | In review: [1011795](https://review.opendev.org/c/openstack/oslo.privsep/+/1011795) | |
 | 4 | neutron: cut the privileged import chain | In review: [1011796](https://review.opendev.org/c/openstack/neutron/+/1011796), [1011797](https://review.opendev.org/c/openstack/neutron/+/1011797) | |
@@ -117,7 +117,8 @@ suffix gives the order they are meant to land in:
   push a DNM neutron change that carries only the Depends-On, as a
   control.
 - **Bug reference.** When the Phase 1 bug exists, add `Related-Bug:` to
-  every patch.
+  every patch. It is held for now (see Phase 1), so the changes go
+  ahead without it.
 
 ## Phase 1 --- file the bug
 
@@ -125,6 +126,15 @@ File an oslo.privsep bug, with a neutron task added, containing the
 numbers above and the method behind them. Changes in later phases
 reference it (`Related-Bug`/`Closes-Bug`), and the TC goal discussion
 gets something to point at. Mikal files it; Claude drafts it.
+
+**Held, 2026-10-23.** The draft is in
+[../privsep-memory-bug-draft.md](../privsep-memory-bug-draft.md),
+together with a checklist for refreshing it before it is filed. Mikal
+chose not to file it yet, because whether this is a problem is still
+being argued upstream. The fixes land first, so their measured savings
+make the case, and the bug is filed once the community is ready to
+track it. Until then the patches carry no `Related-Bug:` footer, and
+nothing waits on this phase.
 
 ## Phase 2 --- devstack telemetry and a baseline
 
