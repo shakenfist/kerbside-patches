@@ -1,0 +1,17 @@
+Import the SAML IdP only when it is used
+
+keystone.api.auth loaded pysaml2 through keystone.federation.idp,
+though only the SAML and ECP assertion endpoints use it. Import it where
+the generators are built. In the probe, keystone's anonymous RSS falls
+from 95MB to 81MB and 55 saml2 modules are no longer loaded.
+
+Add a test that importing the server application does not load saml2.
+
+Prompt: Mikal asked for privsep memory fixes that can be landed one at a
+time and measured in devstack CI; keystone is one of the larger services.
+
+Assisted-By: Claude Sonnet 5.5 (medium effort)
+
+Depends-On: https://review.opendev.org/c/openstack/devstack/+/1011992
+Change-Id: I3c2a8c97e696fd1e9d637e94324a1ab992e3f92f
+Signed-off-by: Michael Still <mikal@stillhq.com>
