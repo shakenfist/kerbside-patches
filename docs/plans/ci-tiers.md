@@ -1304,6 +1304,46 @@ pre-commit over the shared tree, and 3c builds on 3b's tests.
     If it has not happened by the time Phase 4 is planned, Phase 4's
     close-out records it.
 
+#### Execution notes
+
+Steps 3a to 3d ran on 2026-10-23 (AEDT, UTC+11), in table order, one
+at a time. Back brief answers:
+* this session may push and open the pull request;
+* Decision 1's order stands, and Michael enqueues this pull request
+  himself;
+* the ruleset copies k3s's `pull_request` rule as it is.
+
+3e's admin changes are asked for again when the pull request is green.
+
+* **The worktree was deleted once during planning**, with its branch,
+  while the branch had no commits of its own. Nothing was lost. It
+  was recreated from `origin/develop`.
+* **3b's test broke under the commit hook.** Run by `git commit`,
+  pre-commit inherits `GIT_INDEX_FILE` and friends, and the test's real
+  `git` calls aimed at the repository being committed to. They failed
+  before writing anything; `core.bare`, the branches and the index were
+  checked afterwards. Both real-git tests now drop every inherited
+  `GIT_` variable, and 3c's brief required the same.
+* **3b's mutation runner** copied too little of the tree, so one shape
+  test failed even on the unmutated script. Each mutant also failed a
+  test of its own, which review reproduced for the pipe mutant, so the
+  kills stand.
+* **3c landed as one commit, not two.** Its two halves share hunks in
+  the layer data step, its test and the script reference. Its
+  heal-data-prs mutant first survived, because the heal merges
+  `develop` into the old branch and so brings the helper with it. The
+  agent rebuilt that test so only the starting ref holds the helper.
+* **3c kept existing behaviour where a tarball with no layer data is
+  still passed to `collect-layer-data.py`** in the second loop. It was
+  found in 3b and is outside this phase.
+* **3d said the latency figures came from observed runs, and that a
+  push removes a healed pull request from the queue.** The first are
+  estimates and the second is the conflict's doing; both were
+  corrected in review.
+* No pull request run of `Build test clouds` has failed since Phase 2
+  merged, so the first real retry by `tools/ci-auto-retry.sh` is still
+  to come.
+
 #### Back brief
 
 Before 3a, back brief Michael on this section, and ask for:
