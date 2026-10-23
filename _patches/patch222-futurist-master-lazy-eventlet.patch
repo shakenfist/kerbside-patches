@@ -1,0 +1,373 @@
+commit 53f4b7277682d8c0ea68e2588589760bca9116d1
+Author: Michael Still <mikal@stillhq.com>
+Date:   Sat Oct 24 08:04:02 2026 +1100
+
+    Do not import eventlet until it is needed
+    
+    Importing futurist imports eventlet, even in processes that never use a
+    green executor, and so issues eventlet's deprecation warning. Look for
+    eventlet with importlib.util.find_spec() instead, and import it only
+    when a green executor, future or waiter is first used.
+    
+    With oslo.config and oslo.log already loaded, importing futurist and its
+    periodics and waiters modules now adds 6.4MB of anonymous memory, not
+    16.3MB. nova-api, neutron-api and glance-api stay at 118, 127 and 90MB
+    for now, as oslo.service and oslo.utils still import eventlet in them.
+    
+    Prompt: Mikal asked for import-memory fixes that can be landed one at a
+    time and measured in devstack CI; futurist was the first importer of
+    eventlet in the threaded API services.
+    
+    Assisted-By: Claude Opus 5.5 (xhigh effort)
+    
+    Depends-On: https://review.opendev.org/c/openstack/devstack/+/1011992
+    Change-Id: Ibdab7d1cd2176c3f97f676fe55aa54f79ddadb5b
+    Signed-off-by: Michael Still <mikal@stillhq.com>
+
+diff --git a/futurist/_green.py b/futurist/_green.py
+index d8ce2f2..4dffd38 100644
+--- a/futurist/_green.py
++++ b/futurist/_green.py
+@@ -15,66 +15,83 @@
+ from __future__ import annotations
+ 
+ import sys
+-from typing import TYPE_CHECKING
++from typing import TYPE_CHECKING, Any
+ 
+ from futurist import _utils
+ 
+ if TYPE_CHECKING:
+     import threading as stdlib_threading
+ 
+-try:
+-    from eventlet import greenpool
+-    from eventlet import patcher as greenpatcher
+     from eventlet import queue as greenqueue
+ 
+-    from eventlet.green import threading as greenthreading
+-    from eventlet import greenthread
+-except ImportError:
+-    greenpatcher, greenpool, greenqueue, greenthreading, greenthread = (
+-        None,
+-        None,
+-        None,
+-        None,
+-        None,
+-    )
+-
+-
+-if _utils.EVENTLET_AVAILABLE:
+-    # Aliases that we use and only expose vs the whole of eventlet...
+-    Pool = greenpool.GreenPool
+-    Queue = greenqueue.Queue
+-    is_monkey_patched = greenpatcher.is_monkey_patched
+-    spawn = greenthread.spawn
+-
+-    class GreenThreading:
+-        @staticmethod
+-        def event_object() -> stdlib_threading.Event:
+-            return greenthreading.Event()  # type: ignore
+-
+-        @staticmethod
+-        def lock_object() -> stdlib_threading.Lock:
+-            return greenthreading.Lock()  # type: ignore
+-
+-        @staticmethod
+-        def rlock_object() -> stdlib_threading.RLock:
+-            return greenthreading.RLock()  # type: ignore
+-
+-        @staticmethod
+-        def condition_object(
+-            lock: stdlib_threading.Lock | stdlib_threading.RLock | None = None,
+-        ) -> stdlib_threading.Condition:
+-            return greenthreading.Condition(lock=lock)  # type: ignore
+-
+-    threading: GreenThreading | None = GreenThreading()
+-else:
+-    threading = None
+-    Pool = None
+-    Queue = None
+-
+-    def is_monkey_patched(mod: str) -> bool:
++# eventlet is imported when a green helper is first used, not when this
++# module is imported, so that processes which never use one do not pay for
++# it. Pool, Queue and spawn are looked up by __getattr__ below on first use.
++Pool: Any
++Queue: Any
++spawn: Any
++
++
++def __getattr__(name: str) -> Any:
++    global Pool, Queue, spawn
++
++    if name not in ('Pool', 'Queue', 'spawn'):
++        raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
++    if _utils.EVENTLET_AVAILABLE:
++        from eventlet import greenpool
++        from eventlet import greenthread
++        from eventlet import queue
++
++        # Aliases that we use and only expose vs the whole of eventlet...
++        Pool = greenpool.GreenPool
++        Queue = queue.Queue
++        spawn = greenthread.spawn
++    else:
++        Pool = Queue = spawn = None
++    return globals()[name]
++
++
++def is_monkey_patched(mod: str) -> bool:
++    # Nothing can have been patched before eventlet was imported.
++    if 'eventlet' not in sys.modules:
+         return False
++    from eventlet import patcher
++
++    return bool(patcher.is_monkey_patched(mod))
++
++
++class GreenThreading:
++    @staticmethod
++    def event_object() -> stdlib_threading.Event:
++        from eventlet.green import threading as greenthreading
+ 
+-    spawn = None
++        return greenthreading.Event()  # type: ignore
++
++    @staticmethod
++    def lock_object() -> stdlib_threading.Lock:
++        from eventlet.green import threading as greenthreading
++
++        return greenthreading.Lock()  # type: ignore
++
++    @staticmethod
++    def rlock_object() -> stdlib_threading.RLock:
++        from eventlet.green import threading as greenthreading
++
++        return greenthreading.RLock()  # type: ignore
++
++    @staticmethod
++    def condition_object(
++        lock: stdlib_threading.Lock | stdlib_threading.RLock | None = None,
++    ) -> stdlib_threading.Condition:
++        from eventlet.green import threading as greenthreading
++
++        return greenthreading.Condition(lock=lock)  # type: ignore
++
++
++# Creating this imports nothing; its methods import eventlet when called.
++threading: GreenThreading | None = (
++    GreenThreading() if _utils.EVENTLET_AVAILABLE else None
++)
+ 
+ 
+ class GreenWorker:
+@@ -87,6 +104,8 @@ class GreenWorker:
+         self.work_queue = work_queue
+ 
+     def __call__(self) -> None:
++        from eventlet.queue import Empty
++
+         # Run our main piece of work.
+         try:
+             self.work.run()
+@@ -96,7 +115,7 @@ class GreenWorker:
+                 while True:
+                     try:
+                         w = self.work_queue.get_nowait()
+-                    except greenqueue.Empty:
++                    except Empty:
+                         break
+ 
+                     try:
+@@ -113,7 +132,7 @@ class GreenWorker:
+         while True:
+             try:
+                 w = self.work_queue.get_nowait()
+-            except greenqueue.Empty:
++            except Empty:
+                 break
+             else:
+                 try:
+diff --git a/futurist/_utils.py b/futurist/_utils.py
+index 81bfbc1..f978f57 100644
+--- a/futurist/_utils.py
++++ b/futurist/_utils.py
+@@ -17,6 +17,7 @@ from __future__ import annotations
+ from collections.abc import Callable, Generator
+ from concurrent import futures
+ import contextlib
++import importlib.util
+ import multiprocessing
+ import sys
+ import threading
+@@ -30,11 +31,14 @@ _R = TypeVar('_R')
+ 
+ now = monotonic
+ 
++# Look for eventlet without importing it: importing it costs several
++# megabytes in every process that imports futurist, and most never use a
++# green executor. The green helpers import it when they are first used.
+ try:
+-    import eventlet as _eventlet  # noqa
+-
+-    EVENTLET_AVAILABLE = True
++    EVENTLET_AVAILABLE = importlib.util.find_spec('eventlet') is not None
+ except ImportError:
++    # An import hook can refuse eventlet, as services that run without it
++    # do to keep it out.
+     EVENTLET_AVAILABLE = False
+ 
+ 
+diff --git a/futurist/tests/test_green.py b/futurist/tests/test_green.py
+new file mode 100644
+index 0000000..12f7be7
+--- /dev/null
++++ b/futurist/tests/test_green.py
+@@ -0,0 +1,102 @@
++# Licensed under the Apache License, Version 2.0 (the "License"); you may
++# not use this file except in compliance with the License. You may obtain
++# a copy of the License at
++#
++#      http://www.apache.org/licenses/LICENSE-2.0
++#
++# Unless required by applicable law or agreed to in writing, software
++# distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
++# WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
++# License for the specific language governing permissions and limitations
++# under the License.
++
++import subprocess
++import sys
++import textwrap
++
++from futurist.tests import base
++
++
++class TestLazyEventlet(base.TestCase):
++    def _run(self, code):
++        # Run in a fresh interpreter: the test process has already imported
++        # eventlet.
++        cmd = [sys.executable, '-c', textwrap.dedent(code)]
++        proc = subprocess.run(cmd, capture_output=True, text=True)
++        self.assertEqual(0, proc.returncode, proc.stderr)
++        return proc.stdout.splitlines()
++
++    def test_import_does_not_load_eventlet(self):
++        out = self._run(
++            """
++            import sys
++
++            import futurist
++            from futurist import _green
++            import futurist.periodics
++            import futurist.waiters
++
++            print('eventlet' in sys.modules)
++            print(_green.is_monkey_patched('thread'))
++            print('eventlet' in sys.modules)
++            """
++        )
++        self.assertEqual(['False', 'False', 'False'], out)
++
++    def test_green_executor_loads_eventlet(self):
++        out = self._run(
++            """
++            import sys
++            import warnings
++
++            import futurist
++            from futurist import waiters
++
++            warnings.simplefilter('ignore', DeprecationWarning)
++            with futurist.GreenThreadPoolExecutor(max_workers=1) as e:
++                fs = [e.submit(sum, [i, 1]) for i in range(3)]
++                done, _ = waiters.wait_for_all(fs)
++            print(sorted(f.result() for f in done))
++            print('eventlet' in sys.modules)
++            """
++        )
++        self.assertEqual(['[1, 2, 3]', 'True'], out)
++
++    def test_green_helpers_without_eventlet(self):
++        out = self._run(
++            """
++            import sys
++            import warnings
++
++            class RefuseEventlet:
++                def find_spec(self, fullname, path, target=None):
++                    if fullname.partition('.')[0] == 'eventlet':
++                        raise ImportError('eventlet is not allowed')
++
++            sys.meta_path.insert(0, RefuseEventlet())
++
++            import futurist
++            from futurist import _green
++
++            warnings.simplefilter('ignore', DeprecationWarning)
++            for make in (
++                futurist.GreenThreadPoolExecutor,
++                futurist.GreenFuture,
++                lambda: futurist.SynchronousExecutor(green=True),
++            ):
++                try:
++                    make()
++                except RuntimeError as e:
++                    print(e)
++            print(_green.Pool, _green.spawn, _green.threading)
++            """
++        )
++        self.assertEqual(
++            [
++                'Eventlet is needed to use a green executor',
++                'Eventlet is needed to use a green future',
++                'Eventlet is needed to use a green synchronous executor',
++                'None None None',
++            ],
++            out,
++        )
+diff --git a/futurist/waiters.py b/futurist/waiters.py
+index c4fce5d..67de90f 100644
+--- a/futurist/waiters.py
++++ b/futurist/waiters.py
+@@ -24,12 +24,6 @@ from concurrent.futures import _base
+ import futurist
+ from futurist import _utils
+ 
+-try:
+-    from eventlet.green import threading as greenthreading
+-except ImportError:
+-    greenthreading = None
+-
+-
+ _F = TypeVar('_F', bound=futures.Future[Any])
+ 
+ 
+@@ -74,7 +68,7 @@ def _ensure_eventlet(func: _WaitFunc) -> _WaitFunc:
+     def wrapper(
+         fs: Iterable[futures.Future[Any]], timeout: float | None = None
+     ) -> DoneAndNotDoneFutures:
+-        if not _utils.EVENTLET_AVAILABLE or greenthreading is None:
++        if not _utils.EVENTLET_AVAILABLE:
+             raise RuntimeError('Eventlet is needed to wait on green futures')
+         return func(fs, timeout)
+ 
+@@ -153,6 +147,8 @@ class _AllGreenWaiter:
+     """Provides the event that ``_wait_for_all_green`` blocks on."""
+ 
+     def __init__(self, pending: int) -> None:
++        from eventlet.green import threading as greenthreading
++
+         self.event: Any = greenthreading.Event()
+         self.lock: Any = greenthreading.Lock()
+         self.pending = pending
+@@ -177,6 +173,8 @@ class _AnyGreenWaiter:
+     """Provides the event that ``_wait_for_any_green`` blocks on."""
+ 
+     def __init__(self) -> None:
++        from eventlet.green import threading as greenthreading
++
+         self.event: Any = greenthreading.Event()
+ 
+     def add_result(self, future: futures.Future[Any]) -> None:
