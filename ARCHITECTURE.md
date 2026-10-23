@@ -320,14 +320,16 @@ rest of the workflow reads its matrices from that selection:
    success or skip.
 6. **collect_layer_data** -- appends each build's layer
    records to the per-image time series in `data/layers/`
-   and proposes a PR. Runs on pull requests only, and even when
-   some builds fail (uses `!cancelled()`) so that layer data from
-   successful builds is still collected. It is skipped when the
-   builds were. It is outside the gates.
+   and proposes a PR. Runs on merge groups only, once per queue
+   entry, and even when some builds fail (uses `!cancelled()`)
+   so that layer data from successful builds is still collected.
+   It is skipped when the builds were. It is outside the gates.
 
 There are two tiers of lanes, smoke for pull requests and merge for
-the queue. The merge queue is not enabled yet, so every lane is in
-both. See `docs/ci.md`.
+the queue. The smoke tier keeps one build and the two Debian 13
+installs; the merge tier adds the other builds and installs, the
+Rocky 9 patch tests and the local build. The ruleset requires the
+gates and sends merges through the queue. See `docs/ci.md`.
 
 Because each data PR appends a line to the same per-image
 files, data PRs open concurrently conflict as soon as one of

@@ -82,9 +82,22 @@ each run instead: a union merge duplicates its entries whenever two
 data PRs both create it from scratch, and leaving that unchecked would
 compound on every heal.
 
-The workflow is configured to skip functional tests when only files in
-`data/` are changed, preventing infinite loops when layer data PRs are
-merged.
+The `Check paths` job skips every functional test when only files in
+`data/`, `docs/` or `README.md` change, preventing infinite loops when
+layer data PRs are merged. The workflow itself still runs and its gates
+pass on the skips, which is what lets a data PR go through the merge
+queue; see [Continuous integration](ci.md).
+
+The `collect_layer_data` job runs on merge groups, not on pull
+requests. A merge group builds every variant once per queue entry, so
+the series gets one point per entry, for all three build variants,
+rather than one per push. An entry that is later ejected from the
+queue has already contributed its point, so the series records builds
+that never landed. The pull request is taken from the queue branch's
+name and its title looked up; if either fails the data is still
+collected and the run is named in the commit and body instead. The
+resulting data PR is queued automatically when every file in it is
+under `data/` and the repository has a merge queue.
 
 Because every run appends a line to the same per-image files, data PRs
 that are open at the same time conflict as soon as one of them merges.
