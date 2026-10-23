@@ -1,6 +1,6 @@
-commit ab2806f73b53ec54d3a397985dd1e230391818da
+commit 70420c2bed5b4e41dd37b312f527bd9d36c5d34b
 Author: Michael Still <mikal@stillhq.com>
-Date:   Fri Oct 23 06:39:20 2026 +1100
+Date:   Fri Oct 23 19:49:15 2026 +1100
 
     privileged: Do not import neutron_lib
     

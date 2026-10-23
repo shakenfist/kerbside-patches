@@ -1,6 +1,6 @@
-commit 2573aa33594e7c17e2588c11c77ba38ee27411d3
+commit 0193fefcbc50fd1705ca9a3f5540b9cad89976f6
 Author: Michael Still <mikal@stillhq.com>
-Date:   Fri Oct 23 06:39:20 2026 +1100
+Date:   Fri Oct 23 19:49:15 2026 +1100
 
     privileged: Do not import neutron.common.utils
     

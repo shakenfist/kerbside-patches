@@ -1,6 +1,6 @@
-commit 2fdc4e0053ec40e0f73d5ea97e1d0d4a4385347e
+commit e36ba0734703db9ad99dad9e3ef2afc8ac7e3f1a
 Author: Michael Still <mikal@stillhq.com>
-Date:   Thu Oct 22 08:14:27 2026 +1100
+Date:   Fri Oct 23 19:39:32 2026 +1100
 
     Record peak, anonymous and swapped memory in get-stats.py
     

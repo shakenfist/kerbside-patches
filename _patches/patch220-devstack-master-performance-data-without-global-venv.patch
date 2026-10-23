@@ -1,6 +1,6 @@
-commit 7dc1e1241330f7b2f9934aa7021a9b8facbf5fa3
+commit 92360dcb2a6c7fcd14eac6940db396fed2f6470a
 Author: Michael Still <mikal@stillhq.com>
-Date:   Thu Oct 22 13:27:26 2026 +1100
+Date:   Fri Oct 23 19:39:32 2026 +1100
 
     Generate performance.json without a global venv
     
@@ -21,7 +21,7 @@ Date:   Thu Oct 22 13:27:26 2026 +1100
     Signed-off-by: Michael Still <mikal@stillhq.com>
 
 diff --git a/roles/capture-performance-data/tasks/main.yaml b/roles/capture-performance-data/tasks/main.yaml
-index 51a11b6..c094299 100644
+index 51a11b60..c0942997 100644
 --- a/roles/capture-performance-data/tasks/main.yaml
 +++ b/roles/capture-performance-data/tasks/main.yaml
 @@ -3,8 +3,13 @@

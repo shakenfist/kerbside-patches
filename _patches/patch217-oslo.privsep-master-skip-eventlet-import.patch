@@ -1,6 +1,6 @@
-commit 12db4a7fbf22331bdd7f5ecfd9fe57067749a6f3
+commit ef798e1fc6d4b11b3d04fda4a09f7a6d5972fe68
 Author: Michael Still <mikal@stillhq.com>
-Date:   Thu Oct 22 06:39:20 2026 +1100
+Date:   Fri Oct 23 19:49:41 2026 +1100
 
     Only inspect eventlet if it is already imported
     

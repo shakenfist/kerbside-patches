@@ -1,6 +1,6 @@
-commit 057c066f8b77eec7663bfb9ede6e8e5a09136eed
+commit 4ffddd1081ea3b84df04c4cdc4f62f7edcfaf190
 Author: Michael Still <mikal@stillhq.com>
-Date:   Tue Oct 20 18:15:04 2026 +1100
+Date:   Fri Oct 23 19:43:10 2026 +1100
 
     nova: Fail nova_libvirt start without virtlogd
     

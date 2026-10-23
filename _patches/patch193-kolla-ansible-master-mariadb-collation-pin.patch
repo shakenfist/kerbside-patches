@@ -1,6 +1,6 @@
-commit 9c43092ef15aa993973c1a7df48daecc7720ea2d
+commit f1e0a83ae38b2631d939d886c6862d2b4d8e245c
 Author: Michael Still <mikal@stillhq.com>
-Date:   Tue Oct 20 18:09:08 2026 +1100
+Date:   Fri Oct 23 19:34:19 2026 +1100
 
     Pin MariaDB character_set_collations to pre-11.5.
     
