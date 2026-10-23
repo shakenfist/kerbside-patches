@@ -665,9 +665,10 @@ Two more things were found:
    `tools/check-depends-on.py` rejects a footer whose change does not
    exist. So after step 6b, Mikal pushes patch221 by hand, as a new
    change stacked on 1011794, and its number goes into this section.
-   Series 001 already has `repush: true`, so after that the daily
-   rebase keeps it up to date. The new series start with `repush:
-   false`, so nothing in them reaches Gerrit until Mikal pushes it.
+   Series 001 already has `repush: true`, so `repush-openstack.sh`
+   pushes it whenever Mikal runs it. Nothing pushes to Gerrit
+   automatically. The new series start with `repush: false`, so the
+   script skips them until Mikal decides to push them.
 
 8. **Release notes only where behaviour changes.** patch228 and
    patch230 change which oslo.service backend keystone and placement
@@ -812,6 +813,21 @@ before Phase 5 merges. That rule was there so the attribution linter
 and hook would be in place, and this branch is stacked on #1953, which
 has them, so steps start now. Pushing anything to Gerrit is still
 Mikal's own act, and patch221's hand push still waits for his go.
+
+#### Execution notes
+
+- 2026-10-23 (AEDT). 6a and 6b ran in order, since both write to the
+  worktree. 6a was committed with one review change: a failed install
+  of a `--with` tree now stops the run, because the probe's stderr was
+  discarded and the run would otherwise have reported unpatched figures
+  as patched ones. 6b's regexes were proved against both memory_tracker
+  logs. devstack has no unit test environment, so its test-apply runs no
+  Python tests. rootwrap-daemon is deliberately not tracked.
+- Decision 7 said the daily rebase would push series 001. Nothing
+  pushes to Gerrit automatically; Mikal runs `repush-openstack.sh`
+  himself. Corrected at the source.
+- Waiting at the gate after 6b: Mikal pushes patch221. Its change
+  number goes under Decision 7 before 6c starts.
 
 #### Future work
 
