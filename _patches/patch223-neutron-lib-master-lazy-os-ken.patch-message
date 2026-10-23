@@ -1,0 +1,18 @@
+Import os_ken only when validating an ethertype
+
+Importing neutron_lib.api.validators loaded 46 os_ken modules for one
+lookup in validate_ethertype(), which only runs when sg_filter_ethertypes
+is set. Dropping it saves about 8MB of anonymous memory in each of
+neutron-api, the OVN agent and the L3 agent.
+
+Import ether_types inside that branch, and add a test that importing the
+validators does not load os_ken.
+
+Prompt: Mikal asked for privsep memory fixes that can be landed one at a
+time and measured in devstack CI; neutron daemons are the largest.
+
+Assisted-By: Claude Sonnet 5.5 (medium effort)
+
+Depends-On: https://review.opendev.org/c/openstack/devstack/+/1011992
+Change-Id: I8b593cf89e51d26b44dc58c04a6288c0f9670e88
+Signed-off-by: Michael Still <mikal@stillhq.com>
