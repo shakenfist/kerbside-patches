@@ -451,7 +451,7 @@ Every phase lands as its own pull request against `develop`.
 | Phase | Status | Merged |
 |-------|--------|--------|
 | 1. One gated workflow | Complete | `6a0403851` |
-| 2. Re-queue on infrastructure failure | In progress | |
+| 2. Re-queue on infrastructure failure | Complete | `63b8602b0` |
 | 3. Split the tiers and enable the queue | Not started | |
 | 4. Soak and measure | Not started | |
 | 5. Push audit | Not started | |
@@ -1028,6 +1028,11 @@ Exit checks (2d), all read-only:
 
 Neither run reached a re-queue or a comment, so the write paths are
 proven only by the stubbed tests until the queue exists.
+
+Merged as `63b8602b0` on 2026-10-22 at 22:39 UTC. By the next
+morning no `Build test clouds` run had failed since, so the first
+real retry by `tools/ci-auto-retry.sh` is still to come. Phase 3's
+execution notes record it.
 
 #### Back brief
 
