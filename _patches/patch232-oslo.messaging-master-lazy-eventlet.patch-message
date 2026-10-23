@@ -1,0 +1,21 @@
+Find patched threading without importing eventlet
+
+oslo_messaging._utils imported eventlet and oslo.utils' eventletutils
+only to learn whether threading was monkey patched. Nothing can be
+patched before eventlet is imported, so look in sys.modules instead.
+Services that patch first get the same unpatched threading and queue.
+
+glance-api imports no eventlet or dns modules in a probe, and uses 84MB
+of anonymous memory, not 93MB. This needs futurist's "Do not import
+eventlet until it is needed" and oslo.utils' change to eventletutils as
+well: with only some of the three, other imports bring eventlet back.
+
+Prompt: Mikal asked for import-memory fixes that can be landed one at a
+time and measured in devstack CI; oslo.messaging is one of several
+importers of eventlet in the threaded API services.
+
+Assisted-By: Claude Sonnet 5.5 (medium effort)
+
+Depends-On: https://review.opendev.org/c/openstack/devstack/+/1011992
+Change-Id: I4017e55845ee9668fa5ca0ee9485ff2acc69c0f5
+Signed-off-by: Michael Still <mikal@stillhq.com>

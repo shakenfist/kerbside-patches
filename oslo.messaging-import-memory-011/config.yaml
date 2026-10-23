@@ -1,0 +1,10 @@
+repo: https://opendev.org/openstack/oslo.messaging
+source_branch: master
+destination_branch: import-memory
+shallow_clone: true
+directory: oslo.messaging
+release: master-oslo.messaging-import-memory-011
+depends_on: ''
+source_sha: e791645c6b132daac45b0d901bb4de7c8d2a4932
+previous_source_sha: e791645c6b132daac45b0d901bb4de7c8d2a4932
+repush: false

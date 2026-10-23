@@ -1,0 +1,201 @@
+commit 27ede2c3b242d4a36c00f63602030751ed222e06
+Author: Michael Still <mikal@stillhq.com>
+Date:   Sat Oct 24 09:45:37 2026 +1100
+
+    Find patched threading without importing eventlet
+    
+    oslo_messaging._utils imported eventlet and oslo.utils' eventletutils
+    only to learn whether threading was monkey patched. Nothing can be
+    patched before eventlet is imported, so look in sys.modules instead.
+    Services that patch first get the same unpatched threading and queue.
+    
+    glance-api imports no eventlet or dns modules in a probe, and uses 84MB
+    of anonymous memory, not 93MB. This needs futurist's "Do not import
+    eventlet until it is needed" and oslo.utils' change to eventletutils as
+    well: with only some of the three, other imports bring eventlet back.
+    
+    Prompt: Mikal asked for import-memory fixes that can be landed one at a
+    time and measured in devstack CI; oslo.messaging is one of several
+    importers of eventlet in the threaded API services.
+    
+    Assisted-By: Claude Sonnet 5.5 (medium effort)
+    
+    Depends-On: https://review.opendev.org/c/openstack/devstack/+/1011992
+    Change-Id: I4017e55845ee9668fa5ca0ee9485ff2acc69c0f5
+    Signed-off-by: Michael Still <mikal@stillhq.com>
+
+diff --git a/oslo_messaging/_utils.py b/oslo_messaging/_utils.py
+index 70e2a4c5..8f298af4 100644
+--- a/oslo_messaging/_utils.py
++++ b/oslo_messaging/_utils.py
+@@ -14,19 +14,28 @@
+ 
+ import logging
+ import queue
++import sys
+ import threading
+ 
+-from oslo_utils import eventletutils
+-from oslo_utils import importutils
+-
+ LOG = logging.getLogger(__name__)
+ 
+-eventlet = importutils.try_import('eventlet')
+-if eventlet and eventletutils.is_monkey_patched("thread"):
++
++def _get_patcher():
++    # Nothing can be monkey patched unless eventlet has already been
++    # imported, so look for it rather than importing it.
++    return sys.modules.get('eventlet.patcher')
++
++
++def _thread_is_monkey_patched():
++    patcher = _get_patcher()
++    return patcher is not None and patcher.is_monkey_patched('thread')
++
++
++if _thread_is_monkey_patched():
+     # Here we initialize module with the native python threading module
+     # if it was already monkey patched by eventlet/greenlet.
+-    stdlib_threading = eventlet.patcher.original('threading')
+-    stdlib_queue = eventlet.patcher.original('queue')
++    stdlib_threading = _get_patcher().original('threading')
++    stdlib_queue = _get_patcher().original('queue')
+ else:
+     # Manage the case where we run this driver in a non patched environment
+     # and where user even so configure the driver to run heartbeat through
+@@ -85,7 +94,7 @@ class DummyLock:
+ 
+ 
+ def get_executor_with_context():
+-    if eventletutils.is_monkey_patched('thread'):
++    if _thread_is_monkey_patched():
+         LOG.debug("Threading is patched, using an eventlet executor")
+         return 'eventlet'
+     LOG.debug("Using a threading executor")
+diff --git a/oslo_messaging/tests/test_utils.py b/oslo_messaging/tests/test_utils.py
+index fa182f76..40f0d7ba 100644
+--- a/oslo_messaging/tests/test_utils.py
++++ b/oslo_messaging/tests/test_utils.py
+@@ -11,6 +11,12 @@
+ #    WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
+ #    License for the specific language governing permissions and limitations
+ #    under the License.
++import importlib.util
++import os
++import subprocess
++import sys
++import textwrap
++
+ from oslo_messaging._drivers import common
+ from oslo_messaging import _utils as utils
+ from oslo_messaging.tests import utils as test_utils
+@@ -109,3 +115,108 @@ class TimerTestCase(test_utils.BaseTestCase):
+         t.restart()
+         remaining = t.check_return()
+         self.assertEqual(3, remaining)
++
++
++# These run in a fresh interpreter, because what matters is the state of
++# sys.modules when oslo_messaging._utils is first imported. The module is
++# loaded by path so that the oslo_messaging package, and the libraries it
++# imports, are not loaded first.
++_RECORD_EVENTLET = textwrap.dedent("""
++    import sys
++
++    class Recorder:
++        def find_spec(self, name, path=None, target=None):
++            if name.split('.')[0] == 'eventlet':
++                print('import attempted:', name)
++            return None
++
++    sys.meta_path.insert(0, Recorder())
++""")
++
++_PATCH_EVENTLET = textwrap.dedent("""
++    import eventlet
++    eventlet.monkey_patch()
++""")
++
++_IMPORT_EVENTLET = 'import eventlet\n'
++
++_LOAD_UTILS = textwrap.dedent("""
++    import importlib.util
++    import queue
++    import sys
++    import threading
++
++    spec = importlib.util.spec_from_file_location(
++        'utils_under_test', sys.argv[1])
++    utils = importlib.util.module_from_spec(spec)
++    spec.loader.exec_module(utils)
++""")
++
++
++def _eventlet_installed():
++    try:
++        return importlib.util.find_spec('eventlet') is not None
++    except ImportError:
++        return False
++
++
++class EventletImportTestCase(test_utils.BaseTestCase):
++    def _run(self, *scripts):
++        out = subprocess.run(
++            [
++                sys.executable,
++                '-I',
++                '-c',
++                ''.join(scripts),
++                os.path.abspath(utils.__file__),
++            ],
++            capture_output=True,
++            text=True,
++        )
++        self.assertEqual(0, out.returncode, out.stderr)
++        return out.stdout.strip()
++
++    def test_eventlet_not_imported(self):
++        out = self._run(
++            _RECORD_EVENTLET,
++            _LOAD_UTILS,
++            textwrap.dedent("""
++            assert utils.stdlib_threading is threading
++            assert utils.stdlib_queue is queue
++            print(utils.get_executor_with_context())
++        """),
++        )
++        self.assertEqual('threading', out)
++
++    def test_eventlet_imported_but_not_patched(self):
++        if not _eventlet_installed():
++            self.skipTest('eventlet is not installed')
++        out = self._run(
++            _IMPORT_EVENTLET,
++            _LOAD_UTILS,
++            textwrap.dedent("""
++            assert utils.stdlib_threading is threading
++            assert utils.stdlib_queue is queue
++            print(utils.get_executor_with_context())
++        """),
++        )
++        self.assertEqual('threading', out)
++
++    def test_eventlet_patched_first(self):
++        # This is the order in which the services which use eventlet do
++        # things: patch, and then import oslo.messaging.
++        if not _eventlet_installed():
++            self.skipTest('eventlet is not installed')
++        out = self._run(
++            _PATCH_EVENTLET,
++            _LOAD_UTILS,
++            textwrap.dedent("""
++            original = eventlet.patcher.original
++            assert utils.stdlib_threading is original('threading')
++            assert utils.stdlib_queue is original('queue')
++            assert utils.stdlib_threading is not threading
++            assert utils.stdlib_queue is not queue
++            print(utils.get_executor_with_context())
++        """),
++        )
++        self.assertEqual('eventlet', out)
