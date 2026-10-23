@@ -94,7 +94,7 @@ repos:
     rev: 7.4.1
     hooks:
       - id: flake8
-        files: ^(deployer/|tools/(write-build-manifest|test-write-build-manifest\.py|measure-deployer-bootstrap|test-measure-deployer-bootstrap\.py|ci-select-lanes\.py|test-ci-select-lanes\.py|test-ci-merge-group-current\.py|test-ci-auto-retry\.py)$)
+        files: ^(deployer/|tools/(write-build-manifest|test-write-build-manifest\.py|measure-deployer-bootstrap|test-measure-deployer-bootstrap\.py|ci-select-lanes\.py|test-ci-select-lanes\.py|test-ci-merge-group-current\.py|test-ci-auto-retry\.py|test-collect-layer-data-pr\.py)$)
         args: ['--max-line-length=120']
 
   - repo: local
@@ -165,3 +165,11 @@ repos:
         additional_dependencies: ['pyyaml']
         pass_filenames: false
         files: ^(tools/(ci-auto-retry\.sh|test-ci-auto-retry\.py)|\.github/workflows/auto-retry-infra-failures\.yml)$
+
+      - id: collect-layer-data-pr-tests
+        name: collect-layer-data-pr unit tests
+        entry: python tools/test-collect-layer-data-pr.py
+        language: python
+        additional_dependencies: ['pyyaml']
+        pass_filenames: false
+        files: ^(tools/(collect-layer-data-pr\.sh|test-collect-layer-data-pr\.py)|\.github/workflows/functional-tests\.yml)$
