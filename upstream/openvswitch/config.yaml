@@ -1,0 +1,8 @@
+# See ../README.md for what these keys mean and why this file is not
+# named to match the OpenStack tooling's `./<project>/config.yaml`
+# discovery (find . -maxdepth 2 -name config.yaml).
+repo: https://github.com/openvswitch/ovs
+branch: main
+base_sha: 6fcb20dc6b0291bd033741debfc9de68317b742e
+current_series: v1
+disposition: submit
