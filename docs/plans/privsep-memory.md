@@ -622,25 +622,32 @@ Two more things were found:
    would need a drift test, as patch219's copies do. A lazy import is
    smaller and needs no such test.
 
-4. **Measure with a DNM devstack change, not with Depends-On footers.**
-   This one is the most likely to be argued with. Series 002 and 003 put
-   `Depends-On: 1011787` on their roots, which runs each change's own
-   devstack jobs with the telemetry applied. It also stops them merging
-   before the telemetry does. For Phase 6 that would hold five
-   projects' changes hostage to devstack's review speed, which is the
-   opposite of what Mikal wants: landing fixes is how this plan makes
-   its case. Instead:
-   - The probe measures each patch in a container. That is
-     deterministic, and is what the commit messages quote.
-   - For the CI picture, one hand-pushed `DNM` devstack change, stacked
-     on patch221's change, carries a `Depends-On:` for every Phase 6
-     change. Its builds are the "after" figures, and patch221's own
-     builds are the "before". No real change waits on it.
+4. **Measure with Depends-On footers, as series 002 and 003 do.** The
+   root patch of each new series (patch222, patch223, patch224,
+   patch225, patch227 and patch229) carries a `Depends-On:` on
+   patch221's Gerrit change. Each change's own devstack jobs then run
+   with the service-process telemetry applied, and record its saving in
+   `performance.json`. Gerrit follows patch221's parents, so this brings
+   in 1011786, 1011787 and 1011794 too, and no patch repeats them.
+   - The footers also stop every Phase 6 change merging before the
+     telemetry does. Mikal chose that deliberately: the improvement
+     cannot be shown without the telemetry, and holding the fixes behind
+     it gives the devstack team a reason to review it.
+   - "Before" figures come from patch221's own builds, for the jobs
+     devstack shares with each project. For a job that only one project
+     runs, push a `DNM` change to that project that carries only the
+     footer, as Phase 2 does for neutron.
+   - The probe still measures each patch in a container. Those figures
+     are deterministic, and they are what the commit messages quote.
+   - A DNM devstack change stacked on patch221, with a `Depends-On:` for
+     every Phase 6 change, was considered and rejected. It would let the
+     fixes merge before the telemetry, but take away the leverage.
 
 5. **No week between Phase 6 landings.** Phase 3's rule exists to tell
-   savings apart in CI totals. Here each saving is measured
-   individually in the container, and upstream decides when things
-   merge anyway.
+   savings apart in CI totals. Here each change's own builds show its
+   saving, and the container measures each one individually. Because of
+   Decision 4, the changes may merge close together once patch221 does,
+   and that is fine.
 
 6. **keystone and placement register the backend hook in their
    package `__init__.py`.** The hook must be registered before anything
@@ -651,12 +658,14 @@ Two more things were found:
    it sets a default, unlike `init_backend`, so an operator or a test
    that chooses a backend explicitly still wins.
 
-7. **Merging patch221 here pushes it.** Series 001 already has
-   `repush: true`, so once this phase merges, the daily rebase pushes
-   patch221 to Gerrit as a new change stacked on 1011794. Merging the
-   pull request is therefore the approval to push it. The new series
-   start with `repush: false`, so nothing in them reaches Gerrit until
-   Mikal pushes it.
+7. **patch221 is pushed by hand, before the rest of the phase.**
+   Decision 4 needs its Gerrit number for the footers, and
+   `tools/check-depends-on.py` rejects a footer whose change does not
+   exist. So after step 6b, Mikal pushes patch221 by hand, as a new
+   change stacked on 1011794, and its number goes into this section.
+   Series 001 already has `repush: true`, so after that the daily
+   rebase keeps it up to date. The new series start with `repush:
+   false`, so nothing in them reaches Gerrit until Mikal pushes it.
 
 8. **Release notes only where behaviour changes.** patch228 and
    patch230 change which oslo.service backend keystone and placement
@@ -685,6 +694,10 @@ briefs do not repeat:
 - Measure it with `tools/import-memory/scan.sh probe --with
   src/<directory>` (added in step 6a), and quote the before and after
   figures in the commit message.
+- The root patch of each new series carries `Depends-On:
+  https://review.opendev.org/c/openstack/devstack/+/<patch221>`
+  (Decision 4), with the number recorded under Decision 7. Only the
+  root has it; the other patches in a series do not repeat it.
 - Every lazy-import patch adds a unit test that runs a fresh
   interpreter (`subprocess.run([sys.executable, '-c', ...])`), imports
   the module, and asserts that the dropped package is not in
@@ -706,12 +719,14 @@ briefs do not repeat:
 | 6i | medium | sonnet | none | Series `placement-import-memory-009`, two patches. patch229: `placement/deploy.py` imports `placement.db.sqlalchemy.migration` at module level, which loads alembic (about 11 MB), but `update_database()` calls `migration.upgrade('head')` only when `conf.placement_database.sync_on_startup` is set, which is off by default. Import it inside that branch, and check with `grep -rn "deploy.migration" placement/tests` for tests that mock `placement.deploy.migration`. Add a fresh-interpreter test that `placement.deploy` does not load `alembic`. patch230: as patch228, in `placement/__init__.py`, which is empty today, with a reno note, measured with `--with src/futurist` too. Commit subjects: "Import migrations only when syncing on startup." and "Prefer the threading oslo.service backend." |
 | 6j | medium | sonnet | none | Measure the whole phase. Run `_build/test-apply.sh --skip-tests` for every Phase 6 series. Then run `scan.sh probe` with no `--with` and save the output as `before.jsonl`. Run it again with `--with` for `src/futurist`, `src/neutron-lib`, `src/neutron` (series 007 applied), `src/keystone` and `src/placement`, and save that as `after.jsonl`. Run `report.py` on both with `--packages eventlet,os_ken,openstack,pyroute2,saml2,alembic,sqlalchemy,pecan`. In Phase 6's findings table in `docs/plans/privsep-memory.md`, replace each estimate with the measured figure, and add a per-role before and after table of anonymous RSS. If #2 (patch224) is excluded because it is WIP, give the figures with and without it. Commit subject: "Record Phase 6's measured savings." |
 
-Step 6k is the management session's job, not a sub-agent's, and needs
-Mikal's go-ahead. Mikal pushes patch221 by merging this phase (Decision
-7) and each new series by hand. The session then writes the DNM
-devstack change: subject "DNM: measure import-memory fixes", stacked on
-patch221's change, with one `Depends-On:` per pushed Phase 6 change.
-Mikal pushes it, and its Gerrit number goes into this section.
+Between step 6b and step 6c there is a gate, which is the management
+session's job, not a sub-agent's. Mikal pushes patch221 by hand
+(Decision 7), and the session records its change number under
+Decision 7. Steps 6c to 6i need that number for their footers, so none
+of them starts before it is recorded. After step 6j, Mikal pushes each
+new series by hand. Where a project's only devstack job is its own, the
+session prepares the DNM control change that Decision 4 describes, for
+Mikal to push.
 
 #### Risks and mitigations
 
@@ -735,8 +750,14 @@ Mikal pushes it, and its Gerrit number goes into this section.
   callers. Mitigation: codesearch found no out-of-tree mocks, and the
   commit message says what changed.
 - **The probe misleads.** It imports modules; it does not run
-  services. Mitigation: the DNM devstack run (step 6k) gives the CI
-  figure, and Phase 8 reports CI figures, not probe figures.
+  services. Mitigation: each change's own devstack jobs give the CI
+  figure (Decision 4), and Phase 8 reports CI figures, not probe
+  figures.
+- **devstack is slow to review patch221.** Every Phase 6 change
+  waits on it, by design. Mitigation: raise it with the devstack team
+  when the Phase 6 changes are pushed, pointing at the fixes waiting
+  on it. If it stalls for a month, take the footers out of the
+  uncontroversial changes rather than leave them stuck.
 
 #### Definition of done
 
@@ -758,7 +779,9 @@ Mikal pushes it, and its Gerrit number goes into this section.
   patch. The management session checks this for at least two patches
   by reverting the source change and running the test.
 - Phase 6's findings table carries measured figures, not estimates.
-- The DNM devstack change exists, and its number is recorded here.
+- patch221's change number is recorded under Decision 7, and every
+  new series root carries a footer naming it. `tools/check-depends-on.py`
+  run online over those series passes.
 - Phase 6's status is `In progress` until every change in it has
   merged upstream or been abandoned.
 
@@ -766,8 +789,9 @@ Mikal pushes it, and its Gerrit number goes into this section.
 
 Before step 6a, back brief Mikal on the plan and get his agreement to
 Decisions 2, 4 and 7. Those are the ones that commit him to something
-outward-facing: a WIP neutron-lib discussion, a DNM change in devstack,
-and a push that happens when this phase merges. Before step 6e, back
+outward-facing: a WIP neutron-lib discussion, Phase 6 changes held
+behind devstack's review of the telemetry, and a hand push of patch221
+before the rest of the work. Before step 6e, back
 brief again with what LP #1802369 actually protects, because the shape
 of patch224 depends on it.
 
