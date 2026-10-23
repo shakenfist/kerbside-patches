@@ -166,6 +166,16 @@ Without such a test, the next unrelated import brings the package back.
 - **Runtime plugins must be in `roles.txt`.** Services load their drivers
   through stevedore or importutils after start-up. An entry point alone
   misses them, for example the libvirt driver in nova-compute.
+- **A role must reproduce what its entry point does before importing.**
+  The real nova API entry points (`nova/wsgi/osapi_compute.py`,
+  `nova/wsgi/metadata.py`) call `nova.monkey_patch.patch(backend='threading')`
+  first, which stops nova importing eventlet. Probing only the app-factory
+  modules loaded eventlet into nova-api and nova-api-meta (about 36 packages,
+  roughly 8 MB each) and overstated them. The nova API roles therefore begin
+  with `call:nova.monkey_patch.patch(backend='threading')`. A `call:` entry may
+  carry literal arguments (`call:pkg.mod.fn(1,key='v')`), parsed with
+  `ast.literal_eval`, never evaluated, and containing no spaces. The `wsgi`
+  modules themselves are still not imported, for the reason below.
 - **The uWSGI `wsgi` modules build their application at import time,**
   and that needs config files. The API roles therefore import the modules
   the app factory loads, not the `wsgi` module.

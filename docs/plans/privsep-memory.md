@@ -480,7 +480,7 @@ from `tempest-full-py3` (OVN all-in-one) and
 
 | # | Cause | Per process | Per node (OVN / ML2-OVS) | Fix lives in |
 |---|---|---|---|---|
-| 1 | `futurist/_utils.py` imports eventlet at module level. Every service already on threads loads it anyway: neutron, nova-api, nova-api-meta and glance. keystone and placement get it through oslo.messaging's import of oslo.service's eventlet backend | +11 MB | ~190 / ~240 MB | futurist; keystone and placement (see the survey) |
+| 1 | `futurist/_utils.py` imports eventlet at module level. Every service already on threads loads it anyway: neutron and glance. keystone and placement get it through oslo.messaging's import of oslo.service's eventlet backend. (nova-api and nova-api-meta were listed here first, but their entry points refuse eventlet; the probe missed that until step 6q) | +11 MB | superseded by the measured tables under "Chain fixes" | futurist; keystone and placement (see the survey) |
 | 2 | `neutron_lib/__init__.py` imports `neutron_lib.db.api` (oslo.db, sqlalchemy, pecan, mako, pygments) in every agent. This is LP #1802369 again, the root cause behind patch219 | +25 MB | ~50 / ~200 MB | neutron-lib |
 | 3 | `neutron/api/extensions.py` imports `openstack.connection` at module level, for the optional `ProjectIdMiddleware` alone. Agents load it through `neutron.common.utils` -> `neutron.api.api_common` | +13 MB | ~65 / ~155 MB | neutron |
 | 4 | `neutron_lib/api/validators/__init__.py` imports `os_ken.lib.packet.ether_types`, which loads the whole os_ken packet library for one constants table. It hits every neutron process except the OVS agent | +8.5 MB | ~70 / ~120 MB | neutron-lib |
@@ -809,7 +809,8 @@ Three more findings:
 - **nova-api and nova-api-meta were a probe artefact.** Their entry
   points call `monkey_patch.patch(backend='threading')` first, which
   refuses eventlet, and the probe skipped that call. Finding #1's nova
-  figures come out; step 6q fixes the probe.
+  figures come out; step 6q fixed the probe, after which the two roles
+  measure about 106 and 93 MB, 8 MB less than before, with no eventlet.
 - **Any `find_spec('eventlet')` must catch `ImportError`**, because
   nova's hook raises it from `find_spec`. patch222 does; the oslo.utils
   fix must too.
@@ -903,8 +904,9 @@ Mikal to push.
   <series>` passes for series 001 and 004 to 009.
 - In `after.jsonl` from step 6j, `report.py --packages
   eventlet,os_ken,openstack,pyroute2,saml2,alembic` shows `.` for:
-  - eventlet, in the neutron server roles and agents, nova-api,
-    nova-api-meta, glance-api, keystone and placement;
+  - eventlet, in the neutron server roles and agents, glance-api,
+    keystone and placement (nova-api and nova-api-meta never load it,
+    and the probe shows `.` for them since step 6q);
   - os_ken, in every neutron role except the OVS agent;
   - openstack, in every neutron agent;
   - pyroute2, in neutron-api and neutron-rpc-server;
