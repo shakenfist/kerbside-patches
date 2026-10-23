@@ -5,9 +5,8 @@ carries every result that decides whether a change may land. The patch
 tests and the local container build are reusable workflows that it
 calls, so their results sit in the same run as the image builds and the
 test clouds, and two jobs, `Can enqueue` and `Can merge`, summarise the
-lot. The rationale, and what is still to come, is in
-[the CI tiers plan](plans/ci-tiers.md); this document describes what
-the workflows do now.
+lot. The rationale is in [the CI tiers plan](plans/ci-tiers.md); this
+document describes what the workflows do.
 
 ## The two tiers
 
@@ -18,27 +17,25 @@ Every lane belongs to one or more tiers:
 * **Merge** is meant to run on a merge queue entry, on the commit that
   will actually land rather than the pull request's head.
 
-Today every lane is in both tiers, so a pull request tests exactly what
-it always did. The merge tier is wired up (the workflow has a
-`merge_group` trigger and a `Can merge` job) but the repository has no
-merge queue yet, so nothing runs it on its own. When the queue is
-enabled the lanes that are too expensive for every push will move from
-smoke to merge only; the change will be an edit to the lane file
-described below, not to the workflow.
+A pull request is tested twice: its head on the smoke tier, then the
+commit that would land, on the merge tier, when it goes through the
+merge queue. The merge tier is a superset of the smoke tier, so a
+lane that ran on the pull request runs again on the merged tree. Which
+lanes are in which tier is set in the lane file described below, not
+in the workflow.
 
-The lanes are:
-
-| Kind | Lanes |
-|------|-------|
-| Lint | The pre-commit run, and the `Ansible lint check` inside the patch tests |
-| Patch tests | One job on Debian 13 (kolla, kolla-ansible and both deployer series) and one on Rocky 9 (kolla and kolla-ansible) |
-| Image builds | Debian trixie, Ubuntu noble and Rocky 10 images of master |
-| Test clouds | Eight installs of master: Debian and Ubuntu images on a Debian 13 host, Debian and Rocky images on a Rocky 10 host, the containerised deployer on each host OS, an install without Kerbside, and a multinode install |
-| Local build | `Local build` builds every image the way a user would on their own machine, without the CI registry |
+| Kind | Smoke | Merge |
+|------|-------|-------|
+| Lint | The pre-commit run, and the `Ansible lint check` inside the patch tests | The same |
+| Patch tests | Debian 13 (kolla, kolla-ansible and both deployer series) | Debian 13 and Rocky 9 (kolla and kolla-ansible) |
+| Image builds | Debian trixie | Debian trixie, Ubuntu noble and Rocky 10 |
+| Test clouds | Debian images on a Debian 13 host: the all-in-one install and the containerised deployer | Eight installs: Debian and Ubuntu images on a Debian 13 host, Debian and Rocky images on a Rocky 10 host, the containerised deployer on each host OS, an install without Kerbside, and a multinode install |
+| Local build | Not run | `Local build` builds every image the way a user would on their own machine, without the CI registry |
 
 `collect_layer_data` is not a lane and is not in either tier. It runs
-on pull requests only, and is skipped when the path filter skipped the
-builds; see [CI data collection and reporting](ci-data.md).
+on merge groups only, and is skipped when the path filter skipped the
+builds; see [CI data collection and reporting](ci-data.md). A
+docs-only or data-only change skips every lane in both tiers.
 
 ## What runs when
 
@@ -60,8 +57,8 @@ The jobs of `Build test clouds`, in dependency order:
   lint failures, on pull requests only and never when the last commit
   was the bot's (`Check bot commit` guards that).
 * `Local build` calls `local-container-builds.yml`.
-* `Collect layer data and create PR` runs after the builds on pull
-  requests.
+* `Collect layer data and create PR` runs after the builds on merge
+  groups. It is not part of either gate.
 * `Can enqueue` and `Can merge` gate on all of the above.
 
 `Patch tests` and `Local build` are jobs of this workflow. Their jobs
@@ -161,9 +158,77 @@ jobs directly rather than relying on one another. `collect_layer_data`
 is in neither list: it publishes data rather than testing anything.
 `Aggregate results` is in both, as the builds' summary.
 
-Nothing requires either check yet, and the merge queue is not
-enabled. Once it is, an administrator who bypasses the queue to merge
-directly skips the merge tier entirely.
+The ruleset on `develop` requires both, and sends every merge through
+the merge queue. The ruleset's bypass team lets an administrator merge
+directly; a bypass merge skips the merge tier entirely, so it is for
+emergencies, not for getting round a slow queue.
+
+## Landing a pull request
+
+A pull request lands in two steps. Its smoke run must pass
+`Can enqueue`; then it is added to the merge queue, which builds the
+merged tree and runs the merge tier on it. When `Can merge` passes,
+GitHub merges it.
+
+To enqueue, use the merge button on the pull request, or from the
+command line:
+
+```
+gh pr merge <N> --auto
+```
+
+With a queue, `--auto` means "enqueue once the required checks
+pass". Never pass `--admin`: it merges directly, skipping the merge
+tier. Automation follows the same rule, and enqueues rather than
+merges (see the data pull requests section below).
+
+Expect roughly the following. These are estimates from the
+workflow's job times, not guarantees:
+
+* A code entry takes about 2.5 to 4 hours from enqueue to merge,
+  because the merge tier runs the whole matrix.
+* A docs-only or data-only entry takes a few minutes, because
+  `Check paths` skips every heavy job and the gate passes on the
+  skips.
+* Merges are serial: one entry is built at a time, and entries queued
+  behind it wait for it, so a busy day adds the waits together.
+* An entry whose `Can merge` has not reported within 360 minutes is
+  removed from the queue. See "When a merge-tier lane fails" for what
+  happens next.
+
+If you need to know whether a change would pass the merge tier before
+spending a place in the queue, dispatch `tier=full` on the branch, as
+described below.
+
+## Data pull requests and the queue
+
+The automated pull requests that add layer data and CI reports go
+through the queue like any other. `tools/create-data-pr.sh` calls
+`tools/data-pr-auto-merge.sh` on every path where the pull request
+exists, which runs `gh pr merge <N> --auto`, and only when all of
+these hold:
+
+* `develop` has a merge queue rule, because without one `--auto`
+  merges directly the moment the pull request is mergeable;
+* the pull request is open and its base is `develop`;
+* every file it changes, across all pages of the file list, is under
+  `data/`, and it changes at least one.
+
+The helper passes neither `--admin` nor a merge strategy, although
+shakenfist-bot could bypass the queue. Every refusal, and a failed
+merge, is a warning rather than an error: the data is safe in the
+pull request, and a human can enqueue it.
+
+Once one data pull request merges, the others conflict with
+`develop`, and GitHub drops a conflicted one from the queue.
+`tools/heal-data-prs.sh` re-resolves those conflicts when `develop`
+moves, then calls the helper again for each pull request it healed,
+after returning to the ref it started on, so the pull request is
+queued again.
+
+A data pull request is a data-only entry, so it takes a few minutes in
+the queue. The layer data job itself runs on merge groups: see
+[CI data collection and reporting](ci-data.md).
 
 ## Running the full tier by hand
 
@@ -175,7 +240,9 @@ to reproduce a merge-tier failure on a branch before re-queueing:
 gh workflow run functional-tests.yml --ref my-branch -f tier=full
 ```
 
-Today the two tiers select the same lanes, so the two are equivalent.
+A `full` dispatch runs the same lanes as the merge queue would, on the
+branch's head instead of the merged tree, and its `Can enqueue` reports
+on the head commit.
 
 Commenting "@shakenfist-bot please retest" on a pull request
 dispatches the workflow with its defaults, which is the smoke tier, so
@@ -232,10 +299,8 @@ jobs of that workflow, it is the only workflow it needs to watch.
 
 ## When a merge-tier lane fails
 
-The merge queue is not enabled yet, so none of this happens today. It
-is what `tools/ci-auto-retry.sh` is built to do once it is, and the
-same workflow, `auto-retry-infra-failures.yml`, also fires on
-`Build test clouds` runs of a `merge_group`.
+`tools/ci-auto-retry.sh`, run by `auto-retry-infra-failures.yml`,
+also handles `Build test clouds` runs of a `merge_group`.
 
 A merge queue run has no pull request of its own, so re-running it
 cannot land anything: GitHub has already taken the entry out of the

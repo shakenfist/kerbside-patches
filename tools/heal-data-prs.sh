@@ -15,6 +15,10 @@
 # with tools/verify-data-merge.py that the result is append-only and
 # well formed, and pushes the merge commit back to the PR branch.
 #
+# The conflict dropped the PR from the merge queue, if it was in it, so each
+# healed PR is then handed to data-pr-auto-merge.sh, which queues it again
+# if that is safe. Never in --dry-run.
+#
 # Usage: tools/heal-data-prs.sh [--dry-run]
 #
 # Requires an authenticated gh (GH_TOKEN with push access) and a full
@@ -58,6 +62,7 @@ fi
 
 original_ref=$(git rev-parse --abbrev-ref HEAD)
 healed=0
+healed_prs=()
 skipped=0
 failed=0
 
@@ -144,7 +149,20 @@ branch and verified the result only appends well-formed records.
 
 _This is an automated action by the heal-data-prs workflow._"
     healed=$((healed + 1))
+    healed_prs+=("$pr_number")
 done <<< "$prs"
 
 git checkout --quiet "$original_ref"
+
+# Only now, back on the ref this script was started from: inside the loop
+# the working tree is a data PR's branch, whose tools/ is as old as the
+# branch and may predate the helper. Back here the helper is the copy that
+# came with this script. A refusal is a warning, and so is a failure: the
+# heal itself has been pushed.
+if [ "$dry_run" != "1" ]; then
+    for pr_number in "${healed_prs[@]}"; do
+        "$(dirname "$0")/data-pr-auto-merge.sh" "$pr_number" \
+            || echo "Warning: could not queue PR #${pr_number}."
+    done
+fi
 echo "Done: ${healed} healed, ${skipped} already clean, ${failed} need manual attention."

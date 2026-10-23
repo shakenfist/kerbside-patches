@@ -131,7 +131,7 @@ It is large and has several jobs, described in
 - `test_installs` -- deploys with kolla-ansible and runs tests
 - `patch_tests`, `local_build` -- call `rebase-tests.yml` and
   `local-container-builds.yml`
-- `collect_layer_data` -- aggregates layer data from builds
+- `collect_layer_data` -- aggregates layer data from builds, on merge groups
 - `can_enqueue`, `can_merge` -- the gates a ruleset requires
 
 Three conventions apply to it:
@@ -142,6 +142,9 @@ Three conventions apply to it:
 - A new VM job takes the merge-group concurrency key used by the
   existing jobs, and a called workflow's suffix must not repeat its
   caller's.
+- Pull requests land through the merge queue. Automation must enqueue
+  (`gh pr merge --auto`, `enqueuePullRequest`), never merge directly
+  or pass `--admin`, because shakenfist-bot can bypass the queue.
 
 The deploy steps (bootstrap, prechecks, pull, deploy,
 install-clients, post-install) are shared with kerbside's

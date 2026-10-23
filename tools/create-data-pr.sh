@@ -22,6 +22,12 @@
 # head branch, that is a success no matter what the client was told, and
 # only a branch with no pull request is worth retrying.
 #
+# Once the pull request exists, however it came to, it is handed to
+# data-pr-auto-merge.sh, which puts it in the merge queue if that is safe.
+# The helper is found beside this script rather than in tools/: the layer
+# data job runs a copy of this script from $RUNNER_TEMP, after switching the
+# working tree to develop, and copies the helper alongside it.
+#
 # Usage: tools/create-data-pr.sh --head BRANCH --title TITLE \
 #            --body-file FILE [--assignee USER]
 #
@@ -56,6 +62,7 @@ if [ ! -f "$body_file" ]; then
 fi
 
 repo="${GITHUB_REPOSITORY:-shakenfist/kerbside-patches}"
+auto_merge="$(dirname "$0")/data-pr-auto-merge.sh"
 
 create_args=(--repo "$repo" --head "$head_branch" --title "$title" --body-file "$body_file")
 if [ -n "$assignee" ]; then
@@ -70,19 +77,38 @@ existing_pr() {
         --json number --jq '.[0].number // empty' 2>/dev/null
 }
 
+# Queue the pull request if that is safe. The helper treats every refusal
+# as a warning, and so does this: the pull request exists, which is what
+# this script is for, so nothing here may fail it.
+queue() {
+    "$auto_merge" "$1" || echo "Warning: ${auto_merge} failed for #$1." >&2
+}
+
 # A pull request that already exists is the answer regardless of how it
 # got there, so check before creating anything: a re-run of the job for
 # a branch that was pushed earlier must not fail on "already exists".
 pr=$(existing_pr)
 if [ -n "$pr" ]; then
     echo "Pull request #${pr} already exists for ${head_branch}."
+    queue "$pr"
     exit 0
 fi
 
 attempts=3
 for attempt in $(seq 1 "$attempts"); do
-    if gh pr create "${create_args[@]}"; then
-        echo "Pull request created."
+    if url=$(gh pr create "${create_args[@]}"); then
+        echo "Pull request created: ${url}"
+        # gh prints the new pull request's URL. Should that ever not end
+        # in its number, ask GitHub instead.
+        pr="${url##*/}"
+        if ! [[ "$pr" =~ ^[0-9]+$ ]]; then
+            pr=$(existing_pr || true)
+        fi
+        if [ -n "$pr" ]; then
+            queue "$pr"
+        else
+            echo "Warning: could not find the number of the new pull request; not queueing it." >&2
+        fi
         exit 0
     fi
 
@@ -96,6 +122,7 @@ for attempt in $(seq 1 "$attempts"); do
         pr=$(existing_pr)
         if [ -n "$pr" ]; then
             echo "Pull request #${pr} exists despite the error; the create did take effect."
+            queue "$pr"
             exit 0
         fi
     done

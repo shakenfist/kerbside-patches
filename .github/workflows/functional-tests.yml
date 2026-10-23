@@ -30,10 +30,6 @@ permissions:
 on:
   workflow_dispatch:
     inputs:
-      data_prefix:
-        description: 'Subdirectory of data/ for layer time series files'
-        required: false
-        default: 'layers'
       tier:
         description: 'Which lanes to run: smoke (the pull request lanes) or full (the merge queue lanes)'
         type: choice
@@ -552,16 +548,21 @@ jobs:
         uses: actions/download-artifact@v8
         with:
           pattern: buildresult-*
+          # Every artifact holds a file named result.json, so they cannot be
+          # merged. A pattern matching one artifact (a pull request builds
+          # one image set) is extracted directly into the path; several are
+          # extracted into a subdirectory each. The combine step reads both.
+          path: buildresults
 
       - name: Combine results and expose as an output
         id: combine
         run: |
           # Collect all results into a JSON array
           results="["
-          for dir in buildresult-*/; do
-            value=$(cat "${dir}result.json")
+          while read -r file; do
+            value=$(cat "${file}")
             results="${results}${value},"
-          done
+          done < <(find buildresults -name result.json | sort)
 
           # Terminate array and remove trailing comma
           results="${results%,}]"
@@ -1199,24 +1200,17 @@ jobs:
     name: "Collect layer data and create PR"
     needs: [build_images]
     runs-on: [self-hosted, static]
+    # Layer data comes from merge groups, which build every variant once
+    # per queue entry, rather than from every push to a pull request.
     # !cancelled() lets this run when some builds failed, so the builds
     # that succeeded still record their layers. When check_paths skipped
     # the builds (a docs-only or data-only change) there is nothing to
     # collect, and the status function would otherwise run it anyway.
     if: >-
-      github.event_name == 'pull_request' && !cancelled()
+      github.event_name == 'merge_group' && !cancelled()
       && needs.build_images.result != 'skipped'
-    env:
-      DATA_PREFIX: ${{ inputs.data_prefix || 'layers' }}
 
     steps:
-      - name: Set environment variables
-        run: |
-          {
-            echo "DATESTAMP=$(date '+%Y%m%d-%H%M')"
-            echo "RUN_ID=${{ github.run_id }}"
-          } >> $GITHUB_ENV
-
       - name: Checkout kerbside-patches
         uses: actions/checkout@v7
         with:
@@ -1232,166 +1226,18 @@ jobs:
       - name: Collect layer data and prepare PR
         env:
           GITHUB_TOKEN: ${{ secrets.DAILY_REBASE_TOKEN }}
-          PR_NUMBER: ${{ github.event.pull_request.number }}
-          PR_TITLE: ${{ github.event.pull_request.title }}
+          # The queue branch names the pull request; the script looks its
+          # title up.
+          QUEUE_REF: ${{ github.event.merge_group.head_ref }}
           CURRENT_ATTEMPT: ${{ github.run_attempt }}
+        # The script switches the working tree to develop, which replaces
+        # tools/, so it runs from a copy outside the checkout along with the
+        # scripts it calls, and the helper create-data-pr.sh calls.
         run: |
-          echo "Available artifacts:"
-          ls -la /tmp/build-artifacts/ || echo "No artifacts directory"
-          echo
-          echo "Current run attempt: ${CURRENT_ATTEMPT}"
-
-          # Filter artifacts to only include those from the current run attempt.
-          # This prevents including stale layer data from previous attempts when
-          # a single matrix job is retried.
-          included_builds=""
-          excluded_builds=""
-          NL=$'\n'
-
-          for dir in /tmp/build-artifacts/build-*/; do
-              build_name=$(basename "${dir}")
-
-              # Check if this artifact was generated in the current attempt
-              if [ -f "${dir}run_attempt" ]; then
-                  artifact_attempt=$(cat "${dir}run_attempt")
-                  if [ "${artifact_attempt}" != "${CURRENT_ATTEMPT}" ]; then
-                      echo "Skipping ${build_name}: from attempt ${artifact_attempt}, current is ${CURRENT_ATTEMPT}"
-                      excluded_builds="${excluded_builds}- ${build_name} (attempt ${artifact_attempt})${NL}"
-                      continue
-                  fi
-              else
-                  echo "Skipping ${build_name}: no run_attempt file (legacy artifact)"
-                  excluded_builds="${excluded_builds}- ${build_name} (no attempt marker)${NL}"
-                  continue
-              fi
-
-              # Only include builds whose tarball actually contains layer
-              # data, not just an empty layers/ directory
-              if [ -f "${dir}layers.tar.gz" ]; then
-                  if tar tzf "${dir}layers.tar.gz" | grep -q '\.jsonl$'; then
-                      included_builds="${included_builds}- ${build_name}${NL}"
-                  else
-                      echo "Skipping ${build_name}: layers.tar.gz contains no layer data"
-                      excluded_builds="${excluded_builds}- ${build_name} (no layer data)${NL}"
-                  fi
-              fi
-          done
-
-          # Check if we have any layers to include
-          if [ -z "${included_builds}" ]; then
-              echo "No layers.tar.gz files from current attempt found, skipping PR creation"
-              exit 0
-          fi
-
-          echo
-          echo "Builds to include:"
-          echo "${included_builds}"
-          if [ -n "${excluded_builds}" ]; then
-              echo "Builds excluded (from previous attempts):"
-              echo "${excluded_builds}"
-          fi
-
-          # Run the collection scripts from the checkout under test, not
-          # develop's copy: the branch switch below replaces the working
-          # tree, so script fixes on a PR would otherwise never run in
-          # that PR's own CI.
-          cp ./tools/collect-layer-data.py "${RUNNER_TEMP}/collect-layer-data.py"
-          cp ./tools/create-data-pr.sh "${RUNNER_TEMP}/create-data-pr.sh"
-
-          # Create a branch for the layer data (include run_id for uniqueness)
-          branch_name="${DATA_PREFIX}-data-${DATESTAMP}-run${RUN_ID}"
-          git checkout develop
-          git checkout -b "${branch_name}"
-
-          # Append layer records to the per-image time series files in
-          # data/ (only from the current attempt). Each image gets one
-          # JSONL file per build variant, with one line appended per run.
-          for dir in /tmp/build-artifacts/build-*/; do
-              # Re-check run_attempt filter
-              if [ -f "${dir}run_attempt" ]; then
-                  artifact_attempt=$(cat "${dir}run_attempt")
-                  if [ "${artifact_attempt}" != "${CURRENT_ATTEMPT}" ]; then
-                      continue
-                  fi
-              else
-                  continue
-              fi
-
-              if [ -f "${dir}layers.tar.gz" ]; then
-                  build_name=$(basename "${dir}")
-
-                  echo "Collecting layer data from ${build_name}"
-                  "${RUNNER_TEMP}/collect-layer-data.py" \
-                      --tarball "${dir}layers.tar.gz" \
-                      --build-name "${build_name}" \
-                      --data-dir "data/${DATA_PREFIX}" \
-                      --run-id "${RUN_ID}" \
-                      --run-attempt "${CURRENT_ATTEMPT}" \
-                      --datestamp "${DATESTAMP}"
-              fi
-          done
-
-          # Check if there are changes to commit
-          if [ -z "$(git status --porcelain data/)" ]; then
-              echo "No changes to commit"
-              exit 0
-          fi
-
-          # Configure git and commit
-          git config --global user.name "shakenfist-bot"
-          git config --global user.email "bot@shakenfist.com"
-
-          git add data/
-          git commit -m "Add layer data from build run ${RUN_ID}.
-
-          This commit adds layer data from a successful functional
-          test build. This data is collected for analysis purposes.
-
-          Source PR: #${PR_NUMBER}
-          Build date: ${DATESTAMP}
-          Run ID: ${RUN_ID}
-          Run attempt: ${CURRENT_ATTEMPT}
-
-          Assisted-By: CI Automation
-          Co-Authored-By: shakenfist-bot <bot@shakenfist.com>"
-
-          # Push the branch
-          git push -f origin "${branch_name}"
-          sleep 5
-
-          # Build PR body with explanation of included/excluded builds
-          pr_body="This PR adds layer data collected from build run ${RUN_ID}.
-
-          **Source:** PR #${PR_NUMBER} - ${PR_TITLE}
-          **Build date:** ${DATESTAMP}
-          **Run ID:** ${RUN_ID}
-          **Run attempt:** ${CURRENT_ATTEMPT}
-
-          ### Builds included
-
-          ${included_builds}
-
-          These builds completed in the current workflow run attempt."
-
-          if [ -n "${excluded_builds}" ]; then
-              pr_body="${pr_body}
-
-          ### Builds excluded
-
-          ${excluded_builds}
-          
-          These builds were from previous run attempts (e.g., cached artifacts from
-          before a job retry). Their layer data was not included to avoid duplicating
-          data that was already collected in earlier PRs."
-          fi
-
-          printf '%s\n' "${pr_body}" > "${RUNNER_TEMP}/pr-body.md"
-
-          "${RUNNER_TEMP}/create-data-pr.sh" \
-              --assignee mikalstill \
-              --title "${DATA_PREFIX} data from ${DATESTAMP} (run ${RUN_ID}, attempt ${CURRENT_ATTEMPT})" \
-              --body-file "${RUNNER_TEMP}/pr-body.md" \
-              --head "${branch_name}"
+          cp tools/collect-layer-data-pr.sh tools/collect-layer-data.py \
+              tools/create-data-pr.sh tools/data-pr-auto-merge.sh \
+              "${RUNNER_TEMP}/"
+          "${RUNNER_TEMP}/collect-layer-data-pr.sh"
 
   # Each collection job needs every gated job directly rather than through
   # another job: a job skipped because its own needs failed reports
