@@ -761,7 +761,87 @@ from its results, not here.
 |------|--------|-------|-----------|---------------------|
 | 6k | high | opus | none | Map every import chain that loads eventlet in each role in `tools/import-memory/roles.txt`, and every chain that loads `neutron_lib.db.api` in each neutron agent role. Work only in scratch copies of the source trees (clone each project with `git clone --depth 1` into the scratch directory, starting from patch222's futurist and the option (a) neutron-lib diff). Repeat: probe with every scratch tree as `--with`; trace the first importer of the package with a `sys.meta_path` hook that ignores `importlib.util.find_spec` lookups (Python 3.12 shows those frames as `<frozen importlib.util>`); make the smallest scratch edit that removes that site; until the role no longer loads the package or the next site is outside OpenStack. Scratch edits may be crude, but they must keep each module importable; note any that would not be a valid fix. Output, for the plan: one row per import site (project, file, what it uses the package for, the proposed real fix and whether it changes behaviour), and a per-role table of anonymous RSS for the full set against `import-memory:phase6` with no `--with`. Also say which sites are shared by many roles, so the patch order puts the widest saving first. Commit subject: "Map the eventlet and DB API import chains." |
 
-After 6k, the management session plans one patch step per project from
+6k ran on 2026-10-24. Every eventlet chain ends at an OpenStack fix or
+at python-ovs. With every fix applied in scratch copies, every neutron
+role, glance-api, keystone, placement and the privsep daemon run without
+eventlet, and the OVN, DHCP, L3 and metadata agents without
+`neutron_lib.db.api`. No row saves anything alone.
+
+| Package | Project | Site | Uses it for | Roles | Fix | Behaviour change |
+|---|---|---|---|---|---|---|
+| eventlet | futurist | `_utils.py` | `EVENTLET_AVAILABLE`, green executors | neutron (7 roles), glance-api, keystone, placement | patch222 | none |
+| eventlet | oslo.utils | `eventletutils.py` | module-level `try_import`; seven oslo.messaging modules import it | the same 10 roles | look eventlet up in `sys.modules` when called; `EVENTLET_AVAILABLE` from `find_spec`, catching `ImportError` | none in the public API |
+| eventlet | oslo.messaging | `_utils.py` | its own `try_import`, to find unpatched threading and queue | the same 10 roles | look it up in `sys.modules` | none |
+| eventlet | keystone, placement | package `__init__.py` | oslo.service's default backend | keystone, placement | the backend hook (patch228, patch230) | threading backend; reno note |
+| eventlet | oslo.service | `wsgi.py` | eventlet, `eventlet.wsgi` and greenlet, used only by the deprecated `Server`; neutron imports the module for `Loader`, `Request` and `register_opts` | neutron (7 roles) | import inside `Server`'s methods | `protocol` defaults to `None` and resolves to `HttpProtocol` |
+| eventlet | oslo.privsep | `daemon.py` | monkey-patch check | the privsep daemon; neutron through `neutron.conf.agent.common` | patch217, in review as 1011795 | none |
+| eventlet | ovsdbapp | `backend/ovs_idl/vlog.py` | patcher check for Windows logging | neutron-api, neutron-rpc-server, the OVN, OVS and DHCP agents | already gone in ovsdbapp 3.0.0; upper-constraints pins 2.19.0 until requirements 1011342 merges | none |
+| eventlet | python-ovs (Open vSwitch) | `ovs/poller.py` | module-level patcher import for green `select` | the same 5 roles | look it up when called, sent to ovs-dev | none |
+| db.api | neutron-lib | `__init__.py`, `context.py`, `db/utils.py` | ORM listeners | every agent | option (a), patch224, WIP | when the listeners are registered |
+| db.api | neutron | `common/utils.py` | `MAX_RETRIES` and `is_session_active` in two decorators | 5 agents | import inside the two functions | none |
+| db.api | neutron | `service.py` | `dispose_pool()` before forking | DHCP, L3, OVN | import inside | none |
+| db.api | neutron | `api/api_common.py` | `model_base.BASEV2` in filter validation | agents through `neutron.common.utils` | import inside | none |
+| db.api | neutron | `common/ovn/utils.py` | `models_v2` and `ports_obj` for one `isinstance`; also pecan | OVN, DHCP | import inside | none |
+| db.api | neutron | `agent/rpc.py` | `resource_cache` and `callbacks.resources`, which loads every OVO and model; used only by L2 agents | DHCP, L3, metadata | import when the cache is made | none |
+| db.api | neutron | `ovsdb_monitor.py` | server-side hash ring and router handlers; the OVN agent imports the module for its IDL classes | OVN | import inside | none |
+| db.api | neutron | `extensions/stdattrs_common.py` | `standard_attr`, inside one function; agents reach it through `agent/l3/ha_router.py` | DHCP, L3 | import inside | none |
+
+Anonymous RSS in MB, against `import-memory:phase6`. "Control" is
+unedited master trees, so library drift is not counted as saving.
+Expect 2 MB of noise.
+
+| Role | Control | All OpenStack fixes | Plus python-ovs | Saving |
+|---|---:|---:|---:|---:|
+| privsep daemon (idle) | 33 | 19 | 19 | 14 |
+| neutron-api | 127 | 127 | 114 | 13 |
+| neutron-rpc-server | 126 | 124 | 115 | 11 |
+| neutron-ovn-agent | 116 | 104 | 93 | 23 |
+| neutron-openvswitch-agent | 127 | 124 | 113 | 14 |
+| neutron-dhcp-agent | 119 | 103 | 92 | 27 |
+| neutron-l3-agent | 117 | 90 | 92 | 25 |
+| neutron-metadata-agent | 115 | 87 | 89 | 26 |
+| glance-api | 92 | 82 | 82 | 10 |
+| keystone | 93 | 87 | 87 | 6 |
+| placement | 84 | 73 | 73 | 11 |
+
+Three more findings:
+
+- **nova-api and nova-api-meta were a probe artefact.** Their entry
+  points call `monkey_patch.patch(backend='threading')` first, which
+  refuses eventlet, and the probe skipped that call. Finding #1's nova
+  figures come out; step 6q fixes the probe.
+- **Any `find_spec('eventlet')` must catch `ImportError`**, because
+  nova's hook raises it from `find_spec`. patch222 does; the oslo.utils
+  fix must too.
+- **sqlalchemy and oslo.db still load in every neutron agent** after
+  the db.api chain is cut, through `neutron_lib.context`'s
+  `enginefacade.transaction_context_provider` decorator: 19.3 MB more.
+  That is Future work. The OVS agent cannot drop `db.api` without a
+  design change, because it registers the OVO classes at runtime.
+
+Back briefed on 2026-10-24: Mikal agreed to one series per project,
+neutron-lib staying WIP, the neutron DB sites as three patches grouped
+by the agents they free, and nothing pushed until the whole chain is
+written and measured. python-ovs goes in `upstream/openvswitch/`, the
+non-OpenStack series tree, for Mikal to send to ovs-dev. The probe is
+fixed for nova.
+
+| Step | Effort | Model | Isolation | Brief for sub-agent |
+|------|--------|-------|-----------|---------------------|
+| 6e | high | opus | own worktree | Finish patch224 (option (a)) from the diff 6e left, in series `neutron-lib-db-api-import-memory-006`, `wip: true`. The commit message says the agents gain nothing until the neutron patches in 6o land, and names them. |
+| 6h | medium | sonnet | own worktree | As the row above, patch227 and patch228. patch228's commit message names the rest of its chain (futurist, oslo.utils, oslo.messaging). |
+| 6i | medium | sonnet | own worktree | As the row above, patch229 and patch230, likewise. |
+| 6l | high | opus | own worktree | patch231, series `oslo.utils-import-memory-010`: `oslo_utils/eventletutils.py` stops importing eventlet at module level, as the table says. `EVENTLET_AVAILABLE` from `importlib.util.find_spec`, guarded for `ImportError`; every function that uses eventlet looks it up in `sys.modules` (nothing can be patched before eventlet is imported) or imports it on first use. The module is deprecated; keep its behaviour exactly. Commit subject: "Do not import eventlet in eventletutils until used." |
+| 6m | medium | sonnet | own worktree | patch232, series `oslo.messaging-import-memory-011`: `oslo_messaging/_utils.py` looks eventlet up in `sys.modules` instead of `try_import`. Commit subject: "Find patched threading without importing eventlet." |
+| 6n | high | opus | own worktree | patch233, series `oslo.service-import-memory-012`: `oslo_service/wsgi.py` imports eventlet, `eventlet.wsgi` and greenlet only inside `Server`. The `protocol` default changes to `None`, resolved to `eventlet.wsgi.HttpProtocol` when the server is built; keep every behaviour of `Server` and fix the tests that mock `wsgi.eventlet`. A reno note, since an argument default changes. Commit subject: "Import eventlet only for the WSGI server." |
+| 6o | high | opus | own worktree | Series `neutron-db-api-import-memory-013`, three patches. patch234: `neutron/common/utils.py`, `neutron/service.py` and `neutron/api/api_common.py` import the DB API inside the functions that use it. patch235: `neutron/common/ovn/utils.py` (`models_v2`, `ports_obj`, pecan) and `ovsdb_monitor.py`'s server-side imports. patch236: `neutron/agent/rpc.py`'s resource cache and `extensions/stdattrs_common.py`. Each has a fresh-interpreter test for the agents it frees, which can only pass with patch224's neutron-lib, so mark that test to skip when `neutron_lib.db.api` is loaded by neutron-lib itself and say so. |
+| 6p | medium | opus | own worktree | python-ovs: `ovs/poller.py` imports eventlet's patcher only when it is needed. Add `upstream/openvswitch/` in the layout `upstream/README.md` describes (`config.yaml` with `repo: https://github.com/openvswitch/ovs`, `branch: main`, `base_sha`, `current_series: v1`, `disposition: submit`; `series/v1/0001-*.patch` from `git format-patch`; a README), following Open vSwitch's `Documentation/internals/contributing/submitting-patches.rst`, including whatever it says about tool-assisted patches. Test with python-ovs's own tests. Confirm `find . -maxdepth 2 -name config.yaml` is unchanged. |
+| 6q | low | sonnet | own worktree | Let `roles.txt` call an entry function with literal arguments, so nova-api and nova-api-meta run `nova.monkey_patch.patch(backend='threading')` first, as their entry points do. Correct finding #1's nova figures in this plan, and document the case in `docs/import-memory-scans.md`. |
+
+6j then measures the whole set, with every tree as `--with`, and records
+it here. After 6j, Mikal pushes the chain together.
+
+The management session planned one patch step per project from
 its table, in the form of the rows above, with a back brief to Mikal
 before any of them starts. Each patch goes in a series of its own in
 the `import-memory` topic, and the commit messages say that the saving
@@ -771,9 +851,8 @@ with the rest of their chain. python-ovs is Open vSwitch, reviewed on
 the ovs-dev mailing list, so a fix there is prepared for Mikal to send
 rather than added to `_patches/`.
 
-6h and 6i split: their lazy imports (patch227 and patch229) go ahead
-as planned. Their backend hooks (patch228 and patch230) wait for 6k,
-because they save nothing while the oslo.messaging chain remains.
+6h and 6i were split while 6k ran; with the chain planned, both go
+ahead whole.
 
 Between step 6b and step 6c there is a gate, which is the management
 session's job, not a sub-agent's. Mikal pushes patch221 by hand
