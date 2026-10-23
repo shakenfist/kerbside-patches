@@ -47,8 +47,7 @@ Date:   Fri Oct 23 07:13:53 2026 +1100
     container's image, so every container is recreated once. The release
     note says so.
     
-    Assisted-By: Claude Opus 5.5 (1M context, high effort) <noreply@anthropic.com>
-    Co-Authored-By: Claude Opus 5.5 (1M context, high effort) <noreply@anthropic.com>
+    Assisted-By: Claude Opus 5.5 (high effort)
     
     Change-Id: I5d6e93ad1df4f5d95d85d7a8e8f46b1d06f86196
     Signed-off-by: Michael Still <mikal@stillhq.com>

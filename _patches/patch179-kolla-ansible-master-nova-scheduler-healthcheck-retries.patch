@@ -21,8 +21,7 @@ Date:   Fri Aug 14 06:22:22 2026 +1000
     Prompt: Michael asked for assistance debugging why CI jobs were
     failing with nova-scheduler timeouts.
     
-    Assisted-By: Claude Opus 5 (1M context, high effort) <noreply@anthropic.com>
-    Co-Authored-By: Claude Opus 5 (1M context, high effort) <noreply@anthropic.com>
+    Assisted-By: Claude Opus 5 (high effort)
     
     Closes-Bug: #2162860
     Change-Id: If7c5a6d885b19e39cfc305440424f10de3a5ea05

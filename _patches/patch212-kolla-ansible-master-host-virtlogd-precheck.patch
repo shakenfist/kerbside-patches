@@ -19,7 +19,7 @@ Date:   Tue Oct 20 18:13:49 2026 +1100
     Related-Bug: #2155214
     Change-Id: Iabecbda82f1676f0b551b10efc80e5c35d68e0d0
     Signed-off-by: Michael Still <mikal@stillhq.com>
-    Assisted-By: Claude Opus 5.5 (1M context, low effort) <noreply@anthropic.com>
+    Assisted-By: Claude Opus 5.5 (low effort)
     Signed-off-by: Michael Still <mikal@stillhq.com>
 
 diff --git a/ansible/roles/nova-cell/tasks/precheck.yml b/ansible/roles/nova-cell/tasks/precheck.yml

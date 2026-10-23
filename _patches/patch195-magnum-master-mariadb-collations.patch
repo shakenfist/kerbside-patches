@@ -19,8 +19,7 @@ Date:   Tue Sep 29 18:27:48 2026 +1000
     CI sees it in, and asked for it as a patch in a new magnum patch stream
     so it can go upstream alongside the Kolla-Ansible changes.
     
-    Assisted-By: Claude Opus 5 (1M context, high effort) <noreply@anthropic.com>
-    Co-Authored-By: Claude Opus 5 (1M context, high effort) <noreply@anthropic.com>
+    Assisted-By: Claude Opus 5 (high effort)
     
     Change-Id: I4487a21d4a9da3f759b883eba1bd710db89cabe9
     Signed-off-by: Michael Still <mikal@stillhq.com>

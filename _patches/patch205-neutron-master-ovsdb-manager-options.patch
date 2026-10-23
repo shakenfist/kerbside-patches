@@ -16,8 +16,7 @@ Date:   Tue Oct 20 18:06:08 2026 +1100
     Prompt: a scan of neutron for values fixed at import time found this
     partial; tracing imports against config parsing showed only the OVN
     agent loads it too early.
-    Assisted-By: Claude Opus 5.5 (1M context, low effort) <noreply@anthropic.com>
-    Co-Authored-By: Claude Opus 5.5 (1M context, low effort) <noreply@anthropic.com>
+    Assisted-By: Claude Opus 5.5 (low effort)
     
     Change-Id: I6c21f5bdeab3e2d74a2f78b3866db7d48c9dab26
     Signed-off-by: Michael Still <mikal@stillhq.com>

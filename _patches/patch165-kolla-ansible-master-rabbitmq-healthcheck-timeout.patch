@@ -30,8 +30,7 @@ Date:   Thu Aug 6 19:05:49 2026 +1000
     the cost is per-invocation Erlang CLI latency, not resource
     starvation.
     
-    Assisted-By: Claude Opus 4.8 (1M context, high effort) <noreply@anthropic.com>
-    Co-Authored-By: Claude Opus 4.8 (1M context, high effort) <noreply@anthropic.com>
+    Assisted-By: Claude Opus 4.8 (high effort)
     
     Change-Id: Idd62ab8fa9cf62ccb6aec80d31ec55fa64409805
     Signed-off-by: Michael Still <mikal@stillhq.com>

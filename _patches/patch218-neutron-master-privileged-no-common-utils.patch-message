@@ -12,8 +12,7 @@ add a test that stops privileged modules importing neutron.common.utils.
 Prompt: Mikal asked for privsep memory fixes that can be landed one at a
 time and measured in devstack CI; neutron daemons are the largest.
 
-Assisted-By: Claude Opus 5.5 (1M context, low effort) <noreply@anthropic.com>
-Co-Authored-By: Claude Opus 5.5 (1M context, low effort) <noreply@anthropic.com>
+Assisted-By: Claude Opus 5.5 (low effort)
 
 Depends-On: https://review.opendev.org/c/openstack/devstack/+/1011787
 Change-Id: I56798a31723d45a92a564f8231c563a580f6faeb

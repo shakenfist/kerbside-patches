@@ -14,8 +14,7 @@ Date:   Tue Oct 20 18:10:57 2026 +1100
     metrics about its work queue. It does not, and LP #1512864 left such
     instrumentation to case-by-case patches, so he chose to propose the
     smallest in-tree change first and see how reviewers react.
-    Assisted-By: Claude Opus 5.5 (1M context, low effort) <noreply@anthropic.com>
-    Co-Authored-By: Claude Opus 5.5 (1M context, low effort) <noreply@anthropic.com>
+    Assisted-By: Claude Opus 5.5 (low effort)
     
     Change-Id: Icb83a84cc95388c9f68af538294022730dca1b90
     Signed-off-by: Michael Still <mikal@stillhq.com>

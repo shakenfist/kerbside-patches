@@ -58,6 +58,26 @@ repos:
         language: system
         files: ^_patches/.*\.patch(-message)?$
 
+  # The community convention is Assisted-By for an LLM, in one form, and
+  # Co-Authored-By for people. Run tools/check-llm-attribution.py --fix to
+  # repair a patch.
+  - repo: local
+    hooks:
+      - id: llm-attribution
+        name: LLM credited with Assisted-By, not Co-Authored-By
+        entry: tools/check-llm-attribution.py
+        language: python
+        files: ^_patches/.*\.patch(-message)?$
+
+  - repo: local
+    hooks:
+      - id: patch-message-attribution-tests
+        name: patch message attribution unit tests
+        entry: python tools/test-patch-message-attribution.py
+        language: python
+        pass_filenames: false
+        files: ^tools/(check-llm-attribution\.py|gerrit-pre-push-lint|patch_message\.py|test-patch-message-attribution\.py)$
+
   # The launcher inventory is the venv inventory with a different connection
   # for the kolla host. Nothing else keeps them in step, so a group added to
   # one would pass CI on the other.
@@ -94,7 +114,7 @@ repos:
     rev: 7.4.1
     hooks:
       - id: flake8
-        files: ^(deployer/|tools/(write-build-manifest|test-write-build-manifest\.py|measure-deployer-bootstrap|test-measure-deployer-bootstrap\.py|ci-select-lanes\.py|test-ci-select-lanes\.py|test-ci-merge-group-current\.py|test-ci-auto-retry\.py|test-collect-layer-data-pr\.py|test-data-pr-auto-merge\.py|import-memory/[^/]+\.py)$)
+        files: ^(deployer/|tools/(write-build-manifest|test-write-build-manifest\.py|measure-deployer-bootstrap|test-measure-deployer-bootstrap\.py|ci-select-lanes\.py|test-ci-select-lanes\.py|test-ci-merge-group-current\.py|test-ci-auto-retry\.py|test-collect-layer-data-pr\.py|test-data-pr-auto-merge\.py|check-llm-attribution\.py|test-patch-message-attribution\.py|import-memory/[^/]+\.py)$)
         args: ['--max-line-length=120']
 
   - repo: local

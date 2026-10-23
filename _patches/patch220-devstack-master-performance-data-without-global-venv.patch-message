@@ -11,8 +11,7 @@ that devstack installed packages with, so these jobs report again.
 Prompt: Mikal asked for a fix for the empty performance.json on CentOS
 and Rocky jobs, found while checking the new privsep memory telemetry.
 
-Assisted-By: Claude Opus 5.5 (1M context, low effort) <noreply@anthropic.com>
-Co-Authored-By: Claude Opus 5.5 (1M context, low effort) <noreply@anthropic.com>
+Assisted-By: Claude Opus 5.5 (low effort)
 
 Change-Id: I3b786c3e3bc8c0da616f7f09f506672aadf72543
 Signed-off-by: Michael Still <mikal@stillhq.com>

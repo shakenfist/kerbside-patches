@@ -14,7 +14,7 @@ Date:   Wed Feb 4 17:49:34 2026 +1100
     
     Change-Id: If68e810fa2fdd5ac34ac75b8f9f4dd2bef41e63a
     Signed-off-by: Michael Still <mikal@stillhq.com>
-    Co-Authored-By: Claude Opus 4.5 <noreply@anthropic.com>
+    Assisted-By: Claude Opus 4.5
 
 diff --git a/ansible/roles/kerbside/tasks/config.yml b/ansible/roles/kerbside/tasks/config.yml
 index 02532780a..fab91c7de 100644

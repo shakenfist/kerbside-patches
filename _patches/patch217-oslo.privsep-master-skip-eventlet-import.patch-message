@@ -13,8 +13,7 @@ Prompt: Mikal asked for oslo.privsep memory fixes that can be landed one
 at a time and measured in devstack CI; this is the minimal,
 behaviour-preserving alternative to the eventlet-removal change.
 
-Assisted-By: Claude Opus 5.5 (1M context, low effort) <noreply@anthropic.com>
-Co-Authored-By: Claude Opus 5.5 (1M context, low effort) <noreply@anthropic.com>
+Assisted-By: Claude Opus 5.5 (low effort)
 
 Depends-On: https://review.opendev.org/c/openstack/devstack/+/1011787
 Change-Id: Ic25f2a29380c349c5f87f4a74964bcffe42c4d8e

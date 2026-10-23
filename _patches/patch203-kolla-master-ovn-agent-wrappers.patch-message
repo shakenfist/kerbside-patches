@@ -7,5 +7,5 @@ processes can run in separate containers and survive agent restarts.
 
 Related-Bug: #2161114
 Change-Id: Iee3d4639183434c83f57cc459c3e14159d932105
-Assisted-By: Claude Opus 5.5 (1M context, low effort) <noreply@anthropic.com>
+Assisted-By: Claude Opus 5.5 (low effort)
 Signed-off-by: Michael Still <mikal@stillhq.com>

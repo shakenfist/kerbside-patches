@@ -8,8 +8,7 @@ Skip processes whose command line cannot be read.
 Prompt: while drafting per-process memory telemetry for devstack's
 performance.json, a local run of get-stats.py crashed on a zombie.
 
-Assisted-By: Claude Opus 5.5 (1M context, low effort) <noreply@anthropic.com>
-Co-Authored-By: Claude Opus 5.5 (1M context, low effort) <noreply@anthropic.com>
+Assisted-By: Claude Opus 5.5 (low effort)
 
 Change-Id: Ia3033f056e407a950d59d5d52684838d4e9c4d78
 Signed-off-by: Michael Still <mikal@stillhq.com>

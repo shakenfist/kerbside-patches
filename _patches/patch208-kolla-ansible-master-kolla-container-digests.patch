@@ -29,8 +29,7 @@ Date:   Fri Oct 23 07:13:53 2026 +1100
     get_image_id is unchanged: its images(name=...) filter matches a digest
     reference with both the classic and the containerd image stores.
     
-    Assisted-By: Claude Opus 5.5 (1M context, high effort) <noreply@anthropic.com>
-    Co-Authored-By: Claude Opus 5.5 (1M context, high effort) <noreply@anthropic.com>
+    Assisted-By: Claude Opus 5.5 (high effort)
     
     Change-Id: If0363f9d97763b1fe5f74c1596074e76b91ef4cd
     Signed-off-by: Michael Still <mikal@stillhq.com>

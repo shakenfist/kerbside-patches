@@ -21,7 +21,7 @@ Date:   Tue Oct 20 18:15:33 2026 +1100
     Related-Bug: #2155214
     Change-Id: Idd0a221f53ea3cffc7c198e9f429c5f70b9b3b07
     Signed-off-by: Michael Still <mikal@stillhq.com>
-    Assisted-By: Claude Opus 5.5 (1M context, low effort) <noreply@anthropic.com>
+    Assisted-By: Claude Opus 5.5 (low effort)
     Signed-off-by: Michael Still <mikal@stillhq.com>
 
 diff --git a/ansible/roles/fluentd/templates/conf/input/05-libvirt.conf.j2 b/ansible/roles/fluentd/templates/conf/input/05-libvirt.conf.j2

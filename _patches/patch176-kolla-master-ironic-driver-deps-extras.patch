@@ -22,8 +22,7 @@ Date:   Fri Jul 17 08:02:16 2026 +1000
     be validated in private CI before being proposed upstream to
     Kolla.
     
-    Assisted-By: Claude Code
-    Co-Authored-By: Claude Fable 5 (200K context, high effort) <noreply@anthropic.com>
+    Assisted-By: Claude Fable 5 (high effort)
     
     Change-Id: I39c1e17040e2d71ba6544a15dc17776ce48bdc6e
     Signed-off-by: Michael Still <mikal@stillhq.com>

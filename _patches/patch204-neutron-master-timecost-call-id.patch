@@ -16,8 +16,7 @@ Date:   Tue Oct 20 18:14:33 2026 +1100
     Prompt: while reading the L3 agent, Mikal noticed that timecost() mints
     its call id at import; a neutron-tempest-plugin-openvswitch log showed
     every get_routers() call sharing one id.
-    Assisted-By: Claude Opus 5.5 (1M context, low effort) <noreply@anthropic.com>
-    Co-Authored-By: Claude Opus 5.5 (1M context, low effort) <noreply@anthropic.com>
+    Assisted-By: Claude Opus 5.5 (low effort)
     
     Change-Id: Ia509f80b6e21fdef445e651da2a5a89215d8106e
     Signed-off-by: Michael Still <mikal@stillhq.com>
