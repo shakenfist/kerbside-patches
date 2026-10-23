@@ -109,7 +109,9 @@ suffix gives the order they are meant to land in:
   before the Phase 1 bug: devstack 1011786, 1011787 and 1011794
   (patch215, 216, 220), oslo.privsep 1011795 (patch217) and neutron
   1011796 and 1011797 (patch218, 219). All three series now have
-  `repush: true`, so the daily rebase pushes new revisions.
+  `repush: true`, so `_build/repush-openstack.sh` pushes new revisions
+  when Mikal runs it. Nothing pushes to Gerrit automatically: the daily
+  workflow only rebases the patches.
 - **Depends-On.** patch217 and patch218, the root patches of 002 and
   003, carry `Depends-On:` 1011787, the telemetry change. Its parent
   1011786 comes with it, so no other patch repeats it. Zuul then runs
@@ -351,10 +353,10 @@ linter check. The judgement calls are listed under Decisions.
    because the community has asked for this explicitly.
 5. **Accept the Gerrit churn now.** Confirmed by Mikal on 2026-10-23:
    the churn is unavoidable, since the community is insisting on the
-   change. After this phase merges, the daily rebase pushes a new
-   revision of 25 changes in 13 `repush: true` series whose only change
-   is the commit message (Decision 7 reaches more changes than the 22
-   the survey counted), and some votes will drop. Waiting until each
+   change. Mikal's repush sends a new revision of 25 changes in 13
+   `repush: true` series whose only change is the commit message
+   (Decision 7 reaches more changes than the 22 the survey counted),
+   and some votes will drop. Waiting until each
    change next needs a real revision would leave the trailer the
    community objected to on display for weeks. Mikal re-asks for the
    lost votes, and 1011796's +2 first.
@@ -394,10 +396,9 @@ overrides them. Step 5c landed as
 branch `privsep-memory-plan` (pull request #1953), alongside Phases 2
 to 4, not on a phase branch of its own. Mikal asked for that.
 
-Mikal merges this phase before Phase 6 pushes anything. After the first
-daily rebase following the merge, the management session lists the
-changes that lost votes, from each change's Gerrit page, so
-Mikal can ask for them again.
+Mikal merges this phase before Phase 6 pushes anything. After he runs
+the repush, the management session lists the changes that lost votes,
+from each change's Gerrit page, so he can ask for them again.
 
 ### Definition of done
 
