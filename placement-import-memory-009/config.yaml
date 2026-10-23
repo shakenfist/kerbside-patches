@@ -1,0 +1,10 @@
+repo: https://opendev.org/openstack/placement
+source_branch: master
+destination_branch: import-memory
+shallow_clone: true
+directory: placement
+release: master-placement-import-memory-009
+depends_on: ''
+source_sha: 7e72a5cdbedf03214c31d2d188951a349e834c94
+previous_source_sha: 7e72a5cdbedf03214c31d2d188951a349e834c94
+repush: false
