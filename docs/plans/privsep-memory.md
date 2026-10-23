@@ -22,13 +22,20 @@ about five years without anyone acting, and he declined to file a bug.
 
 | Phase | What | Status | Merged |
 |-------|------|--------|--------|
-| 1 | File the bug with the evidence below | Drafted, held until upstream is ready: [draft](../privsep-memory-bug-draft.md) | |
-| 2 | devstack telemetry in `get-stats.py`, plus a baseline | In review: [1011786](https://review.opendev.org/c/openstack/devstack/+/1011786), [1011787](https://review.opendev.org/c/openstack/devstack/+/1011787), [1011794](https://review.opendev.org/c/openstack/devstack/+/1011794) | |
-| 3 | oslo.privsep: stop importing eventlet in the daemon | In review: [1011795](https://review.opendev.org/c/openstack/oslo.privsep/+/1011795) | |
-| 4 | neutron: cut the privileged import chain | In review: [1011796](https://review.opendev.org/c/openstack/neutron/+/1011796), [1011797](https://review.opendev.org/c/openstack/neutron/+/1011797) | |
+| 1 | File the bug with the evidence below; [draft](../privsep-memory-bug-draft.md) held until upstream is ready | Blocked | |
+| 2 | devstack telemetry in `get-stats.py`, plus a baseline; in review as [1011786](https://review.opendev.org/c/openstack/devstack/+/1011786), [1011787](https://review.opendev.org/c/openstack/devstack/+/1011787), [1011794](https://review.opendev.org/c/openstack/devstack/+/1011794) | In progress | |
+| 3 | oslo.privsep: stop importing eventlet in the daemon; in review as [1011795](https://review.opendev.org/c/openstack/oslo.privsep/+/1011795) | In progress | |
+| 4 | neutron: cut the privileged import chain; in review as [1011796](https://review.opendev.org/c/openstack/neutron/+/1011796), [1011797](https://review.opendev.org/c/openstack/neutron/+/1011797) | In progress | |
 | 5 | Services: stop importing what they do not use | Not started | |
 | 6 | Decide on structural changes (fewer contexts) | Not started | |
 | 7 | Report back to the TC and openstack-discuss | Not started | |
+| 8 | Push audit | Not started | |
+
+Status cells hold only the plan status vocabulary. A phase whose
+changes are proposed upstream is `In progress` until they merge. Phase
+1 is `Blocked` on a decision recorded in its section. Each phase's
+`Merged` cell records where it landed: this repository's merge commit
+for the `_patches/` side, and `<repo> <sha>` for each upstream change.
 
 ## Situation
 
@@ -338,6 +345,18 @@ here, including a decision not to proceed.
 Reply on openstack-discuss and at a TC meeting with the baseline and
 the before/after telemetry. Be plain about what the data shows. If
 swap traffic falls but job failure rates do not, say so.
+
+## Phase 8 --- push audit
+
+This repository has no `PUSH-AUDIT.md` yet. So this phase applies the
+shared push-audit checklist from `PLAN-TEMPLATE.md` to the ranges
+recorded in the Status table's `Merged` column. On top of that it runs
+this repository's own checks: a `/code-review` of those ranges,
+`_build/test-apply.sh` for every series directory the plan added, and
+a read of every doc page the plan changed. Most of this plan lands in
+other repositories, through Gerrit. For those changes the audit cites
+upstream's own review and records `<repo> <sha>`, and does not
+re-review them. Diff against `origin/develop` after a fetch.
 
 ## Open questions
 
