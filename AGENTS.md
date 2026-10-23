@@ -56,6 +56,10 @@ unit tested by pre-commit; no other Python here is linted.
    that is too small makes git silently truncate the hunk rather
    than fail. Adding a `name:` to an Ansible task (ansible-lint's
    usual `name[missing]`) changes the count too.
+7. Upstream patches credit an LLM with one
+   `Assisted-By: <model> (<effort> effort)` line, never
+   `Co-Authored-By:` (that is for people); pre-commit and
+   `gerrit-pre-push-lint` enforce it.
 
 A patch in `_patches/` can be listed by several `ORDER` files (one
 per release). When only one release needs a change, copy the patch

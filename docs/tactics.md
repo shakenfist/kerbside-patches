@@ -103,10 +103,13 @@ cut down.
 3. **Each paragraph is at most 4 lines** wrapped at 72 characters, so 8 body
    lines total.
 4. **Footers do not count** toward the two paragraphs: `Closes-Bug`,
-   `Change-Id`, `Depends-On`, `Signed-off-by`, `Co-Authored-By`, and the
-   `Assisted-By` and `Prompt` metadata this repository adds. `Prompt` is
-   the only one that runs over several lines; it ends at the next blank
-   line.
+   `Change-Id`, `Depends-On`, `Signed-off-by`, `Co-Authored-By` (for a
+   person), and the `Assisted-By` and `Prompt` metadata this repository
+   adds. `Prompt` is the only one that runs over several lines; it ends
+   at the next blank line. An LLM is credited with one `Assisted-By:
+   <model> (<effort> effort)` line, never `Co-Authored-By` (which
+   OpenStack reserves for people); pre-commit and `gerrit-pre-push-lint`
+   enforce this.
 
 Do not put these in the commit message:
 
