@@ -1,0 +1,106 @@
+commit fb23ed2f8bb1748b89815f870e6ac25bc8d92822
+Author: Michael Still <mikal@stillhq.com>
+Date:   Sat Oct 24 09:47:34 2026 +1100
+
+    Prefer the threading oslo.service backend
+    
+    Unless something picks a backend before oslo.messaging is imported, as
+    placement.deploy does, oslo.service uses eventlet. Register threading as
+    the default, as glance does; an explicit init_backend() still wins.
+    oslo.service[threading] is now a requirement (4.2.0).
+    
+    This saves nothing alone: it needs futurist's "Do not import eventlet
+    until it is needed", and the oslo.utils eventletutils and oslo.messaging
+    _utils lazy eventlet changes. With all four, placement uses 63MB of
+    anonymous memory, not 73MB.
+    
+    Prompt: Mikal asked for import-memory fixes that can be landed one at a
+    time and measured in devstack CI; placement and keystone are the
+    threaded services that still fall back to the eventlet backend.
+    
+    Assisted-By: Claude Sonnet 5.5 (medium effort)
+    
+    Change-Id: I6629fd997a42108367b09ab37e3a8b7604ad60ba
+    Signed-off-by: Michael Still <mikal@stillhq.com>
+
+diff --git a/placement/__init__.py b/placement/__init__.py
+index e69de29..a0d2ef9 100644
+--- a/placement/__init__.py
++++ b/placement/__init__.py
+@@ -0,0 +1,23 @@
++#    Licensed under the Apache License, Version 2.0 (the "License"); you may
++#    not use this file except in compliance with the License. You may obtain
++#    a copy of the License at
++#
++#         http://www.apache.org/licenses/LICENSE-2.0
++#
++#    Unless required by applicable law or agreed to in writing, software
++#    distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
++#    WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
++#    License for the specific language governing permissions and limitations
++#    under the License.
++
++from oslo_service import backend as service_backend
++
++# Placement is served by a WSGI server and has no use for the eventlet
++# oslo.service backend, which is the default if nothing has chosen one by the
++# time oslo.messaging is first imported, and which makes the process load
++# eventlet. Register the threading backend as the default instead. This is
++# only a default: init_backend() called earlier by a deployer, or a test,
++# still wins. It has to happen here, ahead of anything that imports
++# oslo.messaging, such as the audit middleware imported by placement.deploy.
++service_backend.register_backend_default_hook(
++    lambda: service_backend.BackendType.THREADING)
+diff --git a/placement/tests/unit/test_deploy.py b/placement/tests/unit/test_deploy.py
+index bcd5308..644334e 100644
+--- a/placement/tests/unit/test_deploy.py
++++ b/placement/tests/unit/test_deploy.py
+@@ -76,3 +76,22 @@ class DeployTest(testtools.TestCase):
+         auth_header = response.headers['www-authenticate']
+         self.assertIn(www_authenticate_uri, auth_header)
+         self.assertIn('keystone uri=', auth_header.lower())
++
++    def test_threading_backend_is_default(self):
++        """Importing deploy leaves oslo.service on the threading backend."""
++        out = self._run_fresh("""
++            import placement.deploy
++            from oslo_service import backend
++            print(backend.get_backend().__class__.__name__)
++        """)
++        self.assertEqual('ThreadingBackend', out)
++
++    def test_explicit_backend_wins(self):
++        """A backend chosen before placement is imported is not replaced."""
++        out = self._run_fresh("""
++            from oslo_service import backend
++            backend.init_backend(backend.BackendType.EVENTLET)
++            import placement.deploy
++            print(backend.get_backend().__class__.__name__)
++        """)
++        self.assertEqual('EventletBackend', out)
+diff --git a/releasenotes/notes/placement-threading-service-backend-3f1c2a9d7b4e5a60.yaml b/releasenotes/notes/placement-threading-service-backend-3f1c2a9d7b4e5a60.yaml
+new file mode 100644
+index 0000000..c779380
+--- /dev/null
++++ b/releasenotes/notes/placement-threading-service-backend-3f1c2a9d7b4e5a60.yaml
+@@ -0,0 +1,8 @@
++---
++upgrade:
++  - |
++    The placement service now registers the ``threading`` backend as the
++    default for ``oslo.service``, instead of letting the first import of
++    ``oslo.messaging`` select the ``eventlet`` backend. This stops the
++    placement process loading ``eventlet``, which it does not use. A backend
++    that is selected explicitly before placement is imported is still used.
+diff --git a/requirements.txt b/requirements.txt
+index e702b15..68a56ff 100644
+--- a/requirements.txt
++++ b/requirements.txt
+@@ -14,6 +14,7 @@ oslo.config>=6.7.0 # Apache-2.0
+ oslo.context>=2.22.0 # Apache-2.0
+ oslo.log>=4.3.0 # Apache-2.0
+ oslo.serialization>=2.25.0 # Apache-2.0
++oslo.service[threading]>=4.2.0 # Apache-2.0
+ oslo.utils>=4.5.0 # Apache-2.0
+ oslo.db>=8.6.0 # Apache-2.0
+ oslo.policy>=6.0.0 # Apache-2.0
