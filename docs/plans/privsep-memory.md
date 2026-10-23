@@ -419,8 +419,32 @@ Mikal can ask for them again.
   edited patch pass `_build/test-apply.sh --skip-tests`.
 - [x] Mikal has applied the global hook edit: llm-setup 83e4819 and
   85eca01.
-- [ ] After the first daily rebase following the merge, the changes
-  that lost votes are listed for Mikal.
+- [x] The changes that lost votes are listed for Mikal. He ran the
+  repush himself on 2026-10-23, before the merge, so the list is below.
+
+Votes lost to the 2026-10-23 repush, read from the "Outdated Votes"
+part of each new revision's upload message. Every project involved
+copies Code-Review only on `changekind:TRIVIAL_REBASE OR is:MIN`, so a
+commit message change drops every vote except a -2. Changes whose
+revision left the message alone kept their votes. Mikal re-asks for
+these:
+
+| Change | Lost |
+|--------|------|
+| neutron [1011796](https://review.opendev.org/c/openstack/neutron/+/1011796) | Brian Haley +2, Jay Faulkner +1, Rodolfo Alonso -1 |
+| neutron [1011797](https://review.opendev.org/c/openstack/neutron/+/1011797) | Jay Faulkner +1, Rodolfo Alonso -1 |
+| neutron [1009882](https://review.opendev.org/c/openstack/neutron/+/1009882), [1009883](https://review.opendev.org/c/openstack/neutron/+/1009883) | Lajos Katona +2 |
+| neutron [1009917](https://review.opendev.org/c/openstack/neutron/+/1009917), [1009918](https://review.opendev.org/c/openstack/neutron/+/1009918) | Lajos Katona +2, Lucas Henry +1 |
+| oslo.privsep [1011795](https://review.opendev.org/c/openstack/oslo.privsep/+/1011795) | Jay Faulkner +1 |
+| devstack [1011786](https://review.opendev.org/c/openstack/devstack/+/1011786), [1011787](https://review.opendev.org/c/openstack/devstack/+/1011787), [1011794](https://review.opendev.org/c/openstack/devstack/+/1011794) | Jay Faulkner +1 |
+| kolla-ansible [1005469](https://review.opendev.org/c/openstack/kolla-ansible/+/1005469) | Alma Maillet-Contoz +1, Franciszek Przewoźny +1 |
+
+Rodolfo's -1s on 1011796 and 1011797, and Jay Faulkner's comment on
+1011796, were the `Co-Authored-By:` objection that started this phase;
+the new revision answers them, but the threads are still unresolved
+and need a reply. Rodolfo's other comment on 1011796, that it "does not
+depend on this devstack patch", questions the `Depends-On:` design in
+the Patch series section and is still open.
 
 ### Back brief
 
