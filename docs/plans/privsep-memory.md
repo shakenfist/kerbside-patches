@@ -693,9 +693,9 @@ briefs do not repeat:
   (high effort)`, with no email address or context window, and never
   `Co-Authored-By:` (Phase 5, Decision 7). Run `tools/gerrit-pre-push-lint
   --commit` in `src/<directory>` and fix every error it reports. Phase
-  5's `llm-attribution` pre-commit hook rejects the patch otherwise. Do
-  not start any step until Phase 5 has merged, so that the linter and
-  the hook are there to enforce this.
+  5's `llm-attribution` pre-commit hook rejects the patch otherwise. This
+  branch is stacked on Phase 5, so the linter and the hook are there to
+  enforce it (see the back brief).
 - List the patch in the series' `ORDER`, then run
   `tools/recount-patch.py --in-place` and `tools/extract-commit-message`.
 - Prove it with `_build/test-apply.sh <series>`, which runs that
@@ -803,6 +803,15 @@ behind devstack's review of the telemetry, and a hand push of patch221
 before the rest of the work. Before step 6e, back
 brief again with what LP #1802369 actually protects, because the shape
 of patch224 depends on it.
+
+Back briefed on 2026-10-23. Mikal agreed to Decisions 2, 4 and 7.
+Rodolfo Alonso's comment on 1011796, that it "does not depend on this
+devstack patch", does not change Decision 4: the footers stay, and the
+comment gets no reply. Mikal also lifted the rule that no step starts
+before Phase 5 merges. That rule was there so the attribution linter
+and hook would be in place, and this branch is stacked on #1953, which
+has them, so steps start now. Pushing anything to Gerrit is still
+Mikal's own act, and patch221's hand push still waits for his go.
 
 #### Future work
 
