@@ -12,13 +12,21 @@
 # workflow step copies this script, collect-layer-data.py and create-data-pr.sh
 # to $RUNNER_TEMP and runs the copy, and the siblings are found next to
 # whichever copy is running. That way a fix to any of them is exercised by the
-# pull request that makes it.
+# pull request that makes it. create-data-pr.sh in turn calls
+# data-pr-auto-merge.sh beside itself, so that is copied too.
+#
+# It runs on merge groups. The pull request under test is taken from the
+# queue branch's name (gh-readonly-queue/<base>/pr-<N>-<base sha>, with or
+# without refs/heads/ in front), and its title is looked up, because the
+# merge group payload carries none. A ref which does not parse, or a title
+# which cannot be looked up, costs only the description: the data is still
+# collected, and the run is named where the pull request would be.
 #
 # Inputs come from the environment:
 #   GITHUB_TOKEN     required, used by create-data-pr.sh and the push
 #   GITHUB_RUN_ID    required, the run the artifacts came from
-#   PR_NUMBER        required, the pull request under test
-#   PR_TITLE         required, that pull request's title
+#   QUEUE_REF        required, the merge group's head ref; it may be empty,
+#                    which is treated like a ref that does not parse
 #   CURRENT_ATTEMPT  required, the run attempt; artifacts from any other
 #                    attempt are excluded
 #   DATA_PREFIX      subdirectory of data/ and branch name prefix, default
@@ -26,25 +34,55 @@
 #   ARTIFACTS_DIR    where the build-* artifacts were downloaded, default
 #                    /tmp/build-artifacts
 #   RUNNER_TEMP      scratch space, a new temporary directory if unset
+#   GITHUB_REPOSITORY  where to look the title up, default
+#                    shakenfist/kerbside-patches
 
 set -euo pipefail
 
-for NAME in GITHUB_TOKEN GITHUB_RUN_ID PR_NUMBER PR_TITLE CURRENT_ATTEMPT; do
+for NAME in GITHUB_TOKEN GITHUB_RUN_ID CURRENT_ATTEMPT; do
     if [ -z "${!NAME:-}" ]; then
         echo "${NAME} must be set" >&2
         exit 1
     fi
 done
 
+# Set, but possibly empty: an empty ref loses only the description.
+if [ -z "${QUEUE_REF+set}" ]; then
+    echo "QUEUE_REF must be set" >&2
+    exit 1
+fi
+
 DATA_PREFIX="${DATA_PREFIX:-layers}"
 ARTIFACTS_DIR="${ARTIFACTS_DIR:-/tmp/build-artifacts}"
 RUN_ID="${GITHUB_RUN_ID}"
 DATESTAMP=$(date '+%Y%m%d-%H%M')
 SCRIPT_DIR=$(dirname "$0")
+REPO="${GITHUB_REPOSITORY:-shakenfist/kerbside-patches}"
 
 if [ -z "${RUNNER_TEMP:-}" ]; then
     RUNNER_TEMP=$(mktemp -d)
 fi
+
+# Name the source of the data: the pull request the queue entry is for if
+# the ref says, the run otherwise.
+queue_ref_pattern='^(refs/heads/)?gh-readonly-queue/.+/pr-([0-9]+)-[0-9a-f]+$'
+if [[ "${QUEUE_REF}" =~ ${queue_ref_pattern} ]]; then
+    pr_number="${BASH_REMATCH[2]}"
+    commit_source="Source PR: #${pr_number}"
+    if pr_title=$(gh pr view "${pr_number}" --repo "${REPO}" --json title --jq .title) \
+        && [ -n "${pr_title}" ]; then
+        body_source="PR #${pr_number} - ${pr_title}"
+    else
+        echo "Warning: could not look up the title of PR #${pr_number}; leaving it out" >&2
+        body_source="PR #${pr_number}"
+    fi
+else
+    echo "Warning: queue ref '${QUEUE_REF}' names no pull request; naming run ${RUN_ID} instead" >&2
+    commit_source="Source: run ${RUN_ID}"
+    body_source="run ${RUN_ID}"
+fi
+echo "Source: ${body_source}"
+echo
 
 echo "Available artifacts:"
 ls -la "${ARTIFACTS_DIR}/" || echo "No artifacts directory"
@@ -156,7 +194,7 @@ git commit -m "Add layer data from build run ${RUN_ID}.
 This commit adds layer data from a successful functional
 test build. This data is collected for analysis purposes.
 
-Source PR: #${PR_NUMBER}
+${commit_source}
 Build date: ${DATESTAMP}
 Run ID: ${RUN_ID}
 Run attempt: ${CURRENT_ATTEMPT}
@@ -171,7 +209,7 @@ sleep 5
 # Build PR body with explanation of included/excluded builds
 pr_body="This PR adds layer data collected from build run ${RUN_ID}.
 
-**Source:** PR #${PR_NUMBER} - ${PR_TITLE}
+**Source:** ${body_source}
 **Build date:** ${DATESTAMP}
 **Run ID:** ${RUN_ID}
 **Run attempt:** ${CURRENT_ATTEMPT}

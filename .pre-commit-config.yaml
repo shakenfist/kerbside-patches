@@ -94,7 +94,7 @@ repos:
     rev: 7.4.1
     hooks:
       - id: flake8
-        files: ^(deployer/|tools/(write-build-manifest|test-write-build-manifest\.py|measure-deployer-bootstrap|test-measure-deployer-bootstrap\.py|ci-select-lanes\.py|test-ci-select-lanes\.py|test-ci-merge-group-current\.py|test-ci-auto-retry\.py|test-collect-layer-data-pr\.py)$)
+        files: ^(deployer/|tools/(write-build-manifest|test-write-build-manifest\.py|measure-deployer-bootstrap|test-measure-deployer-bootstrap\.py|ci-select-lanes\.py|test-ci-select-lanes\.py|test-ci-merge-group-current\.py|test-ci-auto-retry\.py|test-collect-layer-data-pr\.py|test-data-pr-auto-merge\.py)$)
         args: ['--max-line-length=120']
 
   - repo: local
@@ -173,3 +173,10 @@ repos:
         additional_dependencies: ['pyyaml']
         pass_filenames: false
         files: ^(tools/(collect-layer-data-pr\.sh|test-collect-layer-data-pr\.py)|\.github/workflows/functional-tests\.yml)$
+
+      - id: data-pr-auto-merge-tests
+        name: data-pr-auto-merge unit tests
+        entry: python tools/test-data-pr-auto-merge.py
+        language: python
+        pass_filenames: false
+        files: ^tools/(data-pr-auto-merge\.sh|create-data-pr\.sh|heal-data-prs\.sh|test-data-pr-auto-merge\.py)$

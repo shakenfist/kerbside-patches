@@ -30,10 +30,6 @@ permissions:
 on:
   workflow_dispatch:
     inputs:
-      data_prefix:
-        description: 'Subdirectory of data/ for layer time series files'
-        required: false
-        default: 'layers'
       tier:
         description: 'Which lanes to run: smoke (the pull request lanes) or full (the merge queue lanes)'
         type: choice
@@ -1199,15 +1195,15 @@ jobs:
     name: "Collect layer data and create PR"
     needs: [build_images]
     runs-on: [self-hosted, static]
+    # Layer data comes from merge groups, which build every variant once
+    # per queue entry, rather than from every push to a pull request.
     # !cancelled() lets this run when some builds failed, so the builds
     # that succeeded still record their layers. When check_paths skipped
     # the builds (a docs-only or data-only change) there is nothing to
     # collect, and the status function would otherwise run it anyway.
     if: >-
-      github.event_name == 'pull_request' && !cancelled()
+      github.event_name == 'merge_group' && !cancelled()
       && needs.build_images.result != 'skipped'
-    env:
-      DATA_PREFIX: ${{ inputs.data_prefix || 'layers' }}
 
     steps:
       - name: Checkout kerbside-patches
@@ -1225,15 +1221,17 @@ jobs:
       - name: Collect layer data and prepare PR
         env:
           GITHUB_TOKEN: ${{ secrets.DAILY_REBASE_TOKEN }}
-          PR_NUMBER: ${{ github.event.pull_request.number }}
-          PR_TITLE: ${{ github.event.pull_request.title }}
+          # The queue branch names the pull request; the script looks its
+          # title up.
+          QUEUE_REF: ${{ github.event.merge_group.head_ref }}
           CURRENT_ATTEMPT: ${{ github.run_attempt }}
         # The script switches the working tree to develop, which replaces
         # tools/, so it runs from a copy outside the checkout along with the
-        # scripts it calls.
+        # scripts it calls, and the helper create-data-pr.sh calls.
         run: |
           cp tools/collect-layer-data-pr.sh tools/collect-layer-data.py \
-              tools/create-data-pr.sh "${RUNNER_TEMP}/"
+              tools/create-data-pr.sh tools/data-pr-auto-merge.sh \
+              "${RUNNER_TEMP}/"
           "${RUNNER_TEMP}/collect-layer-data-pr.sh"
 
   # Each collection job needs every gated job directly rather than through
