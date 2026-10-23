@@ -506,10 +506,10 @@ with the others.
 ### Phase 6 plan
 
 Planned on 2026-10-23, on branch `privsep-memory-phase-6`. The branch is
-stacked on `privsep-memory-phase-5`, which is stacked on
-`privsep-memory-plan` (PR #1953), because this plan file is not on
-`develop` yet. Phase 5 must merge first (see below), so rebase this
-branch onto `develop` once #1953 and Phase 5 have merged.
+stacked on `privsep-memory-plan` (PR #1953), because this plan file is
+not on `develop` yet. Phase 5 landed on that branch too, and must merge
+first (see below), so rebase this branch onto `develop` once #1953 has
+merged.
 
 **Planning effort: high.** Five upstream projects are involved, and
 how reviewers receive the neutron-lib and futurist changes matters more
@@ -688,8 +688,10 @@ briefs do not repeat:
   `previous_source_sha` to `git ls-remote <repo> master`.
 - Write the patch as a `git format-patch` against that SHA, authored
   by Michael Still <mikal@stillhq.com>, with upstream's commit style
-  and a `Change-Id`. Credit Claude with an `Assisted-By:` line only,
-  never `Co-Authored-By:` (Phase 5). Run `tools/gerrit-pre-push-lint
+  and a `Change-Id`. Credit Claude with one `Assisted-By: <model>
+  (<effort> effort)` line only, such as `Assisted-By: Claude Opus 5.5
+  (high effort)`, with no email address or context window, and never
+  `Co-Authored-By:` (Phase 5, Decision 7). Run `tools/gerrit-pre-push-lint
   --commit` in `src/<directory>` and fix every error it reports. Phase
   5's `llm-attribution` pre-commit hook rejects the patch otherwise. Do
   not start any step until Phase 5 has merged, so that the linter and
