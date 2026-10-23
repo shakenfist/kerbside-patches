@@ -195,13 +195,36 @@ class RealLanesTest(SelectLanesTestCase):
                     REAL_LANES, '--event', event, '--tier', tier, '--code-changed', changed)
                 self.assertEqual(0, code, '%s %s %s: %s' % (event, tier, changed, err))
 
-    def test_pull_request_selection(self):
-        code, out, err = self.run_main_path(REAL_LANES, '--event', 'pull_request', '--code-changed', 'true')
+    def select(self, event):
+        code, out, err = self.run_main_path(REAL_LANES, '--event', event, '--code-changed', 'true')
         self.assertEqual(0, code, err)
         r = dict(line.split('=', 1) for line in out.splitlines())
-        self.assertEqual(3, len(json.loads(r['builds'])['test']))
-        self.assertEqual(8, len(json.loads(r['installs'])['test']))
-        self.assertEqual(2, len(json.loads(r['patch_tests'])['test']))
+        names = {k: [lane['name'] for lane in json.loads(r[k])['test']] for k in ('builds', 'installs', 'patch_tests')}
+        return names, r['run_local_build']
+
+    def test_pull_request_selection(self):
+        names, local_build = self.select('pull_request')
+        self.assertEqual(['build-debian-trixie-master'], names['builds'])
+        self.assertEqual(['master-h-debian13-c-debian13-aio', 'master-h-debian13-c-debian13-aio-launcher'],
+                         names['installs'])
+        self.assertEqual(['debian-13'], names['patch_tests'])
+        self.assertEqual('false', local_build)
+
+    def test_merge_group_selection(self):
+        names, local_build = self.select('merge_group')
+        self.assertEqual(['build-debian-trixie-master', 'build-ubuntu-noble-master', 'build-rocky-10-master'],
+                         names['builds'])
+        self.assertEqual([
+            'master-h-debian13-c-ubuntu2404-aio',
+            'master-h-debian13-c-debian13-aio-nokerbside',
+            'master-h-debian13-c-debian13-aio',
+            'master-h-debian13-c-debian13-aio-launcher',
+            'master-h-rocky10-c-debian-13-aio',
+            'master-h-rocky10-c-debian-13-aio-launcher',
+            'master-h-rocky10-c-rocky10-aio',
+            'master-h-debian13-c-debian13-multi'], names['installs'])
+        self.assertEqual(['debian-13', 'rocky-9'], names['patch_tests'])
+        self.assertEqual('true', local_build)
 
 
 if __name__ == '__main__':
