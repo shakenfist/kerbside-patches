@@ -8,8 +8,7 @@ Related-Bug: #2170465
 Prompt: after proposing pending_updates for the L3 agent, Mikal asked for
 the equivalent DHCP agent change as a second patch in the same series;
 the DHCP agent uses the same ResourceProcessingQueue.
-Assisted-By: Claude Opus 5.5 (1M context, low effort) <noreply@anthropic.com>
-Co-Authored-By: Claude Opus 5.5 (1M context, low effort) <noreply@anthropic.com>
+Assisted-By: Claude Opus 5.5 (low effort)
 
 Change-Id: Ia164204c61826be7b9498436f90283698c3a0747
 Signed-off-by: Michael Still <mikal@stillhq.com>

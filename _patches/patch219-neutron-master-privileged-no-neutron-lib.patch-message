@@ -1,0 +1,19 @@
+privileged: Do not import neutron_lib
+
+Importing any neutron_lib module imports neutron_lib.db.api to register
+ORM listeners (LP #1802369), costing every neutron privsep daemon about
+33MB of SQLAlchemy, oslo.db and pecan. The privileged code uses three
+constants and safe_decode_utf8(); copy them into privsep_safe_utils.
+
+A test checks that the copies match neutron_lib. Making neutron_lib's
+db.api import lazy would fix this for every consumer, but changes when
+the ORM listeners are registered, so it is left for discussion.
+
+Prompt: Mikal asked for privsep memory fixes that can be landed one at a
+time and measured in devstack CI; this follows the neutron.common.utils
+change and halves a warm neutron privsep daemon from 118MB to 57MB.
+
+Assisted-By: Claude Opus 5.5 (low effort)
+
+Change-Id: I6df255020ec9a48b7433c3c61b8c0dfbc811d894
+Signed-off-by: Michael Still <mikal@stillhq.com>

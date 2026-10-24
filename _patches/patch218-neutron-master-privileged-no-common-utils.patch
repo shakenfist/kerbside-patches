@@ -1,0 +1,291 @@
+commit 0193fefcbc50fd1705ca9a3f5540b9cad89976f6
+Author: Michael Still <mikal@stillhq.com>
+Date:   Fri Oct 23 19:49:15 2026 +1100
+
+    privileged: Do not import neutron.common.utils
+    
+    Each privsep daemon imports the module holding an entrypoint on first
+    use. The privileged ip_lib and utils modules import neutron.common.utils
+    for three small helpers, which drags openstacksdk, SQLAlchemy and pecan
+    into every neutron privsep daemon: about 28MB of RSS each.
+    
+    Move read_file() and the two cidr_broadcast_address helpers into a new
+    privsep_safe_utils module, which neutron.common.utils re-exports, and
+    add a test that stops privileged modules importing neutron.common.utils.
+    
+    Prompt: Mikal asked for privsep memory fixes that can be landed one at a
+    time and measured in devstack CI; neutron daemons are the largest.
+    
+    Assisted-By: Claude Opus 5.5 (low effort)
+    
+    Depends-On: https://review.opendev.org/c/openstack/devstack/+/1011787
+    Change-Id: I56798a31723d45a92a564f8231c563a580f6faeb
+    Signed-off-by: Michael Still <mikal@stillhq.com>
+
+diff --git a/neutron/common/privsep_safe_utils.py b/neutron/common/privsep_safe_utils.py
+new file mode 100644
+index 0000000000..0815e8063a
+--- /dev/null
++++ b/neutron/common/privsep_safe_utils.py
+@@ -0,0 +1,69 @@
++# Copyright 2026 OpenStack Foundation
++# All Rights Reserved.
++#
++#    Licensed under the Apache License, Version 2.0 (the "License"); you may
++#    not use this file except in compliance with the License. You may obtain
++#    a copy of the License at
++#
++#         http://www.apache.org/licenses/LICENSE-2.0
++#
++#    Unless required by applicable law or agreed to in writing, software
++#    distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
++#    WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
++#    License for the specific language governing permissions and limitations
++#    under the License.
++
++"""Helpers that are safe to import from neutron.privileged.
++
++Every module neutron.privileged imports stays resident in each privsep
++daemon, so keep the imports here light. In particular, do not import
++neutron.common.utils, which pulls in the DB, API and SDK layers.
++"""
++
++import netaddr
++from neutron_lib import constants as n_const
++
++
++def cidr_broadcast_address(cidr):
++    """Returns the broadcast address of a cidr
++
++    :param cidr: (string, netaddr.IPNetwork, netaddr.IPAddress) either an ipv4
++                 or ipv6 cidr or a host IP.
++    :returns: (string) broadcast address of the cidr, None if the cidr has no
++              broadcast domain
++    """
++    broadcast = netaddr.IPNetwork(cidr).broadcast
++    if broadcast:
++        return str(broadcast)
++
++
++def cidr_broadcast_address_alternative(cidr):
++    """Wraps cidr_broadcast address and handles last cidr differently in
++    respect to netaddr
++
++    :param cidr: (string, netaddr.IPNetwork, netaddr.IPAddress) either an ipv4
++                 or ipv6 cidr.
++    :returns: (string) broadcast address of the cidr,
++              IP of the cidr if IPv4 /32 CIDR, otherwise None
++    """
++    broadcast = cidr_broadcast_address(cidr)
++    if broadcast:
++        return str(broadcast)
++    net = netaddr.IPNetwork(cidr)
++    if net.prefixlen == 32 and net.version == n_const.IP_VERSION_4:
++        return str(net.ip)
++    # NOTE(mtomaska): netaddr ver >= 0.9.0 will start returning None
++    # for IPv6 cidr /127 /128
++
++
++def read_file(path: str) -> str:
++    """Return the content of a text file as a string
++
++    The output includes the empty lines too. If the file does not exist,
++    returns an empty string.
++    """
++    try:
++        with open(path) as file:
++            return file.read()
++    except FileNotFoundError:
++        return ''
+diff --git a/neutron/common/utils.py b/neutron/common/utils.py
+index 583687b59c..3e93b3fdf3 100644
+--- a/neutron/common/utils.py
++++ b/neutron/common/utils.py
+@@ -61,12 +61,18 @@ from sqlalchemy.sql.expression import func as sql_func
+ import neutron
+ from neutron._i18n import _
+ from neutron.api import api_common
++from neutron.common import privsep_safe_utils
+ from neutron.conf import service as conf_service
+ 
+ 
+ TIME_FORMAT = "%Y-%m-%dT%H:%M:%SZ"
+ LOG = logging.getLogger(__name__)
+ 
++cidr_broadcast_address = privsep_safe_utils.cidr_broadcast_address
++cidr_broadcast_address_alternative = (
++    privsep_safe_utils.cidr_broadcast_address_alternative)
++read_file = privsep_safe_utils.read_file
++
+ DEFAULT_THROTTLER_VALUE = 2
+ 
+ _SEPARATOR_REGEX = re.compile(r'[/\\]+')
+@@ -316,38 +322,6 @@ def cidr_mask_length(cidr):
+     return netaddr.IPNetwork(cidr).netmask.netmask_bits()
+ 
+ 
+-def cidr_broadcast_address(cidr):
+-    """Returns the broadcast address of a cidr
+-
+-    :param cidr: (string, netaddr.IPNetwork, netaddr.IPAddress) either an ipv4
+-                 or ipv6 cidr or a host IP.
+-    :returns: (string) broadcast address of the cidr, None if the cidr has no
+-              broadcast domain
+-    """
+-    broadcast = netaddr.IPNetwork(cidr).broadcast
+-    if broadcast:
+-        return str(broadcast)
+-
+-
+-def cidr_broadcast_address_alternative(cidr):
+-    """Wraps cidr_broadcast address and handles last cidr differently in
+-    respect to netaddr
+-
+-    :param cidr: (string, netaddr.IPNetwork, netaddr.IPAddress) either an ipv4
+-                 or ipv6 cidr.
+-    :returns: (string) broadcast address of the cidr,
+-              IP of the cidr if IPv4 /32 CIDR, otherwise None
+-    """
+-    broadcast = cidr_broadcast_address(cidr)
+-    if broadcast:
+-        return str(broadcast)
+-    net = netaddr.IPNetwork(cidr)
+-    if net.prefixlen == 32 and net.version == n_const.IP_VERSION_4:
+-        return str(net.ip)
+-    # NOTE(mtomaska): netaddr ver >= 0.9.0 will start returning None
+-    # for IPv6 cidr /127 /128
+-
+-
+ def get_ip_version(ip_or_cidr):
+     return netaddr.IPNetwork(ip_or_cidr).version
+ 
+@@ -1124,19 +1098,6 @@ def parse_permitted_ethertypes(permitted_ethertypes):
+     return ret
+ 
+ 
+-def read_file(path: str) -> str:
+-    """Return the content of a text file as a string
+-
+-    The output includes the empty lines too. If the file does not exist,
+-    returns an empty string.
+-    """
+-    try:
+-        with open(path) as file:
+-            return file.read()
+-    except FileNotFoundError:
+-        return ''
+-
+-
+ def ts_to_datetime(timestamp):
+     """Converts timestamp (in seconds) to datetime"""
+     return datetime.datetime.fromtimestamp(timestamp, tz=datetime.UTC)
+diff --git a/neutron/privileged/agent/linux/ip_lib.py b/neutron/privileged/agent/linux/ip_lib.py
+index 6b504b0cd0..e5604e8159 100644
+--- a/neutron/privileged/agent/linux/ip_lib.py
++++ b/neutron/privileged/agent/linux/ip_lib.py
+@@ -27,7 +27,7 @@ from pyroute2 import netns
+ import tenacity
+ 
+ from neutron._i18n import _
+-from neutron.common import utils as common_utils
++from neutron.common import privsep_safe_utils
+ from neutron import privileged
+ from neutron.privileged.agent import linux as priv_linux
+ 
+@@ -282,7 +282,8 @@ def add_ip_addresses(cidrs, device, namespace, scope,
+         family = _IP_VERSION_FAMILY_MAP[net.version]
+         broadcast = None
+         if add_broadcast:
+-            broadcast = common_utils.cidr_broadcast_address_alternative(cidr)
++            broadcast = (
++                privsep_safe_utils.cidr_broadcast_address_alternative(cidr))
+         try:
+             _run_iproute_addr('add',
+                               device,
+diff --git a/neutron/privileged/agent/linux/utils.py b/neutron/privileged/agent/linux/utils.py
+index eb892dc8f9..732de88cc6 100644
+--- a/neutron/privileged/agent/linux/utils.py
++++ b/neutron/privileged/agent/linux/utils.py
+@@ -22,7 +22,7 @@ from neutron_lib.utils import helpers
+ from oslo_concurrency import processutils
+ from oslo_utils import fileutils
+ 
+-from neutron.common import utils
++from neutron.common import privsep_safe_utils
+ from neutron import privileged
+ 
+ 
+@@ -61,7 +61,7 @@ def delete_if_exists(_path, remove=os.unlink):
+ 
+ @privileged.default.entrypoint
+ def read_file(_path: str) -> str:
+-    return utils.read_file(_path)
++    return privsep_safe_utils.read_file(_path)
+ 
+ 
+ @privileged.default.entrypoint
+diff --git a/neutron/tests/unit/common/test_privsep_safe_utils.py b/neutron/tests/unit/common/test_privsep_safe_utils.py
+new file mode 100644
+index 0000000000..b5b78de4fe
+--- /dev/null
++++ b/neutron/tests/unit/common/test_privsep_safe_utils.py
+@@ -0,0 +1,47 @@
++# Copyright 2026 OpenStack Foundation
++# All Rights Reserved.
++#
++#    Licensed under the Apache License, Version 2.0 (the "License"); you may
++#    not use this file except in compliance with the License. You may obtain
++#    a copy of the License at
++#
++#         http://www.apache.org/licenses/LICENSE-2.0
++#
++#    Unless required by applicable law or agreed to in writing, software
++#    distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
++#    WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
++#    License for the specific language governing permissions and limitations
++#    under the License.
++
++import subprocess
++import sys
++
++from neutron.tests import base
++
++# Modules a privsep daemon imports when it serves neutron entrypoints.
++PRIVILEGED_MODULES = (
++    'neutron.privileged.agent.linux.ip_lib',
++    'neutron.privileged.agent.linux.utils',
++    'neutron.privileged.agent.linux.tc_lib',
++    'neutron.privileged.agent.linux.ethtool',
++    'neutron.privileged.agent.linux.devlink',
++    'neutron.privileged.agent.linux.dhcp',
++    'neutron.privileged.agent.linux.svd',
++    'neutron.privileged.agent.ovsdb.native.helpers',
++)
++FORBIDDEN_MODULES = ('neutron.common.utils',)
++
++
++class PrivilegedImportsTestCase(base.BaseTestCase):
++
++    def test_privileged_modules_stay_lightweight(self):
++        # Run in a fresh interpreter: the test process has already imported
++        # most of neutron.
++        code = ('import importlib, sys\n'
++                'for m in %r:\n'
++                '    importlib.import_module(m)\n'
++                'print(",".join(m for m in %r if m in sys.modules))\n'
++                % (PRIVILEGED_MODULES, FORBIDDEN_MODULES))
++        cmd = [sys.executable, '-c', code]
++        out = subprocess.check_output(cmd, text=True)  # noqa: S603
++        self.assertEqual('', out.strip())
+diff --git a/releasenotes/notes/privsep-daemon-lighter-imports-5af0a070701bf51d.yaml b/releasenotes/notes/privsep-daemon-lighter-imports-5af0a070701bf51d.yaml
+new file mode 100644
+index 0000000000..463f20b2c9
+--- /dev/null
++++ b/releasenotes/notes/privsep-daemon-lighter-imports-5af0a070701bf51d.yaml
+@@ -0,0 +1,6 @@
++---
++other:
++  - |
++    Neutron's privsep daemons no longer import ``neutron.common.utils``,
++    which pulled the API and SDK layers into every daemon, saving about
++    28MB of resident memory per daemon.

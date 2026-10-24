@@ -18,8 +18,7 @@ Date:   Mon Oct 12 19:27:13 2026 +1100
     This is a separate change rather than an amendment to the kerbside role
     so that the kerbside series does not depend on the manifest change.
     
-    Assisted-By: Claude Opus 5.5 (1M context, high effort) <noreply@anthropic.com>
-    Co-Authored-By: Claude Opus 5.5 (1M context, high effort) <noreply@anthropic.com>
+    Assisted-By: Claude Opus 5.5 (high effort)
     Signed-off-by: Michael Still <mikal@stillhq.com>
 
 diff --git a/ansible/roles/kerbside/defaults/main.yml b/ansible/roles/kerbside/defaults/main.yml

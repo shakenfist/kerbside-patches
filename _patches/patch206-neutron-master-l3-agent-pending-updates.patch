@@ -1,6 +1,6 @@
-commit 7a1a093821bb068927897ad85cb3c503b3a5486f
+commit 049c4f4d157355a6c7904df47b037d5ddb2b4423
 Author: Michael Still <mikal@stillhq.com>
-Date:   Tue Oct 20 18:10:57 2026 +1100
+Date:   Fri Oct 23 19:40:11 2026 +1100
 
     l3: Report pending updates in agent state
     
@@ -14,8 +14,7 @@ Date:   Tue Oct 20 18:10:57 2026 +1100
     metrics about its work queue. It does not, and LP #1512864 left such
     instrumentation to case-by-case patches, so he chose to propose the
     smallest in-tree change first and see how reviewers react.
-    Assisted-By: Claude Opus 5.5 (1M context, low effort) <noreply@anthropic.com>
-    Co-Authored-By: Claude Opus 5.5 (1M context, low effort) <noreply@anthropic.com>
+    Assisted-By: Claude Opus 5.5 (low effort)
     
     Change-Id: Icb83a84cc95388c9f68af538294022730dca1b90
     Signed-off-by: Michael Still <mikal@stillhq.com>

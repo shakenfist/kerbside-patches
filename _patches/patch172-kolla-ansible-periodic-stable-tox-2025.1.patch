@@ -22,7 +22,7 @@ Date:   Wed Jul 8 17:40:37 2026 +1000
     newer branches with the local openstack-python3-jobs-kolla-ansible
     template.
     
-    Assisted-By: Claude Fable 5 (1M context, medium effort)
+    Assisted-By: Claude Fable 5 (medium effort)
     Change-Id: I9bac870318af72936145ceed2a787846e36fb496
     Signed-off-by: Michael Still <mikal@stillhq.com>
 

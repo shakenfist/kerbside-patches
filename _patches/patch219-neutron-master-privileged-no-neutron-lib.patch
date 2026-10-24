@@ -1,0 +1,214 @@
+commit 70420c2bed5b4e41dd37b312f527bd9d36c5d34b
+Author: Michael Still <mikal@stillhq.com>
+Date:   Fri Oct 23 19:49:15 2026 +1100
+
+    privileged: Do not import neutron_lib
+    
+    Importing any neutron_lib module imports neutron_lib.db.api to register
+    ORM listeners (LP #1802369), costing every neutron privsep daemon about
+    33MB of SQLAlchemy, oslo.db and pecan. The privileged code uses three
+    constants and safe_decode_utf8(); copy them into privsep_safe_utils.
+    
+    A test checks that the copies match neutron_lib. Making neutron_lib's
+    db.api import lazy would fix this for every consumer, but changes when
+    the ORM listeners are registered, so it is left for discussion.
+    
+    Prompt: Mikal asked for privsep memory fixes that can be landed one at a
+    time and measured in devstack CI; this follows the neutron.common.utils
+    change and halves a warm neutron privsep daemon from 118MB to 57MB.
+    
+    Assisted-By: Claude Opus 5.5 (low effort)
+    
+    Change-Id: I6df255020ec9a48b7433c3c61b8c0dfbc811d894
+    Signed-off-by: Michael Still <mikal@stillhq.com>
+
+diff --git a/neutron/common/privsep_safe_utils.py b/neutron/common/privsep_safe_utils.py
+index 0815e8063a..648fa9fb21 100644
+--- a/neutron/common/privsep_safe_utils.py
++++ b/neutron/common/privsep_safe_utils.py
+@@ -17,11 +17,18 @@
+ 
+ Every module neutron.privileged imports stays resident in each privsep
+ daemon, so keep the imports here light. In particular, do not import
++neutron_lib, which pulls in neutron_lib.db.api and SQLAlchemy, or
+ neutron.common.utils, which pulls in the DB, API and SDK layers.
+ """
+ 
+ import netaddr
+-from neutron_lib import constants as n_const
++
++
++# Copies of neutron_lib.constants: importing any neutron_lib module imports
++# neutron_lib.db.api and SQLAlchemy. A unit test keeps them in sync.
++IP_VERSION_4 = 4
++IP_VERSION_6 = 6
++DEVICE_NAME_MAX_LEN = 15
+ 
+ 
+ def cidr_broadcast_address(cidr):
+@@ -50,12 +57,23 @@ def cidr_broadcast_address_alternative(cidr):
+     if broadcast:
+         return str(broadcast)
+     net = netaddr.IPNetwork(cidr)
+-    if net.prefixlen == 32 and net.version == n_const.IP_VERSION_4:
++    if net.prefixlen == 32 and net.version == IP_VERSION_4:
+         return str(net.ip)
+     # NOTE(mtomaska): netaddr ver >= 0.9.0 will start returning None
+     # for IPv6 cidr /127 /128
+ 
+ 
++def safe_decode_utf8(s):
++    """Safe decode a str from UTF (copy of neutron_lib.utils.helpers).
++
++    :param s: The str to decode.
++    :returns: The decoded str.
++    """
++    if isinstance(s, bytes):
++        return s.decode('utf-8', 'surrogateescape')
++    return s
++
++
+ def read_file(path: str) -> str:
+     """Return the content of a text file as a string
+ 
+diff --git a/neutron/privileged/agent/linux/ip_lib.py b/neutron/privileged/agent/linux/ip_lib.py
+index e5604e8159..9f7bfb228d 100644
+--- a/neutron/privileged/agent/linux/ip_lib.py
++++ b/neutron/privileged/agent/linux/ip_lib.py
+@@ -14,8 +14,10 @@ import errno
+ import os
+ import socket
+ 
++# NOTE(mikal): every module imported here stays resident in each privsep
++# daemon. Do not import neutron_lib or neutron.common.utils. Put what
++# privileged code needs in neutron.common.privsep_safe_utils instead.
+ import netaddr
+-from neutron_lib import constants
+ from oslo_log import log as logging
+ import pyroute2
+ from pyroute2 import iproute
+@@ -357,7 +359,7 @@ def flush_ip_addresses(ip_version, device, namespace):
+ 
+ @privileged.default.entrypoint
+ def create_interface(ifname, namespace, kind, **kwargs):
+-    ifname = ifname[:constants.DEVICE_NAME_MAX_LEN]
++    ifname = ifname[:privsep_safe_utils.DEVICE_NAME_MAX_LEN]
+     try:
+         with get_iproute(namespace) as ip:
+             physical_interface = kwargs.pop("physical_interface", None)
+diff --git a/neutron/privileged/agent/linux/tc_lib.py b/neutron/privileged/agent/linux/tc_lib.py
+index d4477ab10c..ca01b33253 100644
+--- a/neutron/privileged/agent/linux/tc_lib.py
++++ b/neutron/privileged/agent/linux/tc_lib.py
+@@ -15,18 +15,21 @@
+ import errno
+ import socket
+ 
+-from neutron_lib import constants as n_constants
++# NOTE(mikal): every module imported here stays resident in each privsep
++# daemon. Do not import neutron_lib or neutron.common.utils. Put what
++# privileged code needs in neutron.common.privsep_safe_utils instead.
+ import pyroute2
+ from pyroute2 import protocols as pyroute2_protocols
+ 
+ from neutron._i18n import _
++from neutron.common import privsep_safe_utils
+ from neutron import privileged
+ from neutron.privileged.agent import linux as priv_linux
+ from neutron.privileged.agent.linux import ip_lib
+ 
+ 
+-_IP_VERSION_FAMILY_MAP = {n_constants.IP_VERSION_4: socket.AF_INET,
+-                          n_constants.IP_VERSION_6: socket.AF_INET6}
++_IP_VERSION_FAMILY_MAP = {privsep_safe_utils.IP_VERSION_4: socket.AF_INET,
++                          privsep_safe_utils.IP_VERSION_6: socket.AF_INET6}
+ 
+ 
+ class TrafficControlClassNotFound(RuntimeError):
+diff --git a/neutron/privileged/agent/linux/utils.py b/neutron/privileged/agent/linux/utils.py
+index 732de88cc6..861b7f8e46 100644
+--- a/neutron/privileged/agent/linux/utils.py
++++ b/neutron/privileged/agent/linux/utils.py
+@@ -18,7 +18,9 @@ import re
+ import signal
+ import subprocess
+ 
+-from neutron_lib.utils import helpers
++# NOTE(mikal): every module imported here stays resident in each privsep
++# daemon. Do not import neutron_lib or neutron.common.utils. Put what
++# privileged code needs in neutron.common.privsep_safe_utils instead.
+ from oslo_concurrency import processutils
+ from oslo_utils import fileutils
+ 
+@@ -79,8 +81,8 @@ def execute_process(cmd, _process_input, addl_env):
+     _stdout, _stderr = obj.communicate(_process_input)
+     returncode = obj.returncode
+     obj.stdin.close()
+-    _stdout = helpers.safe_decode_utf8(_stdout)
+-    _stderr = helpers.safe_decode_utf8(_stderr)
++    _stdout = privsep_safe_utils.safe_decode_utf8(_stdout)
++    _stderr = privsep_safe_utils.safe_decode_utf8(_stderr)
+     return _stdout, _stderr, returncode
+ 
+ 
+diff --git a/neutron/tests/unit/common/test_privsep_safe_utils.py b/neutron/tests/unit/common/test_privsep_safe_utils.py
+index b5b78de4fe..3f6c754e96 100644
+--- a/neutron/tests/unit/common/test_privsep_safe_utils.py
++++ b/neutron/tests/unit/common/test_privsep_safe_utils.py
+@@ -16,6 +16,10 @@
+ import subprocess
+ import sys
+ 
++from neutron_lib import constants as n_const
++from neutron_lib.utils import helpers
++
++from neutron.common import privsep_safe_utils
+ from neutron.tests import base
+ 
+ # Modules a privsep daemon imports when it serves neutron entrypoints.
+@@ -29,7 +33,7 @@ PRIVILEGED_MODULES = (
+     'neutron.privileged.agent.linux.svd',
+     'neutron.privileged.agent.ovsdb.native.helpers',
+ )
+-FORBIDDEN_MODULES = ('neutron.common.utils',)
++FORBIDDEN_MODULES = ('neutron.common.utils', 'neutron_lib')
+ 
+ 
+ class PrivilegedImportsTestCase(base.BaseTestCase):
+@@ -44,4 +48,20 @@ class PrivilegedImportsTestCase(base.BaseTestCase):
+                 % (PRIVILEGED_MODULES, FORBIDDEN_MODULES))
+         cmd = [sys.executable, '-c', code]
+         out = subprocess.check_output(cmd, text=True)  # noqa: S603
+-        self.assertEqual('', out.strip())
++        self.assertEqual(
++            '', out.strip(),
++            'Privileged modules must not import these; move what they '
++            'need into neutron.common.privsep_safe_utils')
++
++
++class PrivsepSafeUtilsTestCase(base.BaseTestCase):
++
++    def test_constants_match_neutron_lib(self):
++        for name in ('IP_VERSION_4', 'IP_VERSION_6', 'DEVICE_NAME_MAX_LEN'):
++            self.assertEqual(getattr(n_const, name),
++                             getattr(privsep_safe_utils, name), name)
++
++    def test_safe_decode_utf8_matches_neutron_lib(self):
++        for value in (b'abc', b'\xff\xfe', 'abc', None):
++            self.assertEqual(helpers.safe_decode_utf8(value),
++                             privsep_safe_utils.safe_decode_utf8(value))
+diff --git a/releasenotes/notes/privsep-daemon-lighter-imports-5af0a070701bf51d.yaml b/releasenotes/notes/privsep-daemon-lighter-imports-5af0a070701bf51d.yaml
+index 463f20b2c9..50aa5086cc 100644
+--- a/releasenotes/notes/privsep-daemon-lighter-imports-5af0a070701bf51d.yaml
++++ b/releasenotes/notes/privsep-daemon-lighter-imports-5af0a070701bf51d.yaml
+@@ -1,6 +1,7 @@
+ ---
+ other:
+   - |
+-    Neutron's privsep daemons no longer import ``neutron.common.utils``,
+-    which pulled the API and SDK layers into every daemon, saving about
+-    28MB of resident memory per daemon.
++    Neutron's privsep daemons no longer import ``neutron.common.utils`` or
++    ``neutron_lib``, which pulled the database, API and SDK layers into every
++    daemon. Each neutron privsep daemon now uses about half the resident
++    memory it did.

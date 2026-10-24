@@ -229,6 +229,16 @@ Several series can patch the same repository. The daily changelog
 lists each repository and commit range once, whichever series reaches
 it first.
 
+One piece of work can span several repositories, for example
+telemetry in devstack followed by fixes in oslo.privsep and neutron.
+Give each repository its own series named
+`<repository>-<topic>-<NNN>`, where the shared topic marks them as a
+group and `NNN` gives the landing order: `devstack-privsep-memory-001`,
+`oslo.privsep-privsep-memory-002`, `neutron-privsep-memory-003`. Give
+them all the same `destination_branch` so they share a Gerrit topic.
+Put a cross-series `Depends-On` only on the root patch of the later
+series.
+
 ## Linter issues
 
 Kolla-Ansible runs `tox -elinters`, which includes ansible-lint. The common

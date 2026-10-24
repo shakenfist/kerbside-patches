@@ -1,0 +1,14 @@
+Tolerate zombie processes in get-stats.py
+
+psutil raises ZombieProcess from cmdline() for a zombie, and the
+process scan in get-stats.py did not catch it, so a single zombie on
+the node aborted the script and the job lost all of performance.json.
+Skip processes whose command line cannot be read.
+
+Prompt: while drafting per-process memory telemetry for devstack's
+performance.json, a local run of get-stats.py crashed on a zombie.
+
+Assisted-By: Claude Opus 5.5 (low effort)
+
+Change-Id: Ia3033f056e407a950d59d5d52684838d4e9c4d78
+Signed-off-by: Michael Still <mikal@stillhq.com>

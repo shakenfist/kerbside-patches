@@ -1,0 +1,91 @@
+commit ef798e1fc6d4b11b3d04fda4a09f7a6d5972fe68
+Author: Michael Still <mikal@stillhq.com>
+Date:   Fri Oct 23 19:49:41 2026 +1100
+
+    Only inspect eventlet if it is already imported
+    
+    daemon.py imports eventlet at module level to find out whether it has
+    been monkey patched. That import pulls in dnspython, cryptography and
+    pyOpenSSL, which stay resident in every privsep daemon for about 20MB
+    each. Look eventlet up in sys.modules instead.
+    
+    If nothing has imported eventlet it cannot have patched anything, so
+    behaviour is unchanged. Unlike removing eventlet support entirely, this
+    is safe to backport.
+    
+    Prompt: Mikal asked for oslo.privsep memory fixes that can be landed one
+    at a time and measured in devstack CI; this is the minimal,
+    behaviour-preserving alternative to the eventlet-removal change.
+    
+    Assisted-By: Claude Opus 5.5 (low effort)
+    
+    Depends-On: https://review.opendev.org/c/openstack/devstack/+/1011787
+    Change-Id: Ic25f2a29380c349c5f87f4a74964bcffe42c4d8e
+    Signed-off-by: Michael Still <mikal@stillhq.com>
+
+diff --git a/oslo_privsep/daemon.py b/oslo_privsep/daemon.py
+index 13563cf..dd75e2a 100644
+--- a/oslo_privsep/daemon.py
++++ b/oslo_privsep/daemon.py
+@@ -101,12 +101,12 @@ def _null() -> list[Any]:
+ 
+ 
+ _MONKEY_PATCHED = False
+-try:
++# Importing eventlet costs every daemon ~20MB, and if nothing has imported it
++# yet it cannot have monkey patched anything.
++if 'eventlet' in sys.modules:
+     import eventlet
+     from eventlet import patcher
+-except ImportError:
+-    pass
+-else:
++
+     for module in EVENTLET_MODULES:
+         if eventlet.patcher.is_monkey_patched(module):
+             _MONKEY_PATCHED = True
+diff --git a/oslo_privsep/tests/unit/test_daemon.py b/oslo_privsep/tests/unit/test_daemon.py
+index 1d12c3f..2301c38 100644
+--- a/oslo_privsep/tests/unit/test_daemon.py
++++ b/oslo_privsep/tests/unit/test_daemon.py
+@@ -18,6 +18,7 @@ import fixtures
+ import functools
+ import logging as pylogging
+ import platform
++import subprocess
+ import sys
+ import time
+ from unittest import mock
+@@ -369,3 +370,19 @@ class UnMonkeyPatch(base.BaseTestCase):
+                     )
+                     original_attr = getattr(orig_mod, attr_name, None)
+                     self.assertEqual(un_monkey_patched_attr, original_attr)
++
++
++class EventletNotImportedTest(base.BaseTestCase):
++    def test_daemon_import_does_not_import_eventlet(self):
++        # A fresh interpreter: this test process has already imported
++        # eventlet at module level.
++        out = subprocess.check_output(
++            [
++                sys.executable,
++                '-c',
++                'import sys; import oslo_privsep.daemon; '
++                'print("eventlet" in sys.modules)',
++            ],
++            text=True,
++        )
++        self.assertEqual('False', out.strip())
+diff --git a/releasenotes/notes/daemon-skip-eventlet-import-bbc49fefe63af186.yaml b/releasenotes/notes/daemon-skip-eventlet-import-bbc49fefe63af186.yaml
+new file mode 100644
+index 0000000..1d16b2b
+--- /dev/null
++++ b/releasenotes/notes/daemon-skip-eventlet-import-bbc49fefe63af186.yaml
+@@ -0,0 +1,7 @@
++---
++fixes:
++  - |
++    The privsep daemon no longer imports eventlet unless the process that
++    starts it has already imported it. Importing eventlet only to check
++    whether it had monkey patched anything cost every privsep daemon about
++    20MB of resident memory.

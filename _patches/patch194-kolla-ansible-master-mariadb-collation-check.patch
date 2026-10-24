@@ -1,6 +1,6 @@
-commit b883003f4936cfe4eb370b6224cf07ff48dc287c
+commit 90a639797216ba8ea90b160022d478e4ad8abc99
 Author: Michael Still <mikal@stillhq.com>
-Date:   Tue Oct 20 18:09:08 2026 +1100
+Date:   Fri Oct 23 19:34:19 2026 +1100
 
     Report databases with mixed utf8mb3 collations.
     
@@ -18,8 +18,7 @@ Date:   Tue Oct 20 18:09:08 2026 +1100
     before any schema exists, so it could never see the mixture it looked
     for. This moves the same query to the post-deployment check.
     
-    Assisted-By: Claude Opus 5 (1M context, high effort) <noreply@anthropic.com>
-    Co-Authored-By: Claude Opus 5 (1M context, high effort) <noreply@anthropic.com>
+    Assisted-By: Claude Opus 5 (high effort)
     
     Change-Id: I2e81532ece9116238ee44555b1fb8ebae5360c70
     Signed-off-by: Michael Still <mikal@stillhq.com>

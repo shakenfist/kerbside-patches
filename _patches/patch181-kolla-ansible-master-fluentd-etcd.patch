@@ -1,6 +1,6 @@
-commit 854c3e375f0972f9df166fa52391ff6fcbbf0f96
+commit 59d27ef771a5735382e1e75f2d439de4726de7d8
 Author: Michael Still <mikal@stillhq.com>
-Date:   Tue Oct 20 18:11:37 2026 +1100
+Date:   Fri Oct 23 19:40:54 2026 +1100
 
     Collect etcd logs with Fluentd.
     
@@ -16,8 +16,7 @@ Date:   Tue Oct 20 18:11:37 2026 +1100
     collection. We then built this on top of the Kerbside changes to
     demonstrate that the JSON parser generalises.
     
-    Assisted-By: Claude Opus 5 (1M context, high effort) <noreply@anthropic.com>
-    Co-Authored-By: Claude Opus 5 (1M context, high effort) <noreply@anthropic.com>
+    Assisted-By: Claude Opus 5 (high effort)
     
     Change-Id: I9bcd92bc3e8f30c2407df1096d8cdff54e967244
     Signed-off-by: Michael Still <mikal@stillhq.com>

@@ -28,6 +28,12 @@ from enum import Enum
 from pathlib import Path
 from typing import Optional
 
+# This script is run by path from inside an OpenStack tree, so put its own
+# directory on sys.path to find patch_message, which holds the attribution
+# rules it shares with tools/check-llm-attribution.py.
+sys.path.insert(0, os.path.dirname(os.path.realpath(__file__)))
+import patch_message  # noqa: E402
+
 
 class Severity(Enum):
     ERROR = 'error'
@@ -451,6 +457,22 @@ class GerritLinter:
                 '(typos, whitespace).\n'
                 '  If this is a fix or feature, remove the prefix.',
             )
+
+        # OpenStack credits an LLM with Assisted-By only, in one form, and
+        # keeps Co-Authored-By for people.
+        for line, fix in patch_message.attribution_problems(commit_message):
+            if patch_message.ASSISTED_BY.match(line):
+                message = ('Assisted-By is not in the standard form '
+                           '"<model> (<effort> effort)".')
+                suggestion = f'Write it as "{fix}".'
+            else:
+                message = ('Co-Authored-By credits an LLM; OpenStack reserves '
+                           'it for people.')
+                suggestion = (f'Replace it with "{fix}".' if fix else
+                              'Remove it; the Assisted-By line already '
+                              'credits the tool.')
+            self.add_issue(Severity.ERROR, 'COMMIT', lines.index(line) + 1,
+                           message, suggestion)
 
         # Check for Change-Id
         if 'Change-Id:' not in commit_message:

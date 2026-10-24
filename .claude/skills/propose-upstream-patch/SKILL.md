@@ -36,7 +36,14 @@ right the first time.
   - Paragraph 1: what is broken, and what this change does about it.
   - Paragraph 2 (optional): why this approach, not the obvious alternative.
 - Footers (`Closes-Bug`, `Change-Id`, `Depends-On`, `Signed-off-by`,
-  `Co-Authored-By`) do not count toward the two paragraphs.
+  `Co-Authored-By` for a person, `Assisted-By`) do not count toward the
+  two paragraphs.
+- Credit an LLM with one `Assisted-By: <model> (<effort> effort)` line,
+  e.g. `Assisted-By: Claude Opus 5.5 (high effort)` (no email address,
+  context window or other settings; drop the effort only if unknown).
+  Never use `Co-Authored-By:`: OpenStack reserves it for people.
+  `gerrit-pre-push-lint` rejects anything else. A session's global
+  commit guidance that says otherwise does not apply to upstream patches.
 - No bullet lists of hunks, no multi-line logs or tracebacks, no
   "background" section, no links to Kerbside repositories. A single log
   line that *is* the symptom is fine.

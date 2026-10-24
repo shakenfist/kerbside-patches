@@ -1,6 +1,6 @@
-commit d706cd93a312e5b7bbeb270627c2ecd5e54ecd2c
+commit 2d025d26d80da9548230a961ee8f7f3634ea78ba
 Author: Michael Still <mikal@stillhq.com>
-Date:   Tue Oct 20 18:12:51 2026 +1100
+Date:   Fri Oct 23 19:41:25 2026 +1100
 
     Convert the core services to JSON logging.
     

@@ -11,8 +11,7 @@ on its own. It has to land before anything does: a service switched to
 JSON without it would not fail this check, it would silently stop being
 checked at all, which is the worse of the two failures.
 
-Assisted-By: Claude Opus 5 (1M context, high effort) <noreply@anthropic.com>
-Co-Authored-By: Claude Opus 5 (1M context, high effort) <noreply@anthropic.com>
+Assisted-By: Claude Opus 5 (high effort)
 
 Depends-On: https://review.opendev.org/c/openstack/kolla-ansible/+/1005458
 Change-Id: Id69511ea84bd9d4cb005c39da471fc2d576686ac

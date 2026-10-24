@@ -17,5 +17,5 @@ change 1010516.
 Related-Bug: #2155214
 Change-Id: Idd0a221f53ea3cffc7c198e9f429c5f70b9b3b07
 Signed-off-by: Michael Still <mikal@stillhq.com>
-Assisted-By: Claude Opus 5.5 (1M context, low effort) <noreply@anthropic.com>
+Assisted-By: Claude Opus 5.5 (low effort)
 Signed-off-by: Michael Still <mikal@stillhq.com>

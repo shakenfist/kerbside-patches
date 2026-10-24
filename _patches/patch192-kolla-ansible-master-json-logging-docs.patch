@@ -1,6 +1,6 @@
-commit 50b07b19dc0e8f1138f43b7b0d10ea60cd2341ae
+commit 3265f86f248f76d346c2dc0bf3d31137557f8758
 Author: Michael Still <mikal@stillhq.com>
-Date:   Tue Oct 20 18:12:52 2026 +1100
+Date:   Fri Oct 23 19:41:27 2026 +1100
 
     Document JSON logging.
     
@@ -20,8 +20,7 @@ Date:   Tue Oct 20 18:12:52 2026 +1100
     nothing documented the new option for operators, which is the first
     thing a reviewer would ask for.
     
-    Assisted-By: Claude Opus 5 (1M context, high effort) <noreply@anthropic.com>
-    Co-Authored-By: Claude Opus 5 (1M context, high effort) <noreply@anthropic.com>
+    Assisted-By: Claude Opus 5 (high effort)
     
     Change-Id: Id80c6ca50bc44bac4df799ee075dff8a4ec7bdc5
     Signed-off-by: Michael Still <mikal@stillhq.com>

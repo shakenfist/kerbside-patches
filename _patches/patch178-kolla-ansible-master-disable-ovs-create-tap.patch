@@ -36,8 +36,7 @@ Date:   Thu Aug 6 19:05:49 2026 +1000
     CI artifact bundles that nova was byte-identical across the last
     passing and first failing runs while neutron moved dev79 to dev88.
     
-    Assisted-By: Claude Opus 5 (1M context, high effort) <noreply@anthropic.com>
-    Co-Authored-By: Claude Opus 5 (1M context, high effort) <noreply@anthropic.com>
+    Assisted-By: Claude Opus 5 (high effort)
     
     Change-Id: I8cd115e7cc334e12e8dcc359fa9bcab5a0d0ed8a
     Signed-off-by: Michael Still <mikal@stillhq.com>

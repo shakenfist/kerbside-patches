@@ -1,6 +1,6 @@
-commit 5697057066a9e2a563fde0b70639a9e38be4bca5
+commit 8b2c53d1686ff43f59dc7fcc2c552cc810acf667
 Author: Michael Still <mikal@stillhq.com>
-Date:   Tue Oct 20 18:11:37 2026 +1100
+Date:   Fri Oct 23 19:40:53 2026 +1100
 
     Add kerbside CI scenario jobs.
     
@@ -42,8 +42,7 @@ Date:   Tue Oct 20 18:11:37 2026 +1100
     include Kerbside having been built. Also bump the timeout used
     for non-voting image-building kolla-ansible jobs.
     
-    Assisted-By: Claude Opus 4.7 (1M context, medium effort) <noreply@anthropic.com>
-    Co-Authored-By: Claude Opus 4.7 (1M context, medium effort) <noreply@anthropic.com>
+    Assisted-By: Claude Opus 4.7 (medium effort)
     
     Depends-On: https://review.opendev.org/c/openstack/kolla/+/986283
     Change-Id: I1784562d42c44f8d89e983846cb81d4d35daf6a2

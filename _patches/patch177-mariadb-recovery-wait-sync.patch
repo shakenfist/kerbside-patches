@@ -35,8 +35,7 @@ Date:   Thu Aug 6 19:05:49 2026 +1000
     989612 gate failures, where the master restart during recovery
     races slaves that are still receiving state transfer.
     
-    Assisted-By: Claude Fable 5 (200K context, medium effort) <noreply@anthropic.com>
-    Co-Authored-By: Claude Fable 5 (200K context, medium effort) <noreply@anthropic.com>
+    Assisted-By: Claude Fable 5 (medium effort)
     
     Closes-Bug: #2161773
     Change-Id: Ifd0260fa4875051b1c38ee52de4f0de1806f6cc9

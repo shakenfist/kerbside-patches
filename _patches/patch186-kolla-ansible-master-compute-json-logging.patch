@@ -1,6 +1,6 @@
-commit b5d8995f0061b43d7f8ea694bf0ab247f558b945
+commit 1fb599cd44ddd764da8299f707830a759b96b026
 Author: Michael Still <mikal@stillhq.com>
-Date:   Tue Oct 20 18:12:51 2026 +1100
+Date:   Fri Oct 23 19:41:25 2026 +1100
 
     Convert the compute services to JSON logging.
     
@@ -16,8 +16,7 @@ Date:   Tue Oct 20 18:12:51 2026 +1100
     Prompt: Michael asked for the bulk conversion to be broken into
     batches by project rather than landing as thirty separate commits.
     
-    Assisted-By: Claude Opus 5 (1M context, high effort) <noreply@anthropic.com>
-    Co-Authored-By: Claude Opus 5 (1M context, high effort) <noreply@anthropic.com>
+    Assisted-By: Claude Opus 5 (high effort)
     
     Change-Id: Idcb690f157a8954eb79ebf758cf1418fb52cdcfd
     Signed-off-by: Michael Still <mikal@stillhq.com>

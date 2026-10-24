@@ -1,6 +1,6 @@
-commit 057c066f8b77eec7663bfb9ede6e8e5a09136eed
+commit 4ffddd1081ea3b84df04c4cdc4f62f7edcfaf190
 Author: Michael Still <mikal@stillhq.com>
-Date:   Tue Oct 20 18:15:04 2026 +1100
+Date:   Fri Oct 23 19:43:10 2026 +1100
 
     nova: Fail nova_libvirt start without virtlogd
     
@@ -20,7 +20,7 @@ Date:   Tue Oct 20 18:15:04 2026 +1100
     Depends-On: https://review.opendev.org/c/openstack/kolla-ansible/+/1010532
     Change-Id: I31bed46c0ea038886d247bbdc97cc0c8a04b64cc
     Signed-off-by: Michael Still <mikal@stillhq.com>
-    Assisted-By: Claude Opus 5.5 (1M context, low effort) <noreply@anthropic.com>
+    Assisted-By: Claude Opus 5.5 (low effort)
     Signed-off-by: Michael Still <mikal@stillhq.com>
 
 diff --git a/kolla/docker/nova/nova-libvirt-spice/kolla_nova_libvirt_start.sh b/kolla/docker/nova/nova-libvirt-spice/kolla_nova_libvirt_start.sh

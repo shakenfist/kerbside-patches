@@ -1,6 +1,6 @@
-commit 83b71108cf15533b3f5c694c06e111041b5ea48b
+commit 14d33329e486e0724125a1ad1956be54de1c1791
 Author: Michael Still <mikal@stillhq.com>
-Date:   Tue Oct 20 18:11:37 2026 +1100
+Date:   Fri Oct 23 19:40:53 2026 +1100
 
     Run a Kerbside-fronted SPICE tempest test in the kerbside scenario.
     
@@ -53,8 +53,7 @@ Date:   Tue Oct 20 18:11:37 2026 +1100
     as its own releasable but sharing kerbside's version via a
     setuptools_scm root pointing at the parent directory.
     
-    Assisted-By: Claude Opus 4.7 (1M context, medium effort) <noreply@anthropic.com>
-    Co-Authored-By: Claude Opus 4.7 (1M context, medium effort) <noreply@anthropic.com>
+    Assisted-By: Claude Opus 4.7 (medium effort)
     
     Depends-On: https://review.opendev.org/c/openstack/kolla/+/986283
     Change-Id: I3d9e2a8b4c5f1a6b7c8d9e0f1a2b3c4d5e6f7a8b

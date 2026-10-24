@@ -15,8 +15,7 @@ Date:   Tue Oct 20 19:29:17 2026 +1100
     This change adds a kolla-ansible image which packages the deployment
     tool itself, in the same way as Kolla packages every service.
     
-    Assisted-By: Claude Opus 5.5 (1M context, high effort) <noreply@anthropic.com>
-    Co-Authored-By: Claude Opus 5.5 (1M context, high effort) <noreply@anthropic.com>
+    Assisted-By: Claude Opus 5.5 (high effort)
     
     Change-Id: I7ab1d1649c6561fd2266fe055217c5a7fc38b52a
     Signed-off-by: Michael Still <mikal@stillhq.com>
