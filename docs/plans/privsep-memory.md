@@ -26,7 +26,7 @@ about five years without anyone acting, and he declined to file a bug.
 | 2 | devstack telemetry in `get-stats.py`, plus a baseline; in review as [1011786](https://review.opendev.org/c/openstack/devstack/+/1011786), [1011787](https://review.opendev.org/c/openstack/devstack/+/1011787), [1011794](https://review.opendev.org/c/openstack/devstack/+/1011794) | In progress | |
 | 3 | oslo.privsep: stop importing eventlet in the daemon; in review as [1011795](https://review.opendev.org/c/openstack/oslo.privsep/+/1011795) | In progress | |
 | 4 | neutron: cut the privileged import chain; in review as [1011796](https://review.opendev.org/c/openstack/neutron/+/1011796), [1011797](https://review.opendev.org/c/openstack/neutron/+/1011797) | In progress | |
-| 5 | Credit LLMs with `Assisted-By` only, in one standard form, in the linter and every in-flight patch | In progress | |
+| 5 | Credit LLMs with `Assisted-By` only, in one standard form, in the linter and every in-flight patch | Complete | b461cb072 |
 | 6 | Services: stop importing what they do not use | In progress | |
 | 7 | Decide on structural changes (fewer contexts) | Not started | |
 | 8 | Report back to the TC and openstack-discuss | Not started | |
