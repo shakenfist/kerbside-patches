@@ -1,0 +1,20 @@
+ovn: Keep server-only imports out of the OVN agent
+
+The OVN agent imports neutron.common.ovn.utils, which imports pecan and
+the port model and object, and ovsdb_monitor, which imports the hash
+ring and router object; only the server uses them. Import them where
+used, and test the OVN agent's imports as the previous change does.
+
+With neutron-lib's "Load the DB API only for DB users" and "db: Import
+the DB API inside the functions using it", the probe shows the OVN agent
+without the DB API or pecan, down from 119 to 109MB; without the
+neutron-lib change, 4MB. The DHCP agent also needs "agent: Import the
+resource cache only for L2 agents".
+
+Prompt: Mikal asked for the neutron changes that keep the DB API out of
+the neutron agents, as three patches grouped by the agents they free.
+
+Assisted-By: Claude Opus 5.5 (high effort)
+
+Change-Id: I86aad1f1e363ef11f8efd3a14282d768047b59e3
+Signed-off-by: Michael Still <mikal@stillhq.com>

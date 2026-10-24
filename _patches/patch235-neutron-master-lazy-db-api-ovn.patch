@@ -1,0 +1,255 @@
+commit e85df8a63d5e77958b769a1becaf63d5049df963
+Author: Michael Still <mikal@stillhq.com>
+Date:   Sat Oct 24 10:17:44 2026 +1100
+
+    ovn: Keep server-only imports out of the OVN agent
+    
+    The OVN agent imports neutron.common.ovn.utils, which imports pecan and
+    the port model and object, and ovsdb_monitor, which imports the hash
+    ring and router object; only the server uses them. Import them where
+    used, and test the OVN agent's imports as the previous change does.
+    
+    With neutron-lib's "Load the DB API only for DB users" and "db: Import
+    the DB API inside the functions using it", the probe shows the OVN agent
+    without the DB API or pecan, down from 119 to 109MB; without the
+    neutron-lib change, 4MB. The DHCP agent also needs "agent: Import the
+    resource cache only for L2 agents".
+    
+    Prompt: Mikal asked for the neutron changes that keep the DB API out of
+    the neutron agents, as three patches grouped by the agents they free.
+    
+    Assisted-By: Claude Opus 5.5 (high effort)
+    
+    Change-Id: I86aad1f1e363ef11f8efd3a14282d768047b59e3
+    Signed-off-by: Michael Still <mikal@stillhq.com>
+
+diff --git a/neutron/common/ovn/utils.py b/neutron/common/ovn/utils.py
+index fb3806a..a3483be 100644
+--- a/neutron/common/ovn/utils.py
++++ b/neutron/common/ovn/utils.py
+@@ -42,7 +42,6 @@ from oslo_utils import netutils
+ from oslo_utils import strutils
+ from ovsdbapp.backend.ovs_idl import event as row_event
+ from ovsdbapp import constants as ovsdbapp_const
+-from pecan import util as pecan_util
+ import tenacity
+ 
+ from neutron._i18n import _
+@@ -51,8 +50,6 @@ from neutron.common.ovn import constants
+ from neutron.common.ovn import exceptions as ovn_exc
+ from neutron.common import utils as common_utils
+ from neutron.conf.plugins.ml2.drivers.ovn import ovn_conf
+-from neutron.db import models_v2
+-from neutron.objects import ports as ports_obj
+ 
+ LOG = log.getLogger(__name__)
+ 
+@@ -206,6 +203,10 @@ def ovn_context(txn_var_name='txn', idl_var_name='idl'):
+                 {'txn': txn_var_name, 'idl': idl_var_name})
+ 
+         def retrieve_parameter(param_name, _args, _kwargs):
++            # Imported here because pecan is only needed by the API server.
++            # pylint: disable=import-outside-toplevel
++            from pecan import util as pecan_util
++
+             # Position of the parameter "param_name" in the "args" tuple.
+             param_index = pecan_util.getargspec(f).args.index(param_name)
+             try:  # Parameter passed as a positional argument.
+@@ -1045,6 +1046,7 @@ def get_network_name_from_datapath(datapath):
+ 
+ 
+ def is_port_external(port):
++    # pylint: disable=import-outside-toplevel
+     # This port is represented in OVN DB as lsp.type=external
+     capabilities = []
+     vnic_type = portbindings.VNIC_NORMAL
+@@ -1054,6 +1056,11 @@ def is_port_external(port):
+         vnic_type = port.get(portbindings.VNIC_TYPE,
+                              portbindings.VNIC_NORMAL)
+     else:
++        # Imported here because the agents import this module, but a port
++        # is only a DB or OVO object in the server.
++        from neutron.db import models_v2
++        from neutron.objects import ports as ports_obj
++
+         if isinstance(port, models_v2.Port):
+             bindings = port.port_bindings
+         elif isinstance(port, ports_obj.Port):
+diff --git a/neutron/plugins/ml2/drivers/ovn/mech_driver/ovsdb/ovsdb_monitor.py b/neutron/plugins/ml2/drivers/ovn/mech_driver/ovsdb/ovsdb_monitor.py
+index 1b0c751..3e4ea9a 100644
+--- a/neutron/plugins/ml2/drivers/ovn/mech_driver/ovsdb/ovsdb_monitor.py
++++ b/neutron/plugins/ml2/drivers/ovn/mech_driver/ovsdb/ovsdb_monitor.py
+@@ -32,11 +32,8 @@ from ovsdbapp.backend.ovs_idl import idlutils
+ 
+ from neutron.common.ovn import constants as ovn_const
+ from neutron.common.ovn import exceptions
+-from neutron.common.ovn import hash_ring_manager
+ from neutron.common.ovn import utils
+ from neutron.conf.plugins.ml2.drivers.ovn import ovn_conf
+-from neutron.db import ovn_hash_ring_db
+-from neutron.objects import router as router_obj
+ from neutron.plugins.ml2.drivers.ovn.agent import neutron_agent as n_agent
+ from neutron.plugins.ml2.drivers.ovn.mech_driver.ovsdb.extensions import \
+     placement
+@@ -737,6 +734,11 @@ class LogicalSwitchPortUpdateLogicalRouterPortEvent(LogicalSwitchPortEvent):
+ 
+         # TODO(ralonsoh): store the router "flavor_id" in the LSP.external_ids
+         # or the LRP.external_ids (better the second).
++        # Imported here because the OVN agent imports this module for its IDL
++        # classes, but only the server reads routers from the database.
++        # pylint: disable=import-outside-toplevel
++        from neutron.objects import router as router_obj
++
+         admin_context = neutron_context.get_admin_context()
+         router = router_obj.Router.get_object(admin_context, id=device_id,
+                                               fields=('flavor_id', ))
+@@ -1074,6 +1076,10 @@ class OvnIdlDistributedLock(BaseOvnIdl):
+         self.driver = driver
+         self.notify_handler = OvnDbNotifyHandler(driver)
+         self._node_uuid = self.driver.node_uuid
++        # Imported here because the OVN agent imports this module for its IDL
++        # classes, but only the server uses the hash ring.
++        # pylint: disable=import-outside-toplevel
++        from neutron.common.ovn import hash_ring_manager
+         self._hash_ring = hash_ring_manager.HashRingManager(
+             self.driver.hash_ring_group)
+ 
+@@ -1094,6 +1100,9 @@ class OvnIdlDistributedLock(BaseOvnIdl):
+             touch_timeout = timeutils.utcnow() - datetime.timedelta(
+                 seconds=ovn_const.HASH_RING_TOUCH_INTERVAL)
+             if not node_last_touch or touch_timeout >= node_last_touch:
++                # pylint: disable=import-outside-toplevel
++                from neutron.db import ovn_hash_ring_db
++
+                 # NOTE(lucasagomes): Guard the db operation with an exception
+                 # handler. If heartbeating fails for whatever reason, log
+                 # the error and continue with processing the event
+diff --git a/neutron/tests/unit/common/ovn/test_utils.py b/neutron/tests/unit/common/ovn/test_utils.py
+index 27874c6..31e196f 100644
+--- a/neutron/tests/unit/common/ovn/test_utils.py
++++ b/neutron/tests/unit/common/ovn/test_utils.py
+@@ -32,7 +32,10 @@ from neutron.common.ovn import constants
+ from neutron.common.ovn import exceptions as ovn_exc
+ from neutron.common.ovn import utils
+ from neutron.conf.plugins.ml2.drivers.ovn import ovn_conf
++from neutron.db import models_v2
++from neutron.objects import ports as ports_obj
+ from neutron.tests import base
++from neutron.tests import tools
+ from neutron.tests.unit import fake_resources as fakes
+ 
+ RESOLV_CONF_TEMPLATE = """# TEST TEST TEST
+@@ -1065,6 +1068,70 @@ class TestRetryDecorator(base.BaseTestCase):
+         self.assertEqual(number_of_exceptions + 1, method.call_count)
+ 
+ 
++class TestOvnContextDecorator(base.BaseTestCase):
++
++    @staticmethod
++    @utils.ovn_context()
++    def _method(value, txn=None, idl=None):
++        return value, txn
++
++    def test_transaction_passed(self):
++        txn = mock.Mock()
++        self.assertEqual(('a', txn), self._method('a', txn))
++        self.assertEqual(('a', txn), self._method('a', txn=txn))
++
++    def test_no_transaction_or_idl(self):
++        self.assertRaises(RuntimeError, self._method, 'a')
++
++
++class TestIsPortExternal(base.BaseTestCase):
++
++    def _binding(self, vnic_type, profile):
++        return {'status': n_const.ACTIVE, 'host': 'host1',
++                'vnic_type': vnic_type, 'profile': profile}
++
++    def test_dict(self):
++        port = {portbindings.VNIC_TYPE: portbindings.VNIC_DIRECT}
++        self.assertTrue(utils.is_port_external(port))
++
++    def test_db_port(self):
++        port = mock.Mock(spec=models_v2.Port)
++        port.port_bindings = [self._binding(portbindings.VNIC_DIRECT, '{}')]
++        self.assertTrue(utils.is_port_external(port))
++
++    def test_db_port_switchdev(self):
++        port = mock.Mock(spec=models_v2.Port)
++        # The DB model keeps the profile as JSON.
++        port.port_bindings = [self._binding(
++            portbindings.VNIC_DIRECT,
++            '{"capabilities": ["%s"]}' % constants.PORT_CAP_SWITCHDEV)]
++        self.assertFalse(utils.is_port_external(port))
++
++    def test_ovo_port(self):
++        port = mock.Mock(spec=ports_obj.Port)
++        port.bindings = [self._binding(portbindings.VNIC_DIRECT, {})]
++        self.assertTrue(utils.is_port_external(port))
++
++
++class ServerOnlyImportsTestCase(base.BaseTestCase):
++    # The OVN agent imports this module, and the OVN mechanism driver's
++    # ovsdb_monitor for its IDL classes.
++    MODULES = ('neutron.agent.ovn.agent.ovn_neutron_agent',
++               'neutron.agent.ovn.extensions.metadata',
++               'neutron.agent.ovn.ovn_neutron_agent')
++
++    def test_ovn_agent_does_not_import_server_only_modules(self):
++        result = tools.check_imports(self.MODULES, tools.SERVER_ONLY_MODULES)
++        self.assertEqual([], result['holders'])
++
++    def test_ovn_agent_does_not_load_server_only_modules(self):
++        result = tools.check_imports(self.MODULES, tools.SERVER_ONLY_MODULES)
++        if result['preloaded']:
++            self.skipTest('neutron_lib loads %s itself' %
++                          ', '.join(result['preloaded']))
++        self.assertEqual([], result['loaded'])
++
++
+ class TestOvsdbClientCommand(base.BaseTestCase):
+     class OvsdbClientTestCommand(utils.OvsdbClientCommand):
+         COMMAND = 'test'
+diff --git a/neutron/tests/unit/plugins/ml2/drivers/ovn/mech_driver/ovsdb/test_ovsdb_monitor.py b/neutron/tests/unit/plugins/ml2/drivers/ovn/mech_driver/ovsdb/test_ovsdb_monitor.py
+index 3d3ec86..8189642 100644
+--- a/neutron/tests/unit/plugins/ml2/drivers/ovn/mech_driver/ovsdb/test_ovsdb_monitor.py
++++ b/neutron/tests/unit/plugins/ml2/drivers/ovn/mech_driver/ovsdb/test_ovsdb_monitor.py
+@@ -18,6 +18,7 @@ import os
+ from unittest import mock
+ import uuid
+ 
++from neutron_lib import constants as lib_const
+ from neutron_lib.plugins import constants as n_const
+ from neutron_lib.plugins import directory
+ from oslo_utils import timeutils
+@@ -656,6 +657,30 @@ class TestLogicalSwitchPortUpdateLogicalRouterPortEvent(base.BaseTestCase):
+                 LogicalSwitchPortUpdateLogicalRouterPortEvent(driver))
+         self.assertFalse(hasattr(event, 'admin_context'))
+ 
++    @mock.patch.object(utils, 'is_ovn_provider_router', return_value=True)
++    @mock.patch.object(utils, 'is_lsp_router_port', return_value=True)
++    @mock.patch('neutron.objects.router.Router.get_object')
++    def test_match_fn_reads_router(self, get_object, is_lsp_router_port,
++                                   is_ovn_provider_router):
++        driver = mock.MagicMock()
++        with mock.patch.object(directory, 'get_plugin'):
++            event = (
++                ovsdb_monitor.
++                LogicalSwitchPortUpdateLogicalRouterPortEvent(driver))
++        row = fakes.FakeOvsdbRow.create_one_ovsdb_row(
++            attrs={'name': 'port-1',
++                   'external_ids': {
++                       ovn_const.OVN_PORT_NAME_EXT_ID_KEY: 'port-1',
++                       ovn_const.OVN_DEVID_EXT_ID_KEY: 'router-1',
++                       ovn_const.OVN_DEVICE_OWNER_EXT_ID_KEY:
++                           lib_const.DEVICE_OWNER_ROUTER_INTF}})
++
++        self.assertTrue(event.match_fn(event.ROW_UPDATE, row, None))
++        get_object.assert_called_once_with(
++            mock.ANY, id='router-1', fields=('flavor_id', ))
++        is_ovn_provider_router.assert_called_once_with(
++            get_object.return_value)
++
+     def test_run_creates_fresh_admin_context(self):
+         driver = mock.MagicMock()
+         driver._plugin.get_ports.return_value = [{'id': 'port-1'}]
