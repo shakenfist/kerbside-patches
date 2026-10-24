@@ -1079,6 +1079,14 @@ Mikal's own act, and patch221's hand push still waits for his go.
   The 6e back brief chose option (a) (register the listeners from
   `model_base`, lazy `db_api` in `context.py` and `db/utils.py`), and
   Mikal then chose to add the chain fixes to this phase.
+- 2026-10-24. After 6j, the step worktrees and the
+  `import-memory-phase6-pin` container were removed; the image is no
+  longer pinned. Mikal is reading each series and pushing it by hand.
+
+| Patch | Series | Change |
+|---|---|---|
+| patch221 | `devstack-privsep-memory-001` | [1011992](https://review.opendev.org/c/openstack/devstack/+/1011992) |
+| patch222 | `futurist-import-memory-004` | [1012147](https://review.opendev.org/c/openstack/futurist/+/1012147) |
 
 #### Future work
 
