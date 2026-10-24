@@ -1096,6 +1096,8 @@ Mikal's own act, and patch221's hand push still waits for his go.
 | patch224 | `neutron-lib-db-api-import-memory-006` | [1012152](https://review.opendev.org/c/openstack/neutron-lib/+/1012152) |
 | patch225 | `neutron-import-memory-007` | [1012169](https://review.opendev.org/c/openstack/neutron/+/1012169) |
 | patch226 | `neutron-import-memory-007` | [1012170](https://review.opendev.org/c/openstack/neutron/+/1012170) |
+| patch227 | `keystone-import-memory-008` | [1012171](https://review.opendev.org/c/openstack/keystone/+/1012171) |
+| patch228 | `keystone-import-memory-008` | [1012172](https://review.opendev.org/c/openstack/keystone/+/1012172) |
 
 #### Future work
 
