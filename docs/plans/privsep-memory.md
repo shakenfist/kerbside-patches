@@ -1103,6 +1103,9 @@ Mikal's own act, and patch221's hand push still waits for his go.
 | patch231 | `oslo.utils-import-memory-010` | [1012175](https://review.opendev.org/c/openstack/oslo.utils/+/1012175) |
 | patch232 | `oslo.messaging-import-memory-011` | [1012179](https://review.opendev.org/c/openstack/oslo.messaging/+/1012179) |
 | patch233 | `oslo.service-import-memory-012` | [1012180](https://review.opendev.org/c/openstack/oslo.service/+/1012180) |
+| patch234 | `neutron-db-api-import-memory-013` | [1012182](https://review.opendev.org/c/openstack/neutron/+/1012182) |
+| patch235 | `neutron-db-api-import-memory-013` | [1012183](https://review.opendev.org/c/openstack/neutron/+/1012183) |
+| patch236 | `neutron-db-api-import-memory-013` | [1012184](https://review.opendev.org/c/openstack/neutron/+/1012184) |
 
 #### Future work
 
