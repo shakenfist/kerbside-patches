@@ -765,7 +765,9 @@ from its results, not here.
 at python-ovs. With every fix applied in scratch copies, every neutron
 role, glance-api, keystone, placement and the privsep daemon run without
 eventlet, and the OVN, DHCP, L3 and metadata agents without
-`neutron_lib.db.api`. No row saves anything alone.
+`neutron_lib.db.api`. No row saves anything alone, except neutron's
+three DB API patches: 6o found that they save 4 to 12 MB together
+without patch224 (see below).
 
 | Package | Project | Site | Uses it for | Roles | Fix | Behaviour change |
 |---|---|---|---|---|---|---|
@@ -838,6 +840,28 @@ fixed for nova.
 | 6o | high | opus | own worktree | Series `neutron-db-api-import-memory-013`, three patches. patch234: `neutron/common/utils.py`, `neutron/service.py` and `neutron/api/api_common.py` import the DB API inside the functions that use it. patch235: `neutron/common/ovn/utils.py` (`models_v2`, `ports_obj`, pecan) and `ovsdb_monitor.py`'s server-side imports. patch236: `neutron/agent/rpc.py`'s resource cache and `extensions/stdattrs_common.py`. Each has a fresh-interpreter test for the agents it frees, which can only pass with patch224's neutron-lib, so mark that test to skip when `neutron_lib.db.api` is loaded by neutron-lib itself and say so. |
 | 6p | medium | opus | own worktree | python-ovs: `ovs/poller.py` imports eventlet's patcher only when it is needed. Add `upstream/openvswitch/` in the layout `upstream/README.md` describes (`config.yaml` with `repo: https://github.com/openvswitch/ovs`, `branch: main`, `base_sha`, `current_series: v1`, `disposition: submit`; `series/v1/0001-*.patch` from `git format-patch`; a README), following Open vSwitch's `Documentation/internals/contributing/submitting-patches.rst`, including whatever it says about tool-assisted patches. Test with python-ovs's own tests. Confirm `find . -maxdepth 2 -name config.yaml` is unchanged. |
 | 6q | low | sonnet | own worktree | Let `roles.txt` call an entry function with literal arguments, so nova-api and nova-api-meta run `nova.monkey_patch.patch(backend='threading')` first, as their entry points do. Correct finding #1's nova figures in this plan, and document the case in `docs/import-memory-scans.md`. |
+
+6o ran on 2026-10-24 and corrected this section: the three neutron
+patches save memory without patch224, because the agents stop loading
+neutron's own objects and models. Anonymous RSS in MB, with 6e's
+neutron-lib as "patch224":
+
+| Role | no `--with` | patch224 | patch224, 234 | + 235 | + 236 | 234 to 236 alone |
+|---|---|---|---|---|---|---|
+| neutron-ovn-agent | 119 | 121 | 119 | 109 | 109 | 115 |
+| neutron-openvswitch-agent | 129 | 127 | 129 | 129 | 124 | 124 |
+| neutron-dhcp-agent | 119 | 119 | 119 | 119 | 103 | 109 |
+| neutron-l3-agent | 119 | 117 | 117 | 117 | 102 | 107 |
+| neutron-metadata-agent | 115 | 115 | 115 | 115 | 99 | 105 |
+
+The OVS agent's 5 MB is not a real saving: moving `neutron.agent.rpc`'s
+resource cache import also moves the `register_objects()` it ran at
+import, and the OVS agent runs that anyway when it builds its cache.
+That move is also patch236's one risk: out-of-tree code that relied on
+importing `neutron.agent.rpc` to register the objects must call
+`objects.register_objects()` itself. Nobody has searched codesearch for
+such code yet. The management session rebased the commit messages'
+"before" figures onto the no-`--with` column.
 
 6j then measures the whole set, with every tree as `--with`, and records
 it here. After 6j, Mikal pushes the chain together.
