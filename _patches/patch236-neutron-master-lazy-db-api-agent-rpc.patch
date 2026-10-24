@@ -1,6 +1,6 @@
-commit d8d2ae6d08adf096d700e5e6a73d3882cf92c773
+commit 95d2116bb61ddf4e2c8b186ad759b5b02b304bd3
 Author: Michael Still <mikal@stillhq.com>
-Date:   Sat Oct 24 10:18:14 2026 +1100
+Date:   Sun Oct 25 09:58:05 2026 +1100
 
     agent: Import the resource cache only for L2 agents
     
@@ -25,7 +25,7 @@ Date:   Sat Oct 24 10:18:14 2026 +1100
     Signed-off-by: Michael Still <mikal@stillhq.com>
 
 diff --git a/neutron/agent/rpc.py b/neutron/agent/rpc.py
-index 78797b8..11c7611 100644
+index 78797b870e..11c7611d92 100644
 --- a/neutron/agent/rpc.py
 +++ b/neutron/agent/rpc.py
 @@ -33,8 +33,6 @@ from oslo_serialization import jsonutils
@@ -90,7 +90,7 @@ index 78797b8..11c7611 100644
          rcache = resource_cache.RemoteResourceCache(self.RESOURCE_TYPES)
          rcache.start_watcher()
 diff --git a/neutron/extensions/stdattrs_common.py b/neutron/extensions/stdattrs_common.py
-index 8379da2..710002e 100644
+index 8379da2fbf..710002ed4c 100644
 --- a/neutron/extensions/stdattrs_common.py
 +++ b/neutron/extensions/stdattrs_common.py
 @@ -15,10 +15,13 @@
@@ -110,7 +110,7 @@ index 8379da2..710002e 100644
          include_resources=True,
          include_sub_resources=False)
 diff --git a/neutron/tests/unit/agent/test_rpc.py b/neutron/tests/unit/agent/test_rpc.py
-index 7538c5c..3b7e7cd 100644
+index 7538c5cdab..3b7e7cdee9 100644
 --- a/neutron/tests/unit/agent/test_rpc.py
 +++ b/neutron/tests/unit/agent/test_rpc.py
 @@ -29,11 +29,13 @@ from oslo_utils import timeutils

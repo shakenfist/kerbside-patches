@@ -1,6 +1,6 @@
-commit e85df8a63d5e77958b769a1becaf63d5049df963
+commit ab0195009a94f4a6f28addc5f63d0c48a1befd3b
 Author: Michael Still <mikal@stillhq.com>
-Date:   Sat Oct 24 10:17:44 2026 +1100
+Date:   Sun Oct 25 09:58:05 2026 +1100
 
     ovn: Keep server-only imports out of the OVN agent
     
@@ -24,7 +24,7 @@ Date:   Sat Oct 24 10:17:44 2026 +1100
     Signed-off-by: Michael Still <mikal@stillhq.com>
 
 diff --git a/neutron/common/ovn/utils.py b/neutron/common/ovn/utils.py
-index fb3806a..a3483be 100644
+index fb3806a198..a3483be9a5 100644
 --- a/neutron/common/ovn/utils.py
 +++ b/neutron/common/ovn/utils.py
 @@ -42,7 +42,6 @@ from oslo_utils import netutils
@@ -76,7 +76,7 @@ index fb3806a..a3483be 100644
              bindings = port.port_bindings
          elif isinstance(port, ports_obj.Port):
 diff --git a/neutron/plugins/ml2/drivers/ovn/mech_driver/ovsdb/ovsdb_monitor.py b/neutron/plugins/ml2/drivers/ovn/mech_driver/ovsdb/ovsdb_monitor.py
-index 1b0c751..3e4ea9a 100644
+index 1b0c751cf6..3e4ea9a715 100644
 --- a/neutron/plugins/ml2/drivers/ovn/mech_driver/ovsdb/ovsdb_monitor.py
 +++ b/neutron/plugins/ml2/drivers/ovn/mech_driver/ovsdb/ovsdb_monitor.py
 @@ -32,11 +32,8 @@ from ovsdbapp.backend.ovs_idl import idlutils
@@ -125,7 +125,7 @@ index 1b0c751..3e4ea9a 100644
                  # handler. If heartbeating fails for whatever reason, log
                  # the error and continue with processing the event
 diff --git a/neutron/tests/unit/common/ovn/test_utils.py b/neutron/tests/unit/common/ovn/test_utils.py
-index 27874c6..31e196f 100644
+index 27874c6131..31e196f3da 100644
 --- a/neutron/tests/unit/common/ovn/test_utils.py
 +++ b/neutron/tests/unit/common/ovn/test_utils.py
 @@ -32,7 +32,10 @@ from neutron.common.ovn import constants
@@ -211,7 +211,7 @@ index 27874c6..31e196f 100644
      class OvsdbClientTestCommand(utils.OvsdbClientCommand):
          COMMAND = 'test'
 diff --git a/neutron/tests/unit/plugins/ml2/drivers/ovn/mech_driver/ovsdb/test_ovsdb_monitor.py b/neutron/tests/unit/plugins/ml2/drivers/ovn/mech_driver/ovsdb/test_ovsdb_monitor.py
-index 3d3ec86..8189642 100644
+index 3d3ec867ce..8189642cc7 100644
 --- a/neutron/tests/unit/plugins/ml2/drivers/ovn/mech_driver/ovsdb/test_ovsdb_monitor.py
 +++ b/neutron/tests/unit/plugins/ml2/drivers/ovn/mech_driver/ovsdb/test_ovsdb_monitor.py
 @@ -18,6 +18,7 @@ import os

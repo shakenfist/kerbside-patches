@@ -1,6 +1,6 @@
-commit cb827da289c565e611bc1a40e7480deec0f8a46e
+commit fd218ac887ba0e1e46b160323262d04d8450dd57
 Author: Michael Still <mikal@stillhq.com>
-Date:   Sat Oct 24 10:17:44 2026 +1100
+Date:   Sun Oct 25 09:58:05 2026 +1100
 
     db: Import the DB API inside the functions using it
     
@@ -26,7 +26,7 @@ Date:   Sat Oct 24 10:17:44 2026 +1100
     Signed-off-by: Michael Still <mikal@stillhq.com>
 
 diff --git a/neutron/api/api_common.py b/neutron/api/api_common.py
-index acb17dc..17f050b 100644
+index acb17dc73f..17f050b79e 100644
 --- a/neutron/api/api_common.py
 +++ b/neutron/api/api_common.py
 @@ -18,7 +18,6 @@ import urllib
@@ -50,7 +50,7 @@ index acb17dc..17f050b 100644
      is_empty_string_supported = is_empty_string_filtering_supported()
      skips = skips or []
 diff --git a/neutron/common/utils.py b/neutron/common/utils.py
-index 583687b..a9ebdcf 100644
+index 583687b59c..a9ebdcfdde 100644
 --- a/neutron/common/utils.py
 +++ b/neutron/common/utils.py
 @@ -41,7 +41,6 @@ import netaddr
@@ -86,7 +86,7 @@ index 583687b..a9ebdcf 100644
                                           n_context.ContextBaseWithSession) else
                     args[1])
 diff --git a/neutron/service.py b/neutron/service.py
-index 667150c..9522418 100644
+index 667150c17c..9522418dec 100644
 --- a/neutron/service.py
 +++ b/neutron/service.py
 @@ -21,7 +21,6 @@ from neutron_lib.callbacks import events
@@ -110,7 +110,7 @@ index 667150c..9522418 100644
  
              for worker in process_workers:
 diff --git a/neutron/tests/tools.py b/neutron/tests/tools.py
-index 20cd518..97dfaa0 100644
+index 20cd51831e..97dfaa0f81 100644
 --- a/neutron/tests/tools.py
 +++ b/neutron/tests/tools.py
 @@ -15,6 +15,8 @@
@@ -191,7 +191,7 @@ index 20cd518..97dfaa0 100644
  class SafeCleanupFixture(fixtures.Fixture):
      """Catch errors in daughter fixture cleanup."""
 diff --git a/neutron/tests/unit/common/test_utils.py b/neutron/tests/unit/common/test_utils.py
-index 3083b24..8d8d478 100644
+index 3083b24bfa..8d8d47859e 100644
 --- a/neutron/tests/unit/common/test_utils.py
 +++ b/neutron/tests/unit/common/test_utils.py
 @@ -25,7 +25,10 @@ from unittest import mock
@@ -288,7 +288,7 @@ index 3083b24..8d8d478 100644
 +                          ', '.join(result['preloaded']))
 +        self.assertEqual([], result['loaded'])
 diff --git a/neutron/tests/unit/test_service.py b/neutron/tests/unit/test_service.py
-index cc95162..1e63b94 100644
+index cc95162441..1e63b94d42 100644
 --- a/neutron/tests/unit/test_service.py
 +++ b/neutron/tests/unit/test_service.py
 @@ -81,6 +81,27 @@ class TestPreparePeriodicWorkers(base.BaseTestCase):
