@@ -1,6 +1,6 @@
-commit 262f6fefc40b579dfb9c35e56b3dc11a7d579f79
+commit 5c0eca659a4a3feffae555f738eb2426b8eb4813
 Author: Michael Still <mikal@stillhq.com>
-Date:   Sat Oct 24 09:50:39 2026 +1100
+Date:   Sat Oct 24 14:21:12 2026 +1100
 
     Load the DB API only for DB users
     
