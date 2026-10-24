@@ -1,0 +1,321 @@
+commit cb827da289c565e611bc1a40e7480deec0f8a46e
+Author: Michael Still <mikal@stillhq.com>
+Date:   Sat Oct 24 10:17:44 2026 +1100
+
+    db: Import the DB API inside the functions using it
+    
+    neutron.common.utils, neutron.service and neutron.api.api_common import
+    neutron_lib.db.api or model_base for one function each, and every agent
+    imports them. Import them in those functions, and test in a fresh
+    interpreter that the modules neither refer to nor load the DB API.
+    
+    This saves nothing alone. With "ovn: Keep server-only imports out of
+    the OVN agent" and "agent: Import the resource cache only for L2
+    agents", the probe shows the OVN, DHCP, L3 and metadata agents 4 to
+    12MB smaller; with neutron-lib's "Load the DB API only for DB users" as
+    well, 10 to 17MB smaller and without the DB API or pecan. The load test
+    is skipped until neutron-lib stops loading the DB API.
+    
+    Prompt: Mikal asked for the neutron changes that keep the DB API out of
+    the neutron agents, as three patches grouped by the agents they free.
+    
+    Assisted-By: Claude Opus 5.5 (high effort)
+    
+    Depends-On: https://review.opendev.org/c/openstack/devstack/+/1011992
+    Change-Id: I8ac2f724332dce3346ea92ec927be125083562ed
+    Signed-off-by: Michael Still <mikal@stillhq.com>
+
+diff --git a/neutron/api/api_common.py b/neutron/api/api_common.py
+index acb17dc..17f050b 100644
+--- a/neutron/api/api_common.py
++++ b/neutron/api/api_common.py
+@@ -18,7 +18,6 @@ import urllib
+ 
+ from neutron_lib.api import attributes
+ from neutron_lib import constants
+-from neutron_lib.db import model_base
+ from neutron_lib import exceptions
+ from oslo_config import cfg
+ import oslo_i18n
+@@ -84,6 +83,11 @@ def get_filters_from_dict(data, attr_info, skips=None,
+     becomes:
+     {'check': [u'a', u'b'], 'name': [u'Bob']}
+     """
++    # Imported here because the agents import this module, through
++    # neutron.common.utils, but have no database.
++    # pylint: disable=import-outside-toplevel
++    from neutron_lib.db import model_base
++
+     attributes.populate_project_info(attr_info)
+     is_empty_string_supported = is_empty_string_filtering_supported()
+     skips = skips or []
+diff --git a/neutron/common/utils.py b/neutron/common/utils.py
+index 583687b..a9ebdcf 100644
+--- a/neutron/common/utils.py
++++ b/neutron/common/utils.py
+@@ -41,7 +41,6 @@ import netaddr
+ from neutron_lib.api.definitions import availability_zone as az_def
+ from neutron_lib import constants as n_const
+ from neutron_lib import context as n_context
+-from neutron_lib.db import api as db_api
+ from neutron_lib.services.qos import constants as qos_consts
+ from neutron_lib.services.trunk import constants as trunk_constants
+ from neutron_lib.utils import helpers
+@@ -665,6 +664,11 @@ def create_object_with_dependency(creator, dep_getter, dep_creator,
+     give up after neutron_lib.db.api.MAX_RETRIES and raise the exception it
+     encounters after that.
+     """
++    # Imported here so that the agents, which import this module but have no
++    # database, do not load the DB API.
++    # pylint: disable=import-outside-toplevel
++    from neutron_lib.db import api as db_api
++
+     result, dependency, dep_id, made_locally = None, None, None, False
+     for attempts in range(1, db_api.MAX_RETRIES + 1):
+         # we go to max + 1 here so the exception handlers can raise their
+@@ -730,6 +734,11 @@ def transaction_guard(f):
+     """
+     @functools.wraps(f)
+     def inner(*args, **kwargs):
++        # Imported here for the same reason as in
++        # create_object_with_dependency().
++        # pylint: disable=import-outside-toplevel
++        from neutron_lib.db import api as db_api
++
+         context = (args[0] if issubclass(type(args[0]),
+                                          n_context.ContextBaseWithSession) else
+                    args[1])
+diff --git a/neutron/service.py b/neutron/service.py
+index 667150c..9522418 100644
+--- a/neutron/service.py
++++ b/neutron/service.py
+@@ -21,7 +21,6 @@ from neutron_lib.callbacks import events
+ from neutron_lib.callbacks import registry
+ from neutron_lib.callbacks import resources
+ from neutron_lib import context
+-from neutron_lib.db import api as session
+ from neutron_lib.plugins import directory
+ from neutron_lib import rpc as n_rpc
+ from neutron_lib import worker as base_worker
+@@ -261,7 +260,10 @@ def _start_workers(workers, neutron_api=None):
+ 
+             # dispose the whole pool before os.fork, otherwise there will
+             # be shared DB connections in child processes which may cause
+-            # DB errors.
++            # DB errors. The DB API is imported here because the agents
++            # import this module but have no database.
++            # pylint: disable=import-outside-toplevel
++            from neutron_lib.db import api as session
+             session.get_context_manager().dispose_pool()
+ 
+             for worker in process_workers:
+diff --git a/neutron/tests/tools.py b/neutron/tests/tools.py
+index 20cd518..97dfaa0 100644
+--- a/neutron/tests/tools.py
++++ b/neutron/tests/tools.py
+@@ -15,6 +15,8 @@
+ 
+ import datetime
+ import random
++import subprocess
++import sys
+ import unittest
+ 
+ import fixtures
+@@ -23,12 +25,67 @@ from neutron_lib import constants
+ from neutron_lib.services.logapi import constants as log_const
+ from neutron_lib.utils import helpers
+ from neutron_lib.utils import net
++from oslo_serialization import jsonutils
+ from oslo_utils import netutils
+ from oslo_utils import timeutils
+ 
+ 
+ LAST_RANDOM_PORT_RANGE_GENERATED = 1
+ 
++# Modules that only the API and RPC servers need: the DB API, the neutron-lib
++# modules that load it, and pecan, which it imports.
++SERVER_ONLY_MODULES = ('neutron_lib.db.api', 'neutron_lib.db.model_base',
++                       'neutron_lib.db.standard_attr', 'pecan')
++
++_IMPORT_CHECK = """
++import importlib
++import json
++import sys
++import types
++
++modules, forbidden = json.loads(sys.argv[1])
++
++
++def is_forbidden(name):
++    return any(name == f or name.startswith(f + '.') for f in forbidden)
++
++
++def forbidden_loaded():
++    return sorted(f for f in forbidden if f in sys.modules)
++
++
++import neutron_lib
++preloaded = forbidden_loaded()
++for module in modules:
++    importlib.import_module(module)
++holders = sorted(
++    name for name, module in list(sys.modules.items())
++    if module is not None and name.split('.')[0] == 'neutron' and
++    any(isinstance(v, types.ModuleType) and is_forbidden(v.__name__)
++        for v in list(vars(module).values())))
++print(json.dumps({'preloaded': preloaded, 'loaded': forbidden_loaded(),
++                  'holders': holders}))
++"""
++
++
++def check_imports(modules, forbidden):
++    """Import modules in a fresh interpreter and look for forbidden ones.
++
++    The test process has usually imported most of neutron already, so the
++    check runs in a new interpreter. It returns a dict of three sorted lists:
++    'preloaded' holds the forbidden modules that importing neutron_lib alone
++    loads, 'loaded' those loaded once the modules are imported too, and
++    'holders' the neutron modules that refer to a forbidden module directly.
++
++    'holders' does not depend on what neutron-lib imports, so it shows what
++    neutron itself imports even when neutron-lib loads a forbidden module
++    first. A test of 'loaded' is only meaningful when 'preloaded' is empty.
++    """
++    cmd = [sys.executable, '-c', _IMPORT_CHECK,
++           jsonutils.dumps([list(modules), list(forbidden)])]
++    out = subprocess.check_output(cmd, text=True)  # noqa: S603
++    return jsonutils.loads(out.strip().splitlines()[-1])
++
+ 
+ class SafeCleanupFixture(fixtures.Fixture):
+     """Catch errors in daughter fixture cleanup."""
+diff --git a/neutron/tests/unit/common/test_utils.py b/neutron/tests/unit/common/test_utils.py
+index 3083b24..8d8d478 100644
+--- a/neutron/tests/unit/common/test_utils.py
++++ b/neutron/tests/unit/common/test_utils.py
+@@ -25,7 +25,10 @@ from unittest import mock
+ import ddt
+ import netaddr
+ from neutron_lib import constants
++from neutron_lib import context
++from neutron_lib.db import api as db_api
+ from oslo_config import cfg
++from oslo_db import exception as db_exc
+ from oslo_log import log as logging
+ from oslo_utils import timeutils
+ from osprofiler import profiler
+@@ -33,6 +36,7 @@ import testtools
+ 
+ from neutron.common import utils
+ from neutron.tests import base
++from neutron.tests import tools
+ from neutron.tests.unit import tests
+ 
+ 
+@@ -907,3 +911,73 @@ class TestFindUniqueSequence(base.BaseTestCase):
+         # One of the groups is empty - no solution possible
+         result = utils.find_unique_sequence([['a'], [], ['c']])
+         self.assertIsNone(result)
++
++
++class CreateObjectWithDependencyTestCase(base.BaseTestCase):
++
++    def setUp(self):
++        super().setUp()
++        self.dep_getter = mock.Mock(return_value=None)
++        self.dep_creator = mock.Mock(return_value=mock.Mock(id='dep'))
++        self.dep_deleter = mock.Mock()
++        self.creator = mock.Mock(return_value='result')
++
++    def _create(self):
++        return utils.create_object_with_dependency(
++            self.creator, self.dep_getter, self.dep_creator, 'id',
++            self.dep_deleter)
++
++    def test_creates_dependency(self):
++        dependency = self.dep_creator.return_value
++        self.assertEqual(('result', dependency), self._create())
++        self.creator.assert_called_once_with(dependency)
++        self.dep_deleter.assert_not_called()
++
++    @mock.patch.object(utils.time, 'sleep')
++    def test_dependency_created_concurrently(self, sleep):
++        dependency = mock.Mock(id='dep')
++        self.dep_getter.side_effect = [None, dependency]
++        self.dep_creator.side_effect = db_exc.DBDuplicateEntry()
++        self.assertEqual(('result', dependency), self._create())
++        self.creator.assert_called_once_with(dependency)
++
++    def test_gives_up_after_max_retries(self):
++        # The dependency is gone each time creating the object fails.
++        self.creator.side_effect = ValueError()
++        self.assertRaises(ValueError, self._create)
++        self.assertEqual(db_api.MAX_RETRIES, self.creator.call_count)
++
++
++class TransactionGuardTestCase(base.BaseTestCase):
++
++    @utils.transaction_guard
++    def _guarded(self, ctx):
++        return 'called'
++
++    @mock.patch.object(db_api, 'is_session_active', return_value=False)
++    def test_outside_transaction(self, is_session_active):
++        ctx = context.Context()
++        self.assertEqual('called', self._guarded(ctx))
++        is_session_active.assert_called_once_with(ctx.session)
++
++    @mock.patch.object(db_api, 'is_session_active', return_value=True)
++    def test_inside_transaction(self, is_session_active):
++        self.assertRaises(RuntimeError, self._guarded, context.Context())
++
++
++class ServerOnlyImportsTestCase(base.BaseTestCase):
++    # neutron.common.utils is imported by every agent, and with it
++    # neutron.api.api_common; neutron.service by the DHCP, L3 and OVN agents.
++    MODULES = ('neutron.api.api_common', 'neutron.common.utils',
++               'neutron.service')
++
++    def test_modules_do_not_import_server_only_modules(self):
++        result = tools.check_imports(self.MODULES, tools.SERVER_ONLY_MODULES)
++        self.assertEqual([], result['holders'])
++
++    def test_modules_do_not_load_server_only_modules(self):
++        result = tools.check_imports(self.MODULES, tools.SERVER_ONLY_MODULES)
++        if result['preloaded']:
++            self.skipTest('neutron_lib loads %s itself' %
++                          ', '.join(result['preloaded']))
++        self.assertEqual([], result['loaded'])
+diff --git a/neutron/tests/unit/test_service.py b/neutron/tests/unit/test_service.py
+index cc95162..1e63b94 100644
+--- a/neutron/tests/unit/test_service.py
++++ b/neutron/tests/unit/test_service.py
+@@ -81,6 +81,27 @@ class TestPreparePeriodicWorkers(base.BaseTestCase):
+         self.assertEqual([process_worker], prepared)
+ 
+ 
++class TestStartWorkers(base.BaseTestCase):
++
++    @mock.patch('neutron_lib.db.api.get_context_manager')
++    @mock.patch.object(neutron_service.common_service, 'ProcessLauncher')
++    def test_pool_disposed_before_forking(self, process_launcher,
++                                          get_context_manager):
++        manager = mock.Mock()
++        get_context_manager.return_value.dispose_pool = (
++            manager.dispose_pool)
++        process_launcher.return_value.launch_service = (
++            manager.launch_service)
++        worker = mock.Mock(worker_process_count=2)
++
++        self.assertIs(process_launcher.return_value,
++                      neutron_service._start_workers([worker]))
++
++        self.assertEqual([mock.call.dispose_pool(),
++                          mock.call.launch_service(worker, 2)],
++                         manager.mock_calls)
++
++
+ class TestStartPeriodicWorkers(base.BaseTestCase):
+ 
+     @mock.patch.object(neutron_service.registry, 'publish')

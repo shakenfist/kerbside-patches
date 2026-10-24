@@ -1,0 +1,10 @@
+repo: https://opendev.org/openstack/neutron
+source_branch: master
+destination_branch: import-memory
+shallow_clone: true
+directory: neutron
+release: master-neutron-db-api-import-memory-013
+depends_on: ''
+source_sha: 7a3841bb4f5a47c3694767c3440f6f417a3ae15b
+previous_source_sha: 7a3841bb4f5a47c3694767c3440f6f417a3ae15b
+repush: false
