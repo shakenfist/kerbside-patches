@@ -1,6 +1,6 @@
-commit fe67c079a6331edbebbb3d122f6b9dd14f46a8dd
+commit 58c7d77e0445d504e56f313993ae3e73fb343edc
 Author: Michael Still <mikal@stillhq.com>
-Date:   Sat Oct 24 07:48:33 2026 +1100
+Date:   Sat Oct 24 13:40:17 2026 +1100
 
     Import os_ken only when validating an ethertype
     
