@@ -1101,6 +1101,7 @@ Mikal's own act, and patch221's hand push still waits for his go.
 | patch229 | `placement-import-memory-009` | [1012173](https://review.opendev.org/c/openstack/placement/+/1012173) |
 | patch230 | `placement-import-memory-009` | [1012174](https://review.opendev.org/c/openstack/placement/+/1012174) |
 | patch231 | `oslo.utils-import-memory-010` | [1012175](https://review.opendev.org/c/openstack/oslo.utils/+/1012175) |
+| patch232 | `oslo.messaging-import-memory-011` | [1012179](https://review.opendev.org/c/openstack/oslo.messaging/+/1012179) |
 
 #### Future work
 
