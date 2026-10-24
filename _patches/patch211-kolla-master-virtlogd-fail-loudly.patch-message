@@ -16,5 +16,5 @@ Related-Bug: #2155214
 Depends-On: https://review.opendev.org/c/openstack/kolla-ansible/+/1010532
 Change-Id: I31bed46c0ea038886d247bbdc97cc0c8a04b64cc
 Signed-off-by: Michael Still <mikal@stillhq.com>
-Assisted-By: Claude Opus 5.5 (1M context, low effort) <noreply@anthropic.com>
+Assisted-By: Claude Opus 5.5 (low effort)
 Signed-off-by: Michael Still <mikal@stillhq.com>

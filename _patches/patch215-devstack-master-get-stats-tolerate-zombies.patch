@@ -1,0 +1,39 @@
+commit 03e6cf30e5fba9cb5a52a78fd09827dd83cd101c
+Author: Michael Still <mikal@stillhq.com>
+Date:   Fri Oct 23 19:39:32 2026 +1100
+
+    Tolerate zombie processes in get-stats.py
+    
+    psutil raises ZombieProcess from cmdline() for a zombie, and the
+    process scan in get-stats.py did not catch it, so a single zombie on
+    the node aborted the script and the job lost all of performance.json.
+    Skip processes whose command line cannot be read.
+    
+    Prompt: while drafting per-process memory telemetry for devstack's
+    performance.json, a local run of get-stats.py crashed on a zombie.
+    
+    Assisted-By: Claude Opus 5.5 (low effort)
+    
+    Change-Id: Ia3033f056e407a950d59d5d52684838d4e9c4d78
+    Signed-off-by: Michael Still <mikal@stillhq.com>
+
+diff --git a/tools/get-stats.py b/tools/get-stats.py
+index b958af61..e9132693 100755
+--- a/tools/get-stats.py
++++ b/tools/get-stats.py
+@@ -75,9 +75,13 @@ def get_processes_stats(matches):
+     procs = psutil.process_iter()
+ 
+     def proc_matches(proc):
++        try:
++            cmdline = ' '.join(proc.cmdline())
++        except psutil.Error:
++            # Zombies and processes that exited since process_iter()
++            return False
+         return me != proc.pid and any(
+-            re.search(match, ' '.join(proc.cmdline()))
+-            for match in matches)
++            re.search(match, cmdline) for match in matches)
+ 
+     return [
+         get_process_stats(proc)

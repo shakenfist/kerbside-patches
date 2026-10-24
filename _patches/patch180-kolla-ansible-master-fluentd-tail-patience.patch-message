@@ -13,8 +13,7 @@ unrelated check-logs.sh failure. Investigation indicated this was a
 race between fluentd detecting new log files and the test timing out.
 We then developed a fix.
 
-Assisted-By: Claude Opus 5 (1M context, high effort) <noreply@anthropic.com>
-Co-Authored-By: Claude Opus 5 (1M context, high effort) <noreply@anthropic.com>
+Assisted-By: Claude Opus 5 (high effort)
 
 Change-Id: I1e250d2128e360c4022870bf05c282661d879c84
 Signed-off-by: Michael Still <mikal@stillhq.com>

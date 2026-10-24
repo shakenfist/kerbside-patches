@@ -1,6 +1,6 @@
-commit 71aaf8f5e8bd16fa3b69110ef42fb62c789949b0
+commit 02180511106ef686de061b00db2e3176421984d2
 Author: Michael Still <mikal@stillhq.com>
-Date:   Tue Oct 20 18:12:50 2026 +1100
+Date:   Fri Oct 23 19:41:25 2026 +1100
 
     Detect log levels in JSON formatted logs.
     
@@ -15,8 +15,7 @@ Date:   Tue Oct 20 18:12:50 2026 +1100
     JSON without it would not fail this check, it would silently stop being
     checked at all, which is the worse of the two failures.
     
-    Assisted-By: Claude Opus 5 (1M context, high effort) <noreply@anthropic.com>
-    Co-Authored-By: Claude Opus 5 (1M context, high effort) <noreply@anthropic.com>
+    Assisted-By: Claude Opus 5 (high effort)
     
     Depends-On: https://review.opendev.org/c/openstack/kolla-ansible/+/1005458
     Change-Id: Id69511ea84bd9d4cb005c39da471fc2d576686ac

@@ -14,15 +14,28 @@ the header and the first `diff --git`, indented by four spaces:
     diff --git ...
 
 `tools/extract-commit-message` writes that message out to `<patch>-message` so
-git can commit with it, and `tools/check-depends-on.py` reads it to find the
-Depends-On footers. They share this module so the two can never disagree about
+git can commit with it, `tools/check-depends-on.py` reads it to find the
+Depends-On footers, and `tools/check-llm-attribution.py` reads it to check how
+an LLM is credited. They share this module so they can never disagree about
 what a patch's message is -- a disagreement of exactly that kind is why the
-Depends-On checker exists.
+Depends-On checker exists. `tools/gerrit-pre-push-lint` uses the same
+attribution rules on the commits it checks.
 """
 
 import re
 
 DEPENDS_ON = re.compile(r'^Depends-On:\s*(\S.*?)\s*$')
+CO_AUTHORED_BY = re.compile(r'^Co-Authored-By:', re.IGNORECASE)
+
+# Known LLM tool names and email domains. This deliberately does not match "any
+# noreply address": a noreply address can belong to a person (GitHub's, for
+# example). Matching known tools can miss one we have not heard of, but it never
+# flags a person.
+LLM_NAMES = re.compile(r'Claude|ChatGPT|GPT-\d|Copilot|Gemini|Codex', re.IGNORECASE)
+LLM_DOMAINS = ('anthropic.com', 'openai.com')
+
+ASSISTED_BY = re.compile(r'^Assisted-By:', re.IGNORECASE)
+EFFORT = re.compile(r'^([a-z]+) effort$', re.IGNORECASE)
 
 
 def extract(path):
@@ -90,3 +103,60 @@ def depends_on(message):
         match = DEPENDS_ON.match(line)
         if match:
             yield number, match.group(1)
+
+
+def is_llm_co_author(line):
+    """Return True if *line* is a Co-Authored-By trailer that credits an LLM.
+
+    See LLM_NAMES and LLM_DOMAINS for what counts as an LLM.
+    """
+    if not CO_AUTHORED_BY.match(line):
+        return False
+    value = line.split(':', 1)[1]
+    email = re.search(r'<[^>]*@([^>\s]+)>', value)
+    domain = email.group(1).lower() if email else ''
+    return bool(LLM_NAMES.search(value.split('<')[0])) or domain in LLM_DOMAINS
+
+
+def llm_co_authors(message):
+    """Return the Co-Authored-By lines of *message* that credit an LLM.
+
+    Lines are returned unstripped and in order. The community convention is
+    that an LLM is credited with Assisted-By, and Co-Authored-By is reserved
+    for people.
+    """
+    return [line for line in message.split('\n') if is_llm_co_author(line)]
+
+
+def standard_assisted_by(value):
+    """Return the Assisted-By line for *value*, the value of an attribution trailer.
+
+    The standard form is `Assisted-By: <model> (<effort> effort)`, or just the
+    model when the effort level is not known. The effort level stays because it
+    changes what the model produces; the email address, the context window and
+    any other settings are dropped.
+    """
+    settings = [s.strip() for group in re.findall(r'\(([^)]*)\)', value) for s in group.split(',')]
+    model = ' '.join(re.sub(r'\([^)]*\)|<[^>]*>', ' ', value).split())
+    effort = next((m.group(1).lower() for s in settings if (m := EFFORT.match(s))), None)
+    return f'Assisted-By: {model} ({effort} effort)' if effort else f'Assisted-By: {model}'
+
+
+def attribution_problems(message):
+    """Yield (line, fix) for each attribution trailer of *message* that breaks the rules.
+
+    An LLM is credited with Assisted-By only, in the standard_assisted_by form.
+    fix is the line to write instead, or None when the line should simply go: a
+    Co-Authored-By for an LLM becomes an Assisted-By only when the message has
+    none.
+    """
+    lines = message.split('\n')
+    assisted = any(ASSISTED_BY.match(line) for line in lines)
+    for line in lines:
+        if ASSISTED_BY.match(line):
+            fix = standard_assisted_by(line.split(':', 1)[1])
+            if line != fix:
+                yield line, fix
+        elif is_llm_co_author(line):
+            yield line, None if assisted else standard_assisted_by(line.split(':', 1)[1])
+            assisted = True

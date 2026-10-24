@@ -38,6 +38,12 @@ and tracks the health of the pipelines involved.
 - [The containerised deployer](containerised-deployer.md) — running
   Kolla-Ansible from a Kolla-built image: building it, the version
   safeguards and build manifest, what CI shows, and what did not work.
+- [Scanning OpenStack services for unneeded imports](import-memory-scans.md)
+  — finding packages a service loads but never uses, tracing the import
+  that pulls them in, and costing them per process and per node.
+- [Draft Launchpad bug for oslo.privsep memory](privsep-memory-bug-draft.md)
+  — written but held until upstream is ready for it, with what to
+  refresh before filing.
 - [Plans](plans/index.md) — the planning documents for work in
   flight here and upstream, oldest first, with a one-line status for
   each.

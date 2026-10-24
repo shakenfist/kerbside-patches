@@ -20,8 +20,7 @@ Date:   Tue Oct 13 18:33:51 2026 +1100
     Prompt: Michael asked about unblocking Magnum CI while waiting for the
     upstream patches to merge.
     
-    Assisted-By: Claude Code
-    Co-Authored-By: Claude Opus 5 (1M context, high effort) <noreply@anthropic.com>
+    Assisted-By: Claude Opus 5 (high effort)
     
     Change-Id: I9f6fe3c6d0686903fda8d6015b5b806439cfc9a7
     Signed-off-by: Michael Still <mikal@stillhq.com>

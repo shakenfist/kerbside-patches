@@ -1,6 +1,6 @@
-commit a3f586ae364fa18b3611db350f2daffe1e04810b
+commit e8380d52f7e46418cff752c581b6a5acca7b0018
 Author: Michael Still <mikal@stillhq.com>
-Date:   Tue Oct 20 18:10:58 2026 +1100
+Date:   Fri Oct 23 19:40:11 2026 +1100
 
     dhcp: Report pending updates in agent state
     
@@ -12,8 +12,7 @@ Date:   Tue Oct 20 18:10:58 2026 +1100
     Prompt: after proposing pending_updates for the L3 agent, Mikal asked for
     the equivalent DHCP agent change as a second patch in the same series;
     the DHCP agent uses the same ResourceProcessingQueue.
-    Assisted-By: Claude Opus 5.5 (1M context, low effort) <noreply@anthropic.com>
-    Co-Authored-By: Claude Opus 5.5 (1M context, low effort) <noreply@anthropic.com>
+    Assisted-By: Claude Opus 5.5 (low effort)
     
     Change-Id: Ia164204c61826be7b9498436f90283698c3a0747
     Signed-off-by: Michael Still <mikal@stillhq.com>

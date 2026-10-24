@@ -25,8 +25,7 @@ Date:   Fri Oct 23 07:13:54 2026 +1100
       ~/.ansible/tmp names a directory in the container's HOME, which the
       host does not have.
     
-    Assisted-By: Claude Opus 5.5 (1M context, high effort) <noreply@anthropic.com>
-    Co-Authored-By: Claude Opus 5.5 (1M context, high effort) <noreply@anthropic.com>
+    Assisted-By: Claude Opus 5.5 (high effort)
     Change-Id: Ie28b1166516779eb3af0d4c61fd839ec188c4a24
     Signed-off-by: Michael Still <mikal@stillhq.com>
 

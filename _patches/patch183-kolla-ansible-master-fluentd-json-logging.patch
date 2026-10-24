@@ -1,6 +1,6 @@
-commit 76507086a190e7927fb9ec2208973c3192548ce5
+commit b39fa719a95675fcd0eac78d6a5832d1cfecb503
 Author: Michael Still <mikal@stillhq.com>
-Date:   Tue Oct 20 18:12:50 2026 +1100
+Date:   Fri Oct 23 19:41:25 2026 +1100
 
     Add a fluentd path for JSON formatted OpenStack logs.
     
@@ -24,8 +24,7 @@ Date:   Tue Oct 20 18:12:50 2026 +1100
     Prompt: Michael asked how much work it would be to let every oslo.log
     service in Kolla-Ansible log JSON using the parser added for Kerbside.
     
-    Assisted-By: Claude Opus 5 (1M context, high effort) <noreply@anthropic.com>
-    Co-Authored-By: Claude Opus 5 (1M context, high effort) <noreply@anthropic.com>
+    Assisted-By: Claude Opus 5 (high effort)
     
     Change-Id: I8cd211f991c66d00875f0c47cba97d8ae065d45e
     Signed-off-by: Michael Still <mikal@stillhq.com>

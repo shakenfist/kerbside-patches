@@ -15,8 +15,7 @@ the MariaDB collation split to be generated as patches, on a new
 worktree, so we can put them up for upstream review and see what
 reviewers say. This change is the config half.
 
-Assisted-By: Claude Opus 5 (1M context, high effort) <noreply@anthropic.com>
-Co-Authored-By: Claude Opus 5 (1M context, high effort) <noreply@anthropic.com>
+Assisted-By: Claude Opus 5 (high effort)
 
 Change-Id: Ic186f3b1a8b64dd67a87db606cce85f1b05fdfa5
 Signed-off-by: Michael Still <mikal@stillhq.com>

@@ -16,8 +16,7 @@ Date:   Tue Oct 13 18:33:52 2026 +1100
     own CI never exercises. These are the images that no Kolla scenario
     deploys.
     
-    Assisted-By: Claude Code
-    Co-Authored-By: Claude Opus 5.5 (1M context) <noreply@anthropic.com>
+    Assisted-By: Claude Opus 5.5
     
     Change-Id: I1ef5bf13c5a3f1085eb0e07e9ff5f81cb8a25d58
     Signed-off-by: Michael Still <mikal@stillhq.com>

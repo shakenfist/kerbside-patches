@@ -27,6 +27,8 @@ directories. This page documents each script and its purpose.
 | `../tools/recount-patch.py [--in-place\|--check] <patch...>` | Recomputes the `@@` hunk headers in a patch from its body, for when a patch in `_patches/` has been hand edited. See [patch-editing.md](patch-editing.md). |
 | `../tools/check-depends-on.py [--offline] [targets...]` | Validates the `Depends-On` footers in `_patches/`: the URL is a review.opendev.org change, the change exists, is in the project the URL names, and has not been abandoned. Targets are patch files or project directories (whose `ORDER` and `depends_on` chain are expanded); with none, every patch in `_patches/`. `--offline` skips the Gerrit lookups. Run by `test-apply.sh` and, in `--offline` form, by pre-commit. See [patch-editing.md](patch-editing.md). |
 | `../tools/test-check-depends-on.py` | Test suite for `check-depends-on.py`, run against a stubbed Gerrit so it needs no network. |
+| `../tools/check-llm-attribution.py [--fix] files...` | Checks how `.patch` and `.patch-message` files credit an LLM. The community asks for `Assisted-By:` only, so a `Co-Authored-By:` that credits an LLM is rejected, and every `Assisted-By:` must read `Assisted-By: <model> (<effort> effort)`, or just the model when the effort level is not known, with no email address or context window. `--fix` removes or converts the `Co-Authored-By:` line and rewrites `Assisted-By:` lines in that form, touching only the commit message and regenerating an existing `<patch>-message`. The rules live in `patch_message.attribution_problems`, shared with `gerrit-pre-push-lint`. Run by pre-commit. |
+| `../tools/test-patch-message-attribution.py` | Test suite for the attribution rules in `patch_message`, `check-llm-attribution.py --fix` on temporary files, and `gerrit-pre-push-lint`'s attribution errors. Run by pre-commit. |
 | `../tools/patch_message.py` | The commit message and `Author:` header embedded in a patch file. Shared by `extract-commit-message`, `extract-commit-author.py` and `check-depends-on.py` so they cannot disagree about what a patch says. |
 | `../tools/test-recount-patch.py` | Test suite for `recount-patch.py`, using git itself as the oracle: it generates canonical patches, damages them, and requires the recounted result to match git's output or apply cleanly. |
 
@@ -86,6 +88,16 @@ PRs and issues with the `DAILY_REBASE_TOKEN` secret.
 | `summarize_layers.py` | Analyzes the per-image layer data time series in `data/layers/`. The `growth` report tracks image size over time and attributes growth to specific layers, the `reuse` report tracks layer reuse between builds, and the `stages` report compares the effect of each occystrap pipeline stage. Use `--build` and `--image` to narrow the analysis. |
 | `collect-layer-data.py` | Used by the `collect_layer_data` CI job to convert a build's `layers.tar.gz` artifact into appends to the per-image time series files in `data/layers/`. Writes the compact version 2 record format, maintains the per-build `commands.jsonl` dictionary, and caps each series at `--max-records` runs (90 by default). |
 
+### Memory Analysis Tools (`tools/import-memory/`)
+
+| Script | Description |
+|--------|-------------|
+| `scan.sh build\|probe\|marginal\|shell` | Builds a container of the OpenStack services from master and runs the probes below in it. See [import-memory-scans.md](import-memory-scans.md). |
+| `probe.py ROLE MODULE...` | Imports a service role's entry point and plugins in a fresh interpreter and reports its RSS, its modules per package, and the import chain that loaded each package. Roles live in `roles.txt`. |
+| `report.py PROBE.jsonl [--packages a,b] [--chain PACKAGE]` | Summarises `probe.py` output as a package-by-role table, or shows where a package is imported in each role. |
+| `marginal.py BASE TARGET` | The anonymous RSS that importing `TARGET` adds on top of `BASE`: what a process saves by not importing it. |
+| `memory-tracker-peaks.py LOG [--group] [--grep RE]` | Ranks the processes on a devstack CI node by peak RSS, from its `screen-memory_tracker.txt`; `--group` totals the Python services per project. |
+
 ### Automated Data PRs
 
 | Script | Description |
@@ -106,7 +118,7 @@ PRs and issues with the `DAILY_REBASE_TOKEN` secret.
 
 | Script | Description |
 |--------|-------------|
-| `gerrit-pre-push-lint` | Pre-push linter for OpenStack Gerrit submissions. Checks for common issues that reviewers flag during code review (missing release notes, bug references, YAML line length, Jinja2 issues, etc.). It also learns subject conventions from the last 200 commits of the project: when at least 40% carry an area prefix (`ovn: `, `[OVN] `) it warns about a subject without one, and when at most 10% end with a period it warns about a subject that does. A shallow clone skips this check. Supports checking stacked patches with `--stack N` or `--range origin/master..HEAD`. |
+| `gerrit-pre-push-lint` | Pre-push linter for OpenStack Gerrit submissions. Checks for common issues that reviewers flag during code review (missing release notes, bug references, YAML line length, Jinja2 issues, etc.). It also learns subject conventions from the last 200 commits of the project: when at least 40% carry an area prefix (`ovn: `, `[OVN] `) it warns about a subject without one, and when at most 10% end with a period it warns about a subject that does. A shallow clone skips this check. It reports an error for a `Co-Authored-By:` that credits an LLM, and for an `Assisted-By:` not in the form `<model> (<effort> effort)`, using the same rules as `check-llm-attribution.py`. Supports checking stacked patches with `--stack N` or `--range origin/master..HEAD`. |
 | `analyze-gerrit-review-times` | Analyzes Gerrit review timestamps to find optimal posting times. Fetches recent merged reviews and shows when reviewers are most active by hour and day of week. |
 | `analyze-gerrit-patch-size` | Analyzes correlation between patch size, series length, and review response. Shows how patch complexity affects time to review, merge, and number of revision cycles needed. |
 | `analyze-gerrit-new-roles` | Analyzes historical patterns for new Ansible role additions. Shows successful strategies, series vs standalone patterns, and recommendations for getting new roles merged. |
@@ -163,8 +175,9 @@ The configured hooks include:
 | `shellcheck` | Static analysis tool for shell scripts. Checks scripts in `_build/` and `tools/` directories for common issues. Configuration is in `.shellcheckrc`. |
 | `recount-patch` | Checks that every `@@` hunk header in `_patches/` matches its body. A too-large count makes git reject the patch; a too-small one makes git silently truncate the hunk and apply the wrong content. |
 | `check-depends-on` | Runs the offline half of `check-depends-on.py`: every `Depends-On` value is a review.opendev.org change URL, and a committed `<patch>-message` still matches the message in its patch. The Gerrit-backed checks (does the change exist, is it abandoned) need the network, so they run in `test-apply.sh` instead. |
-| `flake8` | Lints the Python under `deployer/`, `tools/write-build-manifest`, `tools/measure-deployer-bootstrap`, `tools/ci-select-lanes.py`, `tools/test-ci-merge-group-current.py`, `tools/test-ci-auto-retry.py`, `tools/test-collect-layer-data-pr.py` and `tools/test-data-pr-auto-merge.py`. |
-| `deployer-launcher-tests`, `write-build-manifest-tests`, `measure-deployer-bootstrap-tests`, `ci-select-lanes-tests`, `ci-merge-group-current-tests`, `ci-auto-retry-tests`, `collect-layer-data-pr-tests`, `data-pr-auto-merge-tests` | Run the unit tests of the deployer launcher, of `write-build-manifest`, of `measure-deployer-bootstrap`, of `ci-select-lanes.py`, of `ci-merge-group-current.sh`, of `ci-auto-retry.sh`, of `collect-layer-data-pr.sh` and of `data-pr-auto-merge.sh` with its two callers. |
+| `llm-attribution` | Runs `check-llm-attribution.py`: no `Co-Authored-By:` trailer may credit an LLM in a patch or its message file, and every `Assisted-By:` is in the standard form. |
+| `flake8` | Lints the Python under `deployer/`, `tools/write-build-manifest`, `tools/measure-deployer-bootstrap`, `tools/ci-select-lanes.py`, `tools/test-ci-merge-group-current.py`, `tools/test-ci-auto-retry.py`, `tools/test-collect-layer-data-pr.py`, `tools/test-data-pr-auto-merge.py`, `tools/check-llm-attribution.py` and `tools/test-patch-message-attribution.py`. |
+| `deployer-launcher-tests`, `write-build-manifest-tests`, `measure-deployer-bootstrap-tests`, `ci-select-lanes-tests`, `ci-merge-group-current-tests`, `ci-auto-retry-tests`, `collect-layer-data-pr-tests`, `data-pr-auto-merge-tests`, `patch-message-attribution-tests` | Run the unit tests of the deployer launcher, of `write-build-manifest`, of `measure-deployer-bootstrap`, of `ci-select-lanes.py`, of `ci-merge-group-current.sh`, of `ci-auto-retry.sh`, of `collect-layer-data-pr.sh`, of `data-pr-auto-merge.sh` with its two callers, and of the attribution rules (`test-patch-message-attribution.py`). |
 | `skillsaw` | Lints the agent context in this repository -- `AGENTS.md` and the skills under `.claude/` -- for malformed skills, smuggled unicode and pasted credentials. The pin is kept current by renovate's pre-commit manager. |
 
 ### Git Hooks and Utilities

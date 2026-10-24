@@ -1,0 +1,18 @@
+Record peak, anonymous and swapped memory in get-stats.py
+
+performance.json records each tracked process's RSS once, at the end of
+the job, after memory pressure has swapped much of it out. Also record
+peak RSS, anonymous RSS and swap from /proc/PID/status, which is world
+readable, and the node's swap counters from /proc/vmstat.
+
+The end-of-job RSS of privsep daemons, which the script already tracks
+by default, understates them by a factor of five or more on swapping
+nodes, and swap traffic is what slows those nodes down.
+
+Prompt: Mikal asked for CI telemetry that shows how much memory privsep
+daemons use, so that fixes can be landed one at a time and measured.
+
+Assisted-By: Claude Opus 5.5 (low effort)
+
+Change-Id: If243a81154b924a8cfc47951a6e0be17f38169b5
+Signed-off-by: Michael Still <mikal@stillhq.com>

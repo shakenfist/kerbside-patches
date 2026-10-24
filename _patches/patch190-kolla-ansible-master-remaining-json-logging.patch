@@ -1,6 +1,6 @@
-commit 316bb3aafed6ed2844023ed1660952c2255d0893
+commit 8997ea17983c71d93749ee5236a9a08f6f24b9c4
 Author: Michael Still <mikal@stillhq.com>
-Date:   Tue Oct 20 18:12:52 2026 +1100
+Date:   Fri Oct 23 19:41:26 2026 +1100
 
     Convert the remaining services to JSON logging.
     
@@ -17,8 +17,7 @@ Date:   Tue Oct 20 18:12:52 2026 +1100
     batches by project rather than landing as thirty separate commits.
     This is the last batch.
     
-    Assisted-By: Claude Opus 5 (1M context, high effort) <noreply@anthropic.com>
-    Co-Authored-By: Claude Opus 5 (1M context, high effort) <noreply@anthropic.com>
+    Assisted-By: Claude Opus 5 (high effort)
     
     Change-Id: I3e14c0f01fa3af6581232d17c4d88e1a867cf506
     Signed-off-by: Michael Still <mikal@stillhq.com>

@@ -49,8 +49,7 @@ tempest plugin. We landed on a plugin in the kerbside repo, packaged
 as its own releasable but sharing kerbside's version via a
 setuptools_scm root pointing at the parent directory.
 
-Assisted-By: Claude Opus 4.7 (1M context, medium effort) <noreply@anthropic.com>
-Co-Authored-By: Claude Opus 4.7 (1M context, medium effort) <noreply@anthropic.com>
+Assisted-By: Claude Opus 4.7 (medium effort)
 
 Depends-On: https://review.opendev.org/c/openstack/kolla/+/986283
 Change-Id: I3d9e2a8b4c5f1a6b7c8d9e0f1a2b3c4d5e6f7a8b

@@ -38,8 +38,7 @@ Date:   Mon Jun 22 12:05:17 2026 +1000
     as a new patch in the kolla/ORDER list. Could you please investigate
     options here?
     
-    Assisted-By: Claude Code
-    Co-Authored-By: Claude Opus 4.7 (1M context, medium effort) <noreply@anthropic.com>
+    Assisted-By: Claude Opus 4.7 (medium effort)
     
     Change-Id: I410b87b7f8cdd541c48d9a749b3fea634a5f4e6c
     Signed-off-by: Michael Still <mikal@stillhq.com>

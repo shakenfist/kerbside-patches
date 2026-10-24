@@ -20,7 +20,7 @@ Date:   Wed Jul 8 17:49:08 2026 +1000
     on this branch with the local openstack-python3-jobs-kolla-ansible
     template, which exists precisely to skip py310 jobs.
     
-    Assisted-By: Claude Fable 5 (1M context, medium effort)
+    Assisted-By: Claude Fable 5 (medium effort)
     Change-Id: I2ebc2098eff8c9c7ff154cfa768c14eccb4d802c
     Signed-off-by: Michael Still <mikal@stillhq.com>
 

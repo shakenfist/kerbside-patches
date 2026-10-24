@@ -11,8 +11,7 @@ This change adds checks which run before anything changes a host, in
 every playbook except destroy.yml, which must work whatever the versions
 so that a mistake can always be cleaned up.
 
-Assisted-By: Claude Opus 5.5 (1M context, high effort) <noreply@anthropic.com>
-Co-Authored-By: Claude Opus 5.5 (1M context, high effort) <noreply@anthropic.com>
+Assisted-By: Claude Opus 5.5 (high effort)
 
 Change-Id: I0791c64ba93126ac97a0b789c2900302808e3980
 Signed-off-by: Michael Still <mikal@stillhq.com>

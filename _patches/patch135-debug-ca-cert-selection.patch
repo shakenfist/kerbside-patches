@@ -15,7 +15,7 @@ Date:   Wed Feb 4 17:48:10 2026 +1100
     
     Change-Id: I177929522a8ed3c8372c57e2a456eff1370564f5
     Signed-off-by: Michael Still <mikal@stillhq.com>
-    Co-Authored-By: Claude Opus 4.5 <noreply@anthropic.com>
+    Assisted-By: Claude Opus 4.5
 
 diff --git a/ansible/roles/kerbside/tasks/copy-certs.yml b/ansible/roles/kerbside/tasks/copy-certs.yml
 index 713904d33..7748db1de 100644

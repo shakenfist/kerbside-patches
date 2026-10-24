@@ -1,0 +1,10 @@
+repo: https://opendev.org/openstack/devstack
+source_branch: master
+destination_branch: privsep-memory
+shallow_clone: true
+directory: devstack
+release: master-devstack-privsep-memory-001
+depends_on: ''
+source_sha: cec77a55b3084e40346fba8d4b87e913cd09a454
+previous_source_sha: cec77a55b3084e40346fba8d4b87e913cd09a454
+repush: true

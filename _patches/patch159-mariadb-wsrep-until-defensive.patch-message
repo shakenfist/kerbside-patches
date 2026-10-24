@@ -26,8 +26,7 @@ was the dict-has-no-attribute error from this conditional. The
 intent is to validate the fix locally and then propose it
 upstream.
 
-Assisted-By: Claude Opus 4.7 (1M context, medium effort) <noreply@anthropic.com>
-Co-Authored-By: Claude Opus 4.7 (1M context, medium effort) <noreply@anthropic.com>
+Assisted-By: Claude Opus 4.7 (medium effort)
 
 Change-Id: I4e5d7c2a8f9b1d3e6a4c5b8d2f1e0a3c4b5d6e7f
 Signed-off-by: Michael Still <mikal@stillhq.com>

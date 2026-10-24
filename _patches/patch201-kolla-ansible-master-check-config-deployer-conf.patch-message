@@ -11,6 +11,6 @@ globals.yml, passwords.yml and kolla-build.conf, it is not service
 configuration, so skip it when checking file permissions and
 ownership.
 
-Assisted-By: Claude Opus 5.5 (1M context, low effort) <noreply@anthropic.com>
+Assisted-By: Claude Opus 5.5 (low effort)
 Change-Id: I12a66c77883c2d42b5464d4275bc3e5a75c5cbca
 Signed-off-by: Michael Still <mikal@stillhq.com>
