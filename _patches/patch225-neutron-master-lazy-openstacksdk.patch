@@ -1,6 +1,6 @@
-commit a70ec31ef11229910fd389bf7e648a0a39665a6f
+commit 23d00828fd615c20e5b3d18c27423379cdcf45cf
 Author: Michael Still <mikal@stillhq.com>
-Date:   Sat Oct 24 08:23:53 2026 +1100
+Date:   Sun Oct 25 07:34:24 2026 +1100
 
     api: Import openstacksdk only for ProjectIdMiddleware
     
