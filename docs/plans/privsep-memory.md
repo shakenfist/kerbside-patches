@@ -604,7 +604,7 @@ Two more things were found:
    | `devstack-privsep-memory-001` (existing) | patch221, appended after patch220 | telemetry |
    | `futurist-import-memory-004` | patch222 | #1 |
    | `neutron-lib-import-memory-005` | patch223 | #4 |
-   | `neutron-lib-db-api-import-memory-006` | patch224, `wip: true` | #2 |
+   | `neutron-lib-db-api-import-memory-006` | patch224 | #2 |
    | `neutron-import-memory-007` | patch225, patch226 | #3, #5 |
    | `keystone-import-memory-008` | patch227, patch228 | #6, eventlet |
    | `placement-import-memory-009` | patch229, patch230 | #7, eventlet |
@@ -613,13 +613,18 @@ Two more things were found:
    `_build/get-next-patch-number.py` when it runs, because open pull
    requests may claim numbers first.
 
-2. **#2 is its own series, pushed as work in progress.** It is the
-   largest per-agent saving, at 25 MB on each of about eight ML2/OVS
-   agent processes. It also changes when neutron-lib registers its ORM
-   event listeners, which is the behaviour LP #1802369 deliberately
-   added. As a separate WIP series, it can start that discussion
-   without holding up #4, which needs no discussion. It also sits
-   beside patch219's open question with neutron reviewers.
+2. **#2 is its own series, pushed for review with the question asked
+   on the change.** It changes when neutron-lib registers its ORM event
+   listeners, which is the behaviour LP #1802369 deliberately added. As
+   a separate series it can start that discussion without holding up
+   #4, which needs no discussion. It also sits beside patch219's open
+   question with neutron reviewers. It was first planned as work in
+   progress, on an estimate of 25 MB per agent. On 2026-10-24 Mikal
+   removed the WIP flag, because Gerrit's WIP means "not ready for
+   review", so no reviewer would answer the question. Once it is
+   uploaded he comments on the change to ask whether registering the
+   listeners on first DB use is acceptable. 6j measured it at 4 to
+   6 MB per agent, not 25.
 
 3. **Lazy imports, not copied constants, for #4.** The `validate_ethertype`
    function can import `os_ken.lib.packet.ether_types` inside the
@@ -785,7 +790,7 @@ without patch224 (see below).
 | eventlet | oslo.privsep | `daemon.py` | monkey-patch check | the privsep daemon; neutron through `neutron.conf.agent.common` | patch217, in review as 1011795 | none |
 | eventlet | ovsdbapp | `backend/ovs_idl/vlog.py` | patcher check for Windows logging | neutron-api, neutron-rpc-server, the OVN, OVS and DHCP agents | already gone in ovsdbapp 3.0.0; upper-constraints pins 2.19.0 until requirements 1011342 merges | none |
 | eventlet | python-ovs (Open vSwitch) | `ovs/poller.py` | module-level patcher import for green `select` | the same 5 roles | look it up when called, sent to ovs-dev | none |
-| db.api | neutron-lib | `__init__.py`, `context.py`, `db/utils.py` | ORM listeners | every agent | option (a), patch224, WIP | when the listeners are registered |
+| db.api | neutron-lib | `__init__.py`, `context.py`, `db/utils.py` | ORM listeners | every agent | option (a), patch224 | when the listeners are registered |
 | db.api | neutron | `common/utils.py` | `MAX_RETRIES` and `is_session_active` in two decorators | 5 agents | import inside the two functions | none |
 | db.api | neutron | `service.py` | `dispose_pool()` before forking | DHCP, L3, OVN | import inside | none |
 | db.api | neutron | `api/api_common.py` | `model_base.BASEV2` in filter validation | agents through `neutron.common.utils` | import inside | none |
@@ -906,7 +911,7 @@ Mikal to push.
   session reviews the diff against the four places `_green` is used.
   futurist's gate also runs `lib-forward-testing-python3`, which is a
   devstack tempest job with futurist installed from source.
-- **neutron-lib reviewers reject #2.** It is WIP and in a series of
+- **neutron-lib reviewers reject #2.** It is in a series of
   its own, so the rest of the phase does not depend on it. If it is
   rejected, record that in Future work, along with the per-agent cost
   that remains.
