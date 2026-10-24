@@ -1,6 +1,6 @@
-commit 35b2d8549140d2e8e757aabd6dea8948d8f52b4d
+commit d9b44272ff8b82af661e2ab777dc77d2b4da1d26
 Author: Michael Still <mikal@stillhq.com>
-Date:   Sat Oct 24 09:44:51 2026 +1100
+Date:   Sun Oct 25 07:39:39 2026 +1100
 
     Import the SAML IdP only when it is used
     
@@ -21,7 +21,7 @@ Date:   Sat Oct 24 09:44:51 2026 +1100
     Signed-off-by: Michael Still <mikal@stillhq.com>
 
 diff --git a/keystone/api/_shared/saml.py b/keystone/api/_shared/saml.py
-index 8e95bc3..04ccdd7 100644
+index 8e95bc354..04ccdd7e8 100644
 --- a/keystone/api/_shared/saml.py
 +++ b/keystone/api/_shared/saml.py
 @@ -15,7 +15,6 @@ from oslo_serialization import jsonutils
@@ -44,7 +44,7 @@ index 8e95bc3..04ccdd7 100644
      response = generator.samlize_token(
          issuer,
 diff --git a/keystone/api/auth.py b/keystone/api/auth.py
-index d2a97ab..acfcb1a 100644
+index d2a97abb6..acfcb1ab7 100644
 --- a/keystone/api/auth.py
 +++ b/keystone/api/auth.py
 @@ -35,7 +35,6 @@ from keystone.common import utils as k_utils
@@ -67,7 +67,7 @@ index d2a97ab..acfcb1a 100644
          ecp_assertion = generator.generate_ecp(
              saml_assertion, relay_state_prefix
 diff --git a/keystone/tests/unit/server/test_keystone_flask.py b/keystone/tests/unit/server/test_keystone_flask.py
-index 2d4158f..bc07bb6 100644
+index 2d4158f27..bc07bb66b 100644
 --- a/keystone/tests/unit/server/test_keystone_flask.py
 +++ b/keystone/tests/unit/server/test_keystone_flask.py
 @@ -11,6 +11,8 @@

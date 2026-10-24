@@ -7,4 +7,4 @@ release: master-keystone-import-memory-008
 depends_on: ''
 source_sha: e226ae14f5da354af9fed86296bb0e110ab020ec
 previous_source_sha: e226ae14f5da354af9fed86296bb0e110ab020ec
-repush: false
+repush: true

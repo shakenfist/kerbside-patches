@@ -1,6 +1,6 @@
-commit b6a02656c172d866ca203a6faee526c61ebc75b3
+commit 4dc774a968c8b5d8a5e8f2bcf0f3eb6fdf5d3fe6
 Author: Michael Still <mikal@stillhq.com>
-Date:   Sat Oct 24 09:45:22 2026 +1100
+Date:   Sun Oct 25 07:39:39 2026 +1100
 
     Prefer the threading oslo.service backend
     
@@ -23,7 +23,7 @@ Date:   Sat Oct 24 09:45:22 2026 +1100
     Signed-off-by: Michael Still <mikal@stillhq.com>
 
 diff --git a/keystone/__init__.py b/keystone/__init__.py
-index e69de29..8ffa17e 100644
+index e69de29bb..8ffa17e48 100644
 --- a/keystone/__init__.py
 +++ b/keystone/__init__.py
 @@ -0,0 +1,21 @@
@@ -50,7 +50,7 @@ index e69de29..8ffa17e 100644
 +backend.register_backend_default_hook(lambda: backend.BackendType.THREADING)
 diff --git a/keystone/tests/unit/test_backend_selection.py b/keystone/tests/unit/test_backend_selection.py
 new file mode 100644
-index 0000000..9c4da09
+index 000000000..9c4da09cb
 --- /dev/null
 +++ b/keystone/tests/unit/test_backend_selection.py
 @@ -0,0 +1,61 @@
@@ -117,7 +117,7 @@ index 0000000..9c4da09
 +        self.assertEqual('eventlet', out)
 diff --git a/releasenotes/notes/oslo-service-threading-backend-5f0c1d7a3b9e4c28.yaml b/releasenotes/notes/oslo-service-threading-backend-5f0c1d7a3b9e4c28.yaml
 new file mode 100644
-index 0000000..d4c815c
+index 000000000..d4c815c0a
 --- /dev/null
 +++ b/releasenotes/notes/oslo-service-threading-backend-5f0c1d7a3b9e4c28.yaml
 @@ -0,0 +1,8 @@
@@ -130,7 +130,7 @@ index 0000000..d4c815c
 +    memory. A backend chosen explicitly through
 +    ``oslo_service.backend.init_backend()`` is not affected.
 diff --git a/requirements.txt b/requirements.txt
-index fe94267..f4f9e0e 100644
+index fe9426710..d1bf5e896 100644
 --- a/requirements.txt
 +++ b/requirements.txt
 @@ -22,6 +22,7 @@ oslo.log>=3.44.0 # Apache-2.0
