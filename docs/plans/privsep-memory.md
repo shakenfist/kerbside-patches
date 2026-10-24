@@ -1093,6 +1093,7 @@ Mikal's own act, and patch221's hand push still waits for his go.
 | patch221 | `devstack-privsep-memory-001` | [1011992](https://review.opendev.org/c/openstack/devstack/+/1011992) |
 | patch222 | `futurist-import-memory-004` | [1012147](https://review.opendev.org/c/openstack/futurist/+/1012147) |
 | patch223 | `neutron-lib-import-memory-005` | [1012151](https://review.opendev.org/c/openstack/neutron-lib/+/1012151) |
+| patch224 | `neutron-lib-db-api-import-memory-006` | [1012152](https://review.opendev.org/c/openstack/neutron-lib/+/1012152) |
 
 #### Future work
 
