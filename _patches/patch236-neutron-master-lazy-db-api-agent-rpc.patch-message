@@ -1,0 +1,21 @@
+agent: Import the resource cache only for L2 agents
+
+neutron.agent.rpc imports the resource cache and registry, which load
+every object and DB model, though only L2 agents use them, and
+stdattrs_common imports standard_attr for one function. Import them when
+used, spell RESOURCE_TYPES out, and test the DHCP, L3 and metadata
+agents.
+
+With neutron-lib's "Load the DB API only for DB users", "db: Import the
+DB API inside the functions using it" and "ovn: Keep server-only imports
+out of the OVN agent", the probe shows those agents down from 119, 119
+and 115MB to 103, 102 and 99MB, without the DB API or pecan; without the
+neutron-lib change, 10 to 12MB.
+
+Prompt: Mikal asked for the neutron changes that keep the DB API out of
+the neutron agents, as three patches grouped by the agents they free.
+
+Assisted-By: Claude Opus 5.5 (high effort)
+
+Change-Id: Ibce838389c8edb25fdc6affbe3dd1c517d6d6d53
+Signed-off-by: Michael Still <mikal@stillhq.com>
