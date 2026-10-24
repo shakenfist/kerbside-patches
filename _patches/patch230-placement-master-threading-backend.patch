@@ -1,6 +1,6 @@
-commit fb23ed2f8bb1748b89815f870e6ac25bc8d92822
+commit d131aa6a631594f4c4adb398082a5a1e32758d19
 Author: Michael Still <mikal@stillhq.com>
-Date:   Sat Oct 24 09:47:34 2026 +1100
+Date:   Sun Oct 25 07:43:36 2026 +1100
 
     Prefer the threading oslo.service backend
     
@@ -24,7 +24,7 @@ Date:   Sat Oct 24 09:47:34 2026 +1100
     Signed-off-by: Michael Still <mikal@stillhq.com>
 
 diff --git a/placement/__init__.py b/placement/__init__.py
-index e69de29..a0d2ef9 100644
+index e69de29b..a0d2ef98 100644
 --- a/placement/__init__.py
 +++ b/placement/__init__.py
 @@ -0,0 +1,23 @@
@@ -52,7 +52,7 @@ index e69de29..a0d2ef9 100644
 +service_backend.register_backend_default_hook(
 +    lambda: service_backend.BackendType.THREADING)
 diff --git a/placement/tests/unit/test_deploy.py b/placement/tests/unit/test_deploy.py
-index bcd5308..644334e 100644
+index bcd53085..644334ee 100644
 --- a/placement/tests/unit/test_deploy.py
 +++ b/placement/tests/unit/test_deploy.py
 @@ -76,3 +76,22 @@ class DeployTest(testtools.TestCase):
@@ -80,7 +80,7 @@ index bcd5308..644334e 100644
 +        self.assertEqual('EventletBackend', out)
 diff --git a/releasenotes/notes/placement-threading-service-backend-3f1c2a9d7b4e5a60.yaml b/releasenotes/notes/placement-threading-service-backend-3f1c2a9d7b4e5a60.yaml
 new file mode 100644
-index 0000000..c779380
+index 00000000..c7793804
 --- /dev/null
 +++ b/releasenotes/notes/placement-threading-service-backend-3f1c2a9d7b4e5a60.yaml
 @@ -0,0 +1,8 @@
@@ -93,7 +93,7 @@ index 0000000..c779380
 +    placement process loading ``eventlet``, which it does not use. A backend
 +    that is selected explicitly before placement is imported is still used.
 diff --git a/requirements.txt b/requirements.txt
-index e702b15..68a56ff 100644
+index e702b159..68a56ff9 100644
 --- a/requirements.txt
 +++ b/requirements.txt
 @@ -14,6 +14,7 @@ oslo.config>=6.7.0 # Apache-2.0

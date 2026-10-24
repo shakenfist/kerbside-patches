@@ -1,6 +1,6 @@
-commit 3692bc13258a687aa0038bdb42febd472a17327a
+commit 4ba50485536a08ca952f635fea2af8ef3e950ffe
 Author: Michael Still <mikal@stillhq.com>
-Date:   Sat Oct 24 09:47:34 2026 +1100
+Date:   Sun Oct 25 07:43:36 2026 +1100
 
     Import migrations only when syncing on startup
     
@@ -23,7 +23,7 @@ Date:   Sat Oct 24 09:47:34 2026 +1100
     Signed-off-by: Michael Still <mikal@stillhq.com>
 
 diff --git a/placement/deploy.py b/placement/deploy.py
-index aa3a51e..b25f1d6 100644
+index aa3a51eb..b25f1d61 100644
 --- a/placement/deploy.py
 +++ b/placement/deploy.py
 @@ -19,7 +19,6 @@ from oslo_utils import importutils
@@ -45,7 +45,7 @@ index aa3a51e..b25f1d6 100644
      ctx = db_api.DbContext()
      trait.ensure_sync(ctx)
 diff --git a/placement/tests/unit/test_deploy.py b/placement/tests/unit/test_deploy.py
-index c52713b..bcd5308 100644
+index c52713b5..bcd53085 100644
 --- a/placement/tests/unit/test_deploy.py
 +++ b/placement/tests/unit/test_deploy.py
 @@ -13,6 +13,10 @@
