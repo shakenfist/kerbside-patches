@@ -8,8 +8,10 @@ in, and measures what removing it would save.
 
 The tools were written for the devstack CI memory work in
 [plans/privsep-memory.md](plans/privsep-memory.md). Phase 6 of that plan
-records the first scan, made on 2026-10-23, which found about 0.5 GB per OVN
-all-in-one node and 0.85 GB per ML2/OVS controller.
+records the first scan, made on 2026-10-23, and the savings measured once
+the fixes were written: 24 to 49 MB per neutron process, and 10 to 24 MB for
+glance, keystone and placement. The first scan's estimate of 0.5 to 0.85 GB
+per node added up per-package costs and was withdrawn.
 
 ## The tools
 
