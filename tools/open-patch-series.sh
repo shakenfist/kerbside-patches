@@ -10,5 +10,6 @@ do
     echo "Opening ${patch}"
     code ${patch}
 done
+code "${1}/config.yaml"
 
 echo "Done"
