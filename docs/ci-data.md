@@ -311,10 +311,10 @@ lives in `tools/ci-report.sh` and currently covers:
   break: `magnum-cluster-api` still imports `pkg_resources`, which
   setuptools 82 removed, so `magnum_conductor` aborts on startup on the
   debian and rocky images. patch196 in `kolla-magnum-setuptools-pin`
-  pins setuptools below 82 until the `importlib.resources` migration in
-  https://github.com/vexxhost/magnum-cluster-api/pull/925 merges, which
-  is the same shape as the pin Kolla carried for horizon and then
-  reverted.
+  pins setuptools below 82 until a magnum-cluster-api release includes
+  https://github.com/vexxhost/magnum-cluster-api/pull/1156, which drops
+  `pkg_resources`; it is the same shape as the pin Kolla carried for
+  horizon and then reverted.
 
   Magnum is the first casualty, because its migration chain straddles
   the two styles -- `bay`/`cluster` was created in 2015 with
