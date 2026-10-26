@@ -1,0 +1,78 @@
+commit 58c7d77e0445d504e56f313993ae3e73fb343edc
+Author: Michael Still <mikal@stillhq.com>
+Date:   Sat Oct 24 13:40:17 2026 +1100
+
+    Import os_ken only when validating an ethertype
+    
+    Importing neutron_lib.api.validators loaded 46 os_ken modules for one
+    lookup in validate_ethertype(), which only runs when sg_filter_ethertypes
+    is set. Dropping it saves about 8MB of anonymous memory in each of
+    neutron-api, the OVN agent and the L3 agent.
+    
+    Import ether_types inside that branch, and add a test that importing the
+    validators does not load os_ken.
+    
+    Prompt: Mikal asked for privsep memory fixes that can be landed one at a
+    time and measured in devstack CI; neutron daemons are the largest.
+    
+    Assisted-By: Claude Sonnet 5.5 (medium effort)
+    
+    Depends-On: https://review.opendev.org/c/openstack/devstack/+/1011992
+    Change-Id: I8b593cf89e51d26b44dc58c04a6288c0f9670e88
+    Signed-off-by: Michael Still <mikal@stillhq.com>
+
+diff --git a/neutron_lib/api/validators/__init__.py b/neutron_lib/api/validators/__init__.py
+index df38606c..784897cc 100644
+--- a/neutron_lib/api/validators/__init__.py
++++ b/neutron_lib/api/validators/__init__.py
+@@ -17,7 +17,6 @@ import re
+ import unicodedata
+ 
+ import netaddr
+-from os_ken.lib.packet import ether_types
+ from oslo_config import cfg
+ from oslo_log import log as logging
+ from oslo_utils import netutils
+@@ -1376,6 +1375,9 @@ def validate_ethertype(ethertype, valid_values=None):
+     """
+ 
+     if cfg.CONF.sg_filter_ethertypes:
++        # Imported here because os_ken is large and only this check needs it.
++        from os_ken.lib.packet import ether_types  # pylint: disable=C0415
++
+         os_ken_ethertypes = ether_types.__dict__
+         try:
+             # Use the ethertype constants from os_ken with the special
+diff --git a/neutron_lib/tests/unit/api/validators/test_validators.py b/neutron_lib/tests/unit/api/validators/test_validators.py
+index 6cd9e9e6..aeafe8b9 100644
+--- a/neutron_lib/tests/unit/api/validators/test_validators.py
++++ b/neutron_lib/tests/unit/api/validators/test_validators.py
+@@ -12,6 +12,8 @@
+ #    under the License.
+ 
+ import string
++import subprocess
++import sys
+ from unittest import mock
+ 
+ import netaddr
+@@ -1531,3 +1533,19 @@ class TestAddressNotMulticastValidation(base.BaseTestCase):
+         ):
+             result = validators.validate_mac_address_not_multicast(data)
+             self.assertIsNotNone(result)
++
++
++class TestValidatorsImports(base.BaseTestCase):
++
++    def test_os_ken_not_imported(self):
++        # Run in a fresh interpreter: the test process may already have
++        # imported os_ken. Only validate_ethertype needs it, and only when
++        # sg_filter_ethertypes is set.
++        code = ('import sys\n'
++                'import neutron_lib.api.validators\n'
++                'print(",".join(m for m in sys.modules\n'
++                '               if m == "os_ken" or m.startswith("os_ken.")))'
++                '\n')
++        out = subprocess.check_output(  # noqa: S603
++            [sys.executable, '-c', code], text=True)
++        self.assertEqual('', out.strip())

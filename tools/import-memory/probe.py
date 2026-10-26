@@ -5,7 +5,9 @@ Usage: probe.py ROLE MODULE [MODULE ...]
 
 Each MODULE is imported in order. A MODULE of the form call:package.module.function
 imports package.module and calls function() with no arguments, for setup such as
-cinder.objects.register_all. Import errors are recorded rather than fatal, so a
+cinder.objects.register_all. The call may carry literal arguments, parsed with
+ast.literal_eval and never evaluated:
+call:nova.monkey_patch.patch(backend='threading'). Import errors are recorded rather than fatal, so a
 role whose last plugin fails still reports what it loaded before the failure.
 
 Prints one JSON object: anonymous and total RSS before and after, the number of
@@ -15,6 +17,7 @@ package the chain of importers that first loaded it, innermost first.
 Run it with python -I in a fresh interpreter per role; anything imported before
 the probe starts is not attributed.
 """
+import ast
 import builtins
 import collections
 import importlib
@@ -58,6 +61,20 @@ def chain(module, limit=12):
     return out
 
 
+def run_call(spec):
+    """Run 'package.module.function' or 'package.module.function(literal, key=literal)'."""
+    name, args, kwargs = spec, [], {}
+    if '(' in spec:
+        node = ast.parse(spec, mode='eval').body
+        if not isinstance(node, ast.Call) or any(isinstance(a, ast.Starred) for a in node.args):
+            raise ValueError('not a plain call: %s' % spec)
+        name = spec[:spec.index('(')]
+        args = [ast.literal_eval(a) for a in node.args]
+        kwargs = {k.arg: ast.literal_eval(k.value) for k in node.keywords}
+    mod, _, fn = name.rpartition('.')
+    getattr(importlib.import_module(mod), fn)(*args, **kwargs)
+
+
 def main():
     role, modules = sys.argv[1], sys.argv[2:]
     builtins.__import__ = _import
@@ -67,8 +84,7 @@ def main():
     for m in modules:
         try:
             if m.startswith('call:'):
-                mod, _, fn = m[len('call:'):].rpartition('.')
-                getattr(importlib.import_module(mod), fn)()
+                run_call(m[len('call:'):])
             else:
                 importlib.import_module(m)
         except Exception as e:

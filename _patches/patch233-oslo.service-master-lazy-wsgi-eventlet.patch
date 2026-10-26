@@ -1,0 +1,202 @@
+commit eecd8b652cfd31f1c249f1ced870d7313928ef4f
+Author: Michael Still <mikal@stillhq.com>
+Date:   Sun Oct 25 08:56:03 2026 +1100
+
+    Import eventlet only for the WSGI server
+    
+    Only the deprecated Server uses eventlet and greenlet, yet neutron
+    imports oslo_service.wsgi everywhere for Loader, Request and
+    register_opts. Import them in Server's methods; protocol now defaults
+    to None, which still means eventlet.wsgi.HttpProtocol.
+    
+    The saving also needs eventlet gone from futurist, oslo.utils'
+    eventletutils, oslo.messaging's _utils and oslo.privsep (1011795). With
+    all of them, neutron's L3 and metadata agents drop eventlet, from 117MB
+    to 106MB and 103MB anonymous; its servers keep it through python-ovs.
+    
+    Prompt: Mikal asked for the rest of the eventlet import chain to be
+    fixed, so that neutron's threaded agents stop loading eventlet; this is
+    the oslo.service part of it.
+    
+    Assisted-By: Claude Opus 5.5 (high effort)
+    
+    Depends-On: https://review.opendev.org/c/openstack/devstack/+/1011992
+    Change-Id: Id8f23667d2b188af9a51de07ca48eaa5409f0f6f
+    Signed-off-by: Michael Still <mikal@stillhq.com>
+
+diff --git a/oslo_service/tests/test_wsgi.py b/oslo_service/tests/test_wsgi.py
+index 69d881f..7d71fab 100644
+--- a/oslo_service/tests/test_wsgi.py
++++ b/oslo_service/tests/test_wsgi.py
+@@ -19,6 +19,8 @@
+ import os
+ import platform
+ import socket
++import subprocess
++import sys
+ import tempfile
+ import testtools
+ from unittest import mock
+@@ -268,6 +270,35 @@ class TestWSGIServer(WsgiTestCase):
+             )
+             server.stop()
+ 
++    def test_default_protocol(self):
++        # mocking eventlet spawn method to check the protocol it is given.
++        with mock.patch.object(eventlet, 'spawn') as mock_spawn:
++            server = wsgi.Server(
++                self.conf, "test_app", None, host="127.0.0.1", port=0
++            )
++            server.start()
++            _, kwargs = mock_spawn.call_args
++            self.assertIs(eventlet.wsgi.HttpProtocol, kwargs['protocol'])
++            server.stop()
++
++    def test_custom_protocol(self):
++        class TestProtocol(eventlet.wsgi.HttpProtocol):
++            pass
++
++        with mock.patch.object(eventlet, 'spawn') as mock_spawn:
++            server = wsgi.Server(
++                self.conf,
++                "test_app",
++                None,
++                host="127.0.0.1",
++                port=0,
++                protocol=TestProtocol,
++            )
++            server.start()
++            _, kwargs = mock_spawn.call_args
++            self.assertIs(TestProtocol, kwargs['protocol'])
++            server.stop()
++
+     def test_wsgi_keep_alive(self):
+         self.config(wsgi_keep_alive=False)
+ 
+@@ -600,3 +631,29 @@ class TestWSGIServerBackendCompatibility(WsgiTestCase):
+         # Server creation should still work since backend is still eventlet
+         server2 = wsgi.Server(self.conf, "test_eventlet_second", None)
+         self.assertEqual("test_eventlet_second", server2.name)
++
++
++class TestWSGIImportWithoutEventlet(testtools.TestCase):
++    """Tests that the module does not need eventlet until Server is used."""
++
++    def test_import_without_eventlet(self):
++        # Run in a fresh interpreter in which eventlet and greenlet cannot
++        # be imported: the test process has already imported both.
++        code = (
++            "import sys\n"
++            "sys.modules['eventlet'] = None\n"
++            "sys.modules['greenlet'] = None\n"
++            "from oslo_config import cfg\n"
++            "from oslo_service import backend\n"
++            "from oslo_service.backend import exceptions\n"
++            "backend.init_backend(backend.BackendType.THREADING)\n"
++            "from oslo_service import wsgi\n"
++            "conf = cfg.ConfigOpts()\n"
++            "wsgi.register_opts(conf)\n"
++            "try:\n"
++            "    wsgi.Server(conf, 'test', None)\n"
++            "except exceptions.UnsupportedBackendError:\n"
++            "    print('ok')\n"
++        )
++        out = subprocess.check_output([sys.executable, "-c", code], text=True)
++        self.assertEqual('ok', out.strip())
+diff --git a/oslo_service/wsgi.py b/oslo_service/wsgi.py
+index 616689d..52f6f5b 100644
+--- a/oslo_service/wsgi.py
++++ b/oslo_service/wsgi.py
+@@ -21,9 +21,6 @@ import copy
+ import os
+ import socket
+ 
+-import eventlet
+-import eventlet.wsgi
+-import greenlet
+ from paste import deploy
+ import routes.middleware
+ import webob.dec
+@@ -98,7 +95,7 @@ class Server(service.ServiceBase):
+         host='0.0.0.0',  # noqa: S104
+         port=0,
+         pool_size=None,
+-        protocol=eventlet.wsgi.HttpProtocol,
++        protocol=None,
+         backlog=128,
+         use_ssl=False,
+         max_url_len=None,
+@@ -115,7 +112,7 @@ class Server(service.ServiceBase):
+         :param host: IP address to serve the application.
+         :param port: Port number to server the application.
+         :param pool_size: Maximum number of eventlets to spawn concurrently.
+-        :param protocol: Protocol class.
++        :param protocol: Protocol class, eventlet.wsgi.HttpProtocol if None.
+         :param backlog: Maximum number of queued connections.
+         :param use_ssl: Wraps the socket in an SSL context if True.
+         :param max_url_len: Maximum length of permitted URLs.
+@@ -132,6 +129,14 @@ class Server(service.ServiceBase):
+         # Check backend compatibility before initializing
+         _check_backend_compatibility()
+ 
++        # Only the server needs eventlet, so import it here: services that
++        # import this module for Loader or Router do not load eventlet.
++        import eventlet
++        import eventlet.wsgi
++
++        if protocol is None:
++            protocol = eventlet.wsgi.HttpProtocol
++
+         self.conf = conf
+         self.conf.register_opts(_options.wsgi_opts)
+ 
+@@ -171,6 +176,8 @@ class Server(service.ServiceBase):
+             sslutils.is_enabled(conf)
+ 
+     def _get_socket(self, host, port, backlog):
++        import eventlet
++
+         bind_addr = (host, port)
+         # TODO(dims): eventlet's green dns/socket module does not actually
+         # support IPv6 in getaddrinfo(). We need to get around this in the
+@@ -203,6 +210,8 @@ class Server(service.ServiceBase):
+         return sock
+ 
+     def _get_unix_socket(self, socket_file, socket_mode, backlog):
++        import eventlet
++
+         sock = eventlet.listen(
+             socket_file, family=socket.AF_UNIX, backlog=backlog
+         )
+@@ -219,6 +228,9 @@ class Server(service.ServiceBase):
+ 
+         :returns: None
+         """
++        import eventlet
++        import eventlet.wsgi
++
+         # The server socket object will be closed after server exits,
+         # but the underlying file descriptor will remain open, and will
+         # give bad file descriptor error. So duplicating the socket object,
+@@ -289,6 +301,8 @@ class Server(service.ServiceBase):
+         :returns: None
+ 
+         """
++        import greenlet
++
+         try:
+             if self._server is not None:
+                 num = self._pool.running()
+diff --git a/releasenotes/notes/wsgi-lazy-eventlet-e0ea4204870377c0.yaml b/releasenotes/notes/wsgi-lazy-eventlet-e0ea4204870377c0.yaml
+new file mode 100644
+index 0000000..d677ca3
+--- /dev/null
++++ b/releasenotes/notes/wsgi-lazy-eventlet-e0ea4204870377c0.yaml
+@@ -0,0 +1,7 @@
++---
++upgrade:
++  - |
++    The ``protocol`` argument of ``oslo_service.wsgi.Server`` now defaults to
++    ``None``, which selects ``eventlet.wsgi.HttpProtocol`` when the server is
++    created, so that importing ``oslo_service.wsgi`` no longer imports
++    eventlet. Passing a protocol class works as before.

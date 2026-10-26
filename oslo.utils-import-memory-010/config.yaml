@@ -1,0 +1,10 @@
+repo: https://opendev.org/openstack/oslo.utils
+source_branch: master
+destination_branch: import-memory
+shallow_clone: true
+directory: oslo.utils
+release: master-oslo.utils-import-memory-010
+depends_on: ''
+source_sha: 8d11103f2df4f60aa40dc91e6934c1dd1200593d
+previous_source_sha: 8d11103f2df4f60aa40dc91e6934c1dd1200593d
+repush: true

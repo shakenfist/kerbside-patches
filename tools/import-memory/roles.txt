@@ -4,15 +4,16 @@
 # which services load at runtime and so would otherwise be missed. The uWSGI
 # wsgi modules build their application at import time and need config files,
 # so the API roles import the modules the app factory loads instead.
-# call:package.module.function runs a setup function, see probe.py.
+# call:package.module.function runs a setup function, see probe.py. It may take
+# literal arguments: call:package.module.function(key='value'). No spaces inside.
 python-baseline sys
 privsep-idle oslo_privsep.daemon
 nova-compute nova.cmd.compute nova.compute.manager nova.virt.libvirt.driver vif_plug_ovs.ovs os_brick.initiator.connector
 nova-conductor nova.cmd.conductor nova.conductor.manager
 nova-scheduler nova.cmd.scheduler nova.scheduler.manager
 nova-novncproxy nova.cmd.novncproxy nova.console.websocketproxy
-nova-api nova.api.openstack.wsgi_app nova.api.openstack.compute.routes
-nova-api-meta nova.api.openstack.wsgi_app nova.api.metadata.handler
+nova-api call:nova.monkey_patch.patch(backend='threading') nova.api.openstack.wsgi_app nova.api.openstack.compute.routes
+nova-api-meta call:nova.monkey_patch.patch(backend='threading') nova.api.openstack.wsgi_app nova.api.metadata.handler
 neutron-api neutron.server.api neutron.pecan_wsgi.app neutron.plugins.ml2.plugin neutron.plugins.ml2.drivers.ovn.mech_driver.mech_driver neutron.services.ovn_l3.plugin neutron.services.trunk.plugin neutron.services.segments.plugin
 neutron-rpc-server neutron.cmd.server neutron.plugins.ml2.plugin neutron.plugins.ml2.drivers.ovn.mech_driver.mech_driver neutron.services.ovn_l3.plugin
 neutron-ovn-agent neutron.cmd.agents.ovn_neutron_agent neutron.agent.ovn.agent.ovn_neutron_agent neutron.agent.ovn.extensions.metadata

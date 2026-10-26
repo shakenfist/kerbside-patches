@@ -26,8 +26,8 @@ about five years without anyone acting, and he declined to file a bug.
 | 2 | devstack telemetry in `get-stats.py`, plus a baseline; in review as [1011786](https://review.opendev.org/c/openstack/devstack/+/1011786), [1011787](https://review.opendev.org/c/openstack/devstack/+/1011787), [1011794](https://review.opendev.org/c/openstack/devstack/+/1011794) | In progress | |
 | 3 | oslo.privsep: stop importing eventlet in the daemon; in review as [1011795](https://review.opendev.org/c/openstack/oslo.privsep/+/1011795) | In progress | |
 | 4 | neutron: cut the privileged import chain; in review as [1011796](https://review.opendev.org/c/openstack/neutron/+/1011796), [1011797](https://review.opendev.org/c/openstack/neutron/+/1011797) | In progress | |
-| 5 | Credit LLMs with `Assisted-By` only, in one standard form, in the linter and every in-flight patch | In progress | |
-| 6 | Services: stop importing what they do not use | Not started | |
+| 5 | Credit LLMs with `Assisted-By` only, in one standard form, in the linter and every in-flight patch | Complete | b461cb072 |
+| 6 | Services: stop importing what they do not use | In progress | |
 | 7 | Decide on structural changes (fewer contexts) | Not started | |
 | 8 | Report back to the TC and openstack-discuss | Not started | |
 | 9 | Push audit | Not started | |
@@ -478,23 +478,26 @@ run a scan like this one again.
 from `tempest-full-py3` (OVN all-in-one) and
 `devstack-platform-ubuntu-noble-ovs` (ML2/OVS) in 1011787's builds.
 
-| # | Cause | Per process | Per node (OVN / ML2-OVS) | Fix lives in |
-|---|---|---|---|---|
-| 1 | `futurist/_utils.py` imports eventlet at module level. Every service already on threads loads it anyway: neutron, nova-api, nova-api-meta and glance. keystone and placement get it through oslo.messaging's import of oslo.service's eventlet backend | +11 MB | ~190 / ~240 MB | futurist, oslo.service |
-| 2 | `neutron_lib/__init__.py` imports `neutron_lib.db.api` (oslo.db, sqlalchemy, pecan, mako, pygments) in every agent. This is LP #1802369 again, the root cause behind patch219 | +25 MB | ~50 / ~200 MB | neutron-lib |
-| 3 | `neutron/api/extensions.py` imports `openstack.connection` at module level, for the optional `ProjectIdMiddleware` alone. Agents load it through `neutron.common.utils` -> `neutron.api.api_common` | +13 MB | ~65 / ~155 MB | neutron |
-| 4 | `neutron_lib/api/validators/__init__.py` imports `os_ken.lib.packet.ether_types`, which loads the whole os_ken packet library for one constants table. It hits every neutron process except the OVS agent | +8.5 MB | ~70 / ~120 MB | neutron-lib |
-| 5 | `neutron/db/models/agent.py` imports `neutron.agent.common.utils` for `is_agent_down`, so every server process loads pyroute2 and `neutron.privileged` | +10 MB | ~60 MB | neutron |
-| 6 | `keystone/api/_shared/saml.py` imports `keystone.federation.idp`, and with it pysaml2, unconditionally | +15 MB | 30 MB | keystone |
-| 7 | `placement/deploy.py` imports alembic at module level, though it only uses it when `sync_on_startup` is set, which is off by default | +11 MB | 22 MB | placement |
-| 8 | nova-compute loads oslo.db and sqlalchemy through `nova.context`, but never uses a database | +17 MB | 17 MB per compute node | nova |
+| # | Cause | Per process, measured | Fix lives in |
+|---|---|---|---|
+| 1 | `futurist/_utils.py` imports eventlet at module level. Every service already on threads loads it anyway: neutron and glance. keystone and placement get it through oslo.messaging's import of oslo.service's eventlet backend. (nova-api and nova-api-meta were listed here first, but their entry points refuse eventlet; the probe missed that until step 6q) | No single change saves anything, so there is no figure for #1 alone. glance-api, where eventlet is the only change, falls 10 MB (92 to 82). The whole chain is in "Measured savings" below. | futurist; keystone and placement (see the survey) |
+| 2 | `neutron_lib/__init__.py` imports `neutron_lib.db.api` (oslo.db, sqlalchemy, pecan, mako, pygments) in every agent. This is LP #1802369 again, the root cause behind patch219 | 4 to 6 MB on the OVN, DHCP, L3 and metadata agents, on top of neutron's three DB API patches. 0 in the OVS agent, neutron-api and neutron-rpc-server. Alone it saves nothing (6o). The estimate was +25 MB; sqlalchemy and oslo.db stay loaded through `neutron_lib.context` (see "Three more findings" below) | neutron-lib |
+| 3 | `neutron/api/extensions.py` imports `openstack.connection` at module level, for the optional `ProjectIdMiddleware` alone. Agents load it through `neutron.common.utils` -> `neutron.api.api_common` | 8 to 13 MB in the agents (series 007 alone: OVN 8, L3 11, metadata 11, OVS 11, DHCP 13). 19 MB in neutron-api and neutron-rpc-server together with #5 | neutron |
+| 4 | `neutron_lib/api/validators/__init__.py` imports `os_ken.lib.packet.ether_types`, which loads the whole os_ken packet library for one constants table. It hits every neutron process except the OVS agent | 7 to 10 MB (series 005 alone: API 7, RPC 7, OVN 8, L3 7, metadata 8, DHCP 10). 0 in the OVS agent, which uses os_ken itself | neutron-lib |
+| 5 | `neutron/db/models/agent.py` imports `neutron.agent.common.utils` for `is_agent_down`, so every server process loads pyroute2 and `neutron.privileged` | Not separable from #3: series 007 saves 19 MB in each of neutron-api and neutron-rpc-server, and pyroute2 is gone from both. The agents still load pyroute2 for their own use | neutron |
+| 6 | `keystone/api/_shared/saml.py` imports `keystone.federation.idp`, and with it pysaml2, unconditionally | 13 MB in keystone (95 to 82; series 008 alone) | keystone |
+| 7 | `placement/deploy.py` imports alembic at module level, though it only uses it when `sync_on_startup` is set, which is off by default | 8 MB in placement (82 to 74; series 009 alone) | placement |
+| 8 | nova-compute loads oslo.db and sqlalchemy through `nova.context`, but never uses a database | Not measured: out of scope for this phase. Estimated +17 MB, 17 MB per compute node | nova |
 
-That is roughly 0.5 GB per OVN node and 0.85 GB per ML2/OVS
-controller, comparable to phases 3 and 4. The totals add up
-per-package costs that share dependencies, and they count shared
-copy-on-write pages in both parent and worker, so treat them as upper
-bounds. These pages are as cold as privsep's, and the same caution
-about swap volume versus swap thrash applies.
+The first scan summed these estimates to roughly 0.5 GB per OVN node
+and 0.85 GB per ML2/OVS controller. Those totals are withdrawn: the
+whole chain saves less per process than the sum of its estimates (see
+"Measured savings" below), and step 6j did not count processes per
+node. Multiply a role's saving by its count from
+`memory-tracker-peaks.py --group`, and remember that the figure counts
+shared copy-on-write pages in both parent and worker. These pages are
+as cold as privsep's, and the same caution about swap volume versus
+swap thrash applies.
 
 Checked and not counted, because the process does use them: networkx
 in cinder (taskflow runs its flows), openstacksdk in nova (the placement
@@ -503,32 +506,616 @@ noting for Phase 7: devstack sets `lazy-apps = true` for every uWSGI
 service, so each worker imports the app separately and shares nothing
 with the others.
 
-**Order.** Cheapest and least controversial first, one series per
-repository, each with a test that imports the module in a fresh
-interpreter and fails if the dropped package is loaded (the pattern
-patch218 uses):
+### Phase 6 plan
 
-1. #3, #6 and #7: move one import into the function that uses it.
-2. #4 and #5: small refactors.
-3. #1: futurist must keep `GreenThreadPoolExecutor` working when
-   eventlet is installed but not yet imported, so the detection has
-   to move to construction time. This is the largest single saving.
-   Fixing oslo.service's default backend for keystone and placement
-   is separate work.
-4. #2: the neutron-lib root-cause fix. Raise it with neutron
-   reviewers alongside patch219's judgement call, because it changes
-   when ORM event listeners are registered.
-5. #8: only if nova reviewers want it, because `nova.context` is
-   central.
+Planned on 2026-10-23, on branch `privsep-memory-phase-6`. The branch is
+stacked on `privsep-memory-plan` (PR #1953), because this plan file is
+not on `develop` yet. Phase 5 landed on that branch too, and must merge
+first (see below), so rebase this branch onto `develop` once #1953 has
+merged.
 
-**Telemetry.** `performance.json` cannot show these changes yet,
-because `get-stats.py`'s default process list leaves out the OpenStack
-services, and its `services` figures are end-of-job cgroup totals that
-include page cache. Either add the service processes to the default
-list in a follow-up to 1011787, which gives them `rss_peak` and
-`rss_anon`, or build the baseline from `memory_tracker` per-process
-peaks. The first is better, because it is the same record the TC
-report already uses.
+**Planning effort: high.** Five upstream projects are involved, and
+how reviewers receive the neutron-lib and futurist changes matters more
+than their size. Review effort: high for steps 6c and 6e, medium for
+the rest.
+
+#### Scope
+
+In scope: findings #1 to #7 in the table above, each as a change in
+`_patches/` in a series of its own per repository. Also in scope: the
+`get-stats.py` follow-up that records the service processes, the probe
+support needed to measure patched trees, and the measurements.
+
+Out of scope:
+
+- **#8, nova-compute's database stack.** `nova.context` imports
+  enginefacade for the cell database context managers that every nova
+  service uses. Making that lazy is a nova design change, and it saves
+  17 MB on one process per compute node. Recorded under Future work.
+- **uWSGI `lazy-apps`.** This is a structural question for Phase 7, not
+  an import.
+- **Pushing to Gerrit.** Every step stops at a local commit. Mikal
+  pushes each new series by hand, then sets `repush: true`, as was done
+  for series 001 to 003.
+
+#### What the survey found
+
+Every claim in the findings table was rechecked against upstream
+master on 2026-10-23, by reading the files from opendev.org. All seven
+import sites are still there. Gerrit has no open change that addresses
+any of them. Three things differ from what the findings and the
+original order said, and the findings table above has been corrected
+where they appear:
+
+1. **keystone and placement need their own fix, not one in
+   oslo.service.** `oslo_messaging/server.py` subclasses
+   `service.ServiceBase`, and `oslo_service/service.py` resolves every
+   component with `get_component()` at import time. So whichever
+   process first imports oslo.messaging fixes the backend there and
+   then, using `DEFAULT_BACKEND_TYPE`, which is eventlet. Making
+   oslo.service lazy would not help. glance already solves this with
+   `register_backend_default_hook(lambda: BackendType.THREADING)` in
+   `glance/common/config.py`. keystone and placement can do the same.
+   The threading backend still imports futurist, so the saving needs #1
+   as well.
+2. **The futurist change is a refactor, not a one-line guard.**
+   `futurist/_utils.py` sets `EVENTLET_AVAILABLE` by importing eventlet,
+   and `futurist/_green.py` imports five eventlet modules when
+   `_green.py` itself is imported. `GreenThreadPoolExecutor` also binds
+   `threading = _green.threading` as a class attribute, which runs at
+   class-definition time. Codesearch finds no user of
+   `futurist._green` or `futurist._utils` outside futurist, so the
+   private surface can change freely. futurist deprecated its green
+   executors in 939361 (2025-01), so the change is in line with where
+   futurist is heading. Fixing it also removes eventlet from neutron's
+   privsep daemons, which Phase 3 could not reach.
+3. **#5 has seven call sites, not one.** `is_agent_down` is called
+   from `neutron/db/agents_db.py`, `neutron/db/agentschedulers_db.py`,
+   `neutron/db/l3_agentschedulers_db.py`, `neutron/db/models/agent.py`,
+   `neutron/objects/agent.py` and `neutron/scheduler/dhcp_agent_scheduler.py`,
+   all through `neutron.agent.common.utils`. Out of tree,
+   neutron-dynamic-routing's `bgp_dragent_scheduler.py` uses the same
+   path. `neutron/tests/unit/db/test_l3_hamode_db.py` mocks it with
+   `mock.patch.object(agent_utils, 'is_agent_down', ...)`.
+   keystone's #6 likewise has two module-level importers of
+   `keystone.federation.idp`: `keystone/api/_shared/saml.py` and
+   `keystone/api/auth.py`.
+
+Two more things were found:
+
+- **The plan's status cells broke the shared vocabulary, and the plan
+  had no push-audit phase.** The planning commit before this one fixed
+  both.
+- **The `import-memory:latest` image was gone from the host** within
+  hours of being built, so something prunes images. Every step that
+  measures starts with `tools/import-memory/scan.sh build`.
+
+#### Decisions
+
+1. **One series per repository, with a new Gerrit topic.** The new
+   series set `destination_branch: import-memory`, so they share that
+   topic, not `privsep-memory`. A keystone reviewer would read a
+   `privsep-memory` topic as misleading. The telemetry patch is the
+   exception: it extends 1011787 and goes in series 001, in the
+   `privsep-memory` topic. The series are:
+
+   | Series | Patches | Findings |
+   |---|---|---|
+   | `devstack-privsep-memory-001` (existing) | patch221, appended after patch220 | telemetry |
+   | `futurist-import-memory-004` | patch222 | #1 |
+   | `neutron-lib-import-memory-005` | patch223 | #4 |
+   | `neutron-lib-db-api-import-memory-006` | patch224 | #2 |
+   | `neutron-import-memory-007` | patch225, patch226 | #3, #5 |
+   | `keystone-import-memory-008` | patch227, patch228 | #6, eventlet |
+   | `placement-import-memory-009` | patch229, patch230 | #7, eventlet |
+
+   The numbers are provisional. Each step takes its number from
+   `_build/get-next-patch-number.py` when it runs, because open pull
+   requests may claim numbers first.
+
+2. **#2 is its own series, pushed for review with the question asked
+   on the change.** It changes when neutron-lib registers its ORM event
+   listeners, which is the behaviour LP #1802369 deliberately added. As
+   a separate series it can start that discussion without holding up
+   #4, which needs no discussion. It also sits beside patch219's open
+   question with neutron reviewers. It was first planned as work in
+   progress, on an estimate of 25 MB per agent. On 2026-10-24 Mikal
+   removed the WIP flag, because Gerrit's WIP means "not ready for
+   review", so no reviewer would answer the question. Once it is
+   uploaded he comments on the change to ask whether registering the
+   listeners on first DB use is acceptable. 6j measured it at 4 to
+   6 MB per agent, not 25.
+
+3. **Lazy imports, not copied constants, for #4.** The `validate_ethertype`
+   function can import `os_ken.lib.packet.ether_types` inside the
+   `sg_filter_ethertypes` branch, its only user. Copying the constants
+   would need a drift test, as patch219's copies do. A lazy import is
+   smaller and needs no such test.
+
+4. **Measure with Depends-On footers, as series 002 and 003 do.** The
+   root patch of each new series (patch222, patch223, patch224,
+   patch225, patch227 and patch229) carries a `Depends-On:` on
+   patch221's Gerrit change. Each change's own devstack jobs then run
+   with the service-process telemetry applied, and record its saving in
+   `performance.json`. Gerrit follows patch221's parents, so this brings
+   in 1011786, 1011787 and 1011794 too, and no patch repeats them.
+   - The footers also stop every Phase 6 change merging before the
+     telemetry does. Mikal chose that deliberately: the improvement
+     cannot be shown without the telemetry, and holding the fixes behind
+     it gives the devstack team a reason to review it.
+   - "Before" figures come from patch221's own builds, for the jobs
+     devstack shares with each project. For a job that only one project
+     runs, push a `DNM` change to that project that carries only the
+     footer, as Phase 2 does for neutron.
+   - The probe still measures each patch in a container. Those figures
+     are deterministic, and they are what the commit messages quote.
+   - A DNM devstack change stacked on patch221, with a `Depends-On:` for
+     every Phase 6 change, was considered and rejected. It would let the
+     fixes merge before the telemetry, but take away the leverage.
+
+5. **No week between Phase 6 landings.** Phase 3's rule exists to tell
+   savings apart in CI totals. Here each change's own builds show its
+   saving, and the container measures each one individually. Because of
+   Decision 4, the changes may merge close together once patch221 does,
+   and that is fine.
+
+6. **keystone and placement register the backend hook in their
+   package `__init__.py`.** The hook must be registered before anything
+   imports oslo.messaging. In placement, that import comes through
+   `placement.deploy` and then keystonemiddleware's audit middleware. A
+   package `__init__` is the earliest point, and it is where neutron
+   calls `init_backend`. Use glance's API, `register_backend_default_hook`:
+   it sets a default, unlike `init_backend`, so an operator or a test
+   that chooses a backend explicitly still wins.
+
+7. **patch221 is pushed by hand, before the rest of the phase.**
+   Decision 4 needs its Gerrit number for the footers, and
+   `tools/check-depends-on.py` rejects a footer whose change does not
+   exist. So after step 6b, Mikal pushes patch221 by hand, as a new
+   change stacked on 1011794, and its number goes into this section.
+   Series 001 already has `repush: true`, so `repush-openstack.sh`
+   pushes it whenever Mikal runs it. Nothing pushes to Gerrit
+   automatically. The new series start with `repush: false`, so the
+   script skips them until Mikal decides to push them.
+   - patch221 is
+     [1011992](https://review.opendev.org/c/openstack/devstack/+/1011992),
+     pushed by Mikal on 2026-10-23. Every new series root carries
+     `Depends-On: https://review.opendev.org/c/openstack/devstack/+/1011992`.
+
+8. **Release notes only where behaviour changes.** patch228 and
+   patch230 change which oslo.service backend keystone and placement
+   use, so each gets a reno note. The lazy imports change nothing a user
+   can see, so they get no note, which is how those projects treat
+   import-only changes.
+
+#### Steps
+
+Every step that adds a patch follows the same mechanics, which the
+briefs do not repeat:
+
+- Take the number from `_build/get-next-patch-number.py`.
+- Create the series directory as a copy of
+  `oslo.privsep-privsep-memory-002/config.yaml`, changing `repo`,
+  `directory`, `release` (`master-<series>`), `destination_branch`
+  (`import-memory`) and `repush` (`false`). Set `source_sha` and
+  `previous_source_sha` to `git ls-remote <repo> master`.
+- Write the patch as a `git format-patch` against that SHA, authored
+  by Michael Still <mikal@stillhq.com>, with upstream's commit style
+  and a `Change-Id`. Credit Claude with one `Assisted-By: <model>
+  (<effort> effort)` line only, such as `Assisted-By: Claude Opus 5.5
+  (high effort)`, with no email address or context window, and never
+  `Co-Authored-By:` (Phase 5, Decision 7). Run `tools/gerrit-pre-push-lint
+  --commit` in `src/<directory>` and fix every error it reports. Phase
+  5's `llm-attribution` pre-commit hook rejects the patch otherwise. This
+  branch is stacked on Phase 5, so the linter and the hook are there to
+  enforce it (see the back brief).
+- List the patch in the series' `ORDER`, then run
+  `tools/recount-patch.py --in-place` and `tools/extract-commit-message`.
+- Prove it with `_build/test-apply.sh <series>`, which runs that
+  project's py3 and pep8 tox environments.
+- Measure it with `tools/import-memory/scan.sh probe --with
+  src/<directory>` (added in step 6a), and quote the before and after
+  figures in the commit message.
+- The root patch of each new series carries `Depends-On:
+  https://review.opendev.org/c/openstack/devstack/+/<patch221>`
+  (Decision 4), with the number recorded under Decision 7. Only the
+  root has it; the other patches in a series do not repeat it.
+- Every lazy-import patch adds a unit test that runs a fresh
+  interpreter (`subprocess.run([sys.executable, '-c', ...])`), imports
+  the module, and asserts that the dropped package is not in
+  `sys.modules`. Mirror patch218's `PrivilegedImportsTestCase`.
+- If the probe shows that the package still loads through another
+  import chain, do not chase it. Report the chain
+  (`report.py --chain`) and stop.
+
+| Step | Effort | Model | Isolation | Brief for sub-agent |
+|------|--------|-------|-----------|---------------------|
+| 6a | medium | sonnet | none | Extend `tools/import-memory/scan.sh` so it can measure patched source trees. `probe` gains repeatable `--with DIR` (a source tree such as `src/neutron`) and `--roles REGEX` (only roles whose name matches). For each `--with`, mount the directory read-only at `/with/<basename>`. Inside the container, before probing, copy each one to `/tmp/<basename>` (pbr writes `*.egg-info` into the tree, so a read-only mount cannot be installed directly) and run `pip install --no-deps --no-build-isolation -q /tmp/<basename>`. Keep each role in its own `python -I` interpreter. `marginal` gains the same `--with`. Keep the script shellcheck-clean and the usage text at the top accurate. Document both options in `docs/import-memory-scans.md`: add a section "Measuring a patch" after step 4 of "How to run a scan", showing `_build/test-apply.sh --skip-tests <series>` and then `scan.sh probe --with src/<directory> --roles '<regex>'`, and say the figures for a commit message come from comparing that against a run without `--with`. Verify: `scan.sh build`, then `scan.sh probe --roles placement` with and without `--with` on an unmodified `src/placement` clone, giving the same numbers to within 1 MB. Commit subject: "Let the import probe measure patched trees." |
+| 6b | high | opus | none | Add patch221 to series `devstack-privsep-memory-001`, after patch220 in `ORDER`, against that series' `source_sha`, on top of patch215, patch216 and patch220. Run `_build/test-apply.sh devstack-privsep-memory-001` so it applies on top of them. In `tools/get-stats.py`, `process_defaults` is `['privsep', 'mysqld', 'erlang', 'etcd']`, and each entry is a regex matched against the joined cmdline. Add entries that match the OpenStack service processes and nothing else: uWSGI workers (cmdlines such as `nova-apiuWSGI worker 1`), oslo.service parents and workers (`nova-conductor: ServiceWrapper worker(0)`, `neutron-server: rpc worker (...)`, `neutron-dhcp-agent: ServiceWrapper worker(0)`), and plain service processes such as `/opt/stack/data/venv/bin/python3.12 /opt/stack/data/venv/bin/nova-compute ...`. They must not match tempest, stestr, the `*-manage` tools or `oslo-config-generator`. Prove the regexes offline with a small script run against the cmdlines in the two memory_tracker logs, `controller/logs/screen-memory_tracker.txt` of Zuul builds 8e3bfd425736459e81a0d3972348a651 and fb330af810cc4841943f24d573a95ae9 (fetch them with `zuul-result <uuid> log <path>`). `tools/import-memory/memory-tracker-peaks.py` already parses them. Report what matches and what does not. The commit message, in devstack's style, says why: today `performance.json` cannot show a service's memory, and its `services` figures are cgroup totals that include page cache. Do not touch the `privsep` entry. Commit subject: "Record service process memory in get-stats.py." |
+| 6c | xhigh | opus | worktree | patch222 for futurist (series `futurist-import-memory-004`): import eventlet only when a green executor or green helper is first used. Read `futurist/_utils.py`, `futurist/_green.py`, `futurist/_futures.py` (`GreenThreadPoolExecutor`, the `green` argument check, `GreenFuture`, `GreenDelayedExecutorMixin`) and `futurist/periodics.py` first. Keep `EVENTLET_AVAILABLE` as a bool, computed with `importlib.util.find_spec('eventlet') is not None`, which imports nothing. Turn `_green`'s module-level eventlet imports and aliases (`Pool`, `Queue`, `is_monkey_patched`, `spawn`, `threading`) into lazily resolved ones; a module `__getattr__` is one way. `is_monkey_patched` must return False without importing eventlet when `'eventlet' not in sys.modules`, since nothing can be patched before eventlet is imported. Replace the `GreenThreadPoolExecutor.threading = _green.threading` class attribute with something resolved on first use. Behaviour must not change when eventlet is installed: the existing green tests must pass unmodified. Add a test that runs a fresh interpreter, imports `futurist` and `futurist.periodics`, and asserts that `eventlet` is not in `sys.modules`, plus one that constructs a `GreenThreadPoolExecutor` in a fresh interpreter and checks that it works. Run futurist's full `tox -e py3` and `pep8`, not only `test-apply`. The saving is about 11 MB per threaded process; measure it with `scan.sh probe --with src/futurist --roles 'neutron-api\|nova-api$\|glance'`. Commit subject: "Do not import eventlet until it is needed." |
+| 6d | medium | sonnet | none | patch223 for neutron-lib (series `neutron-lib-import-memory-005`): in `neutron_lib/api/validators/__init__.py`, remove the module-level `from os_ken.lib.packet import ether_types` and import it inside `validate_ethertype`, within the `if cfg.CONF.sg_filter_ethertypes:` branch that is its only use. Add the fresh-interpreter test that `neutron_lib.api.validators` does not load `os_ken`, placed beside the existing validator tests in `neutron_lib/tests/unit/api/validators/`. The saving is about 8.5 MB per neutron process except the OVS agent; measure it with `--roles 'neutron-(api\|ovn-agent\|l3-agent)'`. Commit subject: "Import os_ken only when validating an ethertype." |
+| 6e | high | opus | worktree | patch224 for neutron-lib (series `neutron-lib-db-api-import-memory-006`, with `wip: true` in its `config.yaml`): stop `neutron_lib/__init__.py` importing `neutron_lib.db.api` unconditionally. First read LP #1802369 and the change that added the import (`git log -S 'from neutron_lib.db import api' -- neutron_lib/__init__.py` in `src/neutron-lib`). Find what it protects: which ORM event listeners `neutron_lib.db.api` registers, and which import paths have to see them. The likely shape moves the import into `neutron_lib/db/__init__.py`, so that anything using `neutron_lib.db.*` (model_base, model_query and so on) still registers the listeners, while `neutron_lib.constants`, `neutron_lib.api.*` and the agent-side modules do not pull in sqlalchemy, oslo.db or pecan. Confirm that every neutron DB path imports `neutron_lib.db` before it uses the ORM. If you find one that does not, say so and stop: that is the case the bug was about. The commit message must explain the trade-off and cite the bug. Measure with `--with src/neutron-lib --roles 'neutron-(ovn-agent\|l3-agent\|dhcp-agent)'`; expect about 25 MB per agent. Commit subject: "Load the DB API only for DB users." |
+| 6f | medium | sonnet | none | patch225 for neutron (new series `neutron-import-memory-007`): in `neutron/api/extensions.py`, remove the module-level `from openstack import connection` and import it inside `ProjectIdMiddleware.__call__`, where `_NOVA_CONNECTION` is first built, which is its only use. Add a fresh-interpreter test that `neutron.common.utils` does not load `openstack`, beside the existing tests for `neutron/api/extensions.py`. Measure with `--roles 'neutron-(ovn-agent\|l3-agent\|rpc-server)'`; expect about 13 MB per process. Commit subject: "Import openstacksdk only for ProjectIdMiddleware." |
+| 6g | high | opus | none | patch226 for neutron, the same series after patch225: move `is_agent_down` out of `neutron/agent/common/utils.py`, which imports `neutron.agent.linux.utils` and through it `neutron.privileged` and pyroute2. Its new home is a new module, `neutron/common/agent_status.py`, which imports only `oslo_config`, `oslo_utils.timeutils` and `neutron.conf.agent.database.agents_db`, and calls `agents_db.register_db_agents_opts()` itself, because `agent_down_time` is registered there today. `neutron.agent.common.utils` keeps `is_agent_down = agent_status.is_agent_down` for out-of-tree users such as neutron-dynamic-routing. Change the in-tree callers to import the new module: `neutron/db/agents_db.py`, `neutron/db/agentschedulers_db.py`, `neutron/db/l3_agentschedulers_db.py`, `neutron/db/models/agent.py`, `neutron/objects/agent.py` and `neutron/scheduler/dhcp_agent_scheduler.py`. Then fix the tests that patch the old path, starting with the `mock.patch.object(agent_utils, 'is_agent_down', ...)` calls in `neutron/tests/unit/db/test_l3_hamode_db.py`; grep `neutron/tests` for `is_agent_down` to find the rest. Add a fresh-interpreter test that `neutron.db.models.agent` does not load `pyroute2` or `neutron.privileged`. Measure with `--roles 'neutron-(api\|rpc-server)'`; expect about 10 MB per server process. If pyroute2 still loads through another chain, report it and stop. Commit subject: "Keep is_agent_down out of the agent utilities." |
+| 6h | medium | sonnet | none | Series `keystone-import-memory-008`, two patches. patch227: `keystone/api/_shared/saml.py` and `keystone/api/auth.py` both import `keystone.federation.idp` at module level, which loads pysaml2 (about 15 MB). Import it inside the functions that use it: `keystone_idp.SAMLGenerator()` in `_shared/saml.py`, and `keystone_idp.ECPGenerator()` in `auth.py`. Leave `keystone/cmd/cli.py` alone, because it is not the server. Add a fresh-interpreter test that `keystone.server.flask.application` does not load `saml2`. patch228: in `keystone/__init__.py`, register `oslo_service.backend.register_backend_default_hook(lambda: BackendType.THREADING)`, with a comment like glance's in `glance/common/config.py`, and a reno note under `releasenotes/notes/`. The eventlet saving needs patch222 as well, so measure patch228 with `--with src/keystone --with src/futurist`, and say so in the commit message. Commit subjects: "Import the SAML IdP only when it is used." and "Prefer the threading oslo.service backend." |
+| 6i | medium | sonnet | none | Series `placement-import-memory-009`, two patches. patch229: `placement/deploy.py` imports `placement.db.sqlalchemy.migration` at module level, which loads alembic (about 11 MB), but `update_database()` calls `migration.upgrade('head')` only when `conf.placement_database.sync_on_startup` is set, which is off by default. Import it inside that branch, and check with `grep -rn "deploy.migration" placement/tests` for tests that mock `placement.deploy.migration`. Add a fresh-interpreter test that `placement.deploy` does not load `alembic`. patch230: as patch228, in `placement/__init__.py`, which is empty today, with a reno note, measured with `--with src/futurist` too. Commit subjects: "Import migrations only when syncing on startup." and "Prefer the threading oslo.service backend." |
+| 6j | medium | sonnet | none | Measure the whole phase. Run `_build/test-apply.sh --skip-tests` for every Phase 6 series. Then run `scan.sh probe` with no `--with` and save the output as `before.jsonl`. Run it again with `--with` for every tree the chain fixes touch, and save that as `after.jsonl`: futurist (004), neutron-lib (005 and 006 in one tree), neutron (007 and 013 in one tree), keystone (008), placement (009), oslo.utils (010), oslo.messaging (011), oslo.service (012), and python-ovs (the `ovs` sdist at the image's version with `upstream/openvswitch/series/v1` applied). Two series that share a directory are combined by applying the second's patches over the first's tree in a scratch copy. Run `report.py` on both with `--packages eventlet,os_ken,openstack,pyroute2,saml2,alembic,sqlalchemy,pecan`. In Phase 6's findings table in `docs/plans/privsep-memory.md`, replace each estimate with the measured figure, and add a per-role before and after table of anonymous RSS. If #2 (patch224) is excluded because it is WIP, give the figures with and without it. Commit subject: "Record Phase 6's measured savings." |
+
+#### Chain fixes for eventlet and `neutron_lib.db.api`
+
+Added on 2026-10-24, after steps 6c and 6e. The findings table sized #1
+and #2 with `marginal.py`, which measures what a package costs on top of
+a base set. That is the cost of the whole package, not what removing one
+import site saves. Both packages load through several independent
+chains, so patch222 (futurist) and the neutron-lib change each save
+nothing alone. Mikal chose to add the remaining chain fixes to this
+phase, rather than defer them.
+
+What tracing found so far, with each fix applied in a scratch copy in
+turn:
+
+| Package | Roles | Import sites, in the order they appear |
+|---|---|---|
+| eventlet | neutron-api, neutron-rpc-server, glance-api | futurist (patch222); `oslo_utils.eventletutils`, a deprecated module imported by at least four oslo.messaging modules; `oslo_messaging/_utils.py`'s own `try_import('eventlet')`; `oslo_service.wsgi`, imported by `neutron.common.config` |
+| eventlet | keystone, placement, nova-api | futurist; oslo.service's default backend when no hook chooses threading (6h and 6i add the hooks; nova-api is out of scope); then presumably the oslo.messaging chain |
+| eventlet | neutron agents | futurist; python-ovs `ovs/poller.py`, which is Open vSwitch, not OpenStack |
+| `neutron_lib.db.api` | neutron agents | `neutron_lib/__init__.py`; `neutron_lib.context` and `neutron_lib.db.utils` (the option (a) design, written and tested in neutron-lib; diff kept as `step-6e/patch224-src.diff` in the session scratchpad); then neutron's `neutron.common.utils`, `neutron.service` and `neutron.common.ovn.utils`; then agents importing DB models (`neutron.db.models_v2`, and `neutron_lib.db.standard_attr` through `neutron.extensions.revisions`) |
+
+The table is incomplete: tracing stopped at each layer. So the chain
+fixes start with a survey, and the patch steps it produces are planned
+from its results, not here.
+
+| Step | Effort | Model | Isolation | Brief for sub-agent |
+|------|--------|-------|-----------|---------------------|
+| 6k | high | opus | none | Map every import chain that loads eventlet in each role in `tools/import-memory/roles.txt`, and every chain that loads `neutron_lib.db.api` in each neutron agent role. Work only in scratch copies of the source trees (clone each project with `git clone --depth 1` into the scratch directory, starting from patch222's futurist and the option (a) neutron-lib diff). Repeat: probe with every scratch tree as `--with`; trace the first importer of the package with a `sys.meta_path` hook that ignores `importlib.util.find_spec` lookups (Python 3.12 shows those frames as `<frozen importlib.util>`); make the smallest scratch edit that removes that site; until the role no longer loads the package or the next site is outside OpenStack. Scratch edits may be crude, but they must keep each module importable; note any that would not be a valid fix. Output, for the plan: one row per import site (project, file, what it uses the package for, the proposed real fix and whether it changes behaviour), and a per-role table of anonymous RSS for the full set against `import-memory:phase6` with no `--with`. Also say which sites are shared by many roles, so the patch order puts the widest saving first. Commit subject: "Map the eventlet and DB API import chains." |
+
+6k ran on 2026-10-24. Every eventlet chain ends at an OpenStack fix or
+at python-ovs. With every fix applied in scratch copies, every neutron
+role, glance-api, keystone, placement and the privsep daemon run without
+eventlet, and the OVN, DHCP, L3 and metadata agents without
+`neutron_lib.db.api`. "Every fix" includes the two eventlet rows below
+that Phase 6 does not patch: oslo.privsep's patch217 and ovsdbapp
+3.0.0. Without them every neutron role still loads eventlet; see
+"Measured savings" below. No row saves anything alone, except neutron's
+three DB API patches: 6o found that they save 4 to 12 MB together
+without patch224 (see below).
+
+| Package | Project | Site | Uses it for | Roles | Fix | Behaviour change |
+|---|---|---|---|---|---|---|
+| eventlet | futurist | `_utils.py` | `EVENTLET_AVAILABLE`, green executors | neutron (7 roles), glance-api, keystone, placement | patch222 | none |
+| eventlet | oslo.utils | `eventletutils.py` | module-level `try_import`; seven oslo.messaging modules import it | the same 10 roles | look eventlet up in `sys.modules` when called; `EVENTLET_AVAILABLE` from `find_spec`, catching `ImportError` | none in the public API |
+| eventlet | oslo.messaging | `_utils.py` | its own `try_import`, to find unpatched threading and queue | the same 10 roles | look it up in `sys.modules` | none |
+| eventlet | keystone, placement | package `__init__.py` | oslo.service's default backend | keystone, placement | the backend hook (patch228, patch230) | threading backend; reno note |
+| eventlet | oslo.service | `wsgi.py` | eventlet, `eventlet.wsgi` and greenlet, used only by the deprecated `Server`; neutron imports the module for `Loader`, `Request` and `register_opts` | neutron (7 roles) | import inside `Server`'s methods | `protocol` defaults to `None` and resolves to `HttpProtocol` |
+| eventlet | oslo.privsep | `daemon.py` | monkey-patch check | the privsep daemon; neutron through `neutron.conf.agent.common` | patch217, in review as 1011795 | none |
+| eventlet | ovsdbapp | `backend/ovs_idl/vlog.py` | patcher check for Windows logging | neutron-api, neutron-rpc-server, the OVN, OVS and DHCP agents | already gone in ovsdbapp 3.0.0; upper-constraints pins 2.19.0 until requirements 1011342 merges | none |
+| eventlet | python-ovs (Open vSwitch) | `ovs/poller.py` | module-level patcher import for green `select` | the same 5 roles | look it up when called, sent to ovs-dev | none |
+| db.api | neutron-lib | `__init__.py`, `context.py`, `db/utils.py` | ORM listeners | every agent | option (a), patch224 | when the listeners are registered |
+| db.api | neutron | `common/utils.py` | `MAX_RETRIES` and `is_session_active` in two decorators | 5 agents | import inside the two functions | none |
+| db.api | neutron | `service.py` | `dispose_pool()` before forking | DHCP, L3, OVN | import inside | none |
+| db.api | neutron | `api/api_common.py` | `model_base.BASEV2` in filter validation | agents through `neutron.common.utils` | import inside | none |
+| db.api | neutron | `common/ovn/utils.py` | `models_v2` and `ports_obj` for one `isinstance`; also pecan | OVN, DHCP | import inside | none |
+| db.api | neutron | `agent/rpc.py` | `resource_cache` and `callbacks.resources`, which loads every OVO and model; used only by L2 agents | DHCP, L3, metadata | import when the cache is made | none |
+| db.api | neutron | `ovsdb_monitor.py` | server-side hash ring and router handlers; the OVN agent imports the module for its IDL classes | OVN | import inside | none |
+| db.api | neutron | `extensions/stdattrs_common.py` | `standard_attr`, inside one function; agents reach it through `agent/l3/ha_router.py` | DHCP, L3 | import inside | none |
+
+Anonymous RSS in MB, against `import-memory:phase6`. "Control" is
+unedited master trees, so library drift is not counted as saving.
+Expect 2 MB of noise.
+
+| Role | Control | All OpenStack fixes | Plus python-ovs | Saving |
+|---|---:|---:|---:|---:|
+| privsep daemon (idle) | 33 | 19 | 19 | 14 |
+| neutron-api | 127 | 127 | 114 | 13 |
+| neutron-rpc-server | 126 | 124 | 115 | 11 |
+| neutron-ovn-agent | 116 | 104 | 93 | 23 |
+| neutron-openvswitch-agent | 127 | 124 | 113 | 14 |
+| neutron-dhcp-agent | 119 | 103 | 92 | 27 |
+| neutron-l3-agent | 117 | 90 | 92 | 25 |
+| neutron-metadata-agent | 115 | 87 | 89 | 26 |
+| glance-api | 92 | 82 | 82 | 10 |
+| keystone | 93 | 87 | 87 | 6 |
+| placement | 84 | 73 | 73 | 11 |
+
+Three more findings:
+
+- **nova-api and nova-api-meta were a probe artefact.** Their entry
+  points call `monkey_patch.patch(backend='threading')` first, which
+  refuses eventlet, and the probe skipped that call. Finding #1's nova
+  figures come out; step 6q fixed the probe, after which the two roles
+  measure about 106 and 93 MB, 8 MB less than before, with no eventlet.
+- **Any `find_spec('eventlet')` must catch `ImportError`**, because
+  nova's hook raises it from `find_spec`. patch222 does; the oslo.utils
+  fix must too.
+- **sqlalchemy and oslo.db still load in every neutron agent** after
+  the db.api chain is cut, through `neutron_lib.context`'s
+  `enginefacade.transaction_context_provider` decorator: 19.3 MB more.
+  That is Future work. The OVS agent cannot drop `db.api` without a
+  design change, because it registers the OVO classes at runtime.
+
+Back briefed on 2026-10-24: Mikal agreed to one series per project,
+neutron-lib staying WIP, the neutron DB sites as three patches grouped
+by the agents they free, and nothing pushed until the whole chain is
+written and measured. python-ovs goes in `upstream/openvswitch/`, the
+non-OpenStack series tree, for Mikal to send to ovs-dev. The probe is
+fixed for nova.
+
+| Step | Effort | Model | Isolation | Brief for sub-agent |
+|------|--------|-------|-----------|---------------------|
+| 6e | high | opus | own worktree | Finish patch224 (option (a)) from the diff 6e left, in series `neutron-lib-db-api-import-memory-006`, `wip: true`. The commit message says the agents gain nothing until the neutron patches in 6o land, and names them. |
+| 6h | medium | sonnet | own worktree | As the row above, patch227 and patch228. patch228's commit message names the rest of its chain (futurist, oslo.utils, oslo.messaging). |
+| 6i | medium | sonnet | own worktree | As the row above, patch229 and patch230, likewise. |
+| 6l | high | opus | own worktree | patch231, series `oslo.utils-import-memory-010`: `oslo_utils/eventletutils.py` stops importing eventlet at module level, as the table says. `EVENTLET_AVAILABLE` from `importlib.util.find_spec`, guarded for `ImportError`; every function that uses eventlet looks it up in `sys.modules` (nothing can be patched before eventlet is imported) or imports it on first use. The module is deprecated; keep its behaviour exactly. Commit subject: "Do not import eventlet in eventletutils until used." |
+| 6m | medium | sonnet | own worktree | patch232, series `oslo.messaging-import-memory-011`: `oslo_messaging/_utils.py` looks eventlet up in `sys.modules` instead of `try_import`. Commit subject: "Find patched threading without importing eventlet." |
+| 6n | high | opus | own worktree | patch233, series `oslo.service-import-memory-012`: `oslo_service/wsgi.py` imports eventlet, `eventlet.wsgi` and greenlet only inside `Server`. The `protocol` default changes to `None`, resolved to `eventlet.wsgi.HttpProtocol` when the server is built; keep every behaviour of `Server` and fix the tests that mock `wsgi.eventlet`. A reno note, since an argument default changes. Commit subject: "Import eventlet only for the WSGI server." |
+| 6o | high | opus | own worktree | Series `neutron-db-api-import-memory-013`, three patches. patch234: `neutron/common/utils.py`, `neutron/service.py` and `neutron/api/api_common.py` import the DB API inside the functions that use it. patch235: `neutron/common/ovn/utils.py` (`models_v2`, `ports_obj`, pecan) and `ovsdb_monitor.py`'s server-side imports. patch236: `neutron/agent/rpc.py`'s resource cache and `extensions/stdattrs_common.py`. Each has a fresh-interpreter test for the agents it frees, which can only pass with patch224's neutron-lib, so mark that test to skip when `neutron_lib.db.api` is loaded by neutron-lib itself and say so. |
+| 6p | medium | opus | own worktree | python-ovs: `ovs/poller.py` imports eventlet's patcher only when it is needed. Add `upstream/openvswitch/` in the layout `upstream/README.md` describes (`config.yaml` with `repo: https://github.com/openvswitch/ovs`, `branch: main`, `base_sha`, `current_series: v1`, `disposition: submit`; `series/v1/0001-*.patch` from `git format-patch`; a README), following Open vSwitch's `Documentation/internals/contributing/submitting-patches.rst`, including whatever it says about tool-assisted patches. Test with python-ovs's own tests. Confirm `find . -maxdepth 2 -name config.yaml` is unchanged. |
+| 6q | low | sonnet | own worktree | Let `roles.txt` call an entry function with literal arguments, so nova-api and nova-api-meta run `nova.monkey_patch.patch(backend='threading')` first, as their entry points do. Correct finding #1's nova figures in this plan, and document the case in `docs/import-memory-scans.md`. |
+
+6o ran on 2026-10-24 and corrected this section: the three neutron
+patches save memory without patch224, because the agents stop loading
+neutron's own objects and models. Anonymous RSS in MB, with 6e's
+neutron-lib as "patch224":
+
+| Role | no `--with` | patch224 | patch224, 234 | + 235 | + 236 | 234 to 236 alone |
+|---|---|---|---|---|---|---|
+| neutron-ovn-agent | 119 | 121 | 119 | 109 | 109 | 115 |
+| neutron-openvswitch-agent | 129 | 127 | 129 | 129 | 124 | 124 |
+| neutron-dhcp-agent | 119 | 119 | 119 | 119 | 103 | 109 |
+| neutron-l3-agent | 119 | 117 | 117 | 117 | 102 | 107 |
+| neutron-metadata-agent | 115 | 115 | 115 | 115 | 99 | 105 |
+
+The OVS agent's 5 MB is not a real saving: moving `neutron.agent.rpc`'s
+resource cache import also moves the `register_objects()` it ran at
+import, and the OVS agent runs that anyway when it builds its cache.
+That move is also patch236's one risk: out-of-tree code that relied on
+importing `neutron.agent.rpc` to register the objects must call
+`objects.register_objects()` itself. Nobody has searched codesearch for
+such code yet. The management session rebased the commit messages'
+"before" figures onto the no-`--with` column.
+
+6j then measures the whole set, with every tree as `--with`, and records
+it here. After 6j, Mikal pushes the chain together.
+
+The management session planned one patch step per project from
+its table, in the form of the rows above, with a back brief to Mikal
+before any of them starts. Each patch goes in a series of its own in
+the `import-memory` topic, and the commit messages say that the saving
+needs the rest of the chain, naming the other changes. patch222 and
+the neutron-lib db.api change are held until then, so they are pushed
+with the rest of their chain. python-ovs is Open vSwitch, reviewed on
+the ovs-dev mailing list, so a fix there is prepared for Mikal to send
+rather than added to `_patches/`.
+
+6h and 6i were split while 6k ran; with the chain planned, both go
+ahead whole.
+
+Between step 6b and step 6c there is a gate, which is the management
+session's job, not a sub-agent's. Mikal pushes patch221 by hand
+(Decision 7), and the session records its change number under
+Decision 7. Steps 6c to 6i need that number for their footers, so none
+of them starts before it is recorded. After step 6j, Mikal pushes each
+new series by hand. Where a project's only devstack job is its own, the
+session prepares the DNM control change that Decision 4 describes, for
+Mikal to push.
+
+#### Risks and mitigations
+
+- **Lazy imports hide import errors until first use.** A typo in a
+  moved import fails only on the code path that uses it. Mitigation:
+  every patch runs its project's unit tests through `test-apply`, and
+  the management session checks that a test covers each moved import's
+  call site. Where none does, the step adds one.
+- **futurist behaviour changes under eventlet.** Mitigation: step 6c
+  runs futurist's full test suite in a worktree, and the management
+  session reviews the diff against the four places `_green` is used.
+  futurist's gate also runs `lib-forward-testing-python3`, which is a
+  devstack tempest job with futurist installed from source.
+- **neutron-lib reviewers reject #2.** It is in a series of
+  its own, so the rest of the phase does not depend on it. If it is
+  rejected, record that in Future work, along with the per-agent cost
+  that remains.
+- **An is_agent_down mock path is missed in an out-of-tree project.**
+  The re-export keeps `neutron.agent.common.utils.is_agent_down`
+  working, but a mock of the old path no longer affects the in-tree
+  callers. Mitigation: codesearch found no out-of-tree mocks, and the
+  commit message says what changed.
+- **The probe misleads.** It imports modules; it does not run
+  services. Mitigation: each change's own devstack jobs give the CI
+  figure (Decision 4), and Phase 8 reports CI figures, not probe
+  figures.
+- **devstack is slow to review patch221.** Every Phase 6 change
+  waits on it, by design. Mitigation: raise it with the devstack team
+  when the Phase 6 changes are pushed, pointing at the fixes waiting
+  on it. If it stalls for a month, take the footers out of the
+  uncontroversial changes rather than leave them stuck.
+
+#### Measured savings
+
+Step 6j ran on 2026-10-24 against `import-memory:phase6`. "Before" is
+the image with no `--with`. "After" mounts every Phase 6 tree:
+futurist (004), neutron-lib (005 and patch224), neutron (007 and 013),
+keystone (008), placement (009), oslo.utils (010), oslo.messaging (011),
+oslo.service (012) and python-ovs 4.0.0 (the image's version) with
+`upstream/openvswitch/series/v1` applied. "After without patch224" is
+the same with neutron-lib at 005 only. "Full chain" adds the two
+eventlet sites in the 6k table that Phase 6 does not patch: oslo.privsep
+with patch217 (series 002, in review as 1011795) and ovsdbapp 3.0.0
+from PyPI, which upper-constraints pins at 2.19.0 until requirements
+1011342 merges. The management session ran that column. neutron's
+series 003 from Phase 4 is left out of every column. Anonymous RSS in
+MB. Treat a difference of 2 MB or less as noise: the unchanged nova and
+cinder roles move by that much.
+
+| Role | Before | After | After without patch224 | Saving | Full chain | Full saving | Still loaded after |
+|---|---:|---:|---:|---:|---:|---:|---|
+| privsep-idle | 33 | 33 | 33 | 0 | 19 | 14 | none |
+| nova-compute | 120 | 118 | 120 | 2 | 118 | 2 | openstack, pyroute2, sqlalchemy |
+| nova-conductor | 91 | 91 | 91 | 0 | 91 | 0 | openstack, sqlalchemy |
+| nova-scheduler | 90 | 92 | 90 | -2 | 90 | 0 | openstack, sqlalchemy |
+| nova-novncproxy | 97 | 97 | 97 | 0 | 99 | -2 | openstack, sqlalchemy |
+| nova-api | 106 | 106 | 108 | 0 | 108 | -2 | openstack, sqlalchemy |
+| nova-api-meta | 93 | 95 | 93 | -2 | 95 | -2 | openstack, sqlalchemy |
+| neutron-api | 127 | 98 | 97 | 29 | 88 | 39 | sqlalchemy, pecan |
+| neutron-rpc-server | 126 | 97 | 97 | 29 | 85 | 41 | sqlalchemy, pecan |
+| neutron-ovn-agent | 116 | 89 | 95 | 27 | 76 | 40 | pyroute2, sqlalchemy |
+| neutron-openvswitch-agent | 127 | 113 | 112 | 14 | 103 | 24 | os_ken, pyroute2, sqlalchemy, pecan |
+| neutron-dhcp-agent | 121 | 83 | 89 | 38 | 72 | 49 | pyroute2, sqlalchemy |
+| neutron-l3-agent | 117 | 83 | 87 | 34 | 72 | 45 | pyroute2, sqlalchemy |
+| neutron-metadata-agent | 115 | 81 | 85 | 34 | 70 | 45 | pyroute2, sqlalchemy |
+| cinder-volume | 95 | 94 | 94 | 1 | 96 | -1 | eventlet, sqlalchemy |
+| cinder-scheduler | 93 | 93 | 93 | 0 | 93 | 0 | eventlet, sqlalchemy |
+| cinder-backup | 81 | 83 | 81 | -2 | 83 | -2 | eventlet, sqlalchemy |
+| cinder-api | 97 | 95 | 95 | 2 | 95 | 2 | eventlet, sqlalchemy |
+| glance-api | 92 | 82 | 82 | 10 | 82 | 10 | openstack, sqlalchemy |
+| keystone | 95 | 71 | 71 | 24 | 71 | 24 | sqlalchemy |
+| placement | 82 | 62 | 62 | 20 | 62 | 20 | sqlalchemy |
+
+The nova and cinder rows are noise: no Phase 6 change touches them.
+Findings #2 to #7 were also measured one series at a time; those
+figures are in the findings table.
+
+Of the packages the plan names, after the chain:
+
+- **Gone as the Definition of done asks:** os_ken in every neutron role
+  but the OVS agent; openstack in every neutron role (more than the
+  agents, which was all that was asked); pyroute2 in neutron-api and
+  neutron-rpc-server; saml2 in keystone; alembic in placement.
+- **eventlet is gone with the full chain** from every neutron role,
+  glance-api, keystone, placement and the privsep daemon, which drops
+  from 33 to 19 MB. The "Still loaded after" column is for the full
+  chain.
+- **Without patch217 and ovsdbapp 3.0.0, eventlet is still loaded, in
+  30 modules, by every neutron role.** neutron-api and
+  neutron-rpc-server load it through `ovsdbapp.backend.ovs_idl.vlog`
+  (ovsdbapp 2.19.0, pinned by upper-constraints until requirements
+  1011342 merges). The five agents load it through
+  `oslo_privsep.daemon`, via `neutron.conf.agent.common`; that is
+  patch217, in series 002. glance-api, keystone and placement load none.
+  The cinder roles load it from `cinder/__init__.py`, as expected.
+  Removing it saves another 10 to 13 MB in each neutron role, so
+  Phase 6's neutron savings depend on patch217 merging and on the
+  upper-constraints bump.
+- **`neutron_lib.db.api` is gone from the OVN, DHCP, L3 and metadata
+  agents,** and still loaded in neutron-api, neutron-rpc-server and the
+  OVS agent, as 6k expected. Without patch224 every neutron role still
+  loads it. Checked in a fresh interpreter per role, not from the
+  package counts.
+- **pecan** is gone from the OVN, DHCP, L3 and metadata agents with
+  patch224, and loaded in all seven neutron roles without it. With
+  patch224 it is still loaded in neutron-api, neutron-rpc-server and
+  the OVS agent.
+- **sqlalchemy is loaded in every role.** In the neutron agents it
+  comes through `neutron_lib.context`; see "Three more findings".
+
+#### Definition of done
+
+- 6k's chain table is in this section, and every row has either a
+  patch step or a recorded reason for none.
+
+- `pre-commit run --all-files` passes, and `_build/test-apply.sh
+  <series>` passes for series 001 and 004 to 013.
+- In the full-chain probe from step 6j, `report.py --packages
+  eventlet,os_ken,openstack,pyroute2,saml2,alembic` shows `.` for:
+  - eventlet, in the neutron server roles and agents, glance-api,
+    keystone and placement (nova-api and nova-api-meta never load it,
+    and the probe shows `.` for them since step 6q);
+  - os_ken, in every neutron role except the OVS agent;
+  - openstack, in every neutron agent;
+  - pyroute2, in neutron-api and neutron-rpc-server;
+  - saml2, in keystone;
+  - alembic, in placement.
+
+  Any cell that still shows a number is listed in the plan with the
+  chain that loads it.
+- Every new patch has a fresh-interpreter test that fails without the
+  patch. The management session checks this for at least two patches
+  by reverting the source change and running the test.
+- Phase 6's findings table carries measured figures, not estimates.
+- patch221's change number is recorded under Decision 7, and every
+  new series root carries a footer naming it. `tools/check-depends-on.py`
+  run online over those series passes.
+- Phase 6's status is `In progress` until every change in it has
+  merged upstream or been abandoned.
+
+#### Back brief
+
+Before step 6a, back brief Mikal on the plan and get his agreement to
+Decisions 2, 4 and 7. Those are the ones that commit him to something
+outward-facing: a WIP neutron-lib discussion, Phase 6 changes held
+behind devstack's review of the telemetry, and a hand push of patch221
+before the rest of the work. Before step 6e, back
+brief again with what LP #1802369 actually protects, because the shape
+of patch224 depends on it.
+
+Back briefed on 2026-10-23. Mikal agreed to Decisions 2, 4 and 7.
+Rodolfo Alonso's comment on 1011796, that it "does not depend on this
+devstack patch", does not change Decision 4: the footers stay, and the
+comment gets no reply. Mikal also lifted the rule that no step starts
+before Phase 5 merges. That rule was there so the attribution linter
+and hook would be in place, and this branch is stacked on #1953, which
+has them, so steps start now. Pushing anything to Gerrit is still
+Mikal's own act, and patch221's hand push still waits for his go.
+
+#### Execution notes
+
+- 2026-10-23 (AEDT). 6a and 6b ran in order, since both write to the
+  worktree. 6a was committed with one review change: a failed install
+  of a `--with` tree now stops the run, because the probe's stderr was
+  discarded and the run would otherwise have reported unpatched figures
+  as patched ones. 6b's regexes were proved against both memory_tracker
+  logs. devstack has no unit test environment, so its test-apply runs no
+  Python tests. rootwrap-daemon is deliberately not tracked.
+- Decision 7 said the daily rebase would push series 001. Nothing
+  pushes to Gerrit automatically; Mikal runs `repush-openstack.sh`
+  himself. Corrected at the source.
+- The gate after 6b: Mikal pushed patch221 as 1011992, recorded under
+  Decision 7.
+- 2026-10-24. 6c, 6d and 6e ran in parallel, 6c and 6e in worktrees of
+  their own made from this branch (`kerbside-patches-wt-p6-6c` and
+  `-6e`), since the Agent tool's isolation would have branched from the
+  session's other worktree. Patch numbers were assigned in advance so
+  they could not collide. Every measurement uses the image tagged
+  `import-memory:phase6`, kept from pruning by a stopped container,
+  `import-memory-phase6-pin`, to be removed when the phase is done.
+- 6d (patch223) measured 8 MB in neutron-api, the OVN agent and the L3
+  agent. Its release note was removed in review (Decision 8).
+- 6c (patch222) and 6e saved nothing alone; see "Chain fixes" above.
+  The 6e back brief chose option (a) (register the listeners from
+  `model_base`, lazy `db_api` in `context.py` and `db/utils.py`), and
+  Mikal then chose to add the chain fixes to this phase.
+- 2026-10-24. After 6j, the step worktrees and the
+  `import-memory-phase6-pin` container were removed; the image is no
+  longer pinned. Mikal is reading each series and pushing it by hand.
+
+| Patch | Series | Change |
+|---|---|---|
+| patch221 | `devstack-privsep-memory-001` | [1011992](https://review.opendev.org/c/openstack/devstack/+/1011992) |
+| patch222 | `futurist-import-memory-004` | [1012147](https://review.opendev.org/c/openstack/futurist/+/1012147) |
+| patch223 | `neutron-lib-import-memory-005` | [1012151](https://review.opendev.org/c/openstack/neutron-lib/+/1012151) |
+| patch224 | `neutron-lib-db-api-import-memory-006` | [1012152](https://review.opendev.org/c/openstack/neutron-lib/+/1012152) |
+| patch225 | `neutron-import-memory-007` | [1012169](https://review.opendev.org/c/openstack/neutron/+/1012169) |
+| patch226 | `neutron-import-memory-007` | [1012170](https://review.opendev.org/c/openstack/neutron/+/1012170) |
+| patch227 | `keystone-import-memory-008` | [1012171](https://review.opendev.org/c/openstack/keystone/+/1012171) |
+| patch228 | `keystone-import-memory-008` | [1012172](https://review.opendev.org/c/openstack/keystone/+/1012172) |
+| patch229 | `placement-import-memory-009` | [1012173](https://review.opendev.org/c/openstack/placement/+/1012173) |
+| patch230 | `placement-import-memory-009` | [1012174](https://review.opendev.org/c/openstack/placement/+/1012174) |
+| patch231 | `oslo.utils-import-memory-010` | [1012175](https://review.opendev.org/c/openstack/oslo.utils/+/1012175) |
+| patch232 | `oslo.messaging-import-memory-011` | [1012179](https://review.opendev.org/c/openstack/oslo.messaging/+/1012179) |
+| patch233 | `oslo.service-import-memory-012` | [1012180](https://review.opendev.org/c/openstack/oslo.service/+/1012180) |
+| patch234 | `neutron-db-api-import-memory-013` | [1012182](https://review.opendev.org/c/openstack/neutron/+/1012182) |
+| patch235 | `neutron-db-api-import-memory-013` | [1012183](https://review.opendev.org/c/openstack/neutron/+/1012183) |
+| patch236 | `neutron-db-api-import-memory-013` | [1012184](https://review.opendev.org/c/openstack/neutron/+/1012184) |
+
+#### Future work
+
+- **nova-compute's database stack** (#8): about 17 MB per compute node.
+  Raise it with nova reviewers once the rest of Phase 6 has been
+  received.
+- **uWSGI `lazy-apps`**: input to Phase 7.
+- **conntrack_cmd** still loads neutron_lib through `netlink_lib`,
+  which Phase 4 left at about 88 MB. #2 would fix that too. If #2 is
+  rejected, look for a smaller cut.
 
 ## Phase 7 --- structural changes, decided on the numbers
 

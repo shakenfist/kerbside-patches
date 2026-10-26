@@ -1,0 +1,113 @@
+commit d9b44272ff8b82af661e2ab777dc77d2b4da1d26
+Author: Michael Still <mikal@stillhq.com>
+Date:   Sun Oct 25 07:39:39 2026 +1100
+
+    Import the SAML IdP only when it is used
+    
+    keystone.api.auth loaded pysaml2 through keystone.federation.idp,
+    though only the SAML and ECP assertion endpoints use it. Import it where
+    the generators are built. In the probe, keystone's anonymous RSS falls
+    from 95MB to 81MB and 55 saml2 modules are no longer loaded.
+    
+    Add a test that importing the server application does not load saml2.
+    
+    Prompt: Mikal asked for privsep memory fixes that can be landed one at a
+    time and measured in devstack CI; keystone is one of the larger services.
+    
+    Assisted-By: Claude Sonnet 5.5 (medium effort)
+    
+    Depends-On: https://review.opendev.org/c/openstack/devstack/+/1011992
+    Change-Id: I3c2a8c97e696fd1e9d637e94324a1ab992e3f92f
+    Signed-off-by: Michael Still <mikal@stillhq.com>
+
+diff --git a/keystone/api/_shared/saml.py b/keystone/api/_shared/saml.py
+index 8e95bc354..04ccdd7e8 100644
+--- a/keystone/api/_shared/saml.py
++++ b/keystone/api/_shared/saml.py
+@@ -15,7 +15,6 @@ from oslo_serialization import jsonutils
+ from keystone.common import provider_api
+ import keystone.conf
+ from keystone import exception
+-from keystone.federation import idp as keystone_idp
+ from keystone.federation import utils as federation_utils
+ from keystone.i18n import _
+ 
+@@ -71,6 +70,10 @@ def create_base_saml_assertion(auth):
+         return user_groups
+ 
+     groups = group_membership()
++    # Imported here because it loads pysaml2, which the server otherwise
++    # does not need.
++    from keystone.federation import idp as keystone_idp
++
+     generator = keystone_idp.SAMLGenerator()
+     response = generator.samlize_token(
+         issuer,
+diff --git a/keystone/api/auth.py b/keystone/api/auth.py
+index d2a97abb6..acfcb1ab7 100644
+--- a/keystone/api/auth.py
++++ b/keystone/api/auth.py
+@@ -35,7 +35,6 @@ from keystone.common import utils as k_utils
+ from keystone.common import validation
+ import keystone.conf
+ from keystone import exception
+-from keystone.federation import idp as keystone_idp
+ from keystone.federation import schema as federation_schema
+ from keystone.federation import utils as federation_utils
+ from keystone.i18n import _
+@@ -453,6 +452,10 @@ class AuthFederationSaml2ECPResource(_AuthFederationWebSSOBase):
+         )
+         relay_state_prefix = service_provider['relay_state_prefix']
+ 
++        # Imported here because it loads pysaml2, which the server otherwise
++        # does not need.
++        from keystone.federation import idp as keystone_idp
++
+         generator = keystone_idp.ECPGenerator()
+         ecp_assertion = generator.generate_ecp(
+             saml_assertion, relay_state_prefix
+diff --git a/keystone/tests/unit/server/test_keystone_flask.py b/keystone/tests/unit/server/test_keystone_flask.py
+index 2d4158f27..bc07bb66b 100644
+--- a/keystone/tests/unit/server/test_keystone_flask.py
++++ b/keystone/tests/unit/server/test_keystone_flask.py
+@@ -11,6 +11,8 @@
+ # under the License.
+ 
+ import functools
++import subprocess
++import sys
+ import typing as ty
+ import uuid
+ 
+@@ -19,6 +21,7 @@ import flask
+ import flask_restful
+ from oslo_policy import policy
+ from oslo_serialization import jsonutils
++import testtools
+ from testtools import matchers
+ 
+ from keystone.common import context
+@@ -803,3 +806,23 @@ class TestKeystoneFlaskUnrouted404(rest.RestfulTestCase):
+             self.assertIn('text/html', resp.headers['Content-Type'])
+             # Ensure the more generic flask/werkzeug 404 response is emitted
+             self.assertTrue(b'404 Not Found' in resp.data)
++
++
++class ServerImportsTestCase(testtools.TestCase):
++    def test_application_does_not_import_saml2(self):
++        # pysaml2 is only needed to issue SAML assertions, so the server
++        # must not load it just by being imported.
++        script = (
++            'import sys\n'
++            'import keystone.server.flask.application\n'
++            'sys.exit(1 if "saml2" in sys.modules else 0)\n'
++        )
++        result = subprocess.run(
++            [sys.executable, '-c', script], capture_output=True, text=True
++        )
++        self.assertEqual(
++            0,
++            result.returncode,
++            'keystone.server.flask.application imported saml2: '
++            + result.stderr,
++        )

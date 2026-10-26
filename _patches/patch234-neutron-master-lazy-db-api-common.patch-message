@@ -1,0 +1,22 @@
+db: Import the DB API inside the functions using it
+
+neutron.common.utils, neutron.service and neutron.api.api_common import
+neutron_lib.db.api or model_base for one function each, and every agent
+imports them. Import them in those functions, and test in a fresh
+interpreter that the modules neither refer to nor load the DB API.
+
+This saves nothing alone. With "ovn: Keep server-only imports out of
+the OVN agent" and "agent: Import the resource cache only for L2
+agents", the probe shows the OVN, DHCP, L3 and metadata agents 4 to
+12MB smaller; with neutron-lib's "Load the DB API only for DB users" as
+well, 10 to 17MB smaller and without the DB API or pecan. The load test
+is skipped until neutron-lib stops loading the DB API.
+
+Prompt: Mikal asked for the neutron changes that keep the DB API out of
+the neutron agents, as three patches grouped by the agents they free.
+
+Assisted-By: Claude Opus 5.5 (high effort)
+
+Depends-On: https://review.opendev.org/c/openstack/devstack/+/1011992
+Change-Id: I8ac2f724332dce3346ea92ec927be125083562ed
+Signed-off-by: Michael Still <mikal@stillhq.com>
