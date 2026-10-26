@@ -180,8 +180,6 @@ Other workflows:
   `functional-tests.yml` as `Patch tests`: applies the patch
   stack and runs the test suites (`_build/test-apply.sh`) on
   debian-13 and rocky-9 VM runners
-- `trigger-downstream.yml` -- triggers kerbside CI on push
-  to develop (e.g. after daily rebase PR merges)
 - `local-container-builds.yml` -- tests local builds work; called
   from `functional-tests.yml` as `Local build`, and dispatchable
 - `daily-rebase-checks.yml` -- daily upstream rebase with
