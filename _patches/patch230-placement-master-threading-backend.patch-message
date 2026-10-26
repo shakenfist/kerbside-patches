@@ -1,0 +1,20 @@
+Prefer the threading oslo.service backend
+
+Unless something picks a backend before oslo.messaging is imported, as
+placement.deploy does, oslo.service uses eventlet. Register threading as
+the default, as glance does; an explicit init_backend() still wins.
+oslo.service[threading] is now a requirement (4.2.0).
+
+This saves nothing alone: it needs futurist's "Do not import eventlet
+until it is needed", and the oslo.utils eventletutils and oslo.messaging
+_utils lazy eventlet changes. With all four, placement uses 63MB of
+anonymous memory, not 73MB.
+
+Prompt: Mikal asked for import-memory fixes that can be landed one at a
+time and measured in devstack CI; placement and keystone are the
+threaded services that still fall back to the eventlet backend.
+
+Assisted-By: Claude Sonnet 5.5 (medium effort)
+
+Change-Id: I6629fd997a42108367b09ab37e3a8b7604ad60ba
+Signed-off-by: Michael Still <mikal@stillhq.com>

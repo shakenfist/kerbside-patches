@@ -1,0 +1,86 @@
+commit 4ba50485536a08ca952f635fea2af8ef3e950ffe
+Author: Michael Still <mikal@stillhq.com>
+Date:   Sun Oct 25 07:43:36 2026 +1100
+
+    Import migrations only when syncing on startup
+    
+    placement.deploy imports the migration module, and so alembic, at module
+    level, but update_database() only needs it when
+    [placement_database]/sync_on_startup is set, which is off by default.
+    Import it there, and test that importing deploy does not load alembic.
+    
+    Importing placement.wsgi, placement.deploy and placement.handler now
+    uses 73MB of anonymous memory, not 82MB.
+    
+    Prompt: Mikal asked for import-memory fixes that can be landed one at a
+    time and measured in devstack CI; placement loads alembic in every API
+    process although it migrates only when asked to.
+    
+    Assisted-By: Claude Sonnet 5.5 (medium effort)
+    
+    Depends-On: https://review.opendev.org/c/openstack/devstack/+/1011992
+    Change-Id: I0cb82d1c407fb35059b6d1a4386006fd02cfdc45
+    Signed-off-by: Michael Still <mikal@stillhq.com>
+
+diff --git a/placement/deploy.py b/placement/deploy.py
+index aa3a51eb..b25f1d61 100644
+--- a/placement/deploy.py
++++ b/placement/deploy.py
+@@ -19,7 +19,6 @@ from oslo_utils import importutils
+ 
+ from placement import audit
+ from placement import auth
+-from placement.db.sqlalchemy import migration
+ from placement import db_api
+ from placement import fault_wrap
+ from placement import handler
+@@ -133,6 +132,9 @@ def update_database(conf):
+     updating the traits table.
+     """
+     if conf.placement_database.sync_on_startup:
++        # Importing the migration module loads alembic, which is only needed
++        # when we are asked to sync the database.
++        from placement.db.sqlalchemy import migration
+         migration.upgrade('head')
+     ctx = db_api.DbContext()
+     trait.ensure_sync(ctx)
+diff --git a/placement/tests/unit/test_deploy.py b/placement/tests/unit/test_deploy.py
+index c52713b5..bcd53085 100644
+--- a/placement/tests/unit/test_deploy.py
++++ b/placement/tests/unit/test_deploy.py
+@@ -13,6 +13,10 @@
+ #    under the License.
+ """Unit tests for the deploy function used to build the Placement service."""
+ 
++import subprocess
++import sys
++import textwrap
++
+ from keystonemiddleware import auth_token
+ from oslo_config import cfg
+ from oslo_config import fixture as config_fixture
+@@ -26,6 +30,24 @@ from placement import deploy
+ 
+ class DeployTest(testtools.TestCase):
+ 
++    def _run_fresh(self, code):
++        out = subprocess.check_output(
++            [sys.executable, '-c', textwrap.dedent(code)], text=True)
++        return out.strip()
++
++    def test_import_does_not_load_alembic(self):
++        """Importing deploy must not load alembic.
++
++        The migration module is only needed when sync_on_startup is set, so
++        update_database() imports it only then.
++        """
++        out = self._run_fresh("""
++            import sys
++            import placement.deploy
++            print('alembic' in sys.modules)
++        """)
++        self.assertEqual('False', out)
++
+     def test_auth_middleware_factory(self):
+         """Make sure that configuration settings make their way to
+         the keystone middleware correctly.

@@ -1,0 +1,2 @@
+../_patches/patch225-neutron-master-lazy-openstacksdk.patch
+../_patches/patch226-neutron-master-agent-status-module.patch

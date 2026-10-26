@@ -1,0 +1,10 @@
+repo: https://opendev.org/openstack/oslo.service
+source_branch: master
+destination_branch: import-memory
+shallow_clone: true
+directory: oslo.service
+release: master-oslo.service-import-memory-012
+depends_on: ''
+source_sha: adef5c89116b563a4ff76f4e820ebfd50256cbfb
+previous_source_sha: adef5c89116b563a4ff76f4e820ebfd50256cbfb
+repush: true

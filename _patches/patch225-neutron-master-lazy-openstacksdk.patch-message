@@ -1,0 +1,19 @@
+api: Import openstacksdk only for ProjectIdMiddleware
+
+neutron.api.extensions imported openstack.connection at module level,
+but only ProjectIdMiddleware uses it, and only for a request that names
+a project. That loaded openstacksdk into the OVN agent, L3 agent and RPC
+server, costing 11 to 13MB of anonymous memory each.
+
+Import it where the Nova connection is first built, and add tests that
+importing the module does not load openstack and that the middleware
+still builds its connection and looks the project up.
+
+Prompt: Mikal asked for privsep memory fixes that can be landed one at a
+time and measured in devstack CI; neutron daemons are the largest.
+
+Assisted-By: Claude Sonnet 5.5 (medium effort)
+
+Depends-On: https://review.opendev.org/c/openstack/devstack/+/1011992
+Change-Id: If8ebc573bb2ed46e4ef54ec2c78eabdb32dc89a1
+Signed-off-by: Michael Still <mikal@stillhq.com>

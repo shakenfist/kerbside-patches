@@ -1,0 +1,17 @@
+Record service process memory in get-stats.py
+
+performance.json cannot show how much memory a service uses: the
+services figures are cgroup totals, which include page cache, and the
+only processes it tracks are privsep, mysqld, erlang and etcd.
+
+Also track uWSGI, oslo.service and neutron worker processes, and the
+services that run a script with a config file in /etc, so that peak
+and anonymous RSS per process show what an import change saves.
+
+Prompt: Mikal asked for performance.json to record OpenStack service
+processes, so that each import memory fix can be measured in CI.
+
+Assisted-By: Claude Opus 5.5 (high effort)
+
+Change-Id: I4497978175420a3193900f4b59410a6c956b0697
+Signed-off-by: Michael Still <mikal@stillhq.com>

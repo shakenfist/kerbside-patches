@@ -19,7 +19,6 @@ kerbside-patches/
         workflows/
             functional-tests.yml  # CI: the one gated workflow
             daily-rebase-checks.yml  # Daily upstream rebase
-            trigger-downstream.yml  # Trigger kerbside CI on develop push
             local-container-builds.yml  # Local build (reusable)
             rebase-tests.yml  # Patch tests (reusable)
             heal-data-prs.yml  # Auto-resolve conflicted data PRs

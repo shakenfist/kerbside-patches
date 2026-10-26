@@ -1,0 +1,178 @@
+commit 95d2116bb61ddf4e2c8b186ad759b5b02b304bd3
+Author: Michael Still <mikal@stillhq.com>
+Date:   Sun Oct 25 09:58:05 2026 +1100
+
+    agent: Import the resource cache only for L2 agents
+    
+    neutron.agent.rpc imports the resource cache and registry, which load
+    every object and DB model, though only L2 agents use them, and
+    stdattrs_common imports standard_attr for one function. Import them when
+    used, spell RESOURCE_TYPES out, and test the DHCP, L3 and metadata
+    agents.
+    
+    With neutron-lib's "Load the DB API only for DB users", "db: Import the
+    DB API inside the functions using it" and "ovn: Keep server-only imports
+    out of the OVN agent", the probe shows those agents down from 119, 119
+    and 115MB to 103, 102 and 99MB, without the DB API or pecan; without the
+    neutron-lib change, 10 to 12MB.
+    
+    Prompt: Mikal asked for the neutron changes that keep the DB API out of
+    the neutron agents, as three patches grouped by the agents they free.
+    
+    Assisted-By: Claude Opus 5.5 (high effort)
+    
+    Change-Id: Ibce838389c8edb25fdc6affbe3dd1c517d6d6d53
+    Signed-off-by: Michael Still <mikal@stillhq.com>
+
+diff --git a/neutron/agent/rpc.py b/neutron/agent/rpc.py
+index 78797b870e..11c7611d92 100644
+--- a/neutron/agent/rpc.py
++++ b/neutron/agent/rpc.py
+@@ -33,8 +33,6 @@ from oslo_serialization import jsonutils
+ from oslo_utils import timeutils
+ from oslo_utils import uuidutils
+ 
+-from neutron.agent import resource_cache
+-from neutron.api.rpc.callbacks import resources
+ from neutron import objects
+ 
+ LOG = logging.getLogger(__name__)
+@@ -224,12 +222,15 @@ class PluginApi:
+ 
+ class CacheBackedPluginApi(PluginApi):
+ 
+-    RESOURCE_TYPES = [resources.PORT,
+-                      resources.SECURITYGROUP,
+-                      resources.SECURITYGROUPRULE,
+-                      resources.NETWORK,
+-                      resources.SUBNET,
+-                      resources.ADDRESSGROUP]
++    # The OVO names that neutron.api.rpc.callbacks.resources defines. They
++    # are spelled out because that module loads every object and DB model,
++    # and the agents that only report their state import this module too.
++    RESOURCE_TYPES = ['Port',
++                      'SecurityGroup',
++                      'SecurityGroupRule',
++                      'Network',
++                      'Subnet',
++                      'AddressGroup']
+ 
+     def __init__(self, *args, **kwargs):
+         super().__init__(*args, **kwargs)
+@@ -242,6 +243,9 @@ class CacheBackedPluginApi(PluginApi):
+         legacy_interface is an object with 'delete'/'update' methods for
+         core resources.
+         """
++        # pylint: disable=import-outside-toplevel
++        from neutron.api.rpc.callbacks import resources
++
+         self._legacy_interface = legacy_interface
+         for e in (callback_events.AFTER_UPDATE, callback_events.AFTER_DELETE):
+             for r in (resources.PORT, resources.NETWORK):
+@@ -336,6 +340,9 @@ class CacheBackedPluginApi(PluginApi):
+ 
+     def get_device_details(self, context, device, agent_id, host=None,
+                            agent_restarted=False):
++        # pylint: disable=import-outside-toplevel
++        from neutron.api.rpc.callbacks import resources
++
+         port_obj = self.remote_resource_cache.get_resource_by_id(
+             resources.PORT, device, agent_restarted)
+         if not port_obj:
+@@ -415,6 +422,9 @@ class CacheBackedPluginApi(PluginApi):
+ 
+     def _create_cache_for_l2_agent(self):
+         """Create a push-notifications cache for L2 agent related resources."""
++        # pylint: disable=import-outside-toplevel
++        from neutron.agent import resource_cache
++
+         objects.register_objects()
+         rcache = resource_cache.RemoteResourceCache(self.RESOURCE_TYPES)
+         rcache.start_watcher()
+diff --git a/neutron/extensions/stdattrs_common.py b/neutron/extensions/stdattrs_common.py
+index 8379da2fbf..710002ed4c 100644
+--- a/neutron/extensions/stdattrs_common.py
++++ b/neutron/extensions/stdattrs_common.py
+@@ -15,10 +15,13 @@
+ 
+ import itertools
+ 
+-from neutron_lib.db import standard_attr
+-
+ 
+ def stdattrs_extended_resources(attributes):
++    # Imported here because standard_attr loads the DB layer, and the agents
++    # import the extensions that call this only for their constants.
++    # pylint: disable=import-outside-toplevel
++    from neutron_lib.db import standard_attr
++
+     r_map = standard_attr.get_standard_attr_resource_model_map(
+         include_resources=True,
+         include_sub_resources=False)
+diff --git a/neutron/tests/unit/agent/test_rpc.py b/neutron/tests/unit/agent/test_rpc.py
+index 7538c5cdab..3b7e7cdee9 100644
+--- a/neutron/tests/unit/agent/test_rpc.py
++++ b/neutron/tests/unit/agent/test_rpc.py
+@@ -29,11 +29,13 @@ from oslo_utils import timeutils
+ from oslo_utils import uuidutils
+ 
+ from neutron.agent import rpc
++from neutron.api.rpc.callbacks import resources as rpc_resources
+ from neutron.conf.agent import common as conf_common
+ from neutron.objects import network
+ from neutron.objects.port.extensions import port_hints
+ from neutron.objects import ports
+ from neutron.tests import base
++from neutron.tests import tools
+ 
+ 
+ class AgentRPCPluginApi(base.BaseTestCase):
+@@ -420,6 +422,24 @@ class TestCacheBackedPluginApi(base.BaseTestCase):
+             rpc.CacheBackedPluginApi.RESOURCE_TYPES)
+         rcache_obj.start_watcher.assert_called_once_with()
+ 
++    def test_default_resource_types(self):
++        self.assertEqual([rpc_resources.PORT,
++                          rpc_resources.SECURITYGROUP,
++                          rpc_resources.SECURITYGROUPRULE,
++                          rpc_resources.NETWORK,
++                          rpc_resources.SUBNET,
++                          rpc_resources.ADDRESSGROUP],
++                         rpc.CacheBackedPluginApi.RESOURCE_TYPES)
++
++    @mock.patch.object(rpc.registry, 'subscribe')
++    def test_register_legacy_notification_callbacks(self, subscribe):
++        self._api.register_legacy_notification_callbacks(mock.Mock())
++        subscribe.assert_has_calls(
++            [mock.call(self._api._legacy_notifier, rtype, event)
++             for event in (events.AFTER_UPDATE, events.AFTER_DELETE)
++             for rtype in (rpc_resources.PORT, rpc_resources.NETWORK)])
++        self.assertEqual(4, subscribe.call_count)
++
+     @mock.patch('neutron.agent.resource_cache.RemoteResourceCache')
+     def test_initialization_with_custom_resource(self, rcache_class):
+         CUSTOM = 'test'
+@@ -434,3 +454,23 @@ class TestCacheBackedPluginApi(base.BaseTestCase):
+         rcache_class.assert_called_once_with(
+             CustomCacheBackedPluginApi.RESOURCE_TYPES)
+         rcache_obj.start_watcher.assert_called_once_with()
++
++
++class ServerOnlyImportsTestCase(base.BaseTestCase):
++    # The DHCP, L3 and metadata agents use this module only to report their
++    # state; the resource cache is for the L2 agents.
++    MODULES = ('neutron.agent.dhcp.agent', 'neutron.agent.dhcp_agent',
++               'neutron.agent.l3.agent', 'neutron.agent.l3_agent',
++               'neutron.agent.linux.dhcp', 'neutron.agent.metadata.agent',
++               'neutron.agent.metadata_agent')
++
++    def test_agents_do_not_import_server_only_modules(self):
++        result = tools.check_imports(self.MODULES, tools.SERVER_ONLY_MODULES)
++        self.assertEqual([], result['holders'])
++
++    def test_agents_do_not_load_server_only_modules(self):
++        result = tools.check_imports(self.MODULES, tools.SERVER_ONLY_MODULES)
++        if result['preloaded']:
++            self.skipTest('neutron_lib loads %s itself' %
++                          ', '.join(result['preloaded']))
++        self.assertEqual([], result['loaded'])

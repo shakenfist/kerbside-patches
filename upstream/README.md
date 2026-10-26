@@ -1,10 +1,13 @@
 # Non-OpenStack upstream series
 
 This tree carries patch series against upstreams outside OpenStack --
-today, qemu and the Linux kernel -- that came out of building
-[Kerbside](https://github.com/shakenfist/kerbside). See
+today, qemu, the Linux kernel and Open vSwitch. The qemu and Linux
+series came out of building
+[Kerbside](https://github.com/shakenfist/kerbside); see
 [docs/plans/upstream-series.md](../docs/plans/upstream-series.md) for
-the plan this was built from and its current phase.
+the plan this was built from and its current phase. The Open vSwitch
+patch came out of
+[docs/plans/privsep-memory.md](../docs/plans/privsep-memory.md).
 
 ## How this differs from `_patches/`
 
@@ -95,6 +98,16 @@ submission time, not baked into the patch. `drm-misc-next` already
 carries a narrower, virtio-gpu-only fix for the same underlying bug
 (`a9cc9905ddb7`, undated and without a stable tag); the cover note
 should say so and let maintainers choose between the two.
+
+### openvswitch -- to be submitted by Michael
+
+Open vSwitch's `Documentation/internals/contributing/submitting-patches.rst`
+allows AI-assisted patches, disclosed with an `Assisted-by:` tag (model
+name, then tool name), with the author responsible for the DCO through
+their `Signed-off-by`. `openvswitch/series/v1/0001-*.patch` (python-ovs's
+poller stops importing eventlet) carries both; Michael reviews it and
+sends it to dev@openvswitch.org with `git send-email`, as
+`openvswitch/README.md` describes.
 
 ## How to verify a series applies
 

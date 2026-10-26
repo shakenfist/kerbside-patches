@@ -1,0 +1,21 @@
+Load the DB API only for DB users
+
+neutron_lib imports neutron_lib.db.api so that its ORM listeners exist
+before any model class (bug 1802369), loading pecan into every agent.
+Have model_base import it and register the BASEV2 listener itself, and
+import it lazily elsewhere, so listeners register on first DB use.
+
+neutron_lib.context and agent.topics now add 35.6MB, not 42.9MB, but
+agents gain nothing until neutron's common/utils, service, api_common,
+common/ovn/utils, ovsdb_monitor, agent/rpc and stdattrs_common follow.
+SQLAlchemy and oslo.db still load through context's enginefacade.
+
+Prompt: Mikal asked for import-memory fixes that can be landed one at a
+time and measured in devstack CI; neutron-lib's DB API was the first
+importer of the database stack in every neutron agent.
+
+Assisted-By: Claude Opus 5.5 (high effort)
+
+Depends-On: https://review.opendev.org/c/openstack/devstack/+/1011992
+Change-Id: I18e81a68cc7a6fe513992b1e8fdc5e75c8615944
+Signed-off-by: Michael Still <mikal@stillhq.com>

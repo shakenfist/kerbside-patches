@@ -1,0 +1,338 @@
+commit a5860459d389bcc8d64f16e52f881e5b5ac1b14f
+Author: Michael Still <mikal@stillhq.com>
+Date:   Sun Oct 25 07:34:24 2026 +1100
+
+    db: Keep is_agent_down out of the agent utilities
+    
+    is_agent_down() lived in neutron.agent.common.utils, which pulls in
+    pyroute2, oslo.privsep and neutron.privileged. The agent model and five
+    other server modules use it, costing neutron-api and the RPC server 7
+    to 9MB of anonymous memory each (117 to 110MB and 116 to 107MB).
+    
+    Move it to a new neutron.common.agent_status module and use that in
+    tree. The old name remains as an alias, but mocking it no longer
+    affects in-tree callers. Add a test that importing the agent model
+    does not load pyroute2 or neutron.privileged.
+    
+    Prompt: Mikal asked for privsep memory fixes that can be landed one at a
+    time and measured in devstack CI; neutron daemons are the largest.
+    
+    Assisted-By: Claude Opus 5.5 (high effort)
+    
+    Change-Id: Ib49e83c5cd59aa84839fba9c06329735f922b042
+    Signed-off-by: Michael Still <mikal@stillhq.com>
+
+diff --git a/neutron/agent/common/utils.py b/neutron/agent/common/utils.py
+index cead1b6ece..e59372cad5 100644
+--- a/neutron/agent/common/utils.py
++++ b/neutron/agent/common/utils.py
+@@ -18,16 +18,14 @@ import socket
+ from neutron_lib.utils import runtime
+ from oslo_config import cfg
+ from oslo_log import log as logging
+-from oslo_utils import timeutils
+ 
+ from neutron.agent.linux import utils
++from neutron.common import agent_status
+ from neutron.conf.agent import common as config
+-from neutron.conf.agent.database import agents_db
+ 
+ 
+ LOG = logging.getLogger(__name__)
+ config.register_root_helper(cfg.CONF)
+-agents_db.register_db_agents_opts()
+ 
+ INTERFACE_NAMESPACE = 'neutron.interface_drivers'
+ 
+@@ -37,6 +35,8 @@ kill_process = utils.kill_process
+ execute = utils.execute
+ get_root_helper_child_pid = utils.get_root_helper_child_pid
+ pid_invoked_with_cmdline = utils.pid_invoked_with_cmdline
++# Kept for out-of-tree callers; in-tree code uses agent_status directly.
++is_agent_down = agent_status.is_agent_down
+ 
+ 
+ def load_interface_driver(conf, get_networks_callback=None):
+@@ -59,11 +59,6 @@ def load_interface_driver(conf, get_networks_callback=None):
+         raise SystemExit(1)
+ 
+ 
+-def is_agent_down(heart_beat_time):
+-    return timeutils.is_older_than(heart_beat_time,
+-                                   cfg.CONF.agent_down_time)
+-
+-
+ def get_hypervisor_hostname():
+     """Get hypervisor hostname
+ 
+diff --git a/neutron/common/agent_status.py b/neutron/common/agent_status.py
+new file mode 100644
+index 0000000000..a449b25744
+--- /dev/null
++++ b/neutron/common/agent_status.py
+@@ -0,0 +1,30 @@
++#    Licensed under the Apache License, Version 2.0 (the "License"); you may
++#    not use this file except in compliance with the License. You may obtain
++#    a copy of the License at
++#
++#         http://www.apache.org/licenses/LICENSE-2.0
++#
++#    Unless required by applicable law or agreed to in writing, software
++#    distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
++#    WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
++#    License for the specific language governing permissions and limitations
++#    under the License.
++
++"""Agent liveness, kept free of the agent-side utilities.
++
++The server uses this to judge an agent's heartbeat. It must not import
++neutron.agent.common.utils, which loads pyroute2 and neutron.privileged.
++"""
++
++from oslo_config import cfg
++from oslo_utils import timeutils
++
++from neutron.conf.agent.database import agents_db
++
++
++agents_db.register_db_agents_opts()
++
++
++def is_agent_down(heart_beat_time):
++    return timeutils.is_older_than(heart_beat_time,
++                                   cfg.CONF.agent_down_time)
+diff --git a/neutron/db/agents_db.py b/neutron/db/agents_db.py
+index da81881eea..c01353767a 100644
+--- a/neutron/db/agents_db.py
++++ b/neutron/db/agents_db.py
+@@ -40,8 +40,8 @@ from oslo_utils import importutils
+ from oslo_utils import timeutils
+ from sqlalchemy.sql import expression
+ 
+-from neutron.agent.common import utils
+ from neutron.api.rpc.callbacks import version_manager
++from neutron.common import agent_status
+ from neutron.conf.agent.database import agents_db
+ from neutron.extensions import agent as ext_agent
+ from neutron.extensions import availability_zone as az_ext
+@@ -200,7 +200,7 @@ class AgentDbMixin(ext_agent.AgentPluginBase, AgentAvailabilityZoneMixin):
+                       '%(host)s', {'agent_type': agent_type, 'host': host})
+             return
+ 
+-        if utils.is_agent_down(agent.heartbeat_timestamp):
++        if agent_status.is_agent_down(agent.heartbeat_timestamp):
+             LOG.warning('%(agent_type)s agent %(agent_id)s is not active',
+                         {'agent_type': agent_type, 'agent_id': agent.id})
+         return agent
+@@ -254,7 +254,7 @@ class AgentDbMixin(ext_agent.AgentPluginBase, AgentAvailabilityZoneMixin):
+                             'configurations',
+                             'ha_chassis_priority',
+                             ]}
+-        res['alive'] = not utils.is_agent_down(
++        res['alive'] = not agent_status.is_agent_down(
+             res['heartbeat_timestamp']
+         )
+         res['configurations'] = self._get_dict(agent, 'configurations')
+diff --git a/neutron/db/agentschedulers_db.py b/neutron/db/agentschedulers_db.py
+index a8d6f6067b..b7e2a6a014 100644
+--- a/neutron/db/agentschedulers_db.py
++++ b/neutron/db/agentschedulers_db.py
+@@ -34,7 +34,7 @@ import oslo_messaging
+ from oslo_utils import timeutils
+ from sqlalchemy.orm import exc
+ 
+-from neutron.agent.common import utils as agent_utils
++from neutron.common import agent_status
+ from neutron.common import utils
+ from neutron.conf.agent.database import agentschedulers_db
+ from neutron.db import agents_db
+@@ -70,7 +70,7 @@ class AgentSchedulerDbMixin(agents_db.AgentDbMixin):
+         #                   filter is set, only agents which are 'up'
+         #                   (i.e. have a recent heartbeat timestamp)
+         #                   are eligible, even if active is False
+-        if agent_utils.is_agent_down(agent['heartbeat_timestamp']):
++        if agent_status.is_agent_down(agent['heartbeat_timestamp']):
+             LOG.warning('Agent %(agent)s is down. Type: %(type)s, host: '
+                         '%(host)s, heartbeat: %(heartbeat)s',
+                         {'agent': agent['id'], 'type': agent['agent_type'],
+diff --git a/neutron/db/l3_agentschedulers_db.py b/neutron/db/l3_agentschedulers_db.py
+index 2e854927e8..8466c744be 100644
+--- a/neutron/db/l3_agentschedulers_db.py
++++ b/neutron/db/l3_agentschedulers_db.py
+@@ -25,8 +25,8 @@ from oslo_log import log as logging
+ import oslo_messaging
+ 
+ from neutron._i18n import _
+-from neutron.agent.common import utils as agent_utils
+ from neutron.common import _constants as n_const
++from neutron.common import agent_status
+ from neutron.conf.db import l3_agentschedulers_db
+ from neutron.db import agentschedulers_db
+ from neutron.extensions import l3agentscheduler
+@@ -391,7 +391,7 @@ class L3AgentSchedulerDbMixin(l3agentscheduler.L3AgentSchedulerPluginBase,
+         if active is not None:
+             l3_agents = [l3_agent for l3_agent in
+                          l3_agents if not
+-                         agent_utils.is_agent_down(
++                         agent_status.is_agent_down(
+                              l3_agent['heartbeat_timestamp'])]
+         return l3_agents
+ 
+diff --git a/neutron/db/models/agent.py b/neutron/db/models/agent.py
+index 9352c09269..955298f859 100644
+--- a/neutron/db/models/agent.py
++++ b/neutron/db/models/agent.py
+@@ -15,7 +15,7 @@ from neutron_lib.db import model_base
+ import sqlalchemy as sa
+ from sqlalchemy import sql
+ 
+-from neutron.agent.common import utils
++from neutron.common import agent_status
+ 
+ 
+ class Agent(model_base.BASEV2, model_base.HasId):
+@@ -59,4 +59,4 @@ class Agent(model_base.BASEV2, model_base.HasId):
+ 
+     @property
+     def is_active(self):
+-        return not utils.is_agent_down(self.heartbeat_timestamp)
++        return not agent_status.is_agent_down(self.heartbeat_timestamp)
+diff --git a/neutron/objects/agent.py b/neutron/objects/agent.py
+index 96a2f16304..cca1ea772b 100644
+--- a/neutron/objects/agent.py
++++ b/neutron/objects/agent.py
+@@ -19,7 +19,7 @@ from neutron_lib.objects import utils as obj_utils
+ from oslo_versionedobjects import fields as obj_fields
+ from sqlalchemy import func
+ 
+-from neutron.agent.common import utils
++from neutron.common import agent_status
+ from neutron.db.models import agent as agent_model
+ from neutron.db.models import l3agent as rb_model
+ from neutron.db.models import l3ha as l3ha_model
+@@ -85,7 +85,7 @@ class Agent(base.NeutronDbObject):
+ 
+     @property
+     def is_active(self):
+-        return not utils.is_agent_down(self.heartbeat_timestamp)
++        return not agent_status.is_agent_down(self.heartbeat_timestamp)
+ 
+     # TODO(ihrachys) reuse query builder from
+     # get_l3_agents_ordered_by_num_routers
+diff --git a/neutron/scheduler/dhcp_agent_scheduler.py b/neutron/scheduler/dhcp_agent_scheduler.py
+index f1ecdd63df..cdca01db09 100644
+--- a/neutron/scheduler/dhcp_agent_scheduler.py
++++ b/neutron/scheduler/dhcp_agent_scheduler.py
+@@ -24,8 +24,8 @@ from neutron_lib.objects import exceptions
+ from oslo_config import cfg
+ from oslo_log import log as logging
+ 
+-from neutron.agent.common import utils as agent_utils
+ from neutron.common import _constants as n_const
++from neutron.common import agent_status
+ from neutron.objects import agent as agent_obj
+ from neutron.objects import network
+ from neutron.scheduler import base_resource_filter
+@@ -69,7 +69,7 @@ class AutoScheduler:
+             segments_on_host = {s.segment_id for s in segment_host_mapping}
+ 
+             for dhcp_agent in dhcp_agents:
+-                if agent_utils.is_agent_down(dhcp_agent.heartbeat_timestamp):
++                if agent_status.is_agent_down(dhcp_agent.heartbeat_timestamp):
+                     LOG.warning('DHCP agent %s is not active', dhcp_agent.id)
+                     continue
+                 for net_id, is_routed_network in net_ids.items():
+diff --git a/neutron/tests/unit/common/test_agent_status.py b/neutron/tests/unit/common/test_agent_status.py
+new file mode 100644
+index 0000000000..ebfa9206b0
+--- /dev/null
++++ b/neutron/tests/unit/common/test_agent_status.py
+@@ -0,0 +1,56 @@
++#    Licensed under the Apache License, Version 2.0 (the "License"); you may
++#    not use this file except in compliance with the License. You may obtain
++#    a copy of the License at
++#
++#         http://www.apache.org/licenses/LICENSE-2.0
++#
++#    Unless required by applicable law or agreed to in writing, software
++#    distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
++#    WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
++#    License for the specific language governing permissions and limitations
++#    under the License.
++
++import datetime
++import subprocess
++import sys
++
++from oslo_config import cfg
++from oslo_utils import timeutils
++
++from neutron.agent.common import utils as agent_utils
++from neutron.common import agent_status
++from neutron.tests import base
++
++
++class IsAgentDownTestCase(base.BaseTestCase):
++
++    def setUp(self):
++        super().setUp()
++        cfg.CONF.set_override('agent_down_time', 30)
++
++    def test_recent_heartbeat(self):
++        heartbeat = timeutils.utcnow() - datetime.timedelta(seconds=10)
++        self.assertFalse(agent_status.is_agent_down(heartbeat))
++
++    def test_old_heartbeat(self):
++        heartbeat = timeutils.utcnow() - datetime.timedelta(seconds=60)
++        self.assertTrue(agent_status.is_agent_down(heartbeat))
++
++    def test_agent_utils_alias(self):
++        self.assertIs(agent_status.is_agent_down, agent_utils.is_agent_down)
++
++
++class AgentStatusImportsTestCase(base.BaseTestCase):
++
++    def test_agent_model_does_not_import_agent_side_modules(self):
++        # Run in a fresh interpreter: the test process has already imported
++        # the agent utilities. The agent model only needs is_agent_down.
++        code = ('import sys\n'
++                'import neutron.db.models.agent\n'
++                'print(",".join(m for m in sys.modules\n'
++                '               if m.split(".")[0] == "pyroute2" or\n'
++                '               m == "neutron.privileged" or\n'
++                '               m.startswith("neutron.privileged.")))\n')
++        out = subprocess.check_output(  # noqa: S603
++            [sys.executable, '-c', code], text=True)
++        self.assertEqual('', out.strip())
+diff --git a/neutron/tests/unit/db/test_l3_hamode_db.py b/neutron/tests/unit/db/test_l3_hamode_db.py
+index d9fcbbbd37..b63b37f3e8 100644
+--- a/neutron/tests/unit/db/test_l3_hamode_db.py
++++ b/neutron/tests/unit/db/test_l3_hamode_db.py
+@@ -41,8 +41,8 @@ import sqlalchemy as sa
+ from sqlalchemy import orm
+ import testtools
+ 
+-from neutron.agent.common import utils as agent_utils
+ from neutron.api.rpc.handlers import l3_rpc
++from neutron.common import agent_status
+ from neutron.db import agents_db
+ from neutron.db import l3_agentschedulers_db
+ from neutron.db import l3_hamode_db
+@@ -226,7 +226,7 @@ class L3HATestCase(L3HATestFramework):
+         self.plugin.update_routers_states(
+             self.admin_ctx, {router['id']: constants.HA_ROUTER_STATE_ACTIVE},
+             self.agent2['host'])
+-        with mock.patch.object(agent_utils, 'is_agent_down',
++        with mock.patch.object(agent_status, 'is_agent_down',
+                                return_value=True):
+             self._assert_ha_state_for_agent(router, self.agent1,
+                                             constants.HA_ROUTER_STATE_UNKNOWN)
+@@ -265,7 +265,7 @@ class L3HATestCase(L3HATestFramework):
+         self.plugin.update_routers_states(
+             self.admin_ctx, {router['id']: constants.HA_ROUTER_STATE_STANDBY},
+             self.agent2['host'])
+-        with mock.patch.object(agent_utils, 'is_agent_down',
++        with mock.patch.object(agent_status, 'is_agent_down',
+                                return_value=True):
+             # With above mock all agents are in dead state
+             # hence router state is Unknown overall.

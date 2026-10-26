@@ -1,0 +1,170 @@
+From 40f3fa3eb03cc277de0fee6120e291c57621ef37 Mon Sep 17 00:00:00 2001
+From: Michael Still <mikal@stillhq.com>
+Date: Sat, 24 Oct 2026 09:58:15 +1100
+Subject: [PATCH] python: Do not import eventlet in the poller until needed.
+
+ovs/poller.py imported eventlet's patcher at module level, only to ask
+whether select had been monkey patched.  Importing eventlet.patcher
+loads all of eventlet, greenlet, dnspython and asyncio, so every
+program that imports the poller pays for eventlet whenever it is
+installed, even if it never uses it, and recent eventlet releases also
+print a deprecation warning when imported.
+
+OpenStack is moving its services off eventlet, but eventlet stays
+installed alongside them for some time yet.  Neutron loads the poller
+through ovsdbapp in its API and RPC servers and its OVN, Open vSwitch
+and DHCP agents.  With neutron's other imports of eventlet removed (a
+set of OpenStack changes now being prepared), this one is the last,
+and removing it saves about 9 to 13 MB of resident memory in each of
+those processes.
+
+Nothing can be monkey patched before eventlet is imported, so the
+poller now looks the patcher up in sys.modules when it needs it rather
+than importing it.  When eventlet is imported and patched, before or
+after the poller, the behaviour is unchanged.
+
+The new python/ovs/tests/test_poller.py checks, each in a fresh
+interpreter, that importing the poller does not load eventlet, and
+that get_system_poll() still finds the original select.poll() when
+eventlet has patched select, in either import order.  It is skipped
+when eventlet is not installed.  Tested with the Python unit tests
+(python3 -m pytest python/ovs) and flake8 with the options from
+Makefile.am.
+
+Assisted-by: Claude Opus 5.5, Claude Code
+Signed-off-by: Michael Still <mikal@stillhq.com>
+---
+ python/automake.mk              |  3 +-
+ python/ovs/poller.py            | 22 +++++++------
+ python/ovs/tests/test_poller.py | 56 +++++++++++++++++++++++++++++++++
+ 3 files changed, 71 insertions(+), 10 deletions(-)
+ create mode 100644 python/ovs/tests/test_poller.py
+
+diff --git a/python/automake.mk b/python/automake.mk
+index c3e960c..91ff762 100644
+--- a/python/automake.mk
++++ b/python/automake.mk
+@@ -49,7 +49,8 @@ ovs_pytests = \
+ 	python/ovs/tests/test_kv.py \
+ 	python/ovs/tests/test_list.py \
+ 	python/ovs/tests/test_odp.py \
+-	python/ovs/tests/test_ofp.py
++	python/ovs/tests/test_ofp.py \
++	python/ovs/tests/test_poller.py
+ 
+ ovs_flowviz = \
+ 	python/ovs/flowviz/__init__.py \
+diff --git a/python/ovs/poller.py b/python/ovs/poller.py
+index 12f4099..3505f51 100644
+--- a/python/ovs/poller.py
++++ b/python/ovs/poller.py
+@@ -17,6 +17,7 @@ import os
+ 
+ import select
+ import socket
++import sys
+ 
+ import ovs.timeval
+ import ovs.vlog
+@@ -26,16 +27,19 @@ try:
+ except ImportError:
+     ssl = None
+ 
+-try:
+-    from eventlet import patcher as eventlet_patcher
+ 
+-    def _using_eventlet_green_select():
+-        return eventlet_patcher.is_monkey_patched(select)
+-except:
+-    eventlet_patcher = None
++def _eventlet_patcher():
++    # Nothing can be monkey patched before eventlet is imported, so look
++    # eventlet up rather than importing it: an import here costs every
++    # program that does not use eventlet the memory to load it.
++    return sys.modules.get("eventlet.patcher")
++
++
++def _using_eventlet_green_select():
++    eventlet_patcher = _eventlet_patcher()
++    return (eventlet_patcher is not None and
++            eventlet_patcher.is_monkey_patched(select))
+ 
+-    def _using_eventlet_green_select():
+-        return False
+ 
+ try:
+     from gevent import monkey as gevent_monkey
+@@ -235,7 +239,7 @@ def get_system_poll():
+     """
+     try:
+         if _using_eventlet_green_select():
+-            _system_poll = eventlet_patcher.original("select").poll
++            _system_poll = _eventlet_patcher().original("select").poll
+         elif gevent_monkey and gevent_monkey.is_object_patched(
+                 'select', 'poll'):
+             _system_poll = gevent_monkey.get_original('select', 'poll')
+diff --git a/python/ovs/tests/test_poller.py b/python/ovs/tests/test_poller.py
+new file mode 100644
+index 0000000..73df8a0
+--- /dev/null
++++ b/python/ovs/tests/test_poller.py
+@@ -0,0 +1,56 @@
++import os
++import subprocess
++import sys
++
++import pytest
++
++import ovs
++
++pytest.importorskip("eventlet")
++
++PYTHONPATH = os.path.dirname(os.path.dirname(os.path.abspath(ovs.__file__)))
++
++
++def run_python(code):
++    # A fresh interpreter, so that eventlet's monkey patching and the
++    # modules it loads cannot leak into, or in from, other tests.
++    env = dict(os.environ)
++    env["PYTHONPATH"] = os.pathsep.join(
++        filter(None, [PYTHONPATH, env.get("PYTHONPATH")]))
++    result = subprocess.run([sys.executable, "-c", code], env=env,
++                            capture_output=True, text=True)
++    assert result.returncode == 0, result.stderr
++    return result.stdout.strip()
++
++
++def test_import_does_not_load_eventlet():
++    out = run_python(
++        "import sys\n"
++        "import ovs.poller\n"
++        "print(sorted(m for m in sys.modules\n"
++        "             if m == 'eventlet' or m.startswith('eventlet.')))\n")
++    assert out == "[]"
++
++
++def test_eventlet_imported_but_not_patched():
++    out = run_python(
++        "import select\n"
++        "import eventlet\n"
++        "import ovs.poller\n"
++        "print(ovs.poller._using_eventlet_green_select(),\n"
++        "      type(ovs.poller.get_system_poll()) is type(select.poll()))\n")
++    assert out == "False True"
++
++
++@pytest.mark.parametrize("patch_first", [True, False])
++def test_eventlet_patched(patch_first):
++    patch = "import eventlet\neventlet.monkey_patch()\n"
++    out = run_python(
++        (patch if patch_first else "") +
++        "import ovs.poller\n" +
++        ("" if patch_first else patch) +
++        "from eventlet import patcher\n"
++        "original_poll = patcher.original('select').poll\n"
++        "print(ovs.poller._using_eventlet_green_select(),\n"
++        "      type(ovs.poller.get_system_poll()) is type(original_poll()))\n")
++    assert out == "True True"
+-- 
+2.47.3
+

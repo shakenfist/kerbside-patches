@@ -8,14 +8,16 @@ in, and measures what removing it would save.
 
 The tools were written for the devstack CI memory work in
 [plans/privsep-memory.md](plans/privsep-memory.md). Phase 6 of that plan
-records the first scan, made on 2026-10-23, which found about 0.5 GB per OVN
-all-in-one node and 0.85 GB per ML2/OVS controller.
+records the first scan, made on 2026-10-23, and the savings measured once
+the fixes were written: 24 to 49 MB per neutron process, and 10 to 24 MB for
+glance, keystone and placement. The first scan's estimate of 0.5 to 0.85 GB
+per node added up per-package costs and was withdrawn.
 
 ## The tools
 
 | File | Purpose |
 |------|---------|
-| `scan.sh` | Driver. `build` builds a container image of the services from master; `probe` runs `probe.py` for every role; `marginal` runs `marginal.py`; `shell` opens a shell in the image's `site-packages`, to read installed source. |
+| `scan.sh` | Driver. `build` builds a container image of the services from master; `probe` runs `probe.py` for every role; `marginal` runs `marginal.py`; `--with DIR` on either installs a patched source tree first; `shell` opens a shell in the image's `site-packages`, to read installed source. |
 | `Dockerfile` | python:3.12 with nova, neutron, cinder, glance, keystone and placement installed from git master under master upper-constraints. Build arguments `PROJECTS` and `EXTRAS` change what is installed. |
 | `roles.txt` | One line per service role: its entry point plus the plugins devstack configures. |
 | `probe.py` | Imports one role in a fresh interpreter. It reports the role's anonymous and total RSS and its module count per top-level package. For each package it also records the chain of importers that first loaded it. |
@@ -112,6 +114,44 @@ which every service loads, it measures 11 MB, and 11 MB is the real saving.
 Multiply by the number of processes from `--group`, or from counting
 `--grep` output, to get a per-node figure.
 
+### Measuring a patch
+
+To measure a change before it merges, probe the patched source tree and
+compare it with the unpatched image. Apply the series with
+`_build/test-apply.sh`, skipping the tests, which leaves the patched
+checkout in `src/<directory>`:
+
+```bash
+_build/test-apply.sh --skip-tests <series>
+tools/import-memory/scan.sh build
+tools/import-memory/scan.sh probe --roles 'neutron-(api|ovn-agent|l3-agent)' > before.jsonl
+tools/import-memory/scan.sh probe --with src/neutron --roles 'neutron-(api|ovn-agent|l3-agent)' > after.jsonl
+tools/import-memory/report.py before.jsonl
+tools/import-memory/report.py after.jsonl
+```
+
+`--with DIR` mounts the directory read-only. The container copies it
+and installs the copy with `pip install --no-deps` over the image's
+version of the project, before any role is probed. If an install fails
+the run stops with the error rather than reporting unpatched figures.
+The copy is marked safe for git, because pbr takes the files to install
+from git: without that, a project whose packaging names only its
+top-level package (oslo.utils is one) would install without its
+subpackages and no error.
+Repeat `--with` when
+a change needs another project's patch as well, for example
+`--with src/keystone --with src/futurist`. Each role still runs in its
+own `python -I` interpreter. `--roles REGEX` keeps only the roles whose
+name matches the extended regular expression, so a run covers just the
+processes the change affects; `\|` is accepted as well as `|` for
+alternation. `marginal` takes `--with` too, before its two module lists.
+
+The figures for a commit message are the difference between a run with
+`--with` and the same run without it. Use the same `--roles` for both,
+and the same image: rebuilding it in between moves master under you. A
+run against an unmodified tree should match a run without `--with` to
+within 1 MB, which is the noise to expect in any difference you quote.
+
 ### 5. Fix it, and guard the fix
 
 The usual fix is to move the import into the function that uses it, or to
@@ -128,6 +168,16 @@ Without such a test, the next unrelated import brings the package back.
 - **Runtime plugins must be in `roles.txt`.** Services load their drivers
   through stevedore or importutils after start-up. An entry point alone
   misses them, for example the libvirt driver in nova-compute.
+- **A role must reproduce what its entry point does before importing.**
+  The real nova API entry points (`nova/wsgi/osapi_compute.py`,
+  `nova/wsgi/metadata.py`) call `nova.monkey_patch.patch(backend='threading')`
+  first, which stops nova importing eventlet. Probing only the app-factory
+  modules loaded eventlet into nova-api and nova-api-meta (about 36 packages,
+  roughly 8 MB each) and overstated them. The nova API roles therefore begin
+  with `call:nova.monkey_patch.patch(backend='threading')`. A `call:` entry may
+  carry literal arguments (`call:pkg.mod.fn(1,key='v')`), parsed with
+  `ast.literal_eval`, never evaluated, and containing no spaces. The `wsgi`
+  modules themselves are still not imported, for the reason below.
 - **The uWSGI `wsgi` modules build their application at import time,**
   and that needs config files. The API roles therefore import the modules
   the app factory loads, not the `wsgi` module.
