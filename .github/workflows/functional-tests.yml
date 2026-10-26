@@ -1346,3 +1346,18 @@ jobs:
           RUN_ID: ${{ github.run_id }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: tools/ci-weekly-report.sh
+
+  # Reviews the pull request once it can be enqueued. Can enqueue is the
+  # whole CI-passed gate, so it is the only need: it runs under always() and
+  # fails when any gated job did, which skips this job. It is skipped on
+  # merge groups too, so the queue never waits on a review. The reusable
+  # workflow reviews same-repository pull requests only, skips when the last
+  # commit is shakenfist-bot's or the bot has already reviewed, and needs no
+  # secrets, so none are inherited.
+  automated_reviewer:
+    name: "Automated reviewer"
+    needs: can_enqueue
+    permissions:
+      contents: read
+      pull-requests: write
+    uses: shakenfist/actions/.github/workflows/pr-auto-review.yml@main
