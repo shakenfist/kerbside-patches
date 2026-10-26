@@ -5,6 +5,6 @@ shallow_clone: true
 directory: oslo.messaging
 release: master-oslo.messaging-import-memory-011
 depends_on: ''
-source_sha: e791645c6b132daac45b0d901bb4de7c8d2a4932
+source_sha: 819b72eab5f56cbdc40497f77e55b5f61bf92534
 previous_source_sha: e791645c6b132daac45b0d901bb4de7c8d2a4932
 repush: true
