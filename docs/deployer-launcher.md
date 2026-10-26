@@ -268,7 +268,9 @@ runs it from an unpacked copy of the image instead:
    filesystem into it with `<engine> create`, `<engine> export` piped
    into `tar -x -p --numeric-owner`, and `<engine> rm`. It prints how
    long that took and how much it wrote (`du -sx`). The image is
-   about 1.7 GB; Phase 4 measured the unpacked tree at 1170 MiB.
+   about 1.7 GB, and the unpacked tree measured 1170 MiB in CI
+   (*Bootstrapping the deploy host* in the containerised deployer
+   plan).
 3. In a private mount namespace (`unshare --mount --propagation
    private`), a helper bind-mounts the host's `/proc`, `/sys` and
    `/dev`, `/etc/resolv.conf` and `/etc/hosts` (read-only), and the

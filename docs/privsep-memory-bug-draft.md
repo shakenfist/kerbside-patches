@@ -1,7 +1,7 @@
 # Draft Launchpad bug: oslo.privsep memory in devstack
 
-This is the bug that Phase 1 of the [OpenStack memory plan](plans/privsep-memory.md)
-calls for. It was drafted on 2026-10-23 and is **deliberately not filed yet.**
+This is the bug that the [OpenStack memory plan](plans/privsep-memory.md) opens
+with: its first step is to file it. It was drafted on 2026-10-23 and is **deliberately not filed yet.**
 Whether privsep memory is a problem worth fixing is still being argued
 upstream. The plan is to land the proposed fixes first, so the measured
 savings make the case, and to file this once the community is ready to
@@ -16,19 +16,20 @@ The draft is a snapshot. Check these against the current state first:
   savings from `performance.json` rather than the projections, and add
   any changes proposed since.
 - **The figures.** The CI numbers come from 1011787's patchset 2 builds,
-  which were linked as [3] and [4]. Once the Phase 2 baseline exists,
-  cite it instead. Zuul build logs expire, so links to old builds will
+  which were linked as [3] and [4]. Once the plan's devstack telemetry
+  baseline exists, cite it instead. Zuul build logs expire, so links to old builds will
   stop working.
 - **1010664.** Check whether the change that removes eventlet from
   oslo.privsep has merged or been abandoned, and update the oslo.privsep
   paragraph to match.
-- **The "Not privsep, but related" paragraph.** Phase 6's findings are
-  meant to be filed against their own projects. If any of those bugs
+- **The "Not privsep, but related" paragraph.** The findings about services
+  importing what they do not use are meant to be filed against their own
+  projects. If any of those bugs
   exist by then, link them here instead of describing the findings.
 - **After filing.** Add `Related-Bug:` to every patch in the plan's
   series. Repush pushes a new revision of every change, so check first
   whether the Gerrit votes survive a revision that only changes the
-  commit message. Then mark Phase 1 done in the plan.
+  commit message. Then mark the bug-filing step done in the plan.
 
 ## The draft
 
