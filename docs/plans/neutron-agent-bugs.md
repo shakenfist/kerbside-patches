@@ -17,7 +17,7 @@ work keep finding.
 |-------|------|--------|--------|
 | 1 | DHCP agent logic fixes (`neutron-dhcp-agent-fixes`) | Not started | |
 | 2 | DVR fip namespace locking (`neutron-dvr-fip-ns-locking`) | Not started | |
-| 3 | Hacking check for config read at import (`neutron-import-time-config-check`) | Not started | |
+| 3 | Hacking check for config read at import (`neutron-import-time-config-check`) | Complete | |
 | 4 | Static import-closure test for the agents (`neutron-import-closure-test`) | Abandoned | |
 | 5 | Thread switch interval in the test base class (`neutron-test-switch-interval`) | Complete | |
 | 6 | Push audit | Not started | |
@@ -418,3 +418,12 @@ changes are uploaded and reviewed, the same way
   60.1 s and 55.6 s; CPU time over the last three pairs 335.7 s and
   321.5 s. The noise swamps any cost, so `1e-5` stands and `1e-4` was
   not tried. 2080 tests passed in all twelve runs; nothing flaked.
+- 2026-10-28 (AEDT): Phase 3's N351 departs from Decision 2: it tracks
+  enclosing `def` lines through flake8's `checker_state` instead of
+  testing `indent_level == 0`, because the original `_debug` read sat
+  inside a module-level `try:` at indent 4 and the simpler rule missed
+  it. Class bodies and default arguments are caught too; lambdas are
+  not. With the old block restored, flake8 reports
+  `neutron/objects/base.py:75:14: N351`. The `QUOTA_DB_DRIVERS` tuple
+  went into `neutron/conf/quota.py`, where the two class-path strings
+  already live and nothing from neutron is imported.
