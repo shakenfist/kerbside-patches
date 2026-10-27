@@ -1,6 +1,6 @@
-commit 1d6628bed8e1f681edacb276b7123afc15ffcf1c
+commit a86c1a542e623e7b3e4994ca29ddfae948a9d5ad
 Author: Michael Still <mikal@stillhq.com>
-Date:   Fri Oct 23 07:13:53 2026 +1100
+Date:   Tue Oct 27 18:04:16 2026 +1100
 
     WIP / PoC: Allow validate-config to skip become on localhost.
     

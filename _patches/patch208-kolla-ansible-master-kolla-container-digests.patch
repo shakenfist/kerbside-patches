@@ -1,6 +1,6 @@
-commit 6cc203974299a3dee4261fd5ee45e96fbea8021a
+commit 5fac6f158c516e89c41784e24797e8eea47e1762
 Author: Michael Still <mikal@stillhq.com>
-Date:   Fri Oct 23 07:13:53 2026 +1100
+Date:   Tue Oct 27 18:04:17 2026 +1100
 
     WIP / PoC: Support image digests in kolla_container.
     

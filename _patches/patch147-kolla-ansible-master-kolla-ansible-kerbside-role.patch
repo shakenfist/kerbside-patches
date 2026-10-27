@@ -1,6 +1,6 @@
-commit f74a9475e9e6a631be8e0b151ea652e44da19882
+commit 8a73f56dfa03b1d65aea6d2ab69d07f86b741ec4
 Author: Michael Still <mikal@stillhq.com>
-Date:   Fri Oct 23 19:40:53 2026 +1100
+Date:   Tue Oct 27 18:11:50 2026 +1100
 
     Deploy Kerbside with Kolla-Ansible.
     
@@ -1601,7 +1601,7 @@ index 35ea0bb95..88549c2d3 100644
  # OpenStack
  ####################
 diff --git a/ansible/site.yml b/ansible/site.yml
-index 5ab1bb251..4b29b43ba 100644
+index d95f17d35..ea57989cb 100644
 --- a/ansible/site.yml
 +++ b/ansible/site.yml
 @@ -43,6 +43,7 @@
@@ -1724,10 +1724,10 @@ index 1c7f6b89e..e14be732f 100644
  =====
  
 diff --git a/etc/kolla/globals.yml b/etc/kolla/globals.yml
-index a9ec40c3b..01dbc357f 100644
+index 9e1573ab8..57ef2d331 100644
 --- a/etc/kolla/globals.yml
 +++ b/etc/kolla/globals.yml
-@@ -388,6 +388,7 @@ workaround_ansible_issue_8743: true
+@@ -389,6 +389,7 @@ workaround_ansible_issue_8743: true
  #enable_ironic_prometheus_exporter: "{{ enable_ironic | bool and enable_prometheus | bool }}"
  #enable_ironic_pxe_filter: false
  #enable_iscsid: "{{ enable_cinder | bool and enable_cinder_backend_iscsi | bool }}"

@@ -1,6 +1,6 @@
-commit 90a639797216ba8ea90b160022d478e4ad8abc99
+commit d71c7cdce1ae814f9fb064fedce33543f11b4bc4
 Author: Michael Still <mikal@stillhq.com>
-Date:   Fri Oct 23 19:34:19 2026 +1100
+Date:   Tue Oct 27 18:12:23 2026 +1100
 
     Report databases with mixed utf8mb3 collations.
     

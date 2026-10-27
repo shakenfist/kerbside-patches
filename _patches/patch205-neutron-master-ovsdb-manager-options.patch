@@ -1,6 +1,6 @@
-commit 6f1bba8cd3b016a1abf1a1557058e05dee5d027e
+commit 65a979a0f25717dadb4fa1887f97db570b8147f0
 Author: Michael Still <mikal@stillhq.com>
-Date:   Fri Oct 23 19:32:07 2026 +1100
+Date:   Tue Oct 27 18:19:08 2026 +1100
 
     ovsdb: Read manager options when they are used
     

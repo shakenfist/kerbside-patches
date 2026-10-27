@@ -1,32 +1,27 @@
-commit 4fed1557c3082920b200a82d47379e89f359106a
+commit 74da364ad319891f8ffabc77a7100f52506eff28
 Author: Michael Still <mikal@stillhq.com>
-Date:   Tue Oct 13 18:33:51 2026 +1100
+Date:   Tue Oct 27 18:14:08 2026 +1100
 
     magnum: pin setuptools <82.
     
-    setuptools 82 removed pkg_resources [1], but magnum-cluster-api still
-    imports it to find the charts and manifests it ships. magnum-conductor
-    loads that driver at startup, so the container aborts with
-    ModuleNotFoundError and never reaches a running state.
+    magnum-cluster-api still imports pkg_resources, which setuptools 82
+    removed, so magnum-conductor fails at startup on Debian Trixie and
+    Rocky Linux 10. Pin setuptools until a magnum-cluster-api release
+    drops pkg_resources [1].
     
-    Debian Trixie and Rocky Linux 10 images are affected, Ubuntu Noble is
-    not. The real fix is in magnum-cluster-api, which needs to move to
-    importlib.resources [2]; pin setuptools until that merges, then revert
-    as was done for horizon in Iced7662f7e58b9f094306e9a6c4f1b5a79f48b17.
-    
-    [1] https://setuptools.pypa.io/en/stable/history.html#v82-0-0
-    [2] https://github.com/vexxhost/magnum-cluster-api/pull/925
+    [1] https://github.com/vexxhost/magnum-cluster-api/pull/1156
     
     Prompt: Michael asked about unblocking Magnum CI while waiting for the
     upstream patches to merge.
     
     Assisted-By: Claude Opus 5 (high effort)
     
+    Closes-Bug: #2172248
     Change-Id: I9f6fe3c6d0686903fda8d6015b5b806439cfc9a7
     Signed-off-by: Michael Still <mikal@stillhq.com>
 
 diff --git a/kolla/docker/magnum/magnum-base/Dockerfile.j2 b/kolla/docker/magnum/magnum-base/Dockerfile.j2
-index ef070f88f..5450f1279 100644
+index ef070f88f..d6c3cc1a5 100644
 --- a/kolla/docker/magnum/magnum-base/Dockerfile.j2
 +++ b/kolla/docker/magnum/magnum-base/Dockerfile.j2
 @@ -13,9 +13,14 @@ LABEL maintainer="{{ maintainer }}" name="{{ image_name }}"
@@ -34,8 +29,8 @@ index ef070f88f..5450f1279 100644
  ADD magnum-base-archive /magnum-base-source
  
 +# NOTE(mikal): magnum-cluster-api imports pkg_resources, which setuptools
-+# 82 removed [1]. Pin setuptools until the importlib.resources migration
-+# in https://github.com/vexxhost/magnum-cluster-api/pull/925 merges.
++# 82 removed [1]. Pin setuptools until a magnum-cluster-api release
++# includes https://github.com/vexxhost/magnum-cluster-api/pull/1156.
 +# [1] https://setuptools.pypa.io/en/stable/history.html#v82-0-0
  {% set magnum_base_pip_packages = [
      '/magnum[osprofiler]',
