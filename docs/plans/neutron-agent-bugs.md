@@ -447,3 +447,17 @@ changes are uploaded and reviewed, the same way
   lint, release notes were added to patches 237 and 243 (both
   user-visible) by amending those commits and replaying the rest of
   each series, which changed their SHAs but not their Change-Ids.
+- 2026-10-28 (AEDT): Mikal uploaded all nine patches; found on Gerrit
+  by Change-Id afterwards. Bug numbers are still to come.
+
+  | Patch | Change | Topic |
+  |-------|--------|-------|
+  | 237 | [1012616](https://review.opendev.org/c/openstack/neutron/+/1012616) | dhcp-agent-fixes |
+  | 238 | [1012617](https://review.opendev.org/c/openstack/neutron/+/1012617) | dhcp-agent-fixes |
+  | 239 | [1012618](https://review.opendev.org/c/openstack/neutron/+/1012618) | dhcp-agent-fixes |
+  | 240 | [1012619](https://review.opendev.org/c/openstack/neutron/+/1012619) | dhcp-agent-fixes |
+  | 241 | [1012621](https://review.opendev.org/c/openstack/neutron/+/1012621) | dvr-fip-ns-locking |
+  | 242 | [1012622](https://review.opendev.org/c/openstack/neutron/+/1012622) | dvr-fip-ns-locking |
+  | 243 | [1012623](https://review.opendev.org/c/openstack/neutron/+/1012623) | import-time-config |
+  | 244 | [1012624](https://review.opendev.org/c/openstack/neutron/+/1012624) | import-time-config |
+  | 245 | [1012625](https://review.opendev.org/c/openstack/neutron/+/1012625) | thread-safety |
