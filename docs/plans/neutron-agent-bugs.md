@@ -16,7 +16,7 @@ work keep finding.
 | Phase | What | Status | Merged |
 |-------|------|--------|--------|
 | 1 | DHCP agent logic fixes (`neutron-dhcp-agent-fixes`) | Not started | |
-| 2 | DVR fip namespace locking (`neutron-dvr-fip-ns-locking`) | Not started | |
+| 2 | DVR fip namespace locking (`neutron-dvr-fip-ns-locking`) | Complete | |
 | 3 | Hacking check for config read at import (`neutron-import-time-config-check`) | Complete | |
 | 4 | Static import-closure test for the agents (`neutron-import-closure-test`) | Abandoned | |
 | 5 | Thread switch interval in the test base class (`neutron-test-switch-interval`) | Complete | |
@@ -427,3 +427,10 @@ changes are uploaded and reviewed, the same way
   `neutron/objects/base.py:75:14: N351`. The `QUOTA_DB_DRIVERS` tuple
   went into `neutron/conf/quota.py`, where the two class-path strings
   already live and nothing from neutron is imported.
+- 2026-10-28 (AEDT): Phase 2's `_write` departs from Decision 3's
+  `tempfile`: it opens `<state_file>.<uuid>.tmp` with mode `'x'` and
+  `os.replace`s it, which keeps the umask-derived file mode that
+  `open(path, 'w')` gave; `neutron_lib.utils.file.replace_file` was
+  tried first but the DVR test fixtures mock it globally and it forces
+  0o644. The concurrency test (64 threads, distinct keys) failed 14 of
+  20 runs on the old code and passed 80 of 80 with the lock.

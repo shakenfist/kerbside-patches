@@ -1,0 +1,14 @@
+l3: Serialise FipNamespace creation per external network
+
+get_fip_ns looked up, built and stored the FipNamespace with no lock,
+so pool workers for different routers on one external network could
+each build their own during a fullsync and hand two routers the same
+link-local pair. Hold one agent-wide lock across get, build and store.
+
+Building under the lock serialises the first fullsync for an external
+network by the cost of the FipNamespace constructor, once; later calls
+only take the lock for a dictionary lookup, which is acceptable.
+
+Assisted-By: Claude Opus 5.5 (high effort)
+Change-Id: If5307edd717802d8cac8cde26e6d33e1e5c3e5a8
+Signed-off-by: Michael Still <mikal@stillhq.com>

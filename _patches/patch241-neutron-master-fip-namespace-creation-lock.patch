@@ -1,0 +1,142 @@
+commit 8930c865688bf078704b67f5f95c370ed2dff5f9
+Author: Michael Still <mikal@stillhq.com>
+Date:   Wed Oct 28 08:36:45 2026 +1100
+
+    l3: Serialise FipNamespace creation per external network
+    
+    get_fip_ns looked up, built and stored the FipNamespace with no lock,
+    so pool workers for different routers on one external network could
+    each build their own during a fullsync and hand two routers the same
+    link-local pair. Hold one agent-wide lock across get, build and store.
+    
+    Building under the lock serialises the first fullsync for an external
+    network by the cost of the FipNamespace constructor, once; later calls
+    only take the lock for a dictionary lookup, which is acceptable.
+    
+    Assisted-By: Claude Opus 5.5 (high effort)
+    Change-Id: If5307edd717802d8cac8cde26e6d33e1e5c3e5a8
+    Signed-off-by: Michael Still <mikal@stillhq.com>
+
+diff --git a/neutron/agent/l3/dvr.py b/neutron/agent/l3/dvr.py
+index 9fbd9fb733..36cf6223a9 100644
+--- a/neutron/agent/l3/dvr.py
++++ b/neutron/agent/l3/dvr.py
+@@ -12,6 +12,7 @@
+ #    License for the specific language governing permissions and limitations
+ #    under the License.
+ 
++import threading
+ import weakref
+ 
+ from neutron.agent.l3 import dvr_fip_ns
+@@ -21,6 +22,10 @@ class AgentMixin:
+     def __init__(self, host):
+         # dvr data
+         self._fip_namespaces = weakref.WeakValueDictionary()
++        # Pool workers for different routers call get_fip_ns for the same
++        # external network concurrently; serialise get, construct and store
++        # so they all share one FipNamespace.
++        self._fip_namespaces_lock = threading.Lock()
+         super().__init__(host)
+ 
+     def get_fip_ns(self, ext_net_id):
+@@ -28,15 +33,16 @@ class AgentMixin:
+         # convert these to string like this so I preserved that.
+         ext_net_id = str(ext_net_id)
+ 
+-        fip_ns = self._fip_namespaces.get(ext_net_id)
+-        if fip_ns and not fip_ns.destroyed:
+-            return fip_ns
++        with self._fip_namespaces_lock:
++            fip_ns = self._fip_namespaces.get(ext_net_id)
++            if fip_ns and not fip_ns.destroyed:
++                return fip_ns
+ 
+-        fip_ns = dvr_fip_ns.FipNamespace(ext_net_id,
+-                                         self.conf,
+-                                         self.driver,
+-                                         self.use_ipv6)
+-        self._fip_namespaces[ext_net_id] = fip_ns
++            fip_ns = dvr_fip_ns.FipNamespace(ext_net_id,
++                                             self.conf,
++                                             self.driver,
++                                             self.use_ipv6)
++            self._fip_namespaces[ext_net_id] = fip_ns
+ 
+         return fip_ns
+ 
+diff --git a/neutron/tests/unit/agent/l3/test_dvr_local_router.py b/neutron/tests/unit/agent/l3/test_dvr_local_router.py
+index f32a7a6fc5..3f38286230 100644
+--- a/neutron/tests/unit/agent/l3/test_dvr_local_router.py
++++ b/neutron/tests/unit/agent/l3/test_dvr_local_router.py
+@@ -12,6 +12,7 @@
+ #    License for the specific language governing permissions and limitations
+ #    under the License.
+ import copy
++import threading
+ from unittest import mock
+ 
+ from neutron_lib.api.definitions import portbindings
+@@ -1029,3 +1030,50 @@ class TestDvrRouterOperations(base.BaseTestCase):
+             with open(ri._ha_state_path) as f:
+                 state = f.readline()
+                 self.assertEqual("backup", state)
++
++    def test_get_fip_ns_concurrent_callers_share_one_namespace(self):
++        # Pool workers processing different routers call get_fip_ns for
++        # the same external network at once during a fullsync. Try to hold
++        # both callers inside the FipNamespace constructor together: if
++        # get_fip_ns did not serialise get, construct and store, each
++        # caller would build and return its own FipNamespace.
++        agent = l3_agent.L3NATAgent(HOSTNAME, self.conf)
++        agent.init_host()
++        ext_net_id = _uuid()
++        entered = []
++        entered_lock = threading.Lock()
++        both_inside = threading.Event()
++
++        def blocking_init(fip_ns, *args, **kwargs):
++            with entered_lock:
++                entered.append(fip_ns)
++                if len(entered) == 2:
++                    both_inside.set()
++            # get_fip_ns serialises construction, so the second caller
++            # cannot get here while the first waits and the wait times
++            # out. Without the lock both callers arrive well within it.
++            both_inside.wait(timeout=0.5)
++            fip_ns.destroyed = False
++
++        results = [None, None]
++        errors = []
++
++        def call_get_fip_ns(index):
++            try:
++                results[index] = agent.get_fip_ns(ext_net_id)
++            except Exception as e:
++                errors.append(e)
++
++        with mock.patch.object(dvr_fip_ns.FipNamespace, '__init__',
++                               new=blocking_init):
++            threads = [threading.Thread(target=call_get_fip_ns, args=(i,))
++                       for i in range(2)]
++            for t in threads:
++                t.start()
++            for t in threads:
++                t.join(timeout=10)
++            self.assertFalse(any(t.is_alive() for t in threads))
++
++        self.assertEqual([], errors)
++        self.assertIsNotNone(results[0])
++        self.assertIs(results[0], results[1])
+diff --git a/releasenotes/notes/dvr-fip-namespace-creation-lock-9f4212e0a556a229.yaml b/releasenotes/notes/dvr-fip-namespace-creation-lock-9f4212e0a556a229.yaml
+new file mode 100644
+index 0000000000..ff16d7453b
+--- /dev/null
++++ b/releasenotes/notes/dvr-fip-namespace-creation-lock-9f4212e0a556a229.yaml
+@@ -0,0 +1,6 @@
++---
++fixes:
++  - |
++    With the L3 agent on threads, two workers could build two fip namespaces
++    for one external network during a fullsync and hand two routers the same
++    link-local pair. Fip namespace creation is now serialised per agent.
