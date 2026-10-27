@@ -18,7 +18,7 @@ work keep finding.
 | 1 | DHCP agent logic fixes (`neutron-dhcp-agent-fixes`) | Not started | |
 | 2 | DVR fip namespace locking (`neutron-dvr-fip-ns-locking`) | Not started | |
 | 3 | Hacking check for config read at import (`neutron-import-time-config-check`) | Not started | |
-| 4 | Static import-closure test for the agents (`neutron-import-closure-test`) | Not started | |
+| 4 | Static import-closure test for the agents (`neutron-import-closure-test`) | Abandoned | |
 | 5 | Thread switch interval in the test base class (`neutron-test-switch-interval`) | Not started | |
 | 6 | Push audit | Not started | |
 
@@ -86,15 +86,18 @@ Verified by reading the code in this session, with line numbers at
   wrong otherwise. Nothing in `tox -e pep8` (ruff `E,F,W,S,UP,C90,G`,
   hacking N3xx, pylint 3.3, mypy) looks for this.
 - **Import closures.** A static walk of module-level imports from each
-  console script shows `neutron-l3-agent` (74 modules),
-  `neutron-dhcp-agent` (56) and `neutron-openvswitch-agent` (25) reach
-  neither `neutron.db` nor `neutron.objects`, while the metadata,
-  metering, SR-IOV and macvtap agents reach both through
-  `neutron.agent.rpc` or `api.rpc.callbacks.resources`. Nothing stops
-  the lean three regressing. `import-linter` would express this
-  declaratively, but it is a new test dependency that would have to go
-  through openstack/requirements first; an in-tree unit test over the
-  AST needs nothing.
+  console script suggested `neutron-l3-agent`, `neutron-dhcp-agent`
+  and `neutron-openvswitch-agent` reach neither `neutron.db` nor
+  `neutron.objects`. Step 4a showed that is an artefact: those scripts
+  load their agent class by name at run time (`importutils.import_class`
+  in `neutron/service.py`, `AppManager.run_apps` for OVS), so the walk
+  stops at the launcher. Walked from the agent modules, or imported in
+  a fresh interpreter, all three load about 60 `neutron.db` and 67
+  `neutron.objects` modules and SQLAlchemy, through `neutron.agent.rpc`
+  and `api.rpc.callbacks.resources`. That is the chain the in-flight
+  import-memory series (1012182 and its siblings) removes, and those
+  changes carry their own fresh-interpreter tests, so a static test
+  here would duplicate a guard that already exists in review.
 - **Thread preemption.** CPython hands the GIL to a waiting thread
   only after that thread has waited a full switch interval (5 ms), so
   a pure-Python section shorter than that is never preempted. A model
@@ -395,4 +398,15 @@ changes are uploaded and reviewed, the same way
 
 ## Execution notes
 
-(none yet)
+- 2026-10-28 (AEDT): Phase 4 abandoned before any commit. Step 4a's
+  required proof failed: adding `from neutron.objects import ports` to
+  `neutron/agent/l3/agent.py` did not fail the test, because the
+  console scripts import their agent class at run time and the static
+  walk never reaches it. Walked from the agent modules the contract is
+  false today and becomes true only once the import-memory series
+  lands, which already tests it. The Situation bullet is corrected
+  above; the worktree `neutron-closure` was discarded.
+- 2026-10-28 (AEDT): Step 2a reproduced the duplicate `FipNamespace`
+  with two threads held inside the constructor (`MismatchError: is
+  not`), and timed the real constructor at a 64 ms minimum against a
+  5 ms switch interval, so phase 2 proceeded.
