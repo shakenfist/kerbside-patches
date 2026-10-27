@@ -386,7 +386,8 @@ them:
   retest` from authorised commenters. Useful here because bot commits
   do not trigger CI. Both reach the trigger handling through
   `shakenfist/actions/pr-bot-trigger@main`, which refuses fork pull
-  requests.
+  requests. The first review needs no comment: `functional-tests.yml`'s
+  `Automated reviewer` job asks for one once `Can enqueue` passes.
 
 See `docs/security-scanning.md` for the scanning half.
 

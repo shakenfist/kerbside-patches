@@ -239,10 +239,11 @@ class MergeGroupCurrentWorkflowSeamsTestCase(unittest.TestCase):
 
 class MergeGatesTestCase(unittest.TestCase):
     GATES = ('can_enqueue', 'can_merge')
-    # These publish layer data or report on the gate rather than testing
-    # anything, so they must not be able to fail a gate. report_weekly
-    # needs can_enqueue, so it could not be in that gate anyway.
-    UNGATED = ('collect_layer_data', 'report_weekly')
+    # These publish layer data, report on the gate, or review a pull request
+    # that already passed Can enqueue, rather than testing anything, so none
+    # may fail a gate. report_weekly and automated_reviewer need can_enqueue,
+    # so they could not be in that gate anyway.
+    UNGATED = ('collect_layer_data', 'report_weekly', 'automated_reviewer')
 
     def setUp(self):
         self.jobs = load_workflow('functional-tests.yml')['jobs']
@@ -279,7 +280,10 @@ class CalledWorkflowConcurrencyTestCase(unittest.TestCase):
         self.jobs = load_workflow('functional-tests.yml')['jobs']
 
     def test_the_called_workflows_are_the_ones_checked_here(self):
-        called = {job['uses'] for job in self.jobs.values() if 'uses' in job}
+        # Only this repository's workflows can be read here. The one remote
+        # workflow called, shakenfist/actions' pr-auto-review.yml, keys its
+        # group on pr-auto-review- and the pull request number.
+        called = {job['uses'] for job in self.jobs.values() if job.get('uses', '').startswith('./')}
         self.assertEqual(set(self.PREFIXES), called)
 
     def test_called_jobs_key_on_their_own_prefix_and_the_tier(self):

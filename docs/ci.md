@@ -94,6 +94,11 @@ The jobs of `Build test clouds`, in dependency order:
 * `Can enqueue` and `Can merge` gate on all of the above.
 * `Report weekly failures` runs on the weekly schedule only, when
   `Can enqueue` failed.
+* `Automated reviewer` runs after `Can enqueue` passes on a pull
+  request, calling `shakenfist/actions`' `pr-auto-review.yml`, which
+  has Claude Code review the change. It reviews once per pull request,
+  skips fork pull requests and ones whose last commit is the bot's,
+  and is not part of either gate. Merge groups skip it.
 
 `Patch tests` and `Local build` are jobs of this workflow. Their jobs
 show in a run as `Patch tests / Ansible lint check`,

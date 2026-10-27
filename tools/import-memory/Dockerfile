@@ -2,7 +2,7 @@
 # which puts upper-constraints.txt in the build context. The probe scripts are
 # not copied in: scan.sh mounts this directory, so editing roles.txt needs no
 # rebuild.
-FROM python:3.12-slim-bookworm
+FROM python:3.12-slim-trixie
 
 RUN apt-get update && \
     apt-get install -y --no-install-recommends gcc g++ pkg-config libvirt-dev libffi-dev libssl-dev libpq-dev \

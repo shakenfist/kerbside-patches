@@ -15,7 +15,8 @@ refuses) is [the deployer launcher](deployer-launcher.md), and is not
 repeated here. How each part was designed, and the evidence behind
 every number on this page, is in
 [the containerised deployer plan](plans/containerised-deployer.md);
-each number below names the phase of that plan it comes from.
+each number below names, in italics, the heading of the section of
+that plan it comes from.
 
 A draft proposal for taking this upstream, written for Kolla and
 Kolla-Ansible reviewers rather than for operators, is
@@ -114,8 +115,9 @@ _build/imagebuild.sh --build-targets master --distro debian \
     --image-tag local
 ```
 
-That gives `kolla/kolla-ansible:local`, about 1.7 GB (Phase 1 and
-Phase 4). Without `archive/`, `imagebuild.sh` fails with
+That gives `kolla/kolla-ansible:local`, about 1.7 GB (*Deployer
+image* and *Bootstrapping the deploy host*). Without `archive/`,
+`imagebuild.sh` fails with
 `archive/kolla-build.conf: No such file or directory`. A local image
 has no registry digest, so `launcher pin` pins it by image ID with a
 warning, and it has no build manifest, so every deploy warns and
@@ -124,8 +126,8 @@ pulls service images by tag.
 **Pushing it.** The image is no use if the tool that pushes it drops
 file capabilities, because then every task on the deploy host fails
 with `Operation not permitted`. occystrap did, before 0.4.17
-(shakenfist/occystrap#151, Phase 1); upstream's `kolla-build` push
-keeps them. Check a pushed image with:
+(shakenfist/occystrap#151, *Deployer image*); upstream's
+`kolla-build` push keeps them. Check a pushed image with:
 
 ```
 docker run --rm --entrypoint getcap <image> /usr/bin/nsenter
@@ -217,11 +219,12 @@ The record is written by virtualenv deploys too, so a deployment made
 the old way can later be guarded by an image. The full rules are in
 [the deployer launcher](deployer-launcher.md#deployer-checks).
 
-In CI (Phase 5), `tools/check-deployer-guards` shows the configuration
-check passing and refusing a different tag, the record check refusing
-a record from a newer Kolla-Ansible, and the override. The guard play
-cost a few seconds over a whole deploy. Most of the rules have never
-run through Ansible here: see "What is not proven" below.
+In CI (*Version safeguards*), `tools/check-deployer-guards` shows the
+configuration check passing and refusing a different tag, the record
+check refusing a record from a newer Kolla-Ansible, and the override.
+The guard play cost a few seconds over a whole deploy. Most of the
+rules have never run through Ansible here: see "What is not proven"
+below.
 
 ## The build manifest and digest pinning
 
@@ -267,13 +270,13 @@ And what it costs:
   `format_version`, fails closed, and the override does not change
   that.
 
-In CI (Phase 6), on both launcher hosts, all 36 Kolla containers ran
-`<name>@<digest>` matching the manifest, and a second
+In CI (*Build manifest*), on both launcher hosts, all 36 Kolla
+containers ran `<name>@<digest>` matching the manifest, and a second
 `deploy-containers --tags common,cron` left all 36 container IDs
 unchanged. That second check re-examines only the `common` and `cron`
 roles' containers. It passed on Docker's classic store (Debian) and
 its containerd store (Rocky). The manifest names 85 images on Debian
-and Ubuntu and 81 on Rocky, about 8 KiB (Phase 6).
+and Ubuntu and 81 on Rocky, about 8 KiB.
 
 ## What CI shows
 
@@ -288,16 +291,18 @@ is its control:
 
 Both start from a host with no container engine, have no
 Kolla-Ansible virtualenv at any point, and run every Kolla-Ansible
-call after bootstrap as the unprivileged base user (Phase 4). After
-the deploy they run `tools/check-deployer-launcher`,
-`tools/check-deployer-guards` and `tools/check-deployer-manifest`.
-**Both have voted since #1919**: a workflow run fails if either does.
-Before that, over a window from 2026-10-13 to 2026-10-15, each passed
-in 11 runs, 3 of them daily rebases, and no failure was attributed to
-the launcher (Phase 7).
+call after bootstrap as the unprivileged base user (*Bootstrapping
+the deploy host*). After the deploy they run
+`tools/check-deployer-launcher`, `tools/check-deployer-guards` and
+`tools/check-deployer-manifest`. **Both have voted since #1919**: a
+workflow run fails if either does. Before that, over a window from
+2026-10-13 to 2026-10-15, each passed in 11 runs, 3 of them daily
+rebases, and no failure was attributed to the launcher (*Make the
+prototype entry voting*).
 
-What the timings support (Phase 7, 26 pairs of launcher and control
-jobs from the same runs, 2026-10-10 to 2026-10-13):
+What the timings support (*Make the prototype entry voting*, 26 pairs
+of launcher and control jobs from the same runs, 2026-10-10 to
+2026-10-13):
 
 * **The bootstrap section is shorter at the median, by about 130s on
   the Debian host and 95s on the Rocky host.** The launcher takes `ansible-galaxy` and
@@ -314,9 +319,10 @@ jobs from the same runs, 2026-10-10 to 2026-10-13):
 
 The launcher's own costs are small: about two seconds more per call
 before Ansible starts, from one run, and 18s (Debian) to 27s (Rocky)
-to pull and unpack the deployer image (Phase 7). The single-run
-durations recorded in Phases 3 to 6 are noise and are not repeated
-here.
+to pull and unpack the deployer image (*Make the prototype entry
+voting*). The single-run durations recorded in the plan's earlier
+sections, from *The localhost connection* to *Build manifest*, are
+noise and are not repeated here.
 
 `tools/measure-deployer-bootstrap` produced these numbers, and
 [the deployer launcher](deployer-launcher.md#bootstrap-cost) says how
@@ -330,18 +336,18 @@ solve too.
 
 **SSH to `127.0.0.1`.** Rejected as the way for the deployer to reach
 its own host, because it depends on an SSH daemon, a key and
-`authorized_keys` being right on the deploy host. Phase 2 used it as a
-stopgap, and it showed a second problem: the key is named only in the
-inventory, so the launcher could not see it to mount it, and
-`deployer.conf` needed a `mounts` key for paths that only an inventory
-names. That gap is general, and the key stays. Phase 3 replaced SSH
-with `community.docker.nsenter`.
+`authorized_keys` being right on the deploy host. The first launcher
+used it as a stopgap (*Launcher*), and it showed a second problem: the
+key is named only in the inventory, so the launcher could not see it
+to mount it, and `deployer.conf` needed a `mounts` key for paths that
+only an inventory names. That gap is general, and the key stays.
+`community.docker.nsenter` replaced SSH (*The localhost connection*).
 
 **Controller-side `become`.** The container cannot escalate on its own
 `localhost`: the invoking user has no `sudo` inside it, and giving it
 some would make a `--privileged --pid host` container root on the
 host. `validate-config` failed this way on the first CI run through
-the launcher ("sudo: a password is required", Phase 2). `patch200`
+the launcher ("sudo: a password is required", *Launcher*). `patch200`
 makes that `become` a variable. The only other controller-side
 `become` in Kolla-Ansible is in `post-deploy`'s templates, which
 escalate only when the configuration directory is not writable, so
@@ -354,7 +360,7 @@ generator, for example). An inventory host called `localhost` replaces
 the implicit one, and its `ansible_connection` sends those tasks to
 the host, where they fail. Upstream's all-in-one inventory names its
 host `localhost`, so a container all-in-one cannot be a one-line
-change to it (Phase 3).
+change to it (*The localhost connection*).
 
 **The nsenter plugin assumes `remote_user` is root.**
 `community.docker.nsenter` sets `remote_user` to `root` whatever the
@@ -363,7 +369,7 @@ it runs as the invoking user, and Ansible's default remote temporary
 directory then expands `~` through the container's `HOME`, a path the
 host does not have, so every module fails. The workaround is an
 absolute `ansible_remote_tmp` in the inventory; the fix belongs in
-community.docker (Phase 3).
+community.docker (*The localhost connection*).
 
 **The nsenter plugin leaks the caller's environment.** Commands on the
 host get the container's `PATH`, `HOME` and `KOLLA_*` variables. So
@@ -373,32 +379,34 @@ virtualenv installed the Docker SDK into that virtualenv's Python, and
 the deploy, run from the image, then found the system Python without
 it. Pinning the interpreter in the inventory did not help, because
 Kolla-Ansible overrides it, and pinning it on the command line broke
-`certificates`. It took four rounds to fix (Phase 3). Running
-`bootstrap-servers` from the unpacked image (Phase 4) gives both runs
-the same `PATH`, which is why it now works without a pin; the leak is
-still there.
+`certificates`. It took four rounds to fix (*The localhost
+connection*). Running `bootstrap-servers` from the unpacked image
+(*Bootstrapping the deploy host*) gives both runs the same `PATH`,
+which is why it now works without a pin; the leak is still there.
 
 **`bootstrap-servers` needs root.** Not a failure, but a change an
 operator will notice: unpacking the image, mounting and `chroot` all
 need root, so the whole command runs under `sudo`, where a virtualenv
 install runs it as the deploy user and escalates per task. The
 launcher does not escalate on its own, because that would hide it
-(Phase 4).
+(*Bootstrapping the deploy host*).
 
 **Podman is untested in CI.** The launcher supports podman, and its
 unit tests cover the command lines it builds, but no CI host deploys
 with it. On the Rocky entry podman only unpacks the image for
 `bootstrap-servers`; the deploy runs on the `docker-ce` that
-`bootstrap-servers` installs (Phase 4). Pulling by digest with podman
-as the deploy engine has not been run either (Phase 6). Rootless
-podman cannot work where the deploy host is also a target, because
-its PID 1 is not the host's, so `nsenter` reaches the wrong namespaces.
+`bootstrap-servers` installs (*Bootstrapping the deploy host*).
+Pulling by digest with podman as the deploy engine has not been run
+either (*Build manifest*). Rootless podman cannot work where the
+deploy host is also a target, because its PID 1 is not the host's, so
+`nsenter` reaches the wrong namespaces.
 
 **A Rocky slowdown after bootstrap is not established.** On the Rocky
 host, the launcher entry's steps after bootstrap took a mean of 213s
 longer than its control's over 13 pairs, about two standard errors,
 with the jobs of a pair on different runners at different times
-(Phase 7). That may be a real penalty of 100 to 200s, or host load.
+(*Make the prototype entry voting*). That may be a real penalty of
+100 to 200s, or host load.
 Thirteen pairs cannot tell, so do not read it as a fact about the
 launcher, in either direction.
 
@@ -407,14 +415,14 @@ knowing if you change the same code:
 
 * occystrap stripped the file capabilities from every layer it
   rewrote, which would have broken `nsenter` on every pushed image
-  (Phase 1; fixed in occystrap 0.4.17).
+  (*Deployer image*; fixed in occystrap 0.4.17).
 * The version safeguards, imported before Kolla-Ansible's own fact
   gathering, made it skip every host, because any module run on a
   host first fills in `ansible_facts`. They now run after it
-  (Phase 5).
+  (*Version safeguards*).
 * The CI registry token cannot be relied on for the GitLab REST API,
   so the build manifest lists images from `kolla-build`'s own record
-  and reads only the digests from the registry (Phase 6).
+  and reads only the digests from the registry (*Build manifest*).
 
 ## What is not proven
 
@@ -426,12 +434,13 @@ These were not run, and nothing on this page claims them:
   unit-tested in `patch206` but have never run through Ansible here,
   nor has a record newer by release, a host with no record under a
   deployer image, `bifrost`, or the MariaDB and RabbitMQ playbooks
-  (Phase 5).
+  (*Version safeguards*).
 * Switching a running deployment from tags to digests, and so the
-  one-time recreate (Phase 6).
+  one-time recreate (*Build manifest*).
 * Whether SELinux was enforcing when the Rocky chroot ran. Nothing
   failed, and `restorecon -n` found no mislabelled files, but the job
-  records neither `getenforce` nor the audit log (Phase 4).
+  records neither `getenforce` nor the audit log (*Bootstrapping
+  the deploy host*).
 * Anything outside this repository's CI: its runners, its private
   registry and its Python mirror are not upstream's.
 
