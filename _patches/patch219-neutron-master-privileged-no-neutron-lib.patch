@@ -1,6 +1,6 @@
-commit 70420c2bed5b4e41dd37b312f527bd9d36c5d34b
+commit 8e00a78589eb473249fcf4c49e6e0c58ede3e20a
 Author: Michael Still <mikal@stillhq.com>
-Date:   Fri Oct 23 19:49:15 2026 +1100
+Date:   Tue Oct 27 18:19:52 2026 +1100
 
     privileged: Do not import neutron_lib
     
@@ -126,7 +126,7 @@ index d4477ab10c..ca01b33253 100644
  
  class TrafficControlClassNotFound(RuntimeError):
 diff --git a/neutron/privileged/agent/linux/utils.py b/neutron/privileged/agent/linux/utils.py
-index 732de88cc6..861b7f8e46 100644
+index d15c6dab15..8ba70ddfbb 100644
 --- a/neutron/privileged/agent/linux/utils.py
 +++ b/neutron/privileged/agent/linux/utils.py
 @@ -18,7 +18,9 @@ import re

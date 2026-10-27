@@ -1,6 +1,6 @@
-commit b39fa719a95675fcd0eac78d6a5832d1cfecb503
+commit b14a011591d524f6b593a916167941cde16aea32
 Author: Michael Still <mikal@stillhq.com>
-Date:   Fri Oct 23 19:41:25 2026 +1100
+Date:   Tue Oct 27 18:11:07 2026 +1100
 
     Add a fluentd path for JSON formatted OpenStack logs.
     
@@ -102,10 +102,10 @@ index e94f83b92..05ef4f600 100644
  </source>
  {% endif %}
 diff --git a/etc/kolla/globals.yml b/etc/kolla/globals.yml
-index a9ec40c3b..f5e58fbc6 100644
+index 9e1573ab8..2d25d7f68 100644
 --- a/etc/kolla/globals.yml
 +++ b/etc/kolla/globals.yml
-@@ -315,6 +315,13 @@ workaround_ansible_issue_8743: true
+@@ -316,6 +316,13 @@ workaround_ansible_issue_8743: true
  # Valid options are [ True, False ]
  #openstack_logging_debug: "False"
  

@@ -1,6 +1,6 @@
-commit fd218ac887ba0e1e46b160323262d04d8450dd57
+commit 53d3af249b535648a81f4497d4b2be4327a7b752
 Author: Michael Still <mikal@stillhq.com>
-Date:   Sun Oct 25 09:58:05 2026 +1100
+Date:   Tue Oct 27 18:16:50 2026 +1100
 
     db: Import the DB API inside the functions using it
     

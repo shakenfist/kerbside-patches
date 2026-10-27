@@ -1,6 +1,6 @@
-commit 07cfe7666519c4c0fa42c04b97729174756b87cf
+commit 47b31993792ed80903392e4e965ed1b3e908d3f5
 Author: Michael Still <mikal@stillhq.com>
-Date:   Fri Oct 23 19:41:25 2026 +1100
+Date:   Tue Oct 27 18:11:08 2026 +1100
 
     Let Keystone log JSON.
     

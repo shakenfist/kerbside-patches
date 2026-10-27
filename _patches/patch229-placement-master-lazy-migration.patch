@@ -1,6 +1,6 @@
-commit 4ba50485536a08ca952f635fea2af8ef3e950ffe
+commit 178d439d29d8d4d41999ea4329774e96e2a5fe41
 Author: Michael Still <mikal@stillhq.com>
-Date:   Sun Oct 25 07:43:36 2026 +1100
+Date:   Tue Oct 27 18:23:20 2026 +1100
 
     Import migrations only when syncing on startup
     

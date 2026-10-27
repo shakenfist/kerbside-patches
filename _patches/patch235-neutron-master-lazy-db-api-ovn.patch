@@ -1,6 +1,6 @@
-commit ab0195009a94f4a6f28addc5f63d0c48a1befd3b
+commit 2fc3148f65e026d84491482d37e68594924ab2db
 Author: Michael Still <mikal@stillhq.com>
-Date:   Sun Oct 25 09:58:05 2026 +1100
+Date:   Tue Oct 27 18:16:50 2026 +1100
 
     ovn: Keep server-only imports out of the OVN agent
     

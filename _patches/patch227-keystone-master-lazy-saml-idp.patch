@@ -1,6 +1,6 @@
-commit d9b44272ff8b82af661e2ab777dc77d2b4da1d26
+commit 7c15cca127debb1523afc59b252cc1ec7d43e67a
 Author: Michael Still <mikal@stillhq.com>
-Date:   Sun Oct 25 07:39:39 2026 +1100
+Date:   Tue Oct 27 18:01:02 2026 +1100
 
     Import the SAML IdP only when it is used
     

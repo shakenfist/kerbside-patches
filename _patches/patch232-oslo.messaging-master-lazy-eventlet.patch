@@ -1,6 +1,6 @@
-commit 3fbc3b3e184113c9c53f8ef1b01364d9ee9c47f4
+commit f0deb8a03c50162aa83e5d7622ce3b4380e45b74
 Author: Michael Still <mikal@stillhq.com>
-Date:   Sun Oct 25 08:53:44 2026 +1100
+Date:   Tue Oct 27 18:21:22 2026 +1100
 
     Find patched threading without importing eventlet
     

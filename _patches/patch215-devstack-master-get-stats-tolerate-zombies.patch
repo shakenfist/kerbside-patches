@@ -1,6 +1,6 @@
-commit 03e6cf30e5fba9cb5a52a78fd09827dd83cd101c
+commit 292bfa305f0103c0f9541744fb18267577fb4acc
 Author: Michael Still <mikal@stillhq.com>
-Date:   Fri Oct 23 19:39:32 2026 +1100
+Date:   Tue Oct 27 17:59:35 2026 +1100
 
     Tolerate zombie processes in get-stats.py
     

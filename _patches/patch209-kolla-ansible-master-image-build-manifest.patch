@@ -1,6 +1,6 @@
-commit 990e531b0c0bb519d294ccfffe9a6820e612097c
+commit e5e8161988befe1d657d45c8b261bdc5de692cfb
 Author: Michael Still <mikal@stillhq.com>
-Date:   Fri Oct 23 07:13:53 2026 +1100
+Date:   Tue Oct 27 18:04:17 2026 +1100
 
     WIP / PoC: Pull images by digest from a build manifest.
     
@@ -1255,10 +1255,10 @@ index 293cc413c..5aa1f6c28 100644
  prometheus_server_dimensions: "{{ default_container_dimensions }}"
  prometheus_mysqld_exporter_dimensions: "{{ default_container_dimensions }}"
 diff --git a/ansible/roles/rabbitmq/defaults/main.yml b/ansible/roles/rabbitmq/defaults/main.yml
-index 4b01efb90..c27268594 100644
+index 145f40eb7..c4a03aa54 100644
 --- a/ansible/roles/rabbitmq/defaults/main.yml
 +++ b/ansible/roles/rabbitmq/defaults/main.yml
-@@ -34,7 +34,7 @@ rabbitmq_services:
+@@ -28,7 +28,7 @@ rabbitmq_services:
  ####################
  rabbitmq_image: "{{ docker_image_url }}rabbitmq"
  rabbitmq_tag: "{{ openstack_tag }}"

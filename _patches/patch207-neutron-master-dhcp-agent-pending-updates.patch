@@ -1,6 +1,6 @@
-commit e8380d52f7e46418cff752c581b6a5acca7b0018
+commit 324fd510bd6b22a5c9b39d0a442c39be8a9e26a4
 Author: Michael Still <mikal@stillhq.com>
-Date:   Fri Oct 23 19:40:11 2026 +1100
+Date:   Tue Oct 27 18:16:06 2026 +1100
 
     dhcp: Report pending updates in agent state
     

@@ -9,4 +9,4 @@ source_sha: 114f68b9edc9c36bd7c1d215f17048f779669b3a
 previous_source_sha: 124ec18eacd6fdf892d8b6c4d32ccfedecaeb66e
 skip_rebase: false
 skip_claude: true
-repush: false
+repush: true

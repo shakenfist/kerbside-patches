@@ -1,6 +1,6 @@
-commit 049c4f4d157355a6c7904df47b037d5ddb2b4423
+commit 62f9558ed1ffe341c77dcda5b6c7e33982797764
 Author: Michael Still <mikal@stillhq.com>
-Date:   Fri Oct 23 19:40:11 2026 +1100
+Date:   Tue Oct 27 18:16:06 2026 +1100
 
     l3: Report pending updates in agent state
     
