@@ -1,6 +1,6 @@
-commit 0193fefcbc50fd1705ca9a3f5540b9cad89976f6
+commit 1b73e3f05b15b223862f1c8efef58544705f3d1d
 Author: Michael Still <mikal@stillhq.com>
-Date:   Fri Oct 23 19:49:15 2026 +1100
+Date:   Tue Oct 27 18:19:52 2026 +1100
 
     privileged: Do not import neutron.common.utils
     
@@ -203,7 +203,7 @@ index 6b504b0cd0..e5604e8159 100644
              _run_iproute_addr('add',
                                device,
 diff --git a/neutron/privileged/agent/linux/utils.py b/neutron/privileged/agent/linux/utils.py
-index eb892dc8f9..732de88cc6 100644
+index 4ef8965d72..d15c6dab15 100644
 --- a/neutron/privileged/agent/linux/utils.py
 +++ b/neutron/privileged/agent/linux/utils.py
 @@ -22,7 +22,7 @@ from neutron_lib.utils import helpers

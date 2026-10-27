@@ -1,6 +1,6 @@
-commit 1fb599cd44ddd764da8299f707830a759b96b026
+commit b5664dc0c4a45087599381a1089d7e2141765a94
 Author: Michael Still <mikal@stillhq.com>
-Date:   Fri Oct 23 19:41:25 2026 +1100
+Date:   Tue Oct 27 18:11:08 2026 +1100
 
     Convert the compute services to JSON logging.
     

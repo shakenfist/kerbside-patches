@@ -1,6 +1,6 @@
-commit 92360dcb2a6c7fcd14eac6940db396fed2f6470a
+commit dc2bbd51a5f16eead0657652d1cd3e9507638e8b
 Author: Michael Still <mikal@stillhq.com>
-Date:   Fri Oct 23 19:39:32 2026 +1100
+Date:   Tue Oct 27 17:59:35 2026 +1100
 
     Generate performance.json without a global venv
     

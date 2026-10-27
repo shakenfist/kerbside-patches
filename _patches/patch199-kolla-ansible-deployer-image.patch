@@ -1,6 +1,6 @@
-commit cd5e4bd682e093d9bb2858c1ed67eecd57fa7341
+commit 0667b97211d0e4897bbbf437451a6a663a9ee171
 Author: Michael Still <mikal@stillhq.com>
-Date:   Tue Oct 20 19:29:17 2026 +1100
+Date:   Tue Oct 27 18:12:53 2026 +1100
 
     WIP / PoC: Add a kolla-ansible deployer image.
     

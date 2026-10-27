@@ -1,6 +1,6 @@
-commit 255aab90d3d38fb28e5eab4fc0596aefe4c552d9
+commit 39073f19161512646923d6b362ed986625c0a20c
 Author: Michael Still <mikal@stillhq.com>
-Date:   Fri Oct 23 20:34:33 2026 +1100
+Date:   Tue Oct 27 17:59:36 2026 +1100
 
     Record service process memory in get-stats.py
     

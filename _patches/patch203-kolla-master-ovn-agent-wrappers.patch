@@ -1,6 +1,6 @@
-commit 0af4cc3eedd28d3c9c3b401c9af3f9a4aadb1f2d
+commit 75a19e82da6b5c5f7548cd0163fe4d401134da11
 Author: Michael Still <mikal@stillhq.com>
-Date:   Wed Oct 7 06:39:46 2026 +1100
+Date:   Tue Oct 27 18:14:40 2026 +1100
 
     Support neutron agent wrappers in neutron-ovn-agent
     
@@ -15,7 +15,7 @@ Date:   Wed Oct 7 06:39:46 2026 +1100
     Signed-off-by: Michael Still <mikal@stillhq.com>
 
 diff --git a/kolla/docker/neutron/neutron-ovn-agent/Dockerfile.j2 b/kolla/docker/neutron/neutron-ovn-agent/Dockerfile.j2
-index 915bef1..d5f6cfe 100644
+index 915bef108..d5f6cfe92 100644
 --- a/kolla/docker/neutron/neutron-ovn-agent/Dockerfile.j2
 +++ b/kolla/docker/neutron/neutron-ovn-agent/Dockerfile.j2
 @@ -16,6 +16,8 @@ LABEL maintainer="{{ maintainer }}" name="{{ image_name }}"
@@ -29,7 +29,7 @@ index 915bef1..d5f6cfe 100644
  {{ macros.kolla_cleanup_repos() }}
 diff --git a/kolla/docker/neutron/neutron-ovn-agent/extend_start.sh b/kolla/docker/neutron/neutron-ovn-agent/extend_start.sh
 new file mode 100644
-index 0000000..001898f
+index 000000000..001898f68
 --- /dev/null
 +++ b/kolla/docker/neutron/neutron-ovn-agent/extend_start.sh
 @@ -0,0 +1,18 @@
@@ -53,7 +53,7 @@ index 0000000..001898f
 +. /usr/local/bin/kolla_neutron_extend_start
 diff --git a/releasenotes/notes/neutron-ovn-agent-wrappers-b937a71cd298f21a.yaml b/releasenotes/notes/neutron-ovn-agent-wrappers-b937a71cd298f21a.yaml
 new file mode 100644
-index 0000000..1281972
+index 000000000..128197272
 --- /dev/null
 +++ b/releasenotes/notes/neutron-ovn-agent-wrappers-b937a71cd298f21a.yaml
 @@ -0,0 +1,7 @@

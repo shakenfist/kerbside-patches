@@ -1,6 +1,6 @@
-commit 6307d01157a7160d80a1a6f7abc78c9656e8c95a
+commit 9b338ccbd064d3177822cf17c7badc0871ff1211
 Author: Michael Still <mikal@stillhq.com>
-Date:   Fri Oct 23 07:13:53 2026 +1100
+Date:   Tue Oct 27 18:04:17 2026 +1100
 
     WIP / PoC: Guard deployments against the wrong deployer.
     
@@ -270,10 +270,10 @@ index 4bb3cbdb0..1c8b0b0d9 100644
    hosts: rabbitmq
    tasks:
 diff --git a/ansible/site.yml b/ansible/site.yml
-index 5ab1bb251..d99585f13 100644
+index d95f17d35..a4577728a 100644
 --- a/ansible/site.yml
 +++ b/ansible/site.yml
-@@ -1017,3 +1017,28 @@
+@@ -1016,3 +1016,28 @@
         default(100) }}
    roles:
      - { role: skyline, tags: skyline }
