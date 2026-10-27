@@ -1,4 +1,4 @@
-commit 3920542d549d865d299bcc9d3c3de2726d8e97be
+commit 501ced2cd99b207d5c1af01e0959ad8da9615dfd
 Author: Michael Still <mikal@stillhq.com>
 Date:   Wed Oct 28 08:37:49 2026 +1100
 
@@ -248,3 +248,16 @@ index 916d3e75cc..f57e5d8237 100644
  class BaseDbObjectCompositePrimaryKeyWithIdTestCase(BaseObjectIfaceTestCase):
  
      _test_class = FakeNeutronObjectCompositePrimaryKeyWithId
+diff --git a/releasenotes/notes/config-read-at-use-da8ca3797a3d3202.yaml b/releasenotes/notes/config-read-at-use-da8ca3797a3d3202.yaml
+new file mode 100644
+index 0000000000..891f2b209b
+--- /dev/null
++++ b/releasenotes/notes/config-read-at-use-da8ca3797a3d3202.yaml
+@@ -0,0 +1,7 @@
++---
++fixes:
++  - |
++    The ORM "SQL execution without transaction" debug warning is now emitted
++    whenever ``debug`` is true, and the quota extensions report the configured
++    ``quota_driver``, regardless of whether the module was imported before the
++    configuration was parsed.

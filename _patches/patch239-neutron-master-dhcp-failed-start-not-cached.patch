@@ -1,0 +1,165 @@
+commit e8cf1386ccf5a1714ded050ffff29f232e3fe9ba
+Author: Michael Still <mikal@stillhq.com>
+Date:   Wed Oct 28 08:47:41 2026 +1100
+
+    dhcp: Do not cache a network whose dnsmasq failed to start
+    
+    DhcpLocalProcess.enable logged a dnsmasq start timeout and returned
+    None, and _call_driver reported success anyway, so the agent cached the
+    network and marked its ports DHCP-ready. enable now returns False, and
+    _call_driver returns that and schedules a resync for the network.
+    
+    enable returns False rather than raising so that callers which ignore
+    its result, such as DhcpBase.restart, behave as before.
+    
+    Assisted-By: Claude Opus 5.5 (high effort)
+    Change-Id: I8ef0d5cfcddf3b352eda3688dee14595648ae643
+    Signed-off-by: Michael Still <mikal@stillhq.com>
+
+diff --git a/neutron/agent/dhcp/agent.py b/neutron/agent/dhcp/agent.py
+index f9305cb5f4..bfc97a09d9 100644
+--- a/neutron/agent/dhcp/agent.py
++++ b/neutron/agent/dhcp/agent.py
+@@ -300,6 +300,12 @@ class DhcpAgent(manager.Manager):
+             rv = getattr(driver, action)(**action_kwargs)
+             if action == 'get_metadata_bind_interface':
+                 return rv
++            if action in ('enable', 'restart') and rv is False:
++                # The driver could not start the DHCP service; retry the
++                # network on the next resync rather than treating it as up.
++                self.schedule_resync(
++                    f'Unable to {action} dhcp for {network.id}', network.id)
++                return False
+             return True
+         except exceptions.Conflict:
+             # No need to resync here, the agent will receive the event related
+diff --git a/neutron/agent/linux/dhcp.py b/neutron/agent/linux/dhcp.py
+index ead6fcb044..38233e21c2 100644
+--- a/neutron/agent/linux/dhcp.py
++++ b/neutron/agent/linux/dhcp.py
+@@ -310,12 +310,17 @@ class DhcpLocalProcess(DhcpBase, metaclass=abc.ABCMeta):
+         return False
+ 
+     def enable(self):
+-        """Enables DHCP for this network by spawning a local process."""
++        """Enables DHCP for this network by spawning a local process.
++
++        Returns True if the process was started and False if it was not.
++        """
+         try:
+             common_utils.wait_until_true(self._enable, timeout=300)
+         except common_utils.WaitTimeout:
+             LOG.error("Failed to start DHCP process for network %s",
+                       self.network.id)
++            return False
++        return True
+ 
+     def _enable(self):
+         try:
+diff --git a/neutron/tests/unit/agent/dhcp/test_agent.py b/neutron/tests/unit/agent/dhcp/test_agent.py
+index b77799bcdd..203311907b 100644
+--- a/neutron/tests/unit/agent/dhcp/test_agent.py
++++ b/neutron/tests/unit/agent/dhcp/test_agent.py
+@@ -496,6 +496,33 @@ class TestDhcpAgent(base.BaseTestCase):
+             trace_level='warning',
+             expected_sync=False)
+ 
++    def _test_call_driver_start_result(self, action, result,
++                                       expected_return, expected_sync):
++        network = mock.MagicMock()
++        network.id = '1'
++        getattr(self.driver.return_value, action).return_value = result
++        dhcp = dhcp_agent.DhcpAgent(HOSTNAME)
++        dhcp.init_host()
++        with mock.patch.object(dhcp,
++                               'schedule_resync') as schedule_resync:
++            self.assertIs(expected_return, dhcp.call_driver(action, network))
++        if expected_sync:
++            schedule_resync.assert_called_once_with(mock.ANY, network.id)
++        else:
++            schedule_resync.assert_not_called()
++
++    def test_call_driver_enable_failed(self):
++        self._test_call_driver_start_result('enable', False, False, True)
++
++    def test_call_driver_restart_failed(self):
++        self._test_call_driver_start_result('restart', False, False, True)
++
++    def test_call_driver_enable_succeeded(self):
++        self._test_call_driver_start_result('enable', True, True, False)
++
++    def test_call_driver_enable_returns_none(self):
++        self._test_call_driver_start_result('enable', None, True, False)
++
+     def test_call_driver_get_metadata_bind_interface_returns(self):
+         network = mock.MagicMock()
+         self.driver().get_metadata_bind_interface.return_value = 'iface0'
+@@ -751,6 +778,30 @@ class TestDhcpAgent(base.BaseTestCase):
+         )
+         self.assertIn(fake_port1.id, dhcp.dhcp_ready_ports)
+ 
++    def test_configure_dhcp_for_network_enable_failed(self):
++        network = dhcp.NetModel(id=FAKE_NETWORK_UUID,
++                                project_id=FAKE_PROJECT_ID,
++                                admin_state_up=True,
++                                subnets=[fake_subnet1],
++                                ports=[fake_port1])
++        self.driver.return_value.enable.return_value = False
++        agent = dhcp_agent.DhcpAgent(HOSTNAME)
++        agent.init_host()
++        with mock.patch.object(
++                agent, 'safe_get_network_info') as sgni, \
++            mock.patch.object(
++                agent, 'update_isolated_metadata_proxy') as ump, \
++            mock.patch.object(
++                agent, 'schedule_resync') as schedule_resync:
++            agent.configure_dhcp_for_network(network)
++
++        self.driver.return_value.enable.assert_called_once_with()
++        sgni.assert_not_called()
++        ump.assert_not_called()
++        self.assertNotIn(network.id, agent.cache.get_network_ids())
++        self.assertEqual(set(), agent.dhcp_ready_ports)
++        schedule_resync.assert_called_once_with(mock.ANY, network.id)
++
+     def test_configure_dhcp_for_network_no_subnets_with_dhcp_enabled(self):
+         dhcp = dhcp_agent.DhcpAgent(HOSTNAME)
+         dhcp.init_host()
+diff --git a/neutron/tests/unit/agent/linux/test_dhcp.py b/neutron/tests/unit/agent/linux/test_dhcp.py
+index 5ca7dc463b..1d81be726e 100644
+--- a/neutron/tests/unit/agent/linux/test_dhcp.py
++++ b/neutron/tests/unit/agent/linux/test_dhcp.py
+@@ -1222,6 +1222,21 @@ class TestDhcpLocalProcess(TestBase):
+             self.assertEqual(lp.called, ['spawn'])
+             self.assertTrue(self.mock_mgr.return_value.setup.called)
+ 
++    @mock.patch.object(common_utils, 'wait_until_true')
++    def test_enable_returns_true_when_started(self, mock_wait_until):
++        lp = LocalChild(self.conf, FakeV4Network())
++        self.assertIs(True, lp.enable())
++        mock_wait_until.assert_called_once_with(lp._enable, timeout=300)
++
++    @mock.patch.object(common_utils, 'wait_until_true',
++                       side_effect=common_utils.WaitTimeout)
++    def test_enable_returns_false_when_start_times_out(self,
++                                                       mock_wait_until):
++        lp = LocalChild(self.conf, FakeV4Network())
++        with mock.patch.object(dhcp.LOG, 'error') as log_error:
++            self.assertIs(False, lp.enable())
++        log_error.assert_called_once()
++
+     def test_get_process_uuid(self):
+         net = FakeV4Network()
+ 
+diff --git a/releasenotes/notes/dhcp-failed-start-not-cached-eb993c54633f23fc.yaml b/releasenotes/notes/dhcp-failed-start-not-cached-eb993c54633f23fc.yaml
+new file mode 100644
+index 0000000000..47afc55506
+--- /dev/null
++++ b/releasenotes/notes/dhcp-failed-start-not-cached-eb993c54633f23fc.yaml
+@@ -0,0 +1,6 @@
++---
++fixes:
++  - |
++    The DHCP agent no longer caches a network whose dnsmasq process failed
++    to start, nor reports that network's ports as DHCP-ready. It now
++    schedules a resync for the network so that the start is retried.

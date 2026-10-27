@@ -1,0 +1,99 @@
+commit 361c1832a47ee77403f98e960b3d8d1bc2698344
+Author: Michael Still <mikal@stillhq.com>
+Date:   Wed Oct 28 08:40:30 2026 +1100
+
+    dhcp: Build the resync throttler once
+    
+    Since 2018 _periodic_resync_helper has built a new utils.throttler on
+    every pass, so each call got a fresh LockWithTimer with timestamp 0 and
+    never waited: resync_throttle has never throttled anything. Build the
+    throttled callable once in __init__ and reuse it in the loop.
+    
+    A unit test drives two resync events 3 seconds apart with a 10 second
+    throttle and checks only the second one sleeps, for the remaining 7.
+    
+    Assisted-By: Claude Sonnet 5.5 (medium effort)
+    Change-Id: Ibc69980ebd20c0a249f03fb9b043c87e49e9271f
+    Signed-off-by: Michael Still <mikal@stillhq.com>
+
+diff --git a/neutron/agent/dhcp/agent.py b/neutron/agent/dhcp/agent.py
+index 2f8c863b99..f9305cb5f4 100644
+--- a/neutron/agent/dhcp/agent.py
++++ b/neutron/agent/dhcp/agent.py
+@@ -127,6 +127,9 @@ class DhcpAgent(manager.Manager):
+                 opt_name='resync_throttle',
+                 opt_value=self.conf.resync_throttle)
+         self._periodic_resync_event = threading.Event()
++        # Built once: the throttler keeps its last-call time in this closure.
++        self._throttled_resync_clear = utils.throttler(
++            self.conf.resync_throttle)(self._periodic_resync_event.clear)
+         # create dhcp dir to store dhcp info
+         dhcp_dir = os.path.dirname("/%s/dhcp/" % self.conf.state_path)
+         fileutils.ensure_tree(dhcp_dir, mode=0o755)
+@@ -438,12 +441,8 @@ class DhcpAgent(manager.Manager):
+             # except if a timeout is given and the operation times out.
+             if self._periodic_resync_event.wait(self.conf.resync_interval):
+                 LOG.debug("Resync event has been scheduled")
+-                clear_periodic_resync_event = self._periodic_resync_event.clear
+-                # configure throttler for clear_periodic_resync_event to
+-                # introduce delays between resync state events.
+-                throttled_clear_periodic_resync_event = utils.throttler(
+-                    self.conf.resync_throttle)(clear_periodic_resync_event)
+-                throttled_clear_periodic_resync_event()
++                # Delay consecutive resync events by resync_throttle.
++                self._throttled_resync_clear()
+ 
+             if self.needs_resync_reasons:
+                 # be careful to avoid a race with additions to list
+diff --git a/neutron/tests/unit/agent/dhcp/test_agent.py b/neutron/tests/unit/agent/dhcp/test_agent.py
+index 69e7727dfa..b77799bcdd 100644
+--- a/neutron/tests/unit/agent/dhcp/test_agent.py
++++ b/neutron/tests/unit/agent/dhcp/test_agent.py
+@@ -893,6 +893,35 @@ class TestDhcpAgent(base.BaseTestCase):
+             sync_state.assert_called_once_with(list(resync_reasons.keys()))
+             self.assertEqual(0, len(dhcp.needs_resync_reasons))
+ 
++    def test_periodic_resync_helper_throttles_consecutive_events(self):
++        cfg.CONF.set_override('resync_interval', 30)
++        cfg.CONF.set_override('resync_throttle', 10)
++        dhcp = dhcp_agent.DhcpAgent(HOSTNAME)
++        dhcp.init_host()
++        dhcp.schedule_resync('reason1', 'a')
++        clock = [1000.0]
++        sync_calls = []
++
++        def _sync_state(networks=None):
++            sync_calls.append(networks)
++            if len(sync_calls) == 1:
++                # A second event arrives 3 seconds after the first.
++                clock[0] += 3
++                dhcp.schedule_resync('reason2', 'b')
++                return
++            raise RuntimeError()
++
++        with mock.patch.object(utils, 'time') as mock_time, \
++                mock.patch.object(dhcp, 'sync_state',
++                                  side_effect=_sync_state):
++            mock_time.time.side_effect = lambda: clock[0]
++            with testtools.ExpectedException(RuntimeError):
++                dhcp._periodic_resync_helper()
++            self.assertEqual(2, len(sync_calls))
++            # The first event is not delayed, the second waits for the
++            # remainder of the 10 second throttle.
++            mock_time.sleep.assert_called_once_with(7.0)
++
+     def test_periodic_resync_helper_with_event(self):
+         with mock.patch.object(dhcp_agent.LOG, 'debug') as log:
+             dhcp = dhcp_agent.DhcpAgent(HOSTNAME)
+diff --git a/releasenotes/notes/dhcp-resync-throttle-honoured-7c1e4b9a2d5f8036.yaml b/releasenotes/notes/dhcp-resync-throttle-honoured-7c1e4b9a2d5f8036.yaml
+new file mode 100644
+index 0000000000..a2d217d9d4
+--- /dev/null
++++ b/releasenotes/notes/dhcp-resync-throttle-honoured-7c1e4b9a2d5f8036.yaml
+@@ -0,0 +1,6 @@
++---
++fixes:
++  - |
++    The DHCP agent ``resync_throttle`` option now delays consecutive resyncs
++    as documented. Previously the throttle state was rebuilt on every pass of
++    the resync loop, so the option was never applied.

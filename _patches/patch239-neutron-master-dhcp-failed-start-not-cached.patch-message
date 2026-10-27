@@ -1,0 +1,13 @@
+dhcp: Do not cache a network whose dnsmasq failed to start
+
+DhcpLocalProcess.enable logged a dnsmasq start timeout and returned
+None, and _call_driver reported success anyway, so the agent cached the
+network and marked its ports DHCP-ready. enable now returns False, and
+_call_driver returns that and schedules a resync for the network.
+
+enable returns False rather than raising so that callers which ignore
+its result, such as DhcpBase.restart, behave as before.
+
+Assisted-By: Claude Opus 5.5 (high effort)
+Change-Id: I8ef0d5cfcddf3b352eda3688dee14595648ae643
+Signed-off-by: Michael Still <mikal@stillhq.com>

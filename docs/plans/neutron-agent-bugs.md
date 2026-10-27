@@ -15,7 +15,7 @@ work keep finding.
 
 | Phase | What | Status | Merged |
 |-------|------|--------|--------|
-| 1 | DHCP agent logic fixes (`neutron-dhcp-agent-fixes`) | Not started | |
+| 1 | DHCP agent logic fixes (`neutron-dhcp-agent-fixes`) | Complete | |
 | 2 | DVR fip namespace locking (`neutron-dvr-fip-ns-locking`) | Complete | |
 | 3 | Hacking check for config read at import (`neutron-import-time-config-check`) | Complete | |
 | 4 | Static import-closure test for the agents (`neutron-import-closure-test`) | Abandoned | |
@@ -434,3 +434,16 @@ changes are uploaded and reviewed, the same way
   tried first but the DVR test fixtures mock it globally and it forces
   0o644. The concurrency test (64 threads, distinct keys) failed 14 of
   20 runs on the old code and passed 80 of 80 with the lock.
+- 2026-10-28 (AEDT): Phase 1 departures. Patch 239 schedules the
+  resync in `_call_driver`, not `configure_dhcp_for_network`: for a
+  routed network `call_driver` returns `all(ret)`, which would have
+  turned the deliberate no-resync exception paths into resyncs.
+  `DhcpBase.restart` still returns `None`, so no in-tree restart path
+  changes. Patch 240's bug dates from 06bc855dcf (2024, bug #2051729),
+  not the 2022 change the Situation bullet implied; that change moved
+  from `deepcopy` to editing the shared object so the next segment's
+  stale-device cleanup sees the previous segment's DHCP port, so the
+  fix copies the network but shares its `ports` list. After the stack
+  lint, release notes were added to patches 237 and 243 (both
+  user-visible) by amending those commits and replaying the rest of
+  each series, which changed their SHAs but not their Change-Ids.
