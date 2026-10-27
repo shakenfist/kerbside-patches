@@ -8,8 +8,13 @@ lane is added or moved between tiers by editing data. The file is under
 which lanes run must not invalidate the images that were already built.
 
 Each lane carries the tiers it runs in. A pull request runs the smoke tier,
-the merge queue runs the merge tier, and a manual dispatch runs smoke unless
-it asks for full, which means the merge tier.
+the merge queue runs the merge tier, and the weekly schedule runs the weekly
+tier, which holds every lane. A manual dispatch runs smoke unless it asks for
+full, which means the merge tier, or weekly.
+
+A build may carry "images", a kolla-build regexp narrowing what it builds; the
+smoke tier's kerbside-only build does. It is passed through to the workflow
+like any other field.
 
 The output is one key=value per line, ready to append to $GITHUB_OUTPUT:
 builds, installs and patch_tests are compact JSON of the form {"test": [...]}
@@ -28,11 +33,13 @@ import sys
 EVENT_TIERS = {
     'pull_request': 'smoke',
     'merge_group': 'merge',
+    'schedule': 'weekly',
 }
 DISPATCH_TIERS = {
     '': 'smoke',
     'smoke': 'smoke',
     'full': 'merge',
+    'weekly': 'weekly',
 }
 LANE_KINDS = ('builds', 'installs', 'patch_tests')
 INSTALL_BUILD_KEY = ('release', 'container_distro', 'container_distro_version')
@@ -45,11 +52,11 @@ class SelectionError(Exception):
 def selected_tier(event, tier):
     if event == 'workflow_dispatch':
         if tier not in DISPATCH_TIERS:
-            raise SelectionError('unknown tier %r, expected smoke, full or empty' % tier)
+            raise SelectionError('unknown tier %r, expected smoke, full, weekly or empty' % tier)
         return DISPATCH_TIERS[tier]
     if event not in EVENT_TIERS:
         raise SelectionError(
-            'unknown event %r, expected pull_request, merge_group or workflow_dispatch' % event)
+            'unknown event %r, expected pull_request, merge_group, schedule or workflow_dispatch' % event)
     return EVENT_TIERS[event]
 
 
@@ -78,7 +85,17 @@ def select(lanes, event, tier, code_changed):
         else:
             selected[kind] = []
 
-    built = {tuple(build[k] for k in INSTALL_BUILD_KEY) for build in selected['builds']}
+    # The build result artifacts, and so the image tag an install reads, are
+    # named by release and distro alone, so two selected builds of the same
+    # pair would collide.
+    built = set()
+    for build in selected['builds']:
+        key = tuple(build[k] for k in INSTALL_BUILD_KEY)
+        if key in built:
+            raise SelectionError(
+                'more than one image build is selected for %s' % ', '.join(
+                    '%s=%s' % pair for pair in zip(INSTALL_BUILD_KEY, key)))
+        built.add(key)
     for install in selected['installs']:
         key = tuple(install[k] for k in INSTALL_BUILD_KEY)
         if key not in built:
@@ -99,8 +116,8 @@ def select(lanes, event, tier, code_changed):
 def main(argv=None):
     parser = argparse.ArgumentParser(description='Select the CI lanes to run for a workflow event.')
     parser.add_argument('--lanes', required=True, help='Path to the lanes JSON file')
-    parser.add_argument('--event', required=True, help='pull_request, merge_group or workflow_dispatch')
-    parser.add_argument('--tier', default='', help='smoke, full or empty; only read for workflow_dispatch')
+    parser.add_argument('--event', required=True, help='pull_request, merge_group, schedule or workflow_dispatch')
+    parser.add_argument('--tier', default='', help='smoke, full, weekly or empty; only read for workflow_dispatch')
     parser.add_argument('--code-changed', required=True, choices=['true', 'false'],
                         help='Whether anything outside the docs-only paths changed')
     args = parser.parse_args(argv)

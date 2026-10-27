@@ -42,8 +42,9 @@ def patch_test(name, tiers):
 
 def fixture():
     return {
-        'builds': [build('b-both', ['smoke', 'merge'])],
-        'installs': [install('i-both', ['smoke', 'merge']), install('i-merge', ['merge'])],
+        'builds': [build('b-both', ['smoke', 'merge', 'weekly'])],
+        'installs': [install('i-both', ['smoke', 'merge', 'weekly']), install('i-merge', ['merge']),
+                     install('i-weekly', ['weekly'])],
         'patch_tests': [patch_test('p-smoke', ['smoke']), patch_test('p-both', ['smoke', 'merge'])],
         'local_build': {'tiers': ['merge']},
     }
@@ -103,6 +104,16 @@ class SelectionTest(SelectLanesTestCase):
         self.assertEqual(['i-both', 'i-merge'], self.names(r, 'installs'))
         self.assertEqual('true', r['run_local_build'])
 
+    def test_schedule_selects_weekly(self):
+        r = self.select(fixture(), '--event', 'schedule', '--code-changed', 'true')
+        self.assertEqual(['i-both', 'i-weekly'], self.names(r, 'installs'))
+        self.assertEqual([], self.names(r, 'patch_tests'))
+        self.assertEqual('false', r['run_patch_tests'])
+
+    def test_dispatch_weekly_selects_weekly(self):
+        r = self.select(fixture(), '--event', 'workflow_dispatch', '--tier', 'weekly', '--code-changed', 'true')
+        self.assertEqual(['i-both', 'i-weekly'], self.names(r, 'installs'))
+
     def test_dispatch_smoke_selects_smoke(self):
         r = self.select(fixture(), '--event', 'workflow_dispatch', '--tier', 'smoke', '--code-changed', 'true')
         self.assertEqual(['i-both'], self.names(r, 'installs'))
@@ -126,7 +137,7 @@ class SelectionTest(SelectLanesTestCase):
         self.assertTrue(r['builds'].startswith('{"test":['))
 
     def test_code_changed_false_selects_nothing(self):
-        for event in ('pull_request', 'merge_group', 'workflow_dispatch'):
+        for event in ('pull_request', 'merge_group', 'schedule', 'workflow_dispatch'):
             r = self.select(fixture(), '--event', event, '--tier', 'full', '--code-changed', 'false')
             for kind in ('builds', 'installs', 'patch_tests'):
                 self.assertEqual('{"test":[]}', r[kind])
@@ -162,6 +173,13 @@ class ErrorTest(SelectLanesTestCase):
         self.assertIn('i-rocky', err)
         self.assertIn('container_distro=rocky', err)
 
+    def test_two_builds_of_one_distro(self):
+        lanes = fixture()
+        lanes['builds'].append(dict(build('b-subset', ['merge']), images='^kerbside'))
+        code, out, err = self.run_main(lanes, '--event', 'merge_group', '--code-changed', 'true')
+        self.assertEqual(1, code)
+        self.assertIn('more than one image build', err)
+
     def test_install_whose_build_is_in_another_tier(self):
         lanes = fixture()
         lanes['builds'][0]['tiers'] = ['merge']
@@ -188,8 +206,9 @@ class ErrorTest(SelectLanesTestCase):
 
 class RealLanesTest(SelectLanesTestCase):
     def test_every_event_and_tier_validates(self):
-        for event, tier in (('pull_request', ''), ('merge_group', ''), ('workflow_dispatch', ''),
-                            ('workflow_dispatch', 'smoke'), ('workflow_dispatch', 'full')):
+        for event, tier in (('pull_request', ''), ('merge_group', ''), ('schedule', ''), ('workflow_dispatch', ''),
+                            ('workflow_dispatch', 'smoke'), ('workflow_dispatch', 'full'),
+                            ('workflow_dispatch', 'weekly')):
             for changed in ('true', 'false'):
                 code, out, err = self.run_main_path(
                     REAL_LANES, '--event', event, '--tier', tier, '--code-changed', changed)
@@ -204,14 +223,22 @@ class RealLanesTest(SelectLanesTestCase):
 
     def test_pull_request_selection(self):
         names, local_build = self.select('pull_request')
-        self.assertEqual(['build-debian-trixie-master'], names['builds'])
-        self.assertEqual(['master-h-debian13-c-debian13-aio', 'master-h-debian13-c-debian13-aio-launcher'],
-                         names['installs'])
+        self.assertEqual(['build-debian-trixie-master-kerbside'], names['builds'])
+        self.assertEqual([], names['installs'])
         self.assertEqual(['debian-13'], names['patch_tests'])
         self.assertEqual('false', local_build)
 
     def test_merge_group_selection(self):
         names, local_build = self.select('merge_group')
+        self.assertEqual(['build-debian-trixie-master', 'build-ubuntu-noble-master', 'build-rocky-10-master'],
+                         names['builds'])
+        self.assertEqual(['master-h-debian13-c-debian13-aio', 'master-h-debian13-c-debian13-aio-launcher'],
+                         names['installs'])
+        self.assertEqual(['debian-13'], names['patch_tests'])
+        self.assertEqual('true', local_build)
+
+    def test_schedule_selection(self):
+        names, local_build = self.select('schedule')
         self.assertEqual(['build-debian-trixie-master', 'build-ubuntu-noble-master', 'build-rocky-10-master'],
                          names['builds'])
         self.assertEqual([
@@ -225,6 +252,32 @@ class RealLanesTest(SelectLanesTestCase):
             'master-h-debian13-c-debian13-multi'], names['installs'])
         self.assertEqual(['debian-13', 'rocky-9'], names['patch_tests'])
         self.assertEqual('true', local_build)
+
+    def test_tiers_nest(self):
+        # docs/ci.md promises that each tier is a superset of the one before
+        # it, so a lane that passed on the pull request runs again in the
+        # queue, and the weekly run is the whole matrix. A build narrowed by
+        # "images" is covered instead by an unnarrowed build of the same
+        # distro in the next tier, which builds everything it does.
+        with open(REAL_LANES) as f:
+            lanes = json.load(f)
+        entries = [lane for kind in ('builds', 'installs', 'patch_tests') for lane in lanes[kind]]
+        entries.append(dict(lanes['local_build'], name='local_build'))
+
+        def key(b):
+            return tuple(b[k] for k in cisl.INSTALL_BUILD_KEY)
+
+        for lane in entries:
+            tiers = lane['tiers']
+            for tier, later in (('smoke', 'merge'), ('merge', 'weekly')):
+                if tier not in tiers:
+                    continue
+                if 'images' in lane:
+                    full = [b for b in lanes['builds']
+                            if 'images' not in b and key(b) == key(lane) and later in b['tiers']]
+                    self.assertTrue(full, '%s has no full build in %s' % (lane['name'], later))
+                else:
+                    self.assertIn(later, tiers, lane['name'])
 
 
 if __name__ == '__main__':

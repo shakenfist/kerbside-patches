@@ -295,7 +295,8 @@ packages have available security fixes.
 ### Functional Tests Workflow
 
 The one gated workflow, `functional-tests.yml` ("Build test clouds"),
-runs on pull requests, merge queue entries and manual dispatches. A
+runs on pull requests, merge queue entries, a weekly schedule and
+manual dispatches. A
 `check_paths` job filters out docs-only and data-only changes and
 selects the lanes for the event from `.github/ci-lanes.json`; the
 rest of the workflow reads its matrices from that selection:
@@ -324,11 +325,15 @@ rest of the workflow reads its matrices from that selection:
    so that layer data from successful builds is still collected.
    It is skipped when the builds were. It is outside the gates.
 
-There are two tiers of lanes, smoke for pull requests and merge for
-the queue. The smoke tier keeps one build and the two Debian 13
-installs; the merge tier adds the other builds and installs, the
-Rocky 9 patch tests and the local build. The ruleset requires the
-gates and sends merges through the queue. See `docs/ci.md`.
+There are three tiers of lanes: smoke for pull requests, merge for
+the queue, and weekly for a scheduled run on `develop`. The smoke tier
+runs the Debian 13 patch tests and a Kerbside-only image build, and no
+test cloud; the merge tier builds every distribution's images and runs
+the Debian 13 all-in-one and containerised deployer clouds and the
+local build; the weekly tier adds the other six clouds and the Rocky 9
+patch tests, and `report_weekly` files an issue when it fails. The ruleset
+requires the gates and sends merges through the queue. See
+`docs/ci.md`.
 
 Because each data PR appends a line to the same per-image
 files, data PRs open concurrently conflict as soon as one of

@@ -239,9 +239,10 @@ class MergeGroupCurrentWorkflowSeamsTestCase(unittest.TestCase):
 
 class MergeGatesTestCase(unittest.TestCase):
     GATES = ('can_enqueue', 'can_merge')
-    # Publishes layer data rather than testing anything, so it must not be
-    # able to fail a gate.
-    UNGATED = ('collect_layer_data',)
+    # These publish layer data or report on the gate rather than testing
+    # anything, so they must not be able to fail a gate. report_weekly
+    # needs can_enqueue, so it could not be in that gate anyway.
+    UNGATED = ('collect_layer_data', 'report_weekly')
 
     def setUp(self):
         self.jobs = load_workflow('functional-tests.yml')['jobs']
@@ -259,7 +260,7 @@ class MergeGatesTestCase(unittest.TestCase):
         self.assertEqual("always() && github.event_name != 'merge_group'", self.jobs['can_enqueue']['if'])
         self.assertEqual("always() && github.event_name == 'merge_group'", self.jobs['can_merge']['if'])
 
-    def test_layer_data_is_outside_both_gates(self):
+    def test_ungated_jobs_are_outside_both_gates(self):
         for gate in self.GATES:
             for name in self.UNGATED:
                 self.assertNotIn(name, self.jobs[gate]['needs'], gate)
