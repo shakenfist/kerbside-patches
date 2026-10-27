@@ -1,0 +1,10 @@
+repo: https://opendev.org/openstack/neutron
+source_branch: master
+destination_branch: thread-safety
+shallow_clone: true
+directory: neutron
+release: master-neutron-test-switch-interval
+depends_on: ''
+source_sha: 61f6db5ac91caa9e5d83e71dc1b3ec31d0611e8e
+previous_source_sha: 61f6db5ac91caa9e5d83e71dc1b3ec31d0611e8e
+repush: true

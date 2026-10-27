@@ -19,7 +19,7 @@ work keep finding.
 | 2 | DVR fip namespace locking (`neutron-dvr-fip-ns-locking`) | Not started | |
 | 3 | Hacking check for config read at import (`neutron-import-time-config-check`) | Not started | |
 | 4 | Static import-closure test for the agents (`neutron-import-closure-test`) | Abandoned | |
-| 5 | Thread switch interval in the test base class (`neutron-test-switch-interval`) | Not started | |
+| 5 | Thread switch interval in the test base class (`neutron-test-switch-interval`) | Complete | |
 | 6 | Push audit | Not started | |
 
 ## Situation
@@ -361,7 +361,8 @@ Series `neutron-import-closure-test/`, topic `import-memory`, patch
 ## Phase 5 --- thread switch interval in tests
 
 Series `neutron-test-switch-interval/`, topic `thread-safety`, patch
-246, worktree `neutron-switch`.
+245 (phase 4's number, freed when it was abandoned), worktree
+`neutron-switch`.
 
 ### Decisions
 
@@ -410,3 +411,10 @@ changes are uploaded and reviewed, the same way
   with two threads held inside the constructor (`MismatchError: is
   not`), and timed the real constructor at a 64 ms minimum against a
   5 ms switch interval, so phase 2 proceeded.
+- 2026-10-28 (AEDT): Phase 5 timings, `tox -e py3 --
+  neutron.tests.unit.agent` on a host at load 22-63 of 16 cores, six
+  interleaved pairs (base, then `1e-5`): base 61.9, 58.3, 37.3, 84.0,
+  125.8, 35.5 s; changed 63.7, 39.3, 42.9, 95.7, 76.6, 47.4 s. Medians
+  60.1 s and 55.6 s; CPU time over the last three pairs 335.7 s and
+  321.5 s. The noise swamps any cost, so `1e-5` stands and `1e-4` was
+  not tried. 2080 tests passed in all twelve runs; nothing flaked.
