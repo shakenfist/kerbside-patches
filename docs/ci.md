@@ -182,11 +182,18 @@ pass". Never pass `--admin`: it merges directly, skipping the merge
 tier. Automation follows the same rule, and enqueues rather than
 merges (see the data pull requests section below).
 
-Expect roughly the following. These are estimates from the
-workflow's job times, not guarantees:
+Expect roughly the following. These were measured over the queue's
+first days (2026-10-23 to 10-27), and are not guarantees:
 
-* A code entry takes about 2.5 to 4 hours from enqueue to merge,
-  because the merge tier runs the whole matrix.
+* A code entry takes a little over two hours when sfcbr is quiet:
+  `Assemble source for master` (about 10 minutes), the slowest image
+  build (35 to 45 minutes) and the slowest test cloud (45 to 85
+  minutes, the multinode install the longest) run one after another,
+  and every other job fits alongside them.
+* When sfcbr is busy, each of those stages can wait one to three hours
+  for a runner, and code entries took 5 to 6.5 hours. Four of the
+  first seven reached the 360-minute timeout below without failing a
+  test.
 * A docs-only or data-only entry takes a few minutes, because
   `Check paths` skips every heavy job and the gate passes on the
   skips.
