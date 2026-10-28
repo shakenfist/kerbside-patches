@@ -1,1 +1,3 @@
+../_patches/patch260-neutron-master-periodic-worker-fresh-loop.patch
+../_patches/patch261-neutron-master-ovn-l3-wait-for-agent.patch
 ../_patches/patch245-neutron-master-test-switch-interval.patch

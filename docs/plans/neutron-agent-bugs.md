@@ -399,6 +399,52 @@ changes are uploaded and reviewed, the same way
 
 ## Execution notes
 
+- 2026-10-29 (AEDT): 1012625 (patch 245) failed Zuul on two races that
+  the shorter switch interval exposed, as phase 5's Decision 3 expected.
+  Neither test failed on any other change in the last 30 builds of its
+  job. Both are drafted in `docs/neutron-agent-bugs-findings.md`, and
+  the fixes now sit ahead of 245.
+  - **oslo.service looping call restart.** In the threading backend,
+    `wait()` returns before the done callback clears `_thread`, so a
+    `start()` made straight after it raises `RuntimeError`.
+    - Evidence: `neutron.tests.unit.test_worker` failed 4 of 160 runs
+      with 245 applied, against 0 of 160 at the base. A script that
+      delays `_on_done` fails every restart.
+    - Patch 259 fixes oslo.service, in the new series
+      `oslo.service-loopingcall-restart`. Its tests fail without the fix,
+      and the suite passes with it (227 passed, 5 skipped).
+    - Patch 260 makes neutron's `PeriodicWorker.wait()` drop the
+      finished loop, so 245 does not wait for an oslo.service release.
+      With 260, 261 and 245 stacked, on oslo.service 4.8.0,
+      `test_worker` passed 160 of 160 runs.
+    - Production neutron does not reach this path: on SIGHUP, cotyledon
+      restarts the worker process instead of calling `reset()`.
+  - **OVN functional tests.** Four `ovn_l3` tests wait for the `Chassis`
+    row and then call `get_agent()`. The agent cache is filled from
+    `Chassis_Private`, which is written in a later transaction. Patch 261
+    waits for the agent itself. It has not been run locally, because
+    there is no OVN on this host.
+  - **Left out.** The threading backend also leaks one OS thread per
+    `start()`. That was fixed in 997384, which was abandoned. It is not a
+    race, so it is not addressed here.
+  - **Checks.** `tox -e pep8` passes over 260, 261 and 245. Test-apply of
+    both series gives trees identical to the source worktrees.
+
+  | Patch | Series | Subject |
+  |-------|--------|---------|
+  | 259 | `oslo.service-loopingcall-restart` | loopingcall: Allow a restart once wait() returns |
+  | 260 | `neutron-test-switch-interval` | worker: Do not restart a finished looping call |
+  | 261 | `neutron-test-switch-interval` | tests: Wait for the OVN agent before using a new chassis |
+- 2026-10-29 (AEDT): Another session's triage of 1012618 traced its py311
+  failure to the `_interfaces` registry leak. That leak is already fixed
+  in the revised 237 above, which has not been pushed yet.
+  - Running `TestDhcpLocalProcess.test_enable` and then
+    `test_enable_disable_two_networks` serially fails on Gerrit's
+    1012618 patchset 1. The same pair passes on the revised chain at 239
+    and at its tip.
+  - A per-test check of the registry over `test_agent` and `test_dhcp`
+    finds 2 leaking tests at the base and none on the revised chain.
+  - Repushing `neutron-dhcp-agent-fixes` is the fix.
 - 2026-10-28 (AEDT): Phase 4 abandoned before any commit. Step 4a's
   required proof failed: adding `from neutron.objects import ports` to
   `neutron/agent/l3/agent.py` did not fail the test, because the

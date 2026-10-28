@@ -1,0 +1,10 @@
+tests: Wait for the OVN agent before using a new chassis
+
+Four ovn_l3 functional tests wait for the Chassis row and then look up
+its agent, but the agent cache is filled from the Chassis_Private row,
+written after it, so get_agent() could still raise AgentNotFound. They
+now also wait until the agent is in the cache.
+
+Assisted-By: Claude Opus 5.5 (medium effort)
+Change-Id: Idfd0869609938d6ca111ad32b9c6620cfe719895
+Signed-off-by: Michael Still <mikal@stillhq.com>
