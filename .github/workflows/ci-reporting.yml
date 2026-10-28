@@ -37,6 +37,7 @@ on:
           - mariadb-collation
           - ovn-metadata-agent-missing
           - galaxy-install
+          - mariadb-service-check
           - all
 
 jobs:

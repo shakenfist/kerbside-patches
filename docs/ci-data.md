@@ -395,6 +395,34 @@ lives in `tools/ci-report.sh` and currently covers:
   The job filter excludes kayobe, which installs its collections
   differently: none of 789 failed kayobe builds over the same period
   contained the string.
+- `mariadb-service-check` -- how often the `service-check` role fails a
+  `kolla-ansible deploy` or `upgrade` with `The following mariadb
+  containers are unhealthy: mariadb`. It fires shortly after the
+  mariadb rolling restart, on a node whose WSREP state already reads
+  `Synced`, so the database is fine and the check lands before the
+  container healthcheck catches up. `service-check` was a silent no-op
+  until kolla-ansible change 991842 ("Fix container unhealthy checks")
+  fixed its filter on 2026-10-16, backported to stable/2026.1 as
+  1010920 the same day. The race is therefore older than the
+  signature: the check only began reporting it on that date, and the
+  chart has nothing to show before then. A three day scan of the
+  `-mariadb-upgrade` jobs on 2026-10-28 found it in 8 of 63 master
+  builds (13%), spread across debian-trixie (2), rocky-10 (3) and
+  ubuntu-noble (3). Every hit was in the initial stable/2026.1 deploy
+  rather than the upgrade itself, and one was in the gate. The
+  `service-check` task is fatal, so every hit failed its job, and the
+  ubuntu-noble job votes.
+
+  The report sets no job filter. Every scenario deploys mariadb and
+  then runs `service-check` against it, so the `job_name` column shows
+  whether only the multinode mariadb jobs lose the race or the
+  single-node scenarios do too. That is the first clue to where a fix
+  belongs: in the mariadb role's restart handlers, so they wait for the
+  container to report healthy and not just for WSREP to sync, or in
+  `service-check` itself. It scans the same ansible logs as
+  `mariadb-collation`, so a refresh costs no more per build than that
+  report already does. No bug has been filed yet; set `fix_merged` once
+  a fix lands.
 
 Each report is a target string plus the log file(s) to scan for it; the
 shared scan/aggregate/chart engine is `tools/count_ci_log_errors.py`
