@@ -17,7 +17,7 @@ than a flood.
 |-------|------|--------|--------|
 | 1 | Enable `check_untyped_defs` for the L3 and DHCP agent packages, with the modules that fail listed as exceptions (`neutron-agent-typing-base`) | Complete | |
 | 2 | DHCP agent: driver return annotations on the `dhcp-agent-fixes` chain, body checks on the `agent-typing` chain, and two fixes to that chain the survey found | Complete | |
-| 3 | L3 agent, the router and namespace classes: one override patch and seven module patches appended to `neutron-agent-typing-base` as commented-out `ORDER` lines | In progress | |
+| 3 | L3 agent, the router and namespace classes: one override patch and seven module patches appended to `neutron-agent-typing-base` as commented-out `ORDER` lines | Complete | |
 | 4 | L3 agent, the two agent mixins (`neutron-agent-typing-l3-mixins`) | Proposed | |
 | 5 | Push audit | Not started | |
 
@@ -1280,3 +1280,26 @@ as the changes are uploaded and reviewed.
   were added to the existing "not addressed" race entry. Patch 241
   applies cleanly over the typing chain's tip. `check-each-commit.sh`
   passes at all twelve commits, and `check-p3-exceptions.sh` passes.
+- 2026-10-28 (AEDT): Phase 3 complete. Step 3e (Sonnet, low) passed
+  every read-only check:
+  - Packaging tools pass, and all twelve patch files are byte-identical
+    to their commits.
+  - `test-apply` applies 246 and 248 alone. The uncommented copy
+    applies all twelve, to the `typing-l3` tip's tree.
+  - `gerrit-pre-push-lint --stack 12` gives no errors. Its nine
+    warnings are the accepted release-note warnings, one for each
+    typing patch that changes code.
+  - `check-each-commit.sh`, `check-p3-exceptions.sh`,
+    `verify-typing-p1.sh` and pre-commit pass.
+
+  Step 3e also found that a `test-apply` run leaves its `agent-typing`
+  branch checked out in `src/neutron`, which makes the next run report
+  success without applying anything. Detach and delete that branch
+  before every run.
+
+  The phase added ten patches, 249 to 258. Eight are typing patches and
+  two are fixes the typing work found: 250, the router type change, and
+  256, an HA router half deleted after a failed initialise. All ten are
+  commented out of `neutron-agent-typing-base/ORDER` until upstream is
+  ready for them. The exception list now holds only phase 4's `dvr`
+  and `ha`.
