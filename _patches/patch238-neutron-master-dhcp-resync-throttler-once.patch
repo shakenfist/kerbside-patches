@@ -1,6 +1,6 @@
-commit 361c1832a47ee77403f98e960b3d8d1bc2698344
+commit 42bf473baee21bc47e131be5b82209bfd1ba612f
 Author: Michael Still <mikal@stillhq.com>
-Date:   Wed Oct 28 08:40:30 2026 +1100
+Date:   Wed Oct 28 15:08:00 2026 +1100
 
     dhcp: Build the resync throttler once
     

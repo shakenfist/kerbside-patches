@@ -5,8 +5,9 @@ None, and _call_driver reported success anyway, so the agent cached the
 network and marked its ports DHCP-ready. enable now returns False, and
 _call_driver returns that and schedules a resync for the network.
 
-enable returns False rather than raising so that callers which ignore
-its result, such as DhcpBase.restart, behave as before.
+DhcpBase.restart dropped enable's result, so a failed restart after a
+subnet change went the same way. restart now returns that result, and
+refresh_dhcp_helper stops before marking the ports ready.
 
 Assisted-By: Claude Opus 5.5 (high effort)
 Change-Id: I8ef0d5cfcddf3b352eda3688dee14595648ae643

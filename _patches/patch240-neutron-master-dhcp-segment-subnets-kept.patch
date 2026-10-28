@@ -1,6 +1,6 @@
-commit 7bd91437e9540c9f0ea14f50fbc8c3654b746fb4
+commit baa2ea2c40237bc74edc42c3b81fc991b47dce6f
 Author: Michael Still <mikal@stillhq.com>
-Date:   Wed Oct 28 08:53:50 2026 +1100
+Date:   Wed Oct 28 15:08:00 2026 +1100
 
     dhcp: Keep every segment's subnets on the cached network
     
@@ -17,7 +17,7 @@ Date:   Wed Oct 28 08:53:50 2026 +1100
     Signed-off-by: Michael Still <mikal@stillhq.com>
 
 diff --git a/neutron/agent/dhcp/agent.py b/neutron/agent/dhcp/agent.py
-index bfc97a09d9..365bc51fe2 100644
+index 0c607eb3aa..ae6831120b 100644
 --- a/neutron/agent/dhcp/agent.py
 +++ b/neutron/agent/dhcp/agent.py
 @@ -15,6 +15,7 @@
@@ -49,7 +49,7 @@ index bfc97a09d9..365bc51fe2 100644
              return all(ret)
          # In case subnets are not attached to segments. default behavior.
 diff --git a/neutron/tests/unit/agent/dhcp/test_agent.py b/neutron/tests/unit/agent/dhcp/test_agent.py
-index 203311907b..19b1055933 100644
+index 358c5f853c..1e026ac472 100644
 --- a/neutron/tests/unit/agent/dhcp/test_agent.py
 +++ b/neutron/tests/unit/agent/dhcp/test_agent.py
 @@ -422,7 +422,7 @@ class TestDhcpAgent(base.BaseTestCase):

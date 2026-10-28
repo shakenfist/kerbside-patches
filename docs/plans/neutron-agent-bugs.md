@@ -473,3 +473,24 @@ changes are uploaded and reviewed, the same way
 
   Fixes are planned as new revisions of 237 and 239, in that plan's
   step 2a. 1012618's py311 failure is not a flake and needs no recheck.
+- 2026-10-28 (AEDT): Both defects fixed as new revisions of 237 and
+  239. The Change-Ids are unchanged, and 238 and 240 were replayed
+  without edits.
+  - **237** patches `DhcpLocalProcess._interfaces` to a fresh
+    `defaultdict(set)` in `TestBase.setUp` of `test_dhcp.py`, and
+    drops its own two `addCleanup` calls. The isolation check went
+    from seven leaking tests at the old 237 to none at the new 237 and
+    at 240.
+  - **239** makes `DhcpBase.restart` return what `enable` returned.
+    It also makes `refresh_dhcp_helper` return before marking the
+    ports ready and updating the metadata proxy when the restart call
+    is falsy. Without that second change the agent still marked the
+    ports ready, because the function marked them whatever the restart
+    returned. The early return also covers `call_driver`'s exception
+    paths, which return `None`. That matches
+    `configure_dhcp_for_network`, which already skips the cache, the
+    ready ports and the proxy on any falsy result. The
+    `reload_allocations` branch is unchanged.
+  - 239 gains two driver tests and one agent test. The agent test runs
+    the real `restart` over a driver whose `enable` returns `False`,
+    and fails with either half of the fix reverted.

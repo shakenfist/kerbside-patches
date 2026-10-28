@@ -1,6 +1,6 @@
-commit 7d7e1d68c50622aff75ab08cf5b4e9f5b118ed78
+commit dfde6603472f6c44da4886325dee1510af6b2987
 Author: Michael Still <mikal@stillhq.com>
-Date:   Wed Oct 28 08:29:23 2026 +1100
+Date:   Wed Oct 28 15:08:00 2026 +1100
 
     dhcp: Return the result of _has_running_interfaces
     
@@ -27,10 +27,30 @@ index fa0de1daac..ead6fcb044 100644
      @staticmethod
      def get_confs_dir(conf):
 diff --git a/neutron/tests/unit/agent/linux/test_dhcp.py b/neutron/tests/unit/agent/linux/test_dhcp.py
-index 71e29f930c..5ca7dc463b 100644
+index 71e29f930c..e5ffa78bc7 100644
 --- a/neutron/tests/unit/agent/linux/test_dhcp.py
 +++ b/neutron/tests/unit/agent/linux/test_dhcp.py
-@@ -1334,6 +1334,33 @@ class TestDhcpLocalProcess(TestBase):
+@@ -13,6 +13,7 @@
+ #    License for the specific language governing permissions and limitations
+ #    under the License.
+ 
++import collections
+ import copy
+ import os
+ import signal
+@@ -1156,6 +1157,11 @@ class TestBase(TestConfBase):
+ 
+         self.mock_mgr.return_value.driver.bridged = True
+ 
++        # The running-interface registry is class level; give each
++        # test its own so no test sees what an earlier one left.
++        mock.patch.object(dhcp.DhcpLocalProcess, '_interfaces',
++                          collections.defaultdict(set)).start()
++
+ 
+ class TestDhcpBase(TestBase):
+ 
+@@ -1334,6 +1340,31 @@ class TestDhcpLocalProcess(TestBase):
  
          delete_ns.assert_called_with('qdhcp-ns')
  
@@ -38,7 +58,6 @@ index 71e29f930c..5ca7dc463b 100644
 +        network = FakeDualNetwork()
 +        lp = LocalChild(self.conf, network, segment=FakeSegment())
 +        lp.device_manager = mock.Mock()
-+        self.addCleanup(LocalChild._interfaces.clear)
 +        LocalChild._add_running_interface('tap-other', network.id)
 +
 +        with mock.patch('neutron.agent.linux.ip_lib.'
@@ -51,7 +70,6 @@ index 71e29f930c..5ca7dc463b 100644
 +        network = FakeDualNetwork()
 +        lp = LocalChild(self.conf, network, segment=FakeSegment())
 +        lp.device_manager = mock.Mock()
-+        self.addCleanup(LocalChild._interfaces.clear)
 +        LocalChild._add_running_interface('tap-other', network.id)
 +        LocalChild._del_running_interface('tap-other', network.id)
 +
