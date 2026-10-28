@@ -1,4 +1,4 @@
-commit a4ef6ca9c543bf196d344b5b75c22fa5db0ae75b
+commit 23a3874869de0732dbb287312a7386ac38a328cb
 Author: Michael Still <mikal@stillhq.com>
 Date:   Wed Oct 28 12:38:22 2026 +1100
 
@@ -17,10 +17,10 @@ Date:   Wed Oct 28 12:38:22 2026 +1100
     Signed-off-by: Michael Still <mikal@stillhq.com>
 
 diff --git a/pyproject.toml b/pyproject.toml
-index e724f4be92..1115f5ce50 100644
+index e724f4be92..0ba6a0c747 100644
 --- a/pyproject.toml
 +++ b/pyproject.toml
-@@ -365,6 +365,30 @@ files = "neutron"
+@@ -365,6 +365,32 @@ files = "neutron"
  # and rules applied to the whole repo.
  exclude = "(?x)(^neutron/tests/$)"
  
@@ -31,6 +31,8 @@ index e724f4be92..1115f5ce50 100644
 +module = ["neutron.agent.dhcp.*", "neutron.agent.l3.*"]
 +check_untyped_defs = true
 +
++# Modules that do not pass yet. Naming a module here overrides the
++# wildcard above; remove each one as it is fixed.
 +[[tool.mypy.overrides]]
 +module = [
 +    "neutron.agent.dhcp.agent",

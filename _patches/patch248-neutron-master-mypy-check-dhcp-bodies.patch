@@ -1,4 +1,4 @@
-commit 0eb3009f56b91f9768845180ec3027fad76f1634
+commit bae3c5ae224e8b2f27086fdf28b79803e09e34fd
 Author: Michael Still <mikal@stillhq.com>
 Date:   Wed Oct 28 15:28:39 2026 +1100
 
@@ -79,10 +79,10 @@ index fa0de1daac..6f47776b55 100644
          option = matches.groups()[2]
  
 diff --git a/pyproject.toml b/pyproject.toml
-index 1115f5ce50..28d12f570c 100644
+index 0ba6a0c747..3ebbf54e49 100644
 --- a/pyproject.toml
 +++ b/pyproject.toml
-@@ -369,12 +369,15 @@ exclude = "(?x)(^neutron/tests/$)"
+@@ -369,14 +369,17 @@ exclude = "(?x)(^neutron/tests/$)"
  # Modules are removed from the second list as they are made to pass;
  # new modules in these packages are checked from the start.
  [[tool.mypy.overrides]]
@@ -94,6 +94,8 @@ index 1115f5ce50..28d12f570c 100644
 +]
  check_untyped_defs = true
  
+ # Modules that do not pass yet. Naming a module here overrides the
+ # wildcard above; remove each one as it is fixed.
  [[tool.mypy.overrides]]
  module = [
 -    "neutron.agent.dhcp.agent",
