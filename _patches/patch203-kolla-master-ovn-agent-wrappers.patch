@@ -32,15 +32,8 @@ new file mode 100644
 index 000000000..001898f68
 --- /dev/null
 +++ b/kolla/docker/neutron/neutron-ovn-agent/extend_start.sh
-@@ -0,0 +1,18 @@
+@@ -0,0 +1,11 @@
 +#!/bin/bash
-+
-+if [[ ! -d "/var/log/kolla/neutron" ]]; then
-+    mkdir -p /var/log/kolla/neutron
-+fi
-+if [[ $(stat -c %a /var/log/kolla/neutron) != "755" ]]; then
-+    chmod 755 /var/log/kolla/neutron
-+fi
 +
 +if [[ "${KOLLA_NEUTRON_WRAPPERS:-false}" == "true" ]]; then
 +    echo "Copying neutron agent wrappers to /usr/local/bin"
