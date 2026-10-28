@@ -4,9 +4,9 @@
 #
 # Two things happen here, and the second is the more important one:
 #
-# 1. gitleaks scans every commit reachable from HEAD -- which on a pull
-#    request means the whole of develop plus the branch under test --
-#    against .gitleaks.toml, and the script fails if anything is found.
+# 1. gitleaks scans every commit reachable from HEAD, or just the
+#    commits in --range, against .gitleaks.toml, and the script fails
+#    if anything is found.
 #
 # 2. A positive control proves the scanner can still fire. A detector
 #    which reports nothing is indistinguishable from a detector which is
@@ -21,8 +21,22 @@
 # and data branch this repository has ever pushed, which is both slow
 # and not what anyone means by "scan this project's history".
 #
+# --range START..END narrows the scan to the commits reachable from END
+# and not from START, which is how CI scans just a pull request's
+# commits, or just the commits a push to develop added: the full history
+# takes over ten minutes here. A range is widened back to the full
+# history in two cases, because a narrow scan would be wrong in both:
+#
+# - the range changes the scan's own rules (.gitleaks.toml,
+#   .gitleaksignore or this script). A new rule must be applied to the
+#   history already on develop, not only to the commits that added it;
+#   and a widened allowlist must be seen to pass against that history.
+#
+# - START is not in this clone, as after a force push to develop. There
+#   is then no way to tell which commits are new.
+#
 # Usage:
-#   tools/gitleaks-scan.sh [--gitleaks PATH]
+#   tools/gitleaks-scan.sh [--gitleaks PATH] [--range START..END]
 #
 # Runs from anywhere inside the working tree -- it changes to the top
 # itself -- but the clone must be a full one, not shallow.
@@ -30,6 +44,7 @@
 set -e
 
 GITLEAKS=gitleaks
+RANGE=""
 while [ $# -gt 0 ]; do
     case "$1" in
         --gitleaks)
@@ -40,11 +55,22 @@ while [ $# -gt 0 ]; do
             GITLEAKS="$2"
             shift 2
             ;;
+        --range)
+            case "$2" in
+                ?*..?*) ;;
+                *)
+                    echo "--range needs START..END, not '$2'."
+                    exit 1
+                    ;;
+            esac
+            RANGE="$2"
+            shift 2
+            ;;
         *)
             # Refuse rather than ignore. A silently discarded flag would
             # leave the caller believing they had changed the scan.
             echo "Unrecognised argument: $1"
-            echo "Usage: tools/gitleaks-scan.sh [--gitleaks PATH]"
+            echo "Usage: tools/gitleaks-scan.sh [--gitleaks PATH] [--range START..END]"
             exit 1
             ;;
     esac
@@ -129,7 +155,37 @@ fi
 echo "Positive control passed: both planted credentials were reported."
 echo
 
+# Settle what the real scan covers. gitleaks would fail on a range it
+# cannot resolve with only "git error encountered, see logs", so both
+# ends are checked here: a missing end is a caller error worth naming,
+# and a missing start widens to the full history as described above.
+LOG_OPTS="HEAD"
+if [ -n "$RANGE" ]; then
+    start="${RANGE%%..*}"
+    end="${RANGE#*..}"
+    if ! git rev-parse --verify --quiet "${end}^{commit}" >/dev/null; then
+        echo "The end of the range, $end, is not a commit in this clone."
+        exit 1
+    fi
+    if ! git rev-parse --verify --quiet "${start}^{commit}" >/dev/null; then
+        echo "The start of the range, $start, is not in this clone, so"
+        echo "which commits are new cannot be told. Scanning the full"
+        echo "history instead."
+    elif git diff --name-only "$start" "$end" -- \
+            .gitleaks.toml .gitleaksignore tools/gitleaks-scan.sh \
+            | grep -q .; then
+        echo "The range changes the scan's own rules, so they must hold"
+        echo "against the whole history. Scanning the full history."
+    else
+        LOG_OPTS="$RANGE"
+    fi
+fi
+
 # The real scan.
-echo "Scanning every commit reachable from HEAD."
-"$GITLEAKS" detect --source . --config .gitleaks.toml --log-opts="HEAD" \
+if [ "$LOG_OPTS" = "HEAD" ]; then
+    echo "Scanning every commit reachable from HEAD."
+else
+    echo "Scanning the $(git rev-list --count "$LOG_OPTS") commit(s) in $LOG_OPTS."
+fi
+"$GITLEAKS" detect --source . --config .gitleaks.toml --log-opts="$LOG_OPTS" \
     --redact --no-banner
