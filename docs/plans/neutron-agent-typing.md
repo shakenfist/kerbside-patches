@@ -929,7 +929,7 @@ the `index.md` row were made in the same commit.
      the typing patch for its module. The three leads above are
      checked first.
    - **If it cannot**, the reader raises
-     `RuntimeError(f'{name} used before the router was initialised')`.
+     `RuntimeError(_('<name> used before the router was initialized'))`, spelled as neutron spells it and translated as hacking N534 requires.
      That is what it does today in all but the exception type: today
      it raises `AttributeError` or `TypeError` from `None`. Where an
      attribute has more than three readers (`fip_ns`, `ha_port`,
@@ -1218,3 +1218,25 @@ as the changes are uploaded and reviewed.
   `test-apply` can report success without applying anything when a
   stale `agent-typing` branch is left in `src/neutron`. It deleted
   that branch and reran.
+- 2026-10-28 (AEDT): Phase 3 step 3b (Opus, high). The reachability
+  report found one real bug. When a router's `ha` or `distributed` flag
+  changes, `_process_updated_router` swaps in a router object that was
+  never initialised, and leaves the old one's processes running, so an
+  IPv6 router fails in `enable_radvd` and runs without radvd. The
+  management session read the path in `agent.py` and approved a root
+  fix that deletes the router and adds it again. That is patch 250
+  (`6408ec7b47`), with a test, a release note and a bug draft in
+  `docs/neutron-agent-bugs-findings.md`. The management session
+  reproduced the revert run. Patches 251 to 254 take `router_info`,
+  the extension manager, `dvr_fip_ns` and `agent` off the list. The
+  `agent_gateway_port` reader reads the attribute once into a local,
+  because the FIP namespace is shared between routers. The review
+  respelled the two `RuntimeError` messages "initialized" to match
+  neutron, which made 251 `e2986c8934` and 254 `3e049b3f0f`; 252 and
+  253 were replayed as `0193a9d777` and `5b4dd79162`. Change-Ids are
+  unchanged. `check-each-commit.sh` passes at all eight commits and
+  `tox -e pep8` at the tip. The L3 unit tests pass (425, 1 skipped). A
+  temporary uncommented copy of the series applied to a tree identical
+  to the `typing-l3` tip. Not acted on: if `_safe_router_removed` fails
+  in the type-change branch nothing schedules a resync, the same as
+  the existing DVR HA branch.

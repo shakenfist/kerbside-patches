@@ -1,0 +1,78 @@
+commit 3e049b3f0f274d2b66a6f2aeb47620ccb1b0311d
+Author: Michael Still <mikal@stillhq.com>
+Date:   Wed Oct 28 17:07:37 2026 +1100
+
+    l3: Check the function bodies in the L3 agent
+    
+    Annotate agent_state and heartbeat where init_host() assigns them, so
+    mypy can type their reads in _report_state(). The legacy state change
+    check raises a RuntimeError naming process_monitor if it is unset,
+    inside the try that already logs and skips any failure to register.
+    
+    Assisted-By: Claude Opus 5.5 (high effort)
+    Change-Id: I7f8ef0f85f15671084bea3ec1901aff633a52242
+    Signed-off-by: Michael Still <mikal@stillhq.com>
+
+diff --git a/neutron/agent/l3/agent.py b/neutron/agent/l3/agent.py
+index b8041c7af2..5c0423d167 100644
+--- a/neutron/agent/l3/agent.py
++++ b/neutron/agent/l3/agent.py
+@@ -15,6 +15,7 @@
+ 
+ import functools
+ import threading
++import typing
+ 
+ import netaddr
+ from neutron_lib.agent import constants as agent_consts
+@@ -38,6 +39,7 @@ from oslo_utils import netutils
+ from oslo_utils import timeutils
+ from osprofiler import profiler
+ 
++from neutron._i18n import _
+ from neutron.agent.common import resource_processing_queue as queue
+ from neutron.agent.common import utils as common_utils
+ from neutron.agent.l3 import dvr
+@@ -1040,6 +1042,10 @@ class L3NATAgent(ha.AgentMixin,
+                 LOG.debug("Registering process_monitor "
+                           "for router %s: respawning process.", router_id)
+                 try:
++                    if self.process_monitor is None:
++                        raise RuntimeError(_(
++                            'process_monitor used before the agent was '
++                            'initialized'))
+                     self.process_monitor.register(
+                         router_id,
+                         ha_router.KEEPALIVED_STATE_CHANGE_MONITOR_SERVICE_NAME,
+@@ -1099,7 +1105,7 @@ class L3NATAgentWithStateReport(L3NATAgent):
+         super().init_host()
+         self.state_rpc = agent_rpc.PluginReportStateAPI(topics.REPORTS)
+         self.failed_report_state = False
+-        self.agent_state = {
++        self.agent_state: dict[str, typing.Any] = {
+             'binary': lib_const.AGENT_PROCESS_L3,
+             'host': self.host,
+             'availability_zone': self.conf.AGENT.availability_zone,
+@@ -1115,8 +1121,8 @@ class L3NATAgentWithStateReport(L3NATAgent):
+             'agent_type': lib_const.AGENT_TYPE_L3}
+         report_interval = self.conf.AGENT.report_interval
+         if report_interval:
+-            self.heartbeat = loopingcall.FixedIntervalLoopingCall(
+-                f=self._report_state)
++            self.heartbeat: loopingcall.FixedIntervalLoopingCall = (
++                loopingcall.FixedIntervalLoopingCall(f=self._report_state))
+             self.heartbeat.start(interval=report_interval)
+ 
+     def after_start(self):
+diff --git a/pyproject.toml b/pyproject.toml
+index 03db7039e7..6af6e3b5a0 100644
+--- a/pyproject.toml
++++ b/pyproject.toml
+@@ -380,7 +380,6 @@ check_untyped_defs = true
+ # wildcard above; remove each one as it is fixed.
+ [[tool.mypy.overrides]]
+ module = [
+-    "neutron.agent.l3.agent",
+     "neutron.agent.l3.dvr",
+     "neutron.agent.l3.dvr_edge_router",
+     "neutron.agent.l3.dvr_local_router",

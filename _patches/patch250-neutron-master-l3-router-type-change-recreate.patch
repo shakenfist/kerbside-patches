@@ -1,0 +1,92 @@
+commit 6408ec7b474cd1dcf2cc081043c450632e10b27a
+Author: Michael Still <mikal@stillhq.com>
+Date:   Wed Oct 28 16:56:42 2026 +1100
+
+    l3: Re-create a router whose type changed instead of swapping it
+    
+    The fix for bug 1892846 (489e0ead72) swapped a router whose type
+    changed for an object that was never initialized, and left the old
+    router's keepalived, radvd and state change processes running. An IPv6
+    router then failed in enable_radvd and ran on without radvd.
+    
+    Delete the stale router and add it again, as the DVR HA branch below
+    already does, so the new object is initialized before it is processed.
+    
+    Assisted-By: Claude Opus 5.5 (high effort)
+    Change-Id: I1ef3962f0e95d446f422d8a967666ea0e87239be
+    Signed-off-by: Michael Still <mikal@stillhq.com>
+
+diff --git a/neutron/agent/l3/agent.py b/neutron/agent/l3/agent.py
+index 020acd22d2..b8041c7af2 100644
+--- a/neutron/agent/l3/agent.py
++++ b/neutron/agent/l3/agent.py
+@@ -653,8 +653,12 @@ class L3NATAgent(ha.AgentMixin,
+                          'old_dvr': ri.router.get('distributed'),
+                          'new_ha': router.get('ha'),
+                          'new_dvr': router.get('distributed')})
+-            ri = self._create_router(router['id'], router)
+-            self.router_info[router['id']] = ri
++            # The cached router is of the wrong class. Delete it, which
++            # also stops its processes, and add the router again so that
++            # the new object is initialized before it is processed.
++            if self._safe_router_removed(router['id']):
++                self._process_added_router(router)
++            return
+ 
+         is_dvr_snat_agent = (self.conf.agent_mode ==
+                              lib_const.L3_AGENT_MODE_DVR_SNAT)
+diff --git a/neutron/tests/unit/agent/l3/test_agent.py b/neutron/tests/unit/agent/l3/test_agent.py
+index bcf1686f19..7572e2af3e 100644
+--- a/neutron/tests/unit/agent/l3/test_agent.py
++++ b/neutron/tests/unit/agent/l3/test_agent.py
+@@ -3223,6 +3223,8 @@ class TestBasicRouterOperations(BasicRouterOperationsFramework):
+         self.assertFalse(agent.router_info[router['id']].router['distributed'])
+ 
+     def test_process_router_if_compatible_type_changed(self):
++        # The metadata driver's router removal callback needs privsep.
++        self.conf.set_override('enable_metadata_proxy', False)
+         agent = l3_agent.L3NATAgent(HOSTNAME, self.conf)
+         agent.init_host()
+ 
+@@ -3245,6 +3247,26 @@ class TestBasicRouterOperations(BasicRouterOperationsFramework):
+         self.assertFalse(agent.router_info[router['id']].router['ha'])
+         self.assertFalse(agent.router_info[router['id']].router['distributed'])
+ 
++    def test_process_router_if_compatible_type_changed_recreates(self):
++        # The metadata driver's router removal callback needs privsep.
++        self.conf.set_override('enable_metadata_proxy', False)
++        agent = l3_agent.L3NATAgent(HOSTNAME, self.conf)
++        agent.init_host()
++        router = l3_test_common.prepare_router_data(
++            ip_version=lib_constants.IP_VERSION_6)
++        router['ha'] = False
++        router['distributed'] = False
++        old_ri = mock.Mock(router=dict(router, ha=True))
++        agent.router_info[router['id']] = old_ri
++
++        agent._process_router_if_compatible(router)
++
++        old_ri.delete.assert_called_once_with()
++        ri = agent.router_info[router['id']]
++        self.assertIsInstance(ri, legacy_router.LegacyRouter)
++        self.assertIsNotNone(ri.radvd)
++        self.assertEqual(agent.process_monitor, ri.process_monitor)
++
+     def test_nonexistent_interface_driver(self):
+         agent_config.register_interface_driver_opts_helper(self.conf)
+         self.conf.set_override('interface_driver', 'wrong.driver')
+diff --git a/releasenotes/notes/l3-router-type-change-recreate-948c3e8871714120.yaml b/releasenotes/notes/l3-router-type-change-recreate-948c3e8871714120.yaml
+new file mode 100644
+index 0000000000..0c1720dbb6
+--- /dev/null
++++ b/releasenotes/notes/l3-router-type-change-recreate-948c3e8871714120.yaml
+@@ -0,0 +1,9 @@
++---
++fixes:
++  - |
++    When a router's ``ha`` or ``distributed`` flag no longer matched the
++    router cached by the L3 agent, the agent replaced the cached router
++    with a new one that was never initialized and left the old router's
++    processes running. A router with an IPv6 subnet then failed to process
++    and ran without radvd. The agent now deletes the stale router and adds
++    it again.

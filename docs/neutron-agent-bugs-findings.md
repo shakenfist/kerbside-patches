@@ -190,6 +190,36 @@ Fix:
 
 * dhcp: Keep every segment's subnets on the cached network
 
+## Router whose type changed is swapped for an uninitialized object
+
+**Title:** L3 agent replaces a router whose ha or distributed flag changed
+with an object that is never initialized
+
+**Affects:** neutron master (Wallaby and later, since 489e0ead72)
+
+The fix for bug #1892846 made `_process_updated_router` notice when a
+router's `ha` or `distributed` flag no longer matches the router the agent
+has cached. It then builds a router of the new class with `_create_router`,
+stores it in `router_info` and processes it. It never calls `initialize()`
+on the new object, so its `radvd` monitor and `process_monitor` stay `None`.
+It never deletes the old object either, so the old router's keepalived,
+radvd and keepalived-state-change processes keep running.
+
+A router with an IPv6 internal subnet then fails in `enable_radvd` with
+`AttributeError: 'NoneType' object has no attribute 'enable'`. The agent
+resyncs it, but its ports are cached by then, so the retry does not enable
+radvd and the router runs on without router advertisements. A unit test that
+uses the real `_create_router` reproduces the AttributeError. The existing
+test mocks `_create_router`, so it cannot see it.
+
+The fix deletes the stale router and adds it again, as the DVR HA branch of
+the same method already does. The new object is initialized before it is
+processed, and the old router's processes are stopped.
+
+Fix:
+
+* l3: Re-create a router whose type changed instead of swapping it
+
 ## Found but not addressed
 
 These came from the same reading and from two read-only sweeps of the L3

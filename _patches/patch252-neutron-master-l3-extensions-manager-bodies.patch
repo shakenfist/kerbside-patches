@@ -1,0 +1,85 @@
+commit 0193a9d7771e13d54304c90d657b74d90029bbcd
+Author: Michael Still <mikal@stillhq.com>
+Date:   Wed Oct 28 17:01:53 2026 +1100
+
+    l3: Check the function bodies in the extensions manager
+    
+    stevedore types an extension's obj as optional, but the constructor
+    already rejects any extension whose obj is not an L3AgentExtension.
+    Iterate the extensions through one helper that narrows obj with the
+    same isinstance check, so mypy can check the four notifiers.
+    
+    Assisted-By: Claude Opus 5.5 (high effort)
+    Change-Id: I35413e2136bbff8bb365ee6b3e822194309b2e22
+    Signed-off-by: Michael Still <mikal@stillhq.com>
+
+diff --git a/neutron/agent/l3/l3_agent_extensions_manager.py b/neutron/agent/l3/l3_agent_extensions_manager.py
+index c3450da68f..eb27bad22c 100644
+--- a/neutron/agent/l3/l3_agent_extensions_manager.py
++++ b/neutron/agent/l3/l3_agent_extensions_manager.py
+@@ -13,6 +13,8 @@
+ #    License for the specific language governing permissions and limitations
+ #    under the License.
+ 
++from collections import abc
++
+ from neutron_lib.agent import l3_extension
+ from neutron_lib.exceptions import l3 as l3_exc
+ from oslo_log import log
+@@ -42,30 +44,36 @@ class L3AgentExtensionsManager(agent_ext_manager.AgentExtensionsManager):
+         if extensions:
+             raise l3_exc.L3ExtensionException(extensions=extensions)
+ 
++    def _l3_extensions(self) -> abc.Iterator[l3_extension.L3AgentExtension]:
++        # The constructor has already rejected any other kind of extension.
++        for extension in self:
++            if isinstance(extension.obj, l3_extension.L3AgentExtension):
++                yield extension.obj
++
+     def add_router(self, context, data):
+         """Notify all agent extensions to add router."""
+-        for extension in self:
+-            extension.obj.add_router(context, data)
++        for extension in self._l3_extensions():
++            extension.add_router(context, data)
+         LOG.debug("L3 agent extension(s) finished router %s "
+                   "add action.", data['id'])
+ 
+     def update_router(self, context, data):
+         """Notify all agent extensions to update router."""
+-        for extension in self:
+-            extension.obj.update_router(context, data)
++        for extension in self._l3_extensions():
++            extension.update_router(context, data)
+         LOG.debug("L3 agent extension(s) finished router %s "
+                   "update action.", data['id'])
+ 
+     def delete_router(self, context, data):
+         """Notify all agent extensions to delete router."""
+-        for extension in self:
+-            extension.obj.delete_router(context, data)
++        for extension in self._l3_extensions():
++            extension.delete_router(context, data)
+         LOG.debug("L3 agent extension(s) finished router %s "
+                   "delete action.", data['id'])
+ 
+     def ha_state_change(self, context, data):
+         """Notify all agent extensions for HA router state change."""
+-        for extension in self:
+-            extension.obj.ha_state_change(context, data)
++        for extension in self._l3_extensions():
++            extension.ha_state_change(context, data)
+         LOG.debug('L3 agent extension(s) finished HA state change to "%s" '
+                   'for router %s', data['state'], data['router_id'])
+diff --git a/pyproject.toml b/pyproject.toml
+index ee1359990e..e92a36c9c7 100644
+--- a/pyproject.toml
++++ b/pyproject.toml
+@@ -388,7 +388,6 @@ module = [
+     "neutron.agent.l3.dvr_router_base",
+     "neutron.agent.l3.ha",
+     "neutron.agent.l3.ha_router",
+-    "neutron.agent.l3.l3_agent_extensions_manager",
+ ]
+ check_untyped_defs = false
+ 
