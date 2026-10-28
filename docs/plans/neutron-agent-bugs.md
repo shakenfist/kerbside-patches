@@ -461,3 +461,15 @@ changes are uploaded and reviewed, the same way
   | 243 | [1012623](https://review.opendev.org/c/openstack/neutron/+/1012623) | import-time-config |
   | 244 | [1012624](https://review.opendev.org/c/openstack/neutron/+/1012624) | import-time-config |
   | 245 | [1012625](https://review.opendev.org/c/openstack/neutron/+/1012625) | thread-safety |
+- 2026-10-28 (AEDT): Two defects in the `dhcp-agent-fixes` chain, found
+  while planning phase 2 of [neutron-agent-typing](neutron-agent-typing.md):
+  - **The test registry leaks.** 1012618's py311 job failed
+    `TestDhcpLocalProcess.test_enable_disable_two_networks`
+    (order-dependent). Patch 237 made the class-level `_interfaces`
+    registry matter, and nine tests in that class, two of them from
+    patch 239, leave entries in it.
+  - **`restart` is not covered.** `DhcpBase.restart` still returns
+    `None`, so patch 239's `restart` check never fires.
+
+  Fixes are planned as new revisions of 237 and 239, in that plan's
+  step 2a. 1012618's py311 failure is not a flake and needs no recheck.

@@ -16,7 +16,7 @@ than a flood.
 | Phase | What | Status | Merged |
 |-------|------|--------|--------|
 | 1 | Enable `check_untyped_defs` for the L3 and DHCP agent packages, with the modules that fail listed as exceptions (`neutron-agent-typing-base`) | Complete | |
-| 2 | DHCP agent: interface return annotations and the remaining errors (`neutron-agent-typing-dhcp`) | Not started | |
+| 2 | DHCP agent: driver return annotations on the `dhcp-agent-fixes` chain, body checks on the `agent-typing` chain, and two fixes to that chain the survey found | Not started | |
 | 3 | L3 agent, the router and namespace classes (`neutron-agent-typing-l3`) | Not started | |
 | 4 | L3 agent, the two agent mixins (`neutron-agent-typing-l3-mixins`) | Proposed | |
 | 5 | Push audit | Not started | |
@@ -105,36 +105,45 @@ the same base as [neutron-agent-bugs](neutron-agent-bugs.md), on
 ## Dependencies on changes already in flight
 
 The typing changes cannot all be published against bare master, and
-the plan must say so for each series before Mikal repushes:
+the plan must say so for each series before Mikal repushes. Phase 2's
+survey found that the way to express that is git parentage, not
+`Depends-On:` footers:
 
-- **Phase 2 depends on 1012616 and 1012618** (patches 237 and 239 of
-  the `dhcp-agent-fixes` topic). `-> bool` on `_has_running_interfaces`
-  and on `DhcpBase.enable` and its subclasses is exactly the
-  annotation that fails mypy on master today, because on master those
-  functions do return `None`. If those two changes have merged when
-  phase 2 is published, nothing is needed. If they have not, the
-  phase 2 series is authored on top of them and its root patch carries
-  `Depends-On:` footers for both change URLs; only the root, because
-  the chained patches inherit it through their git parent and
-  repeating it has confused reviewers before. The `config.yaml`
-  `depends_on` field stays empty: that
-  field names another series in this repository, not a Gerrit change.
+- **Stack on the series you need; do not Depends-On it.** A typing
+  patch that touches lines an in-flight change also touches cannot be
+  parented on master, and one that edits phase 1's `pyproject.toml`
+  block cannot be parented on anything without patch 246. A
+  `Depends-On:` footer does not change the git parent, so neither case
+  is solved by one. Within this repository the series `depends_on`
+  field does not solve it either: `_build/repush-openstack.sh` checks
+  that the commits above `source_sha` are exactly the series' own
+  `ORDER`, so a series applied on top of another fails that check and
+  is not pushed. A patch that needs another series is therefore
+  appended to that series' `ORDER`, and becomes the next change in its
+  Gerrit chain and topic.
+- **Phase 2 splits along that line.** The driver return annotations
+  conflict textually with patch 239 and only pass mypy with patches
+  237 and 239, so they are appended to `neutron-dhcp-agent-fixes` as
+  patch 247. The body checks and their configuration need patch 246's
+  `pyproject.toml` block and nothing from the DHCP fixes, so they are
+  appended to `neutron-agent-typing-base` as patch 248. Each passes
+  mypy on its own chain, and together in either merge order.
 - **Phase 4 overlaps 1012621 textually.** Patch 241 rewrites
   `dvr.py:21-43` (`get_fip_ns` and the lock), and every one of
   `dvr.py`'s seven errors sits at lines 24, 36 to 38, 44 and 48,
   inside or beside those hunks. All seven are `AgentMixin` attribute
   reads, so `dvr.py` belongs to phase 4, which is already held until
-  the `dvr-fip-ns-locking` topic merges; if it has not, phase 4 is
-  authored on top of 1012621 with a `Depends-On:` for it.
-  `item_allocator.py` (1012622) is already clean, and phase 3's files
-  are touched by neither 241 nor 242.
+  the `dvr-fip-ns-locking` topic merges. If it has not merged, the
+  `dvr.py` patch is appended to `neutron-dvr-fip-ns-locking`, under
+  the rule above. `item_allocator.py` (1012622) is already clean, and
+  phase 3's files are touched by neither 241 nor 242.
 - **Both agents' `agent.py` are touched by the import-memory topic**
   (1012169, 1012170, 1012182, tracked in
   [privsep-memory](privsep-memory.md)) and by the merged
   `pending_updates` changes. The import changes alter import blocks,
   not function bodies, so a conflict is unlikely but is checked at
   authoring time by applying the phase's series over those changes'
-  current revisions; if it conflicts, the same Depends-On rule
+  current revisions; if it conflicts, the same stacking rule
   applies.
 - **Phase 1 depends on nothing, and nothing depends on it.** It
   changes `pyproject.toml` only. Of the files the nine agent-bugs
@@ -142,9 +151,10 @@ the plan must say so for each series before Mikal repushes:
   and with all nine applied the phase 1 configuration still passes,
   so the two topics can merge in either order.
 
-`tools/check-depends-on.py` (offline in pre-commit, online by hand)
-validates the footers; run it online once before each repush so an
-abandoned or re-uploaded dependency is caught.
+If a `Depends-On:` footer is ever needed, for a dependency in another
+project, `tools/check-depends-on.py` validates it. It runs offline in
+pre-commit and online by hand. Run it online once before each repush,
+so an abandoned or re-uploaded dependency is caught.
 
 ## Mission and problem statement
 
@@ -197,10 +207,9 @@ neutron-lib; the OVN agent and the OVS agent (`agent/l2`,
   `tools/commit-msg.hook` from this repository over the message file
   before `git commit -F`. Never `Co-Authored-By` for an LLM. No
   `Prompt:` paragraph.
-- `Depends-On: https://review.opendev.org/c/openstack/neutron/+/NNNNNNN`
-  on the series root only, when the Dependencies section says so and
-  the change has not merged at authoring time; re-check before the
-  repush.
+- A patch that needs changes from another series in review is appended
+  to that series' `ORDER`, as the Dependencies section explains. It
+  does not get a `Depends-On:` footer.
 - Every patch passes `tox -e pep8` on its own, not just the series
   tip, because each one is a self-contained ratchet step and a
   reviewer may merge them out of order.
@@ -483,44 +492,285 @@ Decision 1 before step 1a runs, not during it.
 
 ## Phase 2 --- DHCP agent
 
-Series `neutron-agent-typing-dhcp/`, two or three patches, worktree
-`neutron-typing-dhcp` at `source_sha` or at the 1012618 revision per
-the Dependencies section. Re-planned from the then-current tox counts
-before it runs.
+No series of its own. Two patches are appended to existing series, and
+two patches already in review are revised:
+
+| Patch | Series (topic) | Change |
+|-------|----------------|--------|
+| 237 | `neutron-dhcp-agent-fixes` (`dhcp-agent-fixes`) | Revised: reset the running-interface registry per test |
+| 239 | `neutron-dhcp-agent-fixes` (`dhcp-agent-fixes`) | Revised: `restart` returns `enable`'s result |
+| 247 | `neutron-dhcp-agent-fixes` (`dhcp-agent-fixes`) | New: driver return annotations |
+| 248 | `neutron-agent-typing-base` (`agent-typing`) | New: check the DHCP agent and driver bodies |
+
+Work stays on branch `neutron-agent-bugs`. The neutron authoring
+worktree is the session scratch tree used for phase 1, which also has
+`.tox/py3` built.
+
+Planning effort: high. Two of the four changes revise patches already
+in review on Gerrit, and the survey changed the phase's shape.
+
+### What the survey found
+
+Surveyed 2026-10-28, against neutron `61f6db5ac9` with patches 246 and
+237 to 240 applied as scratch commits. Line numbers are at that tree.
+Corrections to the master plan's Dependencies section, conventions and
+this section were made in the same commit.
+
+- **Phase 1 is complete in this repository but not upstream.** Patch
+  246 is committed and verified, and is held with the rest of this
+  branch for Mikal's review; it is not on Gerrit yet. The
+  `dhcp-agent-fixes` changes (1012616 to 1012619) have no code review
+  yet.
+- **The annotations demonstrate exactly what the plan claimed.** On
+  master plus 246, `-> bool` on `DhcpLocalProcess.enable` and
+  `_has_running_interfaces` makes mypy report `Missing return
+  statement` at `dhcp.py:312` and `:276`, and nothing else. With
+  patches 237 and 239 under them, both errors go away.
+- **No Depends-On is needed, but stacking is.** Adding `-> bool` to
+  `enable` touches the line beside patch 239's new docstring, so the
+  annotations cannot be parented on master. The body fixes touch none
+  of the lines patches 237 to 240 change. Prototyped, the body fixes
+  and configuration pass mypy on 246 alone and on 246 plus 237 to 240.
+  The annotations pass on master plus 237 to 240 without 246.
+  `_build/repush-openstack.sh` cannot publish a series stacked on
+  another series (the Dependencies section has the detail). So each
+  half is appended to the series it needs.
+- **`call_driver` and `_call_driver` should not be annotated.** They
+  dispatch on an action string. They return `None` for a missing
+  network and on the exception paths, the driver's string for
+  `get_metadata_bind_interface`, and a bool otherwise. The honest
+  annotation, `bool | str | None`, would catch nothing, so the master
+  plan's first outline was wrong to list them.
+- **`restart` is a real bug that patch 239 misses.**
+  `DhcpBase.restart` (`dhcp.py:195`) calls `self.enable()` and drops
+  the result, so it always returns `None`. Patch 239's check
+  `action in ('enable', 'restart') and rv is False` therefore never
+  fires for `restart`. When the subnet CIDRs change and dnsmasq fails
+  to restart, `refresh_dhcp_helper` (`agent.py:569`) caches the
+  network and marks its ports ready, which is the bug patch 239 fixes
+  for `enable`. Annotating `restart -> bool` makes mypy require the
+  fix.
+- **Patch 237 made an existing test order-dependent.** 1012618's py311
+  job failed `TestDhcpLocalProcess.test_enable_disable_two_networks`,
+  which dates from dfe29e6760 (2023). The py314 and cover jobs of the
+  same buildset passed. `DhcpLocalProcess._interfaces` is a class-level
+  registry. Until patch 237, `_has_running_interfaces` returned `None`
+  whatever it held, so tests never noticed what earlier tests left
+  there. Run pairwise, 9 of the 18 other tests in the class make that
+  test fail when they run first. Two of them,
+  `test_enable_returns_false_when_start_times_out` and
+  `test_enable_returns_true_when_started`, were added by patch 239.
+  Patching the registry to a fresh `collections.defaultdict(set)` in
+  `TestBase.setUp` leaves none, and the 307 tests in
+  `neutron.tests.unit.agent.linux.test_dhcp` and
+  `neutron.tests.unit.agent.dhcp` pass. Patch 237's own tests clear
+  the registry with `addCleanup`, which is why 1012616's run passed.
+  That cleanup becomes redundant.
+- **The seven body errors are narrowing, not bugs.** In `dhcp.py`:
+  - The `DictModel` storage dict needs a value annotation (`:107`).
+  - `DictModel.__getattr__` calls `super().__getattr__`, which no
+    superclass has (`:114`). That still raises `AttributeError`, the
+    exception the code wants, but only by accident.
+  - `_format_option`'s regex has only optional groups and so always
+    matches, but mypy cannot know that (`:1410`, `:1411`).
+
+  In `agent.py`:
+  - `_report_state` uses `.get('configurations')` on a key that is
+    always present (`:1172`, `:1173`).
+  - `DhcpPluginApi.get_ports` drops the base class's `context`
+    parameter (`:987`). That is deliberate: every method on that class
+    binds its own context. Its only caller, `_get_ovn_metadata_port_ip`,
+    already handles the `None` it returns for no ports.
 
 ### Decisions
 
-1. **Interface first.** Patch one annotates the return types of
-   `DhcpBase` and `DhcpLocalProcess` (`enable -> bool`,
-   `disable -> None`, `restart`, `active -> bool`,
-   `_has_running_interfaces -> bool`) and of `DhcpAgent._call_driver`
-   and `call_driver`. With 237 and 239 in place this passes; without
-   them it is the demonstration that the check works, which the
-   commit message says in one sentence, citing the two changes.
-2. **Then the bodies.** Patch two fixes whatever `check_untyped_defs`
-   reports in `agent/dhcp/agent.py` and `agent/linux/dhcp.py` (3 and 4
-   in the tox measurement: an `override` on `get_ports`, a `.get()`
-   result used unchecked, `re.match` results used unchecked, and the
-   `DictModel` attribute magic) by narrowing, not by ignores. It
-   removes `neutron.agent.dhcp.agent` from phase 1's exception list
-   and adds `neutron.agent.linux.dhcp` to the checked list. A finding
-   that is a real bug becomes its own patch ahead of this one, with a
-   bug draft.
-3. **Gating.** Not published until the `dhcp-agent-fixes` topic has
-   merged or carries the Depends-On footers above.
+1. **Two halves, each on the chain it needs.** Patch 247 (annotations)
+   is appended to `neutron-dhcp-agent-fixes` and becomes the fifth
+   change of the `dhcp-agent-fixes` topic. Patch 248 (body checks) is
+   appended to `neutron-agent-typing-base` after 246. This is the
+   decision most likely to be argued with, because a reviewer of the
+   DHCP bug fixes gets a typing change in the same topic. That
+   placement is also its best argument: it sits directly after the two
+   fixes it would have caught, and its commit message says so. If
+   reviewers want it moved, it moves to `agent-typing` once the DHCP
+   fixes merge.
+2. **Fold the `restart` fix into patch 239**, not a new patch. It is
+   the same bug through the other entry point, and 239's
+   `('enable', 'restart')` check is dead code without it. A reviewer
+   reading 239 would ask for it. `DhcpBase.restart` becomes
+   `self.disable(retain_port=True, block=True)` then
+   `return self.enable()`. 239 gains a driver test (`restart` returns
+   what `enable` returned) and an agent test: a failed restart on a
+   CIDR change neither caches the network nor marks its ports ready,
+   and schedules a resync. Its release note gains one sentence. Gated
+   in the back brief because it creates new revisions of 1012618 and
+   1012619.
+3. **Fold the registry reset into patch 237.** 237 is what made the
+   registry matter, so 237 is where tests stop sharing it. Add the
+   `mock.patch.object` reset to `TestBase.setUp` in
+   `neutron/tests/unit/agent/linux/test_dhcp.py`, with a two-line
+   comment and an `import collections`. Drop 237's own two
+   `self.addCleanup(LocalChild._interfaces.clear)` lines. Gated in the
+   back brief with Decision 2, since both go out in one repush of the
+   chain.
+4. **Patch 247 annotates the driver interface and nothing else:**
+   - `DhcpBase`: `enable -> bool`,
+     `disable(...) -> None`, `restart -> bool`, `active -> bool`, and
+     `reload_allocations -> None`.
+   - `DhcpLocalProcess`: `enable -> bool`, `disable(...) -> None`,
+     `active -> bool`, and `_has_running_interfaces -> bool`.
+   - Nothing in `agent.py`.
+
+   It touches no configuration: annotated functions are checked
+   whatever `check_untyped_defs` says. Subject: "dhcp: Annotate the
+   DHCP driver's return types". Its message says that mypy only checks
+   return statements in functions that declare a return type, and that
+   without the two preceding fixes this change makes mypy report both
+   bugs.
+5. **Patch 248 is the prototype, verbatim in effect:**
+   - In `pyproject.toml`, `neutron.agent.linux.dhcp` joins the first
+     override's `module` list, which is reformatted one module per
+     line, and `neutron.agent.dhcp.agent` leaves the exception list.
+   - `DictModel`'s storage gets `dict[str, typing.Any]`, which adds
+     `import typing`.
+   - `DictModel.__getattr__` raises `AttributeError(name)` directly.
+   - `_format_option` raises `ValueError(f'Malformed DHCP option
+     {option!r}')` if the match is `None`. Ruff's S101 forbids
+     `assert` outside tests.
+   - `_report_state` indexes `self.agent_state['configurations']`.
+   - `DhcpPluginApi.get_ports` keeps its signature with
+     `# type: ignore[override]` and a one-line comment saying the DHCP
+     API binds its own context.
+
+   That ignore departs from the master plan's "narrowing, not ignores".
+   Fixing the signature means changing either the RPC base class or
+   the one caller and its tests, for no behaviour change, and the
+   ignore documents a deliberate difference. Subject: "mypy: Check the
+   DHCP agent and driver function bodies".
+6. **Publishing.** One repush of `neutron-dhcp-agent-fixes` carries
+   the revised 237 and 239, a replayed 238 and 240, and the new 247.
+   Patch 248 goes up with 246 whenever Mikal pushes the typing series.
+   Neither waits for the other.
+
+### Verification scripts
+
+Both run from the neutron worktree after `tox -e py3 --notest` and
+`tox -e mypy` have built their environments, and both exit non-zero on
+failure.
+
+`check-dhcp-registry-isolation.sh`, run at patch 237 and at 247:
+
+```bash
+#!/bin/bash
+# No test may change the outcome of the namespace-deletion test by
+# running before it.
+.tox/py3/bin/python - <<'EOF'
+import sys
+import unittest
+
+from neutron.tests.unit.agent.linux import test_dhcp as t
+
+target = 'test_enable_disable_two_networks'
+bad = []
+for name in unittest.TestLoader().getTestCaseNames(t.TestDhcpLocalProcess):
+    if name == target:
+        continue
+    suite = unittest.TestSuite([t.TestDhcpLocalProcess(name),
+                                t.TestDhcpLocalProcess(target)])
+    result = unittest.TextTestRunner(stream=open('/dev/null', 'w')).run(suite)
+    if result.failures or result.errors:
+        bad.append(name)
+print(f'tests that break {target} when run first: {bad}')
+sys.exit(1 if bad else 0)
+EOF
+```
+
+`check-annotations-catch-bugs.sh`, run at patch 247. It undoes the
+return fixes of 237 and 239 in a copy of the tree and expects mypy to
+report both:
+
+```bash
+#!/bin/bash
+set -eu
+work=$(mktemp -d)
+trap 'rm -rf "$work"' EXIT
+cp -a neutron pyproject.toml "$work"/
+cd "$work"
+python3 - <<'EOF'
+p = 'neutron/agent/linux/dhcp.py'
+s = open(p).read()
+old = '        return bool(cls._interfaces.get(network_id))\n'
+assert s.count(old) == 1
+s = s.replace(old, '        bool(cls._interfaces.get(network_id))\n')
+old = '            return False\n        return True\n\n    def _enable(self):'
+assert s.count(old) == 1
+s = s.replace(old, '            pass\n\n    def _enable(self):')
+open(p, 'w').write(s)
+EOF
+out=$("$OLDPWD/.tox/mypy/bin/mypy" --no-pretty --cache-dir=/dev/null neutron/agent/linux/dhcp.py 2>&1 || true)
+echo "$out" | grep -E 'error' || true
+n=$(echo "$out" | grep -c 'Missing return statement' || true)
+[ "$n" -eq 2 ] && echo "ok: both bugs reported" || { echo "FAIL: expected 2 missing-return errors, got $n"; exit 1; }
+```
+
+Phase 1's `verify-typing-p1.sh` is rerun at patch 248. Its part 2
+proves that each remaining exception is still needed.
 
 ### Steps
 
-To be written when phase 1 completes, in the same table form; expected
-two steps for the patches plus one for the series directory.
+| Step | Effort | Model | Isolation | Brief for sub-agent |
+|------|--------|-------|-----------|---------------------|
+| 2a | high | opus | none | Revise the `dhcp-agent-fixes` chain per Decisions 2 and 3. In the neutron worktree, rebuild the chain from 61f6db5ac9. For each of patches 237 to 240, `git apply` the patch file and commit with its `-message` file as Michael Still, which keeps the Change-Ids. Amend 237 per Decision 3 and replay the rest. Amend 239 per Decision 2, adding the two tests and the release-note sentence, and replay 240. Run `check-dhcp-registry-isolation.sh` at 237 and at 240, `tox -e py3 -- neutron.tests.unit.agent.dhcp neutron.tests.unit.agent.linux.test_dhcp` at each of the four commits, and `tox -e pep8` at 240. Regenerate the four patch and message files in kerbside-patches. Check with `grep Change-Id` that the Change-Ids are unchanged. Add an execution note to `neutron-agent-bugs.md` saying what changed in 237 and 239 and why. Leave kerbside-patches uncommitted. |
+| 2b | medium | sonnet | none | Patch 247 per Decision 4, on top of 2a's 240 in the same worktree. Run `tox -e mypy` and expect Success. Run `check-annotations-catch-bugs.sh` and expect "ok". Run the DHCP unit tests as in 2a, `check-dhcp-registry-isolation.sh`, and `tox -e pep8`. Write the message under the conventions, add the Change-Id with the hook, and commit. Create `_patches/patch247-...` and its message file, and append it to `neutron-dhcp-agent-fixes/ORDER`. |
+| 2c | medium | sonnet | none | Patch 248 per Decision 5, on top of patch 246 (`a4ef6ca9c5`) in a separate branch of the worktree. Run `tox -e mypy` and expect Success. Run `verify-typing-p1.sh` and expect exit 0; its probes and exception check still apply. Probe `neutron/agent/linux/dhcp.py` by hand the same way and expect a failure. Run the DHCP unit tests and `tox -e pep8`. Commit, then create `_patches/patch248-...` and its message file, and append it to `neutron-agent-typing-base/ORDER`. Finally, cherry-pick 248 onto 2b's 247 in a throwaway branch with 246 also applied, and confirm mypy still passes. That proves the merge-order independence claimed in Decision 6. |
+| 2d | low | sonnet | none | Packaging checks across both series. Run `tools/recount-patch.py --check`, `tools/check-depends-on.py --offline` and `tools/check-llm-attribution.py` on every new or changed patch file. Run `_build/test-apply.sh --skip-tests` for `neutron-dhcp-agent-fixes` and `neutron-agent-typing-base`, and `tools/gerrit-pre-push-lint --stack 5` and `--stack 2` on the two neutron branches. Run `pre-commit run --all-files` here. Report each result; fix nothing by hand. |
+
+Steps run in order. 2b sits on 2a's output. 2c is independent of both
+but shares the worktree and its tox environments, so it runs after.
+
+### Risks and mitigations
+
+- **New revisions of 1012616 to 1012619 restart their review.** None
+  has a code review yet, so the cost now is only a Zuul rerun. The
+  cost grows once reviews arrive, which is why Decisions 2 and 3 are
+  gated for an early answer.
+- **The `DictModel` error message changes.** An `AttributeError` for
+  the storage attribute now names the attribute instead of saying
+  `'super' object has no attribute '__getattr__'`. `copy` and
+  `hasattr` depend only on the exception type. The DHCP unit tests,
+  which copy `NetModel` objects since patch 240, must pass in 2c.
+- **The `ValueError` guard is unreachable**, and a reviewer may ask
+  for `typing.cast` instead. Either is a one-line change at review
+  time. The guard is preferred because it states the assumption.
+- **mypy floats.** As in phase 1, a new release could flag a newly
+  checked module. 2c's run and the first CI run show it.
 
 ### Definition of done
 
-- [ ] `tox -e pep8` passes at every patch in the series, applied over the base the Dependencies section requires.
-- [ ] `tox -e py3 -- neutron.tests.unit.agent.dhcp neutron.tests.unit.agent.linux.test_dhcp` passes at the tip.
-- [ ] Any fix patch has a failing-then-passing test and a bug draft.
-- [ ] `_build/test-apply.sh --skip-tests neutron-agent-typing-dhcp` passes; `tools/check-depends-on.py` run online reports nothing.
-- [ ] `pre-commit run --all-files` passes in this repository.
+- [ ] `check-dhcp-registry-isolation.sh` exits 0 at patch 237 and at patch 247.
+- [ ] The DHCP unit tests pass at each of patches 237, 238, 239, 240 and 247, and at 248.
+- [ ] Patch 239's new agent test fails with `restart` returning `None` (2a shows the revert) and passes with the fix.
+- [ ] `tox -e mypy` passes at 247 without 246, and at 248 without 237 to 240, and with all of 237 to 240 and 246 to 248 applied.
+- [ ] `check-annotations-catch-bugs.sh` reports both missing returns at 247.
+- [ ] `verify-typing-p1.sh` exits 0 at 248.
+- [ ] `tox -e pep8` passes at 247 and at 248.
+- [ ] The Change-Ids in patch files 237 to 240 are the ones listed in `neutron-agent-bugs.md`'s Gerrit table.
+- [ ] `_build/test-apply.sh --skip-tests` passes for both series, `gerrit-pre-push-lint` reports no ERROR or WARNING on either stack, and `pre-commit run --all-files` passes.
+
+### Back brief
+
+Two gates before step 2a, both because they revise changes already on
+Gerrit:
+
+1. Fold the `restart` fix into 239 (Decision 2), or make it a separate
+   patch between 240 and 247.
+2. Fold the registry reset into 237 (Decision 3), or make it a
+   separate test-only patch at the head of the chain.
+
+Steps 2c and 2d do not depend on either answer.
+
+Answered 2026-10-28: both folds approved as planned (Decisions 2 and
+3 stand).
 
 ## Phase 3 --- L3 agent, the router and namespace classes
 
@@ -619,3 +869,13 @@ as the changes are uploaded and reviewed.
   `neutron-agent-bugs` and removed, so one unpushed branch holds both
   plans. Later phases of this plan work on that branch too, unless it
   has merged by then.
+- 2026-10-28 (AEDT): Phase 2 planned. The survey prototyped both
+  halves in the session's neutron scratch tree, so the claims in the
+  phase 2 section were run, not inferred. That covers the annotations
+  catching both bugs, each half passing on its own chain, the registry
+  leak and its fix, and the two verification scripts. It replaced
+  phase 2's Depends-On approach with stacking, because repush cannot
+  publish a series stacked on another. It dropped the `call_driver`
+  annotations, and found two defects in the `dhcp-agent-fixes` chain
+  (`restart` in 239, test isolation exposed by 237), which phase 2's
+  step 2a fixes if the back brief agrees.
