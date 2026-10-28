@@ -17,7 +17,7 @@ than a flood.
 |-------|------|--------|--------|
 | 1 | Enable `check_untyped_defs` for the L3 and DHCP agent packages, with the modules that fail listed as exceptions (`neutron-agent-typing-base`) | Complete | |
 | 2 | DHCP agent: driver return annotations on the `dhcp-agent-fixes` chain, body checks on the `agent-typing` chain, and two fixes to that chain the survey found | Complete | |
-| 3 | L3 agent, the router and namespace classes: one override patch and seven module patches in a held series (`neutron-agent-typing-l3`) | Not started | |
+| 3 | L3 agent, the router and namespace classes: one override patch and seven module patches appended to `neutron-agent-typing-base` as commented-out `ORDER` lines | In progress | |
 | 4 | L3 agent, the two agent mixins (`neutron-agent-typing-l3-mixins`) | Proposed | |
 | 5 | Push audit | Not started | |
 
@@ -143,13 +143,13 @@ survey found that the way to express that is git parentage, not
   `neutron/agent/l3` or `neutron/agent/dhcp` at their current
   revisions. The `pending_updates` changes have merged and are in the
   base.
-- **A series can be held, stacked, with `depends_on`.** Phase 3's
-  patches need 246 and 248 but would push the `agent-typing` chain
-  past five changes. So they form their own series with `depends_on:
-  neutron-agent-typing-base` and `repush: false`, which
-  `test-apply` applies over typing-base and repush skips. When
-  typing-base merges, the series moves onto master and is published.
-  Phase 3's Decision 1 has the detail.
+- **A patch can be held by commenting out its `ORDER` line.**
+  Phase 3's patches need 246 and 248, so they are appended to
+  `neutron-agent-typing-base/ORDER`, but as commented-out lines.
+  `apply-patches-and-test.sh` and repush's patch count both skip
+  comments, so repush publishes only the uncommented prefix. A batch
+  is uncommented when upstream is ready for it. Phase 3's Decision 1
+  has the detail.
 - **Phase 1 depends on nothing, and nothing depends on it.** It
   changes `pyproject.toml` only. Of the files the nine agent-bugs
   changes touch, only `item_allocator.py` (1012622) becomes checked,
@@ -779,15 +779,14 @@ Answered 2026-10-28: both folds approved as planned (Decisions 2 and
 
 ## Phase 3 --- L3 agent, the router and namespace classes
 
-Series `neutron-agent-typing-l3/`, eight typing patches (249 onward,
-numbered as authored) plus any fix patches the reading produces,
-Gerrit topic `agent-typing`. It is stacked on
-`neutron-agent-typing-base` (246 and 248) through the series
-`depends_on` field and held with `repush: false` (Decision 1). Work
+Eight typing patches (249 onward, numbered as authored) plus any fix
+patches the reading produces, appended to
+`neutron-agent-typing-base/ORDER` after 246 and 248 as commented-out
+lines, Gerrit topic `agent-typing` (Decision 1). Work
 stays on branch `neutron-agent-bugs`. The neutron authoring worktree
 is the session scratch tree used for phases 1 and 2, with `.tox/mypy`
 and `.tox/py3` built. Phase 3 works on a new branch, `typing-l3`, cut
-from `typing-chain` (`0eb3009f56`, patch 248).
+from `typing-chain` (`bae3c5ae22`, patch 248).
 
 Planning effort: high. Fifty of the 69 errors need a decision about
 whether a `None` can really reach the line, and that reading is the
@@ -891,21 +890,19 @@ the `index.md` row were made in the same commit.
 
 ### Decisions
 
-1. **A held series, stacked by `depends_on`.** The phase 3 patches all
-   edit the exception list that 246 creates and 248 reformats, so
-   they cannot be parented on master. Appending them to
-   `neutron-agent-typing-base` would put ten typing changes in one
-   chain, against the mission's limit of five in review. Commenting
-   out `ORDER` lines would stop `test-apply` checking them. Instead
-   `neutron-agent-typing-l3/config.yaml` sets `depends_on:
-   neutron-agent-typing-base`, which `apply-patches-and-test.sh`
-   applies first, and `repush: false`. When 246 and 248 merge, the
-   series is moved onto the merged master: `source_sha` is bumped,
-   `depends_on` cleared, and `repush` set to `true`. If Mikal wants a
-   batch up while 246 and 248 are still in review, that batch's lines
-   move to the end of `neutron-agent-typing-base/ORDER`, under the
-   stacking rule. This is the first series in the repository to use
-   `depends_on`. Step 3e proves that `test-apply` honours it.
+1. **Appended to `neutron-agent-typing-base`, commented out.** The
+   phase 3 patches all edit the exception list that 246 creates and
+   248 reformats, so they cannot be parented on master. They are
+   appended to `neutron-agent-typing-base/ORDER` in order, each line
+   prefixed with `# `. `apply-patches-and-test.sh` and repush's
+   `count_patches` both skip comment lines, so a repush publishes 246
+   and 248 only, and the five-in-review limit holds. A batch is
+   uncommented when upstream is ready for it. Commented lines are not
+   applied by `test-apply`, so step 3e checks them by running
+   `test-apply` on a temporary, untracked copy of the series with the
+   lines uncommented, then deleting it. (The plan first proposed a
+   separate series held through `depends_on`; Mikal chose this in the
+   back brief.)
 2. **Fix the overrides first, in one patch, at whichever end is
    stale.** `BaseRouterInfo.delete` and `process` lose the `agent`
    argument and the docstring line about it. `SnatNamespace.create`
@@ -1025,11 +1022,11 @@ want="neutron.agent.l3.dvr neutron.agent.l3.ha"
 
 | Step | Effort | Model | Isolation | Brief for sub-agent |
 |------|--------|-------|-----------|---------------------|
-| 3a | high | opus | none | In the neutron worktree, cut branch `typing-l3` from `typing-chain` (`0eb3009f56`). Write the override patch per Decision 2. Remove `dvr_router_base` and `dvr_snat_ns` from the exception list. Expect `tox -e mypy` to pass, `verify-typing-p1.sh` to exit 0, and `tox -e py3 -- neutron.tests.unit.agent.l3` and `tox -e pep8` to pass. Commit under the conventions, with the Change-Id from the hook. Create `neutron-agent-typing-l3/` per Decision 1, copying `neutron-agent-typing-base/config.yaml` and setting `release: master-neutron-agent-typing-l3`, `depends_on: neutron-agent-typing-base` and `repush: false`. Add the patch and message files and `ORDER`. Run `_build/test-apply.sh --skip-tests neutron-agent-typing-l3` and report whether it applied the typing-base series first. Leave kerbside-patches uncommitted. |
+| 3a | high | opus | none | In the neutron worktree, cut branch `typing-l3` from `typing-chain` (`bae3c5ae22`). Write the override patch per Decision 2. Remove `dvr_router_base` and `dvr_snat_ns` from the exception list. Expect `tox -e mypy` to pass, `verify-typing-p1.sh` to exit 0, and `tox -e py3 -- neutron.tests.unit.agent.l3` and `tox -e pep8` to pass. Commit under the conventions, with the Change-Id from the hook. Add the patch and message files, and append the patch to `neutron-agent-typing-base/ORDER` as a commented-out line (`# ../_patches/patch249-...`), per Decision 1. Run `_build/test-apply.sh --skip-tests neutron-agent-typing-base` and confirm it still applies only 246 and 248. Leave kerbside-patches uncommitted. |
 | 3b | high | opus | none | The `router_info`, `l3_agent_extensions_manager`, `dvr_fip_ns` and `agent` patches, in that order, per Decisions 3 and 4, on 3a's commit. Before writing anything, report each `None`-until-initialised reader in those modules (`radvd`, `agent_gateway_port`, `process_monitor`) as reachable or not, with the call path. Stop if any is reachable, so the management session can approve a fix patch. Then one commit per module, each removing its module from the list. Run `verify-typing-p1.sh` at each commit, `tox -e py3 -- neutron.tests.unit.agent.l3` and `tox -e pep8` at each commit, and `check-each-commit.sh 61f6db5ac9` at the end. Add the patch files to the series. |
 | 3c | high | opus | none | The `dvr_edge_router` and `ha_router` patches, per Decisions 3 and 4, on 3b's tip. Report on the `ha_port`, `keepalived_manager`, `conntrackd_manager`, `snat_iptables_manager` and `snat_ports` readers first, starting with the three leads in the survey, and stop for approval of any fix patch as in 3b. For each approved fix: a unit test that fails without it, a release note, and a bug draft in `docs/neutron-agent-bugs-findings.md`. Then the typing patches. `dvr_edge_ha_router` must pass when `ha_router` leaves the list. Run the same checks as 3b, plus `tox -e py3 -- neutron.tests.unit.agent.l3.test_agent`. |
 | 3d | high | opus | none | The `dvr_local_router` patch, per Decisions 3 and 4, on 3c's tip, with the same reachability report and fix gate. The `fip_ns` readers are one family: decide reachability per caller of each reader, not per line. Any fix patch that edits `neutron/tests/unit/agent/l3/test_dvr_local_router.py` must also apply over patch 241. Check that with `git apply --check` on a branch with 241 applied, and report the result. Then the checks of 3b, and `check-p3-exceptions.sh` at the tip. |
-| 3e | low | sonnet | none | Read-only packaging checks. Run `tools/recount-patch.py --check`, `tools/check-depends-on.py --offline` and `tools/check-llm-attribution.py` on every new patch file. Run `_build/test-apply.sh --skip-tests neutron-agent-typing-l3` and `neutron-agent-typing-base`. Run `tools/gerrit-pre-push-lint --stack N` over the series. Run `check-each-commit.sh 61f6db5ac9` and `pre-commit run --all-files` here. Report each result, and fix nothing. |
+| 3e | low | sonnet | none | Read-only packaging checks. Run `tools/recount-patch.py --check`, `tools/check-depends-on.py --offline` and `tools/check-llm-attribution.py` on every new patch file. Run `_build/test-apply.sh --skip-tests neutron-agent-typing-base`, which applies 246 and 248 only. Then copy `neutron-agent-typing-base/` to an untracked `neutron-agent-typing-base-p3check/`, uncomment its `ORDER`, run `test-apply` on it, and delete the copy, confirming `git status` shows nothing left. Run `tools/gerrit-pre-push-lint --stack N` over the whole chain. Run `check-each-commit.sh 61f6db5ac9` and `pre-commit run --all-files` here. Report each result, and fix nothing. |
 
 Steps run in order, because each builds on the previous step's tip in
 one worktree with shared tox environments.
@@ -1051,11 +1048,10 @@ one worktree with shared tox environments.
   code is `agent.py:1080`, in `_report_state`, which reads none of
   these attributes. Each step greps the callers of each reader it
   changes for narrower `except` clauses.
-- **`depends_on` has never been used here.** Step 3a proves
-  `test-apply` honours it before anything else depends on it. If it
-  does not, the fallback is the stacking rule: append to
-  `neutron-agent-typing-base/ORDER`, and hold the second batch by
-  keeping it out of `ORDER` until the first merges.
+- **Commented-out patches are not tested by `test-apply`.** They
+  could rot unnoticed if the base moves. Step 3e's temporary
+  uncommented copy checks them now. Whoever uncomments a batch reruns
+  `test-apply` on the real series before the repush.
 - **mypy floats.** As before, a new release may flag something. Step
   3e reruns at the tip.
 
@@ -1067,7 +1063,7 @@ one worktree with shared tox environments.
 - [ ] `tox -e py3 -- neutron.tests.unit.agent.l3` and `tox -e pep8` pass at every patch.
 - [ ] Every fix patch's new test fails with the fix reverted. The step shows the revert run.
 - [ ] Every reader changed under Decision 3 is listed in its step's report, as reachable (with the fix patch) or unreachable (with the call path).
-- [ ] `_build/test-apply.sh --skip-tests neutron-agent-typing-l3` passes, and its log shows typing-base applied first.
+- [ ] `_build/test-apply.sh --skip-tests` passes on `neutron-agent-typing-base` (246 and 248 only) and on the temporary uncommented copy (the whole chain), and the copy is gone afterwards.
 - [ ] `gerrit-pre-push-lint` reports no ERROR. The only WARNINGs are release-note warnings on typing patches.
 - [ ] `pre-commit run --all-files` passes.
 
@@ -1082,6 +1078,12 @@ Two gates before step 3a:
 2. Decision 3: is the `RuntimeError` accessor the narrowing style to
    set? The alternatives are inline guards everywhere, or `typing.cast`
    for unreachable readers.
+
+Answered 2026-10-28: append to `neutron-agent-typing-base`, commented
+out in `ORDER` until upstream is ready (Decision 1 rewritten to
+match). The `RuntimeError` accessor stands. Mikal also asked for a
+comment above patch 246's exception list, which was added before
+step 3a.
 
 A third gate falls inside steps 3b to 3d. Each step stops after its
 reachability report, before writing a fix patch, so the management
@@ -1188,3 +1190,13 @@ as the changes are uploaded and reviewed.
   bug, the import-memory topic does not touch the agents, and phase 3
   is a held `depends_on` series rather than more lines in typing-base's
   `ORDER`.
+- 2026-10-28 (AEDT): Phase 3 back brief. Mikal chose commented-out
+  `ORDER` lines in `neutron-agent-typing-base` over a separate
+  `depends_on` series, so Decision 1, the Dependencies section and
+  steps 3a and 3e were rewritten. He kept the `RuntimeError` accessor.
+  He asked for a comment above the exception list in patch 246 saying
+  that naming a module there overrides the wildcard. The management
+  session added it: 246 is now neutron `23a3874869` and 248, replayed
+  over it, `bae3c5ae22`. Change-Ids are unchanged. `tox -e mypy`
+  passed at both, `verify-typing-p1.sh` exited 0 at 248, and
+  `test-apply` passed.
