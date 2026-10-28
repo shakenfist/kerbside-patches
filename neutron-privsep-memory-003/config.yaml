@@ -5,6 +5,6 @@ shallow_clone: true
 directory: neutron
 release: master-neutron-privsep-memory-003
 depends_on: ''
-source_sha: 61f6db5ac91caa9e5d83e71dc1b3ec31d0611e8e
-previous_source_sha: 7a3841bb4f5a47c3694767c3440f6f417a3ae15b
+source_sha: cf3549cf7fc328aea3e8c72fab000a37a5da4fa6
+previous_source_sha: 61f6db5ac91caa9e5d83e71dc1b3ec31d0611e8e
 repush: true
