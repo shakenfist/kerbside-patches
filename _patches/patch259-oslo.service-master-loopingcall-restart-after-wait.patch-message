@@ -1,0 +1,14 @@
+loopingcall: Allow a restart once wait() returns
+
+With the threading backend, wait() wakes when the loop signals done,
+but the loop's thread is only released later by its done callback, so
+a start() straight after wait() could raise RuntimeError. A loop that
+has signalled done now counts as finished, and a late done callback
+leaves a newer thread alone.
+
+The eventlet backend was not affected: its link callbacks run before
+any waiter is scheduled.
+
+Assisted-By: Claude Opus 5.5 (medium effort)
+Change-Id: I748102bbeab585f8ceb0eb3729451753866b486b
+Signed-off-by: Michael Still <mikal@stillhq.com>
