@@ -15,7 +15,7 @@ than a flood.
 
 | Phase | What | Status | Merged |
 |-------|------|--------|--------|
-| 1 | Enable `check_untyped_defs` for the L3 and DHCP agent packages, with the modules that fail listed as exceptions (`neutron-agent-typing-base`) | Not started | |
+| 1 | Enable `check_untyped_defs` for the L3 and DHCP agent packages, with the modules that fail listed as exceptions (`neutron-agent-typing-base`) | Complete | |
 | 2 | DHCP agent: interface return annotations and the remaining errors (`neutron-agent-typing-dhcp`) | Not started | |
 | 3 | L3 agent, the router and namespace classes (`neutron-agent-typing-l3`) | Not started | |
 | 4 | L3 agent, the two agent mixins (`neutron-agent-typing-l3-mixins`) | Proposed | |
@@ -603,3 +603,15 @@ as the changes are uploaded and reviewed.
   1). Survey worktree:
   `/tmp/claude-1000/-srv-kasm-profiles-mikal-vscode-src-reviews-neutron/01456ce4-0983-482a-85e0-d244c0f7cd34/scratchpad/neutron-typing-base`
   (session scratch, may not survive the session).
+- 2026-10-28 (AEDT): Phase 1 implemented as planned, with no
+  departures. Step 1a (Sonnet, medium) committed patch 246 as neutron
+  `a4ef6ca9c5` on `61f6db5ac9`, Change-Id
+  `I2af9c68d9175aa4634f3d9a2d205ebc55be0ae4b`; upstream had not moved.
+  `tox -e mypy` and `tox -e pep8` passed, with 1196 source files, and
+  the verification script exited 0. It was rerun in review and passed
+  again, with all twelve exceptions still needed. Step 1b (Sonnet, low)
+  packaged it as `neutron-agent-typing-base/`. `test-apply`,
+  `gerrit-pre-push-lint --commit` (0 errors, 0 warnings), and the
+  offline Depends-On and attribution checks passed. The patch waits
+  for Mikal's hand review and repush. The neutron worktree stays in the
+  session scratchpad for later phases.

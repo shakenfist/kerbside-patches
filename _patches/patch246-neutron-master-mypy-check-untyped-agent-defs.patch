@@ -1,0 +1,53 @@
+commit a4ef6ca9c543bf196d344b5b75c22fa5db0ae75b
+Author: Michael Still <mikal@stillhq.com>
+Date:   Wed Oct 28 12:38:22 2026 +1100
+
+    mypy: Check untyped function bodies in the L3 and DHCP agents
+    
+    mypy does not look inside a function that has no annotations, and
+    almost nothing in the L3 and DHCP agents has any, so mypy checks very
+    little of either agent today.
+    
+    Turn on check_untyped_defs for both packages, so that new modules are
+    checked from the start, and list the twelve modules that do not pass
+    yet as exceptions, to be removed as their errors are fixed.
+    
+    Assisted-By: Claude Sonnet 5.5 (medium effort)
+    Change-Id: I2af9c68d9175aa4634f3d9a2d205ebc55be0ae4b
+    Signed-off-by: Michael Still <mikal@stillhq.com>
+
+diff --git a/pyproject.toml b/pyproject.toml
+index e724f4be92..1115f5ce50 100644
+--- a/pyproject.toml
++++ b/pyproject.toml
+@@ -365,6 +365,30 @@ files = "neutron"
+ # and rules applied to the whole repo.
+ exclude = "(?x)(^neutron/tests/$)"
+ 
++# Check the bodies of unannotated functions in the L3 and DHCP agents.
++# Modules are removed from the second list as they are made to pass;
++# new modules in these packages are checked from the start.
++[[tool.mypy.overrides]]
++module = ["neutron.agent.dhcp.*", "neutron.agent.l3.*"]
++check_untyped_defs = true
++
++[[tool.mypy.overrides]]
++module = [
++    "neutron.agent.dhcp.agent",
++    "neutron.agent.l3.agent",
++    "neutron.agent.l3.dvr",
++    "neutron.agent.l3.dvr_edge_router",
++    "neutron.agent.l3.dvr_fip_ns",
++    "neutron.agent.l3.dvr_local_router",
++    "neutron.agent.l3.dvr_router_base",
++    "neutron.agent.l3.dvr_snat_ns",
++    "neutron.agent.l3.ha",
++    "neutron.agent.l3.ha_router",
++    "neutron.agent.l3.l3_agent_extensions_manager",
++    "neutron.agent.l3.router_info",
++]
++check_untyped_defs = false
++
+ [tool.ruff]
+ line-length = 79
+ 
