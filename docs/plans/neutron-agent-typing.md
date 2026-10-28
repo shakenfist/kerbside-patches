@@ -224,12 +224,9 @@ neutron-lib; the OVN agent and the OVS agent (`agent/l2`,
 ## Phase 1 --- check untyped bodies in the L3 and DHCP agents
 
 Series `neutron-agent-typing-base/`, one patch (246), Gerrit topic
-`agent-typing`, against neutron `61f6db5ac9`. Branch
-`neutron-agent-typing-phase-1` in worktree
-`kerbside-patches-wt-agent-typing-p1`, stacked on `neutron-agent-bugs`
-because that unpushed branch holds this plan and patches 237 to 245.
-If `neutron-agent-bugs` merges to `develop` first, rebase onto
-`develop`; nothing here touches its files.
+`agent-typing`, against neutron `61f6db5ac9`. It lives on branch
+`neutron-agent-bugs`, in worktree `kerbside-patches-wt-neutron-agent-bugs`,
+beside this plan and patches 237 to 245.
 
 Planning effort: high. The patch is a configuration change, but its
 shape decides how every later phase reads to upstream reviewers. The
@@ -435,7 +432,7 @@ exit $fail
 | Step | Effort | Model | Isolation | Brief for sub-agent |
 |------|--------|-------|-----------|---------------------|
 | 1a | medium | sonnet | none | Author patch 246 in a neutron worktree at `61f6db5ac9`. Use `/tmp/claude-1000/-srv-kasm-profiles-mikal-vscode-src-reviews-neutron/01456ce4-0983-482a-85e0-d244c0f7cd34/scratchpad/neutron-typing-base` if it still exists (detached at `61f6db5ac9`, clean, `.tox/mypy` built). Otherwise create one with `git -C /srv/kasm_profiles/mikal/vscode/src/reviews/neutron worktree add --detach <path> 61f6db5ac91caa9e5d83e71dc1b3ec31d0611e8e` and run `tox -e mypy`. A tox environment does not survive `git worktree move`; rebuild it with `rm -rf .tox && tox -e mypy`. First check `git -C /srv/kasm_profiles/mikal/vscode/src/reviews/neutron fetch upstream` and report if `upstream/master` has moved past `61f6db5ac9` and touched `pyproject.toml` or `neutron/agent/l3`/`dhcp`. If it has, stop and report rather than adapting. Insert Decision 4's block verbatim into `pyproject.toml` after the `exclude = ...` line. Run `tox -e mypy` and expect `Success: no issues found in 1196 source files`. Write Decision 5's message to a file, run the kerbside-patches `tools/commit-msg.hook` over it to add the Change-Id, keep the footer order shown, and `git commit -F` it as Michael Still <mikal@stillhq.com>. Only then save the plan's verification script beside the worktree and run it from inside the worktree, expecting exit 0. It fails on a dirty tree by design. Run `tox -e pep8` once and expect it to pass. Report the sha, the last lines of the two tox runs verbatim, and the full verification script output. |
-| 1b | low | sonnet | none | Package patch 246 in `/srv/kasm_profiles/mikal/vscode/src/shakenfist/kerbside-patches-wt-agent-typing-p1`. Run `git -C <neutron worktree> show <1a sha> > _patches/patch246-neutron-master-mypy-check-untyped-agent-defs.patch`, then `python3 tools/extract-commit-message _patches/patch246-...patch`. Create `neutron-agent-typing-base/config.yaml` copied from `neutron-test-switch-interval/config.yaml`, with `destination_branch: agent-typing` and `release: master-neutron-agent-typing-base`, keeping both SHAs at `61f6db5ac91caa9e5d83e71dc1b3ec31d0611e8e`, `depends_on: ''` and `repush: true`. Create `neutron-agent-typing-base/ORDER` with the single line `../_patches/patch246-neutron-master-mypy-check-untyped-agent-defs.patch`, matching `neutron-test-switch-interval/ORDER`. Run `tools/recount-patch.py --check`, `tools/check-depends-on.py --offline` and `tools/check-llm-attribution.py` on the new files. Run `_build/test-apply.sh --skip-tests neutron-agent-typing-base`, `tools/gerrit-pre-push-lint --commit` from inside the neutron worktree, and `pre-commit run --all-files` here. Leave everything uncommitted. Report each command's result. |
+| 1b | low | sonnet | none | Package patch 246 in the kerbside-patches worktree that holds this plan. Run `git -C <neutron worktree> show <1a sha> > _patches/patch246-neutron-master-mypy-check-untyped-agent-defs.patch`, then `python3 tools/extract-commit-message _patches/patch246-...patch`. Create `neutron-agent-typing-base/config.yaml` copied from `neutron-test-switch-interval/config.yaml`, with `destination_branch: agent-typing` and `release: master-neutron-agent-typing-base`, keeping both SHAs at `61f6db5ac91caa9e5d83e71dc1b3ec31d0611e8e`, `depends_on: ''` and `repush: true`. Create `neutron-agent-typing-base/ORDER` with the single line `../_patches/patch246-neutron-master-mypy-check-untyped-agent-defs.patch`, matching `neutron-test-switch-interval/ORDER`. Run `tools/recount-patch.py --check`, `tools/check-depends-on.py --offline` and `tools/check-llm-attribution.py` on the new files. Run `_build/test-apply.sh --skip-tests neutron-agent-typing-base`, `tools/gerrit-pre-push-lint --commit` from inside the neutron worktree, and `pre-commit run --all-files` here. Leave everything uncommitted. Report each command's result. |
 
 The management session then reviews the diff, records the execution
 note (patch sha, verification output, any upstream drift) and commits
@@ -615,3 +612,10 @@ as the changes are uploaded and reviewed.
   offline Depends-On and attribution checks passed. The patch waits
   for Mikal's hand review and repush. The neutron worktree stays in the
   session scratchpad for later phases.
+
+- 2026-10-28 (AEDT): At Mikal's request, phase 1's branch
+  (`neutron-agent-typing-phase-1`, worktree
+  `kerbside-patches-wt-agent-typing-p1`) was fast-forwarded into
+  `neutron-agent-bugs` and removed, so one unpushed branch holds both
+  plans. Later phases of this plan work on that branch too, unless it
+  has merged by then.
