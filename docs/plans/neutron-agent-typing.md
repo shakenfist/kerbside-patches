@@ -1266,3 +1266,17 @@ as the changes are uploaded and reviewed.
   uncommented copy of the series applied to a tree identical to the
   `typing-l3` tip. The exceptions left are `dvr`, `dvr_local_router`
   and `ha`.
+- 2026-10-28 (AEDT): Phase 3 step 3d (Opus, high). The reachability
+  report found no reader that `fip_ns` can reach as `None`. It is set
+  only at the start of `process()` when the router has a gateway, and
+  every reader runs after that or behind an `if self.fip_ns` guard. A
+  spy property confirmed zero reads on the no-gateway, delete-first and
+  failed-initialise paths in all three DVR modes. The management session
+  confirmed the two assignments and approved narrowing only. Patch 258
+  (`81d20b4e60`) adds `_get_fip_ns()` and takes `dvr_local_router` off
+  the list, leaving only `dvr` and `ha`. `_get_snat_idx` uses
+  `int(net.ip)` instead of `net.value`, which the review checked gives
+  the same value. The ndp_proxy extension's direct `ri.fip_ns` reads
+  were added to the existing "not addressed" race entry. Patch 241
+  applies cleanly over the typing chain's tip. `check-each-commit.sh`
+  passes at all twelve commits, and `check-p3-exceptions.sh` passes.

@@ -9,3 +9,4 @@
 # ../_patches/patch255-neutron-master-l3-dvr-edge-router-bodies.patch
 # ../_patches/patch256-neutron-master-l3-ha-router-delete-after-failed-init.patch
 # ../_patches/patch257-neutron-master-l3-ha-router-bodies.patch
+# ../_patches/patch258-neutron-master-l3-dvr-local-router-bodies.patch

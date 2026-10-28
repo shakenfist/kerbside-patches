@@ -332,6 +332,12 @@ fire today) or "robustness" (missing error handling or cleanup).
   and `_add_vip` in the same window. Real but timing-dependent, as the
   window is the namespace setup in `initialize()`. Separately,
   `HaRouter._get_ha_port_fixed_ip_with_subnet` has no callers in tree.
+  The ndp_proxy extension is another path in for DVR routers: its RPC
+  handler `_handle_notification` in `ndp_proxy.py` reads `ri.fip_ns`
+  directly, and again through `_get_resource_by_router`, after checking
+  only `get_ex_gw_port()`. `fip_ns` is `None` until the router's first
+  `process()`, so an ndp_proxy event for a router not yet processed fails
+  with an `AttributeError`.
 * `neutron/agent/metadata/driver_base.py` `destroy_monitored_metadata_proxy`
   reads `cfg.CONF.state_path` where everything else uses the passed conf.
   Cosmetic.
