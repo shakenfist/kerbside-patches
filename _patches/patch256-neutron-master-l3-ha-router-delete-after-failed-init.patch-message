@@ -1,0 +1,13 @@
+l3: Finish deleting an HA router that failed to initialize
+
+If HaRouter.initialize() fails after setting the HA port but before
+creating the keepalived manager, as an HA port with no fixed IP makes it
+do, the cleanup's delete() builds the state change monitor's command
+from that manager and stops with an AttributeError before radvd.
+
+Skip the monitor when there is no keepalived manager, since it is only
+spawned after the manager exists, so the rest of the router is deleted.
+
+Assisted-By: Claude Opus 5.5 (high effort)
+Change-Id: I96fc6e87504998aede426093534bb2a55fdc2e3b
+Signed-off-by: Michael Still <mikal@stillhq.com>

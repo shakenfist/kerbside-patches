@@ -1,0 +1,107 @@
+commit 8eae52d37a3ff0c9bc56475bdfd3ef281afdf490
+Author: Michael Still <mikal@stillhq.com>
+Date:   Wed Oct 28 17:40:01 2026 +1100
+
+    l3: Finish deleting an HA router that failed to initialize
+    
+    If HaRouter.initialize() fails after setting the HA port but before
+    creating the keepalived manager, as an HA port with no fixed IP makes it
+    do, the cleanup's delete() builds the state change monitor's command
+    from that manager and stops with an AttributeError before radvd.
+    
+    Skip the monitor when there is no keepalived manager, since it is only
+    spawned after the manager exists, so the rest of the router is deleted.
+    
+    Assisted-By: Claude Opus 5.5 (high effort)
+    Change-Id: I96fc6e87504998aede426093534bb2a55fdc2e3b
+    Signed-off-by: Michael Still <mikal@stillhq.com>
+
+diff --git a/neutron/agent/l3/ha_router.py b/neutron/agent/l3/ha_router.py
+index dee944db3e..3254243b01 100644
+--- a/neutron/agent/l3/ha_router.py
++++ b/neutron/agent/l3/ha_router.py
+@@ -516,6 +516,12 @@ class HaRouter(router.RouterInfo):
+             LOG.debug('Error while destroying state change monitor for %s - '
+                       'no port', self.router_id)
+             return
++        # The monitor is only spawned once the keepalived manager exists. If
++        # initialize() failed before creating it, there is nothing to stop.
++        if self.keepalived_manager is None:
++            LOG.debug('Error while destroying state change monitor for %s - '
++                      'no keepalived manager', self.router_id)
++            return
+         pm = self._get_state_change_monitor_process_manager()
+         process_monitor.unregister(
+             self.router_id, IP_MONITOR_PROCESS_SERVICE)
+diff --git a/neutron/tests/unit/agent/l3/test_agent.py b/neutron/tests/unit/agent/l3/test_agent.py
+index 7572e2af3e..bf2debd18a 100644
+--- a/neutron/tests/unit/agent/l3/test_agent.py
++++ b/neutron/tests/unit/agent/l3/test_agent.py
+@@ -3677,6 +3677,23 @@ class TestBasicRouterOperations(BasicRouterOperationsFramework):
+         self.assertTrue(mock_delete.called)
+         self.assertFalse(mock_dscm.called)
+ 
++    @mock.patch.object(l3router.RouterInfo, 'disable_radvd')
++    def test_delete_ha_router_initialize_fails_before_keepalived(
++            self, mock_disable_radvd):
++        router = l3_test_common.prepare_router_data(enable_ha=True)
++        # An HA port without addresses makes initialize() fail after it has
++        # set the HA port but before it creates the keepalived manager.
++        router[lib_constants.HA_INTERFACE_KEY]['fixed_ips'] = []
++        agent = l3_agent.L3NATAgent(HOSTNAME, self.conf)
++        agent.init_host()
++
++        self.assertRaises(IndexError, agent._router_added, router['id'],
++                          router)
++
++        # The cleanup deleted the router all the way through.
++        mock_disable_radvd.assert_called_once_with()
++        self.assertNotIn(router['id'], agent.router_info)
++
+     @mock.patch.object(lla.LinkLocalAllocator, '_write')
+     @mock.patch.object(l3router.RouterInfo, '_get_gw_ips_cidr')
+     def test_process_floating_ip_addresses_not_care_port_forwarding(
+diff --git a/neutron/tests/unit/agent/l3/test_ha_router.py b/neutron/tests/unit/agent/l3/test_ha_router.py
+index 06ba3220c6..7762d36fc6 100644
+--- a/neutron/tests/unit/agent/l3/test_ha_router.py
++++ b/neutron/tests/unit/agent/l3/test_ha_router.py
+@@ -157,8 +157,10 @@ class TestBasicRouterOperations(base.BaseTestCase):
+ 
+     def test_destroy_state_change_monitor_ok(self):
+         ri = self._create_router(mock.MagicMock())
+-        # need a port for destroy_state_change_monitor() to call PM code
++        # need a port and a keepalived manager for
++        # destroy_state_change_monitor() to call PM code
+         ri.ha_port = {'id': _uuid()}
++        ri.keepalived_manager = mock.Mock()
+         with mock.patch.object(ri,
+                                '_get_state_change_monitor_process_manager')\
+                 as m_get_state:
+@@ -175,8 +177,10 @@ class TestBasicRouterOperations(base.BaseTestCase):
+     def test_destroy_state_change_monitor_force(self, m_get_state,
+                                                 mock_wait_until):
+         ri = self._create_router(mock.MagicMock())
+-        # need a port for destroy_state_change_monitor() to call PM code
++        # need a port and a keepalived manager for
++        # destroy_state_change_monitor() to call PM code
+         ri.ha_port = {'id': _uuid()}
++        ri.keepalived_manager = mock.Mock()
+         mock_pm = m_get_state.return_value
+         mock_pm.active = False
+         mock_wait_until.side_effect = common_utils.WaitTimeout
+diff --git a/releasenotes/notes/l3-ha-router-delete-after-failed-initialize-e4fce5e2b1a94d7b.yaml b/releasenotes/notes/l3-ha-router-delete-after-failed-initialize-e4fce5e2b1a94d7b.yaml
+new file mode 100644
+index 0000000000..6796f32018
+--- /dev/null
++++ b/releasenotes/notes/l3-ha-router-delete-after-failed-initialize-e4fce5e2b1a94d7b.yaml
+@@ -0,0 +1,10 @@
++---
++fixes:
++  - |
++    When an HA router failed to initialize after the L3 agent had read its
++    HA port but before it had created the keepalived manager, for example
++    because the HA port had no fixed IP, the agent's cleanup failed with an
++    ``AttributeError`` and skipped the rest of the router deletion,
++    including disabling radvd. The cleanup now skips the keepalived state
++    change monitor, which was never started, and deletes the rest of the
++    router.

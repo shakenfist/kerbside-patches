@@ -220,6 +220,35 @@ Fix:
 
 * l3: Re-create a router whose type changed instead of swapping it
 
+## HA router left half-deleted after a failed initialize
+
+**Title:** L3 agent stops deleting an HA router whose initialize failed
+before it created the keepalived manager
+
+**Affects:** neutron master (2025.1 and later, since b164d67f45)
+
+`HaRouter.initialize()` sets the HA port and then builds the conntrackd
+manager before the keepalived manager. The conntrackd manager is built even
+when conntrackd is disabled, and it indexes the HA port's first fixed IP. An
+HA port with no fixed IP therefore makes `initialize()` raise `IndexError`
+with `ha_port` set and `keepalived_manager` still `None`.
+
+The agent's `_router_added` then calls `_cleanup_failed_router`, which calls
+`delete()`. `destroy_state_change_monitor` only checks for the HA port, so it
+builds the monitor's command line, which reads the keepalived instance from
+the missing manager and fails with `AttributeError: 'NoneType' object has no
+attribute 'config'`. `_cleanup_failed_router` logs it, but the rest of
+`delete()` is skipped, including disabling radvd. A unit test that sends an
+HA port with no fixed IPs through `_router_added` reproduces it.
+
+The fix returns early from `destroy_state_change_monitor` when there is no
+keepalived manager, since the monitor is only spawned after the manager
+exists, so the rest of the router is deleted.
+
+Fix:
+
+* l3: Finish deleting an HA router that failed to initialize
+
 ## Found but not addressed
 
 These came from the same reading and from two read-only sweeps of the L3
@@ -289,6 +318,20 @@ fire today) or "robustness" (missing error handling or cleanup).
 * `neutron/agent/l3/dvr_fip_ns.py`: both allocators share one agent-global
   state path for every external network (also noted under ItemAllocator
   above). Real, pre-existing.
+* `neutron/agent/l3/agent.py` `_router_added`: the router is stored in
+  `router_info` before `initialize()` runs, so other threads can find an
+  HA router whose `keepalived_manager` is still `None`.
+  keepalived-state-change daemons outlive an agent restart, so a
+  notification can arrive during the startup sync. ha.py
+  `_enqueue_state_change` then sets `ri.ha_state`, whose setter writes to
+  `ha_state_path`. That is `None` without the manager, so `open(None)`
+  raises a `TypeError` that the setter's `except OSError` does not catch,
+  and the state change thread dies before it updates radvd, the metadata
+  proxy or the server. The port forwarding extension's push RPC
+  (`_process_create`, `_sync_and_remove_fip`) can reach `enable_keepalived`
+  and `_add_vip` in the same window. Real but timing-dependent, as the
+  window is the namespace setup in `initialize()`. Separately,
+  `HaRouter._get_ha_port_fixed_ip_with_subnet` has no callers in tree.
 * `neutron/agent/metadata/driver_base.py` `destroy_monitored_metadata_proxy`
   reads `cfg.CONF.state_path` where everything else uses the passed conf.
   Cosmetic.

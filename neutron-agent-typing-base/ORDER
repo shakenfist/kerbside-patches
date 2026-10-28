@@ -6,3 +6,6 @@
 # ../_patches/patch252-neutron-master-l3-extensions-manager-bodies.patch
 # ../_patches/patch253-neutron-master-l3-dvr-fip-ns-bodies.patch
 # ../_patches/patch254-neutron-master-l3-agent-bodies.patch
+# ../_patches/patch255-neutron-master-l3-dvr-edge-router-bodies.patch
+# ../_patches/patch256-neutron-master-l3-ha-router-delete-after-failed-init.patch
+# ../_patches/patch257-neutron-master-l3-ha-router-bodies.patch

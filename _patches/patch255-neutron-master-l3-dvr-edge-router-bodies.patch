@@ -1,0 +1,104 @@
+commit 0c4a17eb8f7537374cfc9595a59105e8945f2745
+Author: Michael Still <mikal@stillhq.com>
+Date:   Wed Oct 28 17:33:57 2026 +1100
+
+    l3: Check the function bodies in the DVR edge router
+    
+    The centralized floating IP NAT rules raise a RuntimeError naming
+    snat_iptables_manager if they run before the SNAT gateway exists, and
+    the DVR edge HA router's gateway removal raises one naming snat_ports if
+    it runs before the first process(). Neither path can reach that today.
+    
+    Assisted-By: Claude Opus 5.5 (high effort)
+    Change-Id: If50292aecb19d0e94dd4fd3ad72f93363e409204
+    Signed-off-by: Michael Still <mikal@stillhq.com>
+
+diff --git a/neutron/agent/l3/dvr_edge_ha_router.py b/neutron/agent/l3/dvr_edge_ha_router.py
+index c206a1588d..c3de2e1d64 100644
+--- a/neutron/agent/l3/dvr_edge_ha_router.py
++++ b/neutron/agent/l3/dvr_edge_ha_router.py
+@@ -16,6 +16,7 @@
+ from neutron_lib import constants
+ from oslo_log import log as logging
+ 
++from neutron._i18n import _
+ from neutron.agent.l3 import dvr_edge_router
+ from neutron.agent.l3 import ha_router
+ from neutron.agent.l3 import router_info
+@@ -113,6 +114,9 @@ class DvrEdgeHaRouter(dvr_edge_router.DvrEdgeRouter,
+         self._disable_ipv6_addressing_on_interface(interface_name)
+ 
+     def external_gateway_removed(self, ex_gw_port, interface_name):
++        if self.snat_ports is None:
++            raise RuntimeError(
++                _('snat_ports used before the router was processed'))
+         for port in self.snat_ports:
+             snat_interface = self._get_snat_int_device_name(port['id'])
+             self.driver.unplug(snat_interface,
+diff --git a/neutron/agent/l3/dvr_edge_router.py b/neutron/agent/l3/dvr_edge_router.py
+index 193de8bb84..aef79d589d 100644
+--- a/neutron/agent/l3/dvr_edge_router.py
++++ b/neutron/agent/l3/dvr_edge_router.py
+@@ -15,6 +15,7 @@
+ from neutron_lib import constants as lib_constants
+ from oslo_log import log as logging
+ 
++from neutron._i18n import _
+ from neutron.agent.l3 import dvr_local_router
+ from neutron.agent.l3 import dvr_snat_ns
+ from neutron.agent.l3 import router_info as router
+@@ -380,6 +381,10 @@ class DvrEdgeRouter(dvr_local_router.DvrLocalRouter):
+     def _centralized_floating_forward_rules(self, floating_ip, fixed_ip):
+         to_source = '-s {}/32 -j SNAT --to-source {}'.format(
+             fixed_ip, floating_ip)
++        if self.snat_iptables_manager is None:
++            raise RuntimeError(_(
++                'snat_iptables_manager used before the SNAT gateway was '
++                'set up'))
+         if self.snat_iptables_manager.random_fully:
+             to_source += ' --random-fully'
+         return [('PREROUTING', '-d %s/32 -j DNAT --to-destination %s' %
+@@ -392,18 +397,26 @@ class DvrEdgeRouter(dvr_local_router.DvrLocalRouter):
+         if fip.get(lib_constants.DVR_SNAT_BOUND):
+             fixed = fip['fixed_ip_address']
+             fip_ip = fip['floating_ip_address']
++            if self.snat_iptables_manager is None:
++                raise RuntimeError(_(
++                    'snat_iptables_manager used before the SNAT gateway was '
++                    'set up'))
+             for chain, rule in self._centralized_floating_forward_rules(
+                     fip_ip, fixed):
+                 self.snat_iptables_manager.ipv4['nat'].add_rule(
+                     chain, rule, tag='floating_ip')
+ 
+     def process_floating_ip_nat_rules_for_centralized_floatingip(self):
+-        self.snat_iptables_manager.ipv4['nat'].clear_rules_by_tag(
+-            'floating_ip')
++        snat_iptables_manager = self.snat_iptables_manager
++        if snat_iptables_manager is None:
++            raise RuntimeError(_(
++                'snat_iptables_manager used before the SNAT gateway was '
++                'set up'))
++        snat_iptables_manager.ipv4['nat'].clear_rules_by_tag('floating_ip')
+         floating_ips = self.get_floating_ips()
+         for fip in floating_ips:
+             self._set_floating_ip_nat_rules_for_centralized_floatingip(fip)
+-        self.snat_iptables_manager.apply()
++        snat_iptables_manager.apply()
+ 
+     def process_floating_ip_nat_rules(self):
+         if self._is_this_snat_host():
+diff --git a/pyproject.toml b/pyproject.toml
+index 6af6e3b5a0..dc183dab80 100644
+--- a/pyproject.toml
++++ b/pyproject.toml
+@@ -381,9 +381,7 @@ check_untyped_defs = true
+ [[tool.mypy.overrides]]
+ module = [
+     "neutron.agent.l3.dvr",
+-    "neutron.agent.l3.dvr_edge_router",
+     "neutron.agent.l3.dvr_local_router",
+-    "neutron.agent.l3.dvr_router_base",
+     "neutron.agent.l3.ha",
+     "neutron.agent.l3.ha_router",
+ ]

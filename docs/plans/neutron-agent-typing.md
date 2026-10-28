@@ -1240,3 +1240,29 @@ as the changes are uploaded and reviewed.
   to the `typing-l3` tip. Not acted on: if `_safe_router_removed` fails
   in the type-change branch nothing schedules a resync, the same as
   the existing DVR HA branch.
+- 2026-10-28 (AEDT): Phase 3 step 3c (Opus, high). The reachability
+  report disproved both survey leads in `ha_router` and
+  `dvr_edge_ha_router`. `HaRouter.initialize` raises before
+  `set_ha_port` when there is no HA port, and `external_gateway_removed`
+  only runs once `process()` has set `snat_ports`. It found a different
+  one: an HA port with no fixed IPs makes `initialize()` fail before the
+  keepalived manager exists. The cleanup's `delete()` then fails in
+  `destroy_state_change_monitor` and skips the rest of the deletion,
+  including radvd. The management session checked the path and
+  approved a fix. That is patch 256 (`8eae52d37a`), with a test, a
+  release note and a bug draft, and the management session reproduced
+  its revert run. A race was recorded under "Found but not addressed"
+  in `docs/neutron-agent-bugs-findings.md` instead of being fixed: a
+  router is in `router_info` before `initialize()`, so a state change
+  arriving during startup can reach it. Patch 255 (`0c4a17eb8f`) takes
+  `dvr_edge_router` and `dvr_router_base` off the list. Patch 257
+  (`9f5edbfba0`) takes `ha_router` off, with `_get_ha_port()` and
+  `_get_keepalived_manager()` accessors. The dead
+  `_get_ha_port_fixed_ip_with_subnet` is narrowed, not deleted. Messages
+  for attributes that `process()` sets say "before the router was
+  processed". `ha_router.py:555` is `ex_gw_port`, not `ha_port`, so
+  `ha_port` has nine readers. `check-each-commit.sh` passes at all
+  eleven commits. The L3 unit tests pass (426, 1 skipped). A temporary
+  uncommented copy of the series applied to a tree identical to the
+  `typing-l3` tip. The exceptions left are `dvr`, `dvr_local_router`
+  and `ha`.
