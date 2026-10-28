@@ -17,14 +17,13 @@ than a flood.
 |-------|------|--------|--------|
 | 1 | Enable `check_untyped_defs` for the L3 and DHCP agent packages, with the modules that fail listed as exceptions (`neutron-agent-typing-base`) | Complete | |
 | 2 | DHCP agent: driver return annotations on the `dhcp-agent-fixes` chain, body checks on the `agent-typing` chain, and two fixes to that chain the survey found | Complete | |
-| 3 | L3 agent, the router and namespace classes (`neutron-agent-typing-l3`) | Not started | |
+| 3 | L3 agent, the router and namespace classes: one override patch and seven module patches in a held series (`neutron-agent-typing-l3`) | Not started | |
 | 4 | L3 agent, the two agent mixins (`neutron-agent-typing-l3-mixins`) | Proposed | |
 | 5 | Push audit | Not started | |
 
-Phase 1 is planned in detail below. Phases 2 to 4 are sized from the
-tox measurement taken while planning phase 1 (see Situation) and each
-one is re-planned from the previous phase's `tox -e pep8` output
-before its steps run.
+Phases 1 to 3 are planned in detail below. Phase 4 is sized from the
+tox measurement taken while planning phase 1 (see Situation), and is
+re-planned from a fresh `tox -e mypy` run before its steps run.
 
 ## Situation
 
@@ -137,14 +136,20 @@ survey found that the way to express that is git parentage, not
   `dvr.py` patch is appended to `neutron-dvr-fip-ns-locking`, under
   the rule above. `item_allocator.py` (1012622) is already clean, and
   phase 3's files are touched by neither 241 nor 242.
-- **Both agents' `agent.py` are touched by the import-memory topic**
-  (1012169, 1012170, 1012182, tracked in
-  [privsep-memory](privsep-memory.md)) and by the merged
-  `pending_updates` changes. The import changes alter import blocks,
-  not function bodies, so a conflict is unlikely but is checked at
-  authoring time by applying the phase's series over those changes'
-  current revisions; if it conflicts, the same stacking rule
-  applies.
+- **The import-memory topic does not touch the agents.** This
+  section once said both agents' `agent.py` were touched by 1012169,
+  1012170 and 1012182 (tracked in [privsep-memory](privsep-memory.md)).
+  Phase 3's survey found that none of them touches a file under
+  `neutron/agent/l3` or `neutron/agent/dhcp` at their current
+  revisions. The `pending_updates` changes have merged and are in the
+  base.
+- **A series can be held, stacked, with `depends_on`.** Phase 3's
+  patches need 246 and 248 but would push the `agent-typing` chain
+  past five changes. So they form their own series with `depends_on:
+  neutron-agent-typing-base` and `repush: false`, which
+  `test-apply` applies over typing-base and repush skips. When
+  typing-base merges, the series moves onto master and is published.
+  Phase 3's Decision 1 has the detail.
 - **Phase 1 depends on nothing, and nothing depends on it.** It
   changes `pyproject.toml` only. Of the files the nine agent-bugs
   changes touch, only `item_allocator.py` (1012622) becomes checked,
@@ -774,41 +779,313 @@ Answered 2026-10-28: both folds approved as planned (Decisions 2 and
 
 ## Phase 3 --- L3 agent, the router and namespace classes
 
-Series `neutron-agent-typing-l3/`, one patch per file or small group,
-smallest first from the tox measurement: `dvr_snat_ns.py` (1),
-`dvr_router_base.py` (1), `dvr_edge_ha_router.py` (1),
-`router_info.py` (3), `dvr_fip_ns.py` (3),
-`l3_agent_extensions_manager.py` (4), `agent.py` (5),
-`dvr_edge_router.py` (5), `ha_router.py` (22) and
-`dvr_local_router.py` (24). The `override` fixes to `Namespace.create`
-and `BaseRouterInfo.delete` and `process` cut across several files and
-go first as their own patches. Each patch removes its modules from
-phase 1's exception list. Published in batches of at most five with
-the next batch held until the previous has merged.
+Series `neutron-agent-typing-l3/`, eight typing patches (249 onward,
+numbered as authored) plus any fix patches the reading produces,
+Gerrit topic `agent-typing`. It is stacked on
+`neutron-agent-typing-base` (246 and 248) through the series
+`depends_on` field and held with `repush: false` (Decision 1). Work
+stays on branch `neutron-agent-bugs`. The neutron authoring worktree
+is the session scratch tree used for phases 1 and 2, with `.tox/mypy`
+and `.tox/py3` built. Phase 3 works on a new branch, `typing-l3`, cut
+from `typing-chain` (`0eb3009f56`, patch 248).
+
+Planning effort: high. Fifty of the 69 errors need a decision about
+whether a `None` can really reach the line, and that reading is the
+phase.
+
+### What the survey found
+
+Surveyed 2026-10-28 against neutron `61f6db5ac9` with 246 and 248
+applied. Upstream master had not moved, and nothing has merged under
+`neutron/agent/l3`, `neutron/agent/dhcp` or `pyproject.toml` since.
+The survey removed the nine phase 3 modules from the exception list,
+kept `dvr` and `ha`, and ran `tox -e mypy`. Line numbers are at that
+tree. Corrections to the Dependencies section, the Status table and
+the `index.md` row were made in the same commit.
+
+- **The counts are as the Situation section says.** 69 errors in ten
+  files. `dvr_edge_ha_router.py` is not on the exception list and is
+  clean today. Its one error appears only once `ha_router` is
+  checked, so the `ha_router` patch must fix it.
+- **There are four families, not two:**
+
+  | Module | Errors | Override | None until initialised | Other |
+  |--------|--------|----------|------------------------|-------|
+  | `dvr_snat_ns` | 1 | `create` | | |
+  | `dvr_router_base` | 1 | `process` | | |
+  | `router_info` | 3 | `delete` | `radvd` | `self.host` |
+  | `l3_agent_extensions_manager` | 4 | | | `extension.obj` |
+  | `dvr_fip_ns` | 3 | `create` | `agent_gateway_port` (2) | |
+  | `agent` | 5 | | `process_monitor` | `agent_state`, `heartbeat` (4, `has-type`) |
+  | `dvr_edge_router` | 5 | `delete` | `snat_iptables_manager` (4) | |
+  | `dvr_edge_ha_router` | 1 | | `snat_ports` | |
+  | `ha_router` | 22 | `create`, `delete`, `process` | `ha_port` (10), `keepalived_manager` (8), `conntrackd_manager` (1) | |
+  | `dvr_local_router` | 24 | `process` | `fip_ns` (22) | `snat_idx` (1) |
+  | **Total** | **69** | **9** | **50** | **10** |
+
+- **Six of the nine `override` errors are the base class's fault.**
+  `BaseRouterInfo.delete(self, agent)` and `process(self, agent)`
+  (`router_info.py:94`, `:98`) are abstract methods whose `agent`
+  argument went away in the 2015 refactors (8a93a0665b, 526dac467b,
+  300f73d489). Every subclass takes no argument, and the agent's four
+  call sites (`agent.py:473`, `:516`, `:619`, `:692`) pass none. The
+  master plan's first Decision 1, "not by loosening the base class",
+  had this backwards. The base class is the stale one, and correcting
+  it is the fix.
+- **The other three are `Namespace.create(ipv6_forwarding=True)`**
+  (`namespaces.py:91`) against `SnatNamespace`, `FipNamespace` and
+  `HaRouterNamespace`, which take no argument. Only
+  `HaRouterNamespace` passes the argument (`ha_router.py:70`, `False`),
+  and nothing passes it to a subclass.
+- **Most of the errors are one pattern: attributes that are `None`
+  until `initialize()` or `process()` runs.** `HaRouter.__init__` sets
+  `ha_port`, `keepalived_manager` and `conntrackd_manager` to `None`
+  (`ha_router.py:84` to `:88`), and `initialize()` fills them.
+  `DvrLocalRouter.fip_ns` is set only when `process()` sees a gateway
+  (`dvr_local_router.py:47`, `:926`). The same is true of `radvd`,
+  `snat_iptables_manager`, `snat_ports` and the agent's
+  `process_monitor`. This is 50 of the 69 errors. Each reader either
+  runs only after the value is set, or is a real crash path. Three
+  readers look like crash paths and are leads for the steps, not
+  verdicts:
+  - `HaRouter.set_ha_port` returns without setting `ha_port` when the
+    router has no HA interface (`ha_router.py:589`).
+    `initialize()` then calls `ha_network_added`, which indexes
+    `ha_port`. The agent's failed-initialise path,
+    `_cleanup_failed_router` (`agent.py:468`), then calls `delete()`
+    on a half-built router.
+  - `DvrEdgeHaRouter.external_gateway_removed` iterates `snat_ports`
+    (`dvr_edge_ha_router.py:116`). That is `None` until the first
+    `process()` (`dvr_router_base.py:26`, `:31`).
+  - `RouterInfo.disable_radvd` checks `radvd` for `None`
+    (`router_info.py:627`), but `enable_radvd` does not (`:624`).
+- **Two leads the master plan raised are not bugs:**
+  - `L3AgentExtensionsManager`'s `extension.obj` is typed
+    `Any | None` by stevedore. The constructor already rejects any
+    extension whose object is not an `L3AgentExtension`
+    (`l3_agent_extensions_manager.py:38` to `:43`), so the four
+    readers cannot see `None`. The master plan's Decision 3 named it
+    as the phase's first likely real fix, and that is withdrawn.
+  - `RouterInfo` reads `self.host` (`router_info.py:461`), which only
+    `DvrRouterBase` defines. It is on the right of an `and` whose left
+    side is always false outside DVR edge routers, because
+    `RouterInfo.get_centralized_fip_cidr_set` returns `set()`
+    (`:418`). It is latent but unreachable.
+- **`agent.py`'s four `has-type` errors** are `agent_state` and
+  `heartbeat` in `L3NATAgentWithStateReport._report_state`. They are
+  the L3 twin of the DHCP fix patch 248 made, and an annotation at their
+  assignments (`agent.py:1098`, `:1114`) clears them.
+- **Nothing in flight touches phase 3's source files.** Patches 237 to
+  245 do not touch them. Of the import-memory topic, 1012169,
+  1012170 and 1012182 touch no file under `neutron/agent/l3` or
+  `neutron/agent/dhcp` at their current revisions, so the master plan's
+  Dependencies section was wrong to say both agents' `agent.py` were
+  touched. The `pending_updates` change merged as 324fd510bd and is in
+  the base. One test file overlaps: 1012621 (patch 241) adds tests to
+  `neutron/tests/unit/agent/l3/test_dvr_local_router.py`, which a
+  `dvr_local_router` fix patch might also edit.
+- **Neutron has no house style for narrowing.** The tree has one
+  `# type: ignore[override]` (patch 248's), one `import-not-found`
+  ignore, and one module using `typing.cast`. Phase 3 sets the
+  precedent, so the style is a back-brief gate.
 
 ### Decisions
 
-1. **`override` errors are fixed by making the signatures agree**, not
-   by loosening the base class: `Namespace.create` versus the three
-   subclasses that take extra arguments, and `BaseRouterInfo.delete`.
-   Where a subclass genuinely needs more, the base gains the
-   parameter with a default and a sentence in the commit message.
-2. **`union-attr` and `index` errors are fixed by narrowing** at the
-   point the value is produced (an early return or a raise when the
-   port or namespace is absent), and each one is read as a possible
-   bug first: a `None` that can reach that line in production is a
-   fix patch with a test and a bug draft, before the typing patch.
-3. **The extension manager's `Any | None`** (`add_router`,
-   `update_router`, `delete_router`, `ha_state_change` on a lookup
-   that may fail) is the first candidate for a real fix in this
-   phase; the step reports its reading before writing a patch.
+1. **A held series, stacked by `depends_on`.** The phase 3 patches all
+   edit the exception list that 246 creates and 248 reformats, so
+   they cannot be parented on master. Appending them to
+   `neutron-agent-typing-base` would put ten typing changes in one
+   chain, against the mission's limit of five in review. Commenting
+   out `ORDER` lines would stop `test-apply` checking them. Instead
+   `neutron-agent-typing-l3/config.yaml` sets `depends_on:
+   neutron-agent-typing-base`, which `apply-patches-and-test.sh`
+   applies first, and `repush: false`. When 246 and 248 merge, the
+   series is moved onto the merged master: `source_sha` is bumped,
+   `depends_on` cleared, and `repush` set to `true`. If Mikal wants a
+   batch up while 246 and 248 are still in review, that batch's lines
+   move to the end of `neutron-agent-typing-base/ORDER`, under the
+   stacking rule. This is the first series in the repository to use
+   `depends_on`. Step 3e proves that `test-apply` honours it.
+2. **Fix the overrides first, in one patch, at whichever end is
+   stale.** `BaseRouterInfo.delete` and `process` lose the `agent`
+   argument and the docstring line about it. `SnatNamespace.create`
+   and `FipNamespace.create` take `ipv6_forwarding=True` and pass it
+   through. `HaRouterNamespace.create` takes `ipv6_forwarding=False`
+   and passes it through. That keeps its behaviour, and states in the
+   signature the default the class docstring already explains.
+   Out-of-tree subclasses are unaffected: they subclass `RouterInfo`,
+   whose signatures do not change. This clears all nine `override`
+   errors and takes `dvr_router_base` and `dvr_snat_ns` off the
+   exception list. Subject: "l3: Make router and namespace overrides
+   match their bases".
+3. **Narrow a `None`-until-initialised attribute in its reader, and
+   read each reader as a possible bug first.** This is the decision
+   most likely to be argued with. It is gated in the back brief
+   because it shapes about 50 sites.
+   - **If `None` can reach the reader in production**, through a
+     failed `initialize()`, a router with no gateway, or a `delete()`
+     before the first `process()`, the reader gets a guard that skips
+     the work. That guard is a fix patch with a unit test and a bug
+     draft in `docs/neutron-agent-bugs-findings.md`, ordered before
+     the typing patch for its module. The three leads above are
+     checked first.
+   - **If it cannot**, the reader raises
+     `RuntimeError(f'{name} used before the router was initialised')`.
+     That is what it does today in all but the exception type: today
+     it raises `AttributeError` or `TypeError` from `None`. Where an
+     attribute has more than three readers (`fip_ns`, `ha_port`,
+     `keepalived_manager`), the check lives in one private accessor
+     per class, so each reader changes by one call rather than three
+     lines. Elsewhere it is inline.
+   - **Rejected alternatives.** `typing.cast` or a non-optional
+     annotation with `# type: ignore[assignment]` would be shorter,
+     but they hide the reachable cases, and those are what the phase
+     is for. `assert` is forbidden outside tests by ruff's S101.
+     Annotating the attribute `typing.Any` catches nothing.
+4. **The rest are narrowing, done in the simplest honest way:**
+   - `agent_state` and `heartbeat` are annotated at their assignment.
+   - The extension manager narrows `extension.obj` with the
+     `isinstance` its constructor already relies on, in one private
+     iterator, and is not a fix.
+   - `RouterInfo` gains `host = None` as a class attribute, with a
+     comment that DVR routers set it. Moving the centralised-FIP branch
+     into `DvrEdgeRouter` would be cleaner, but it is a refactor
+     reviewers have not asked for.
+   - `_get_snat_idx` narrows `net.value` (`dvr_local_router.py:425`).
+5. **Patch order, smallest first, with each patch removing its module
+   from the exception list:**
 
-### Steps and definition of done
+   | Patch | Modules leaving the list | Errors |
+   |-------|--------------------------|--------|
+   | Overrides (Decision 2) | `dvr_router_base`, `dvr_snat_ns` | 9 |
+   | `router_info` | `router_info` | 2 |
+   | `l3_agent_extensions_manager` | itself | 4 |
+   | `dvr_fip_ns` | itself | 2 |
+   | `agent` | `neutron.agent.l3.agent` | 5 |
+   | `dvr_edge_router` | itself | 4 |
+   | `ha_router` (fixes `dvr_edge_ha_router` too) | `ha_router` | 20 |
+   | `dvr_local_router` | itself | 23 |
 
-As phase 2, written when phase 2 is in review; the definition of done
-adds `tox -e py3 -- neutron.tests.unit.agent.l3` at the tip and
-`tox -e functional -- neutron.tests.functional.agent.l3` for any fix
-patch that touches namespace or router lifecycle.
+   Fix patches go immediately before the patch for their module.
+   After the last patch, the exception list holds only `dvr` and
+   `ha`, which are phase 4's.
+6. **Two batches.** The first five patches, plus any fix patches among
+   them, are the first batch. The last three are the second, published
+   when the first has merged. Each batch stays at or under five
+   typing changes. Fix patches are counted separately, because they
+   are bug fixes that happen to be found by the typing work.
+7. **No release notes on typing patches**, as in phase 2. Fix patches
+   get one each.
+
+### Verification scripts
+
+All run from the neutron worktree and exit non-zero on failure.
+
+`verify-typing-p1.sh` (phase 1's, unchanged) runs at every patch. Its
+part 2 proves each remaining exception is still needed, and its
+`ha.py` probe stays valid to the end.
+
+`check-each-commit.sh` runs `tox -e mypy` at every commit of the
+series and restores the branch:
+
+```bash
+#!/bin/bash
+set -u
+base=${1:?usage: check-each-commit.sh <base-sha>}
+head=$(git rev-parse --abbrev-ref HEAD)
+git diff --quiet && git diff --cached --quiet || { echo "FAIL: tree dirty"; exit 1; }
+fail=0
+for sha in $(git rev-list --reverse "$base"..HEAD); do
+    git checkout -q "$sha"
+    if .tox/mypy/bin/mypy --cache-dir=.tox/mypy/mypy_cache --no-pretty > /dev/null 2>&1; then
+        echo "ok: $(git log -1 --format='%h %s')"
+    else
+        echo "FAIL: $(git log -1 --format='%h %s')"; fail=1
+    fi
+done
+git checkout -q "$head"
+exit $fail
+```
+
+`check-p3-exceptions.sh` runs at the tip, and checks that the
+exception list is exactly phase 4's:
+
+```bash
+#!/bin/bash
+got=$(python3 -c '
+import tomllib
+for o in tomllib.load(open("pyproject.toml", "rb"))["tool"]["mypy"]["overrides"]:
+    if o.get("check_untyped_defs") is False:
+        print(" ".join(sorted(o["module"])))')
+want="neutron.agent.l3.dvr neutron.agent.l3.ha"
+[ "$got" = "$want" ] && echo "ok: exceptions are $got" || { echo "FAIL: exceptions are '$got'"; exit 1; }
+```
+
+### Steps
+
+| Step | Effort | Model | Isolation | Brief for sub-agent |
+|------|--------|-------|-----------|---------------------|
+| 3a | high | opus | none | In the neutron worktree, cut branch `typing-l3` from `typing-chain` (`0eb3009f56`). Write the override patch per Decision 2. Remove `dvr_router_base` and `dvr_snat_ns` from the exception list. Expect `tox -e mypy` to pass, `verify-typing-p1.sh` to exit 0, and `tox -e py3 -- neutron.tests.unit.agent.l3` and `tox -e pep8` to pass. Commit under the conventions, with the Change-Id from the hook. Create `neutron-agent-typing-l3/` per Decision 1, copying `neutron-agent-typing-base/config.yaml` and setting `release: master-neutron-agent-typing-l3`, `depends_on: neutron-agent-typing-base` and `repush: false`. Add the patch and message files and `ORDER`. Run `_build/test-apply.sh --skip-tests neutron-agent-typing-l3` and report whether it applied the typing-base series first. Leave kerbside-patches uncommitted. |
+| 3b | high | opus | none | The `router_info`, `l3_agent_extensions_manager`, `dvr_fip_ns` and `agent` patches, in that order, per Decisions 3 and 4, on 3a's commit. Before writing anything, report each `None`-until-initialised reader in those modules (`radvd`, `agent_gateway_port`, `process_monitor`) as reachable or not, with the call path. Stop if any is reachable, so the management session can approve a fix patch. Then one commit per module, each removing its module from the list. Run `verify-typing-p1.sh` at each commit, `tox -e py3 -- neutron.tests.unit.agent.l3` and `tox -e pep8` at each commit, and `check-each-commit.sh 61f6db5ac9` at the end. Add the patch files to the series. |
+| 3c | high | opus | none | The `dvr_edge_router` and `ha_router` patches, per Decisions 3 and 4, on 3b's tip. Report on the `ha_port`, `keepalived_manager`, `conntrackd_manager`, `snat_iptables_manager` and `snat_ports` readers first, starting with the three leads in the survey, and stop for approval of any fix patch as in 3b. For each approved fix: a unit test that fails without it, a release note, and a bug draft in `docs/neutron-agent-bugs-findings.md`. Then the typing patches. `dvr_edge_ha_router` must pass when `ha_router` leaves the list. Run the same checks as 3b, plus `tox -e py3 -- neutron.tests.unit.agent.l3.test_agent`. |
+| 3d | high | opus | none | The `dvr_local_router` patch, per Decisions 3 and 4, on 3c's tip, with the same reachability report and fix gate. The `fip_ns` readers are one family: decide reachability per caller of each reader, not per line. Any fix patch that edits `neutron/tests/unit/agent/l3/test_dvr_local_router.py` must also apply over patch 241. Check that with `git apply --check` on a branch with 241 applied, and report the result. Then the checks of 3b, and `check-p3-exceptions.sh` at the tip. |
+| 3e | low | sonnet | none | Read-only packaging checks. Run `tools/recount-patch.py --check`, `tools/check-depends-on.py --offline` and `tools/check-llm-attribution.py` on every new patch file. Run `_build/test-apply.sh --skip-tests neutron-agent-typing-l3` and `neutron-agent-typing-base`. Run `tools/gerrit-pre-push-lint --stack N` over the series. Run `check-each-commit.sh 61f6db5ac9` and `pre-commit run --all-files` here. Report each result, and fix nothing. |
+
+Steps run in order, because each builds on the previous step's tip in
+one worktree with shared tox environments.
+
+### Risks and mitigations
+
+- **Reviewers dislike the `RuntimeError` pattern.** It is the first
+  narrowing style in the tree. The back brief settles it before 3b, so
+  that at most the override patch has been written. If reviewers push
+  back on Gerrit, the accessor form means changing one method per
+  class, not 50 sites.
+- **A fix patch changes router lifecycle behaviour.** Unit tests run
+  locally. `neutron-functional` runs in Zuul when the batch is
+  uploaded, and its result is recorded in the execution notes. The
+  management session reviews every fix patch's diff and test, and
+  reproduces the test failing without the fix.
+- **The exception type changes from `AttributeError` or `TypeError` to
+  `RuntimeError`.** The only `except AttributeError` in the L3 agent's
+  code is `agent.py:1080`, in `_report_state`, which reads none of
+  these attributes. Each step greps the callers of each reader it
+  changes for narrower `except` clauses.
+- **`depends_on` has never been used here.** Step 3a proves
+  `test-apply` honours it before anything else depends on it. If it
+  does not, the fallback is the stacking rule: append to
+  `neutron-agent-typing-base/ORDER`, and hold the second batch by
+  keeping it out of `ORDER` until the first merges.
+- **mypy floats.** As before, a new release may flag something. Step
+  3e reruns at the tip.
+
+### Definition of done
+
+- [ ] `check-each-commit.sh 61f6db5ac9` exits 0 at the tip.
+- [ ] `verify-typing-p1.sh` exits 0 at every typing patch.
+- [ ] `check-p3-exceptions.sh` exits 0 at the tip.
+- [ ] `tox -e py3 -- neutron.tests.unit.agent.l3` and `tox -e pep8` pass at every patch.
+- [ ] Every fix patch's new test fails with the fix reverted. The step shows the revert run.
+- [ ] Every reader changed under Decision 3 is listed in its step's report, as reachable (with the fix patch) or unreachable (with the call path).
+- [ ] `_build/test-apply.sh --skip-tests neutron-agent-typing-l3` passes, and its log shows typing-base applied first.
+- [ ] `gerrit-pre-push-lint` reports no ERROR. The only WARNINGs are release-note warnings on typing patches.
+- [ ] `pre-commit run --all-files` passes.
+
+### Back brief
+
+Two gates before step 3a:
+
+1. Decision 1: is a held series with `depends_on` the right way to
+   stage this? The alternative is appending to
+   `neutron-agent-typing-base` and holding the second batch out of
+   `ORDER`.
+2. Decision 3: is the `RuntimeError` accessor the narrowing style to
+   set? The alternatives are inline guards everywhere, or `typing.cast`
+   for unreachable readers.
+
+A third gate falls inside steps 3b to 3d. Each step stops after its
+reachability report, before writing a fix patch, so the management
+session can check the call path.
 
 ## Phase 4 --- L3 agent, the two agent mixins
 
@@ -900,3 +1177,14 @@ as the changes are uploaded and reviewed.
   revised 237 to 240 and the new 247 need Mikal's repush of
   `neutron-dhcp-agent-fixes`. 248 goes up with 246 in
   `neutron-agent-typing-base`.
+- 2026-10-28 (AEDT): Phase 3 planned. Phases 1 and 2 are complete in
+  this repository and held, not merged, so their `Merged` cells stay
+  empty and there was no close-out commit. The survey ran `tox -e mypy`
+  with the nine phase 3 modules off the exception list on 246 and 248.
+  It confirmed the 69 errors, and sorted them into overrides (9),
+  attributes that are `None` until initialised (50), and others (10).
+  It corrected the master plan in four places. The `BaseRouterInfo`
+  overrides are the base class's fault, the extension manager is not a
+  bug, the import-memory topic does not touch the agents, and phase 3
+  is a held `depends_on` series rather than more lines in typing-base's
+  `ORDER`.
