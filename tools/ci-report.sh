@@ -117,6 +117,19 @@
 #                      collections differently and never logs this string,
 #                      hence the job filter
 #
+#   mariadb-service-check
+#                    - the service-check role failing a deploy or upgrade with
+#                      "The following mariadb containers are unhealthy",
+#                      shortly after the mariadb rolling restart and while
+#                      WSREP already reports the node Synced. service-check
+#                      was a silent no-op until kolla-ansible 991842 (and its
+#                      stable/2026.1 backport 1010920) fixed its filter on
+#                      2026-10-16, so this is an existing race that check
+#                      newly exposes, and the chart has no history before
+#                      then. No job filter: every scenario deploys mariadb,
+#                      and whether only the multinode mariadb jobs lose the
+#                      race is what the job_name column should answer
+#
 # Note on the fluentd-missing-logs denominator: fluentd-error.txt is only
 # published by builds that already failed this check, so on its own it would
 # chart a constant 100% hit rate. The second log suffix, fluentd/fluentd.txt,
@@ -147,6 +160,7 @@ if [ -z "${report}" ]; then
     echo "Usage: $0 <report>|all" >&2
     echo "Reports: libvirt-limit mariadb-ist wsrep-sync-fatal ovs-create-tap scheduler-unhealthy" >&2
     echo "         fluentd-missing-logs haproxy-layer7-timeout mariadb-collation ovn-metadata-agent-missing galaxy-install" >&2
+    echo "         mariadb-service-check" >&2
     exit 1
 fi
 
@@ -272,6 +286,17 @@ run_report() {
             chart_title='Ansible Galaxy collection install failures on master CI'
             fix_merged=''
             ;;
+        mariadb-service-check)
+            target='The following mariadb containers are unhealthy'
+            projects='openstack/kolla openstack/kolla-ansible'
+            # No job filter: which jobs lose the race is the question.
+            job_filter=''
+            suffixes='logs/ansible/deploy logs/ansible/upgrade'
+            basename='kolla_mariadb_service_check_errors'
+            chart='kolla_mariadb_service_check_chart.png'
+            chart_title='mariadb flagged unhealthy by service-check after the rolling restart on master CI'
+            fix_merged=''
+            ;;
         *)
             echo "Unknown report: ${name}" >&2
             exit 1
@@ -309,7 +334,7 @@ run_report() {
 if [ "${report}" = "all" ]; then
     for name in libvirt-limit mariadb-ist wsrep-sync-fatal ovs-create-tap scheduler-unhealthy \
                 fluentd-missing-logs haproxy-layer7-timeout mariadb-collation ovn-metadata-agent-missing \
-                galaxy-install; do
+                galaxy-install mariadb-service-check; do
         run_report "${name}"
     done
 else
