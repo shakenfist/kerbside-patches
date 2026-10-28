@@ -15,15 +15,16 @@ than a flood.
 
 | Phase | What | Status | Merged |
 |-------|------|--------|--------|
-| 1 | Measure in tox, then enable `check_untyped_defs` for the modules that already pass (`neutron-agent-typing-base`) | Not started | |
+| 1 | Enable `check_untyped_defs` for the L3 and DHCP agent packages, with the modules that fail listed as exceptions (`neutron-agent-typing-base`) | Not started | |
 | 2 | DHCP agent: interface return annotations and the remaining errors (`neutron-agent-typing-dhcp`) | Not started | |
-| 3 | L3 agent, the single-inheritance files (`neutron-agent-typing-l3`) | Not started | |
-| 4 | L3 agent, the mixin files (`neutron-agent-typing-l3-mixins`) | Proposed | |
+| 3 | L3 agent, the router and namespace classes (`neutron-agent-typing-l3`) | Not started | |
+| 4 | L3 agent, the two agent mixins (`neutron-agent-typing-l3-mixins`) | Proposed | |
 | 5 | Push audit | Not started | |
 
-Phase 1 is the only one with a fixed shape. Phases 2 to 4 are sized
-from a scratch measurement (see Situation) and each one is re-planned
-from the previous phase's `tox -e pep8` output before its steps run.
+Phase 1 is planned in detail below. Phases 2 to 4 are sized from the
+tox measurement taken while planning phase 1 (see Situation) and each
+one is re-planned from the previous phase's `tox -e pep8` output
+before its steps run.
 
 ## Situation
 
@@ -55,34 +56,37 @@ the same base as [neutron-agent-bugs](neutron-agent-bugs.md), on
   is therefore narrow: return annotations on the driver and router
   interfaces, plus `check_untyped_defs`, would have caught two real
   bugs in code that has had no annotations for a decade.
-- **The backlog is small and lopsided.** With `check_untyped_defs`
-  on, `import-untyped` and `var-annotated` still disabled, and a
-  scratch venv that has mypy, oslo.config, oslo.utils and neutron-lib
-  but not the rest of neutron's requirements, the agent tree reports
-  130 errors in 30 files; 53 files are already clean, 19 of them in
-  `agent/l3` and `agent/dhcp`. The three mixin-heavy L3 files hold
-  126 of the errors when run alone (`ha_router.py` 51,
-  `dvr_local_router.py` 41, `ha.py` 34); the DHCP agent and its
-  driver hold 15 (`agent/dhcp/agent.py` 8, `linux/dhcp.py` 7); the
-  rest of `agent/l3` holds under 70 spread over nine files, none above
-  13. The counts move with which modules are analysed together and
-  with which dependencies resolve, so phase 1 re-measures inside the
-  tox environment before anything is written.
+- **The backlog is small and lopsided.** Measured in neutron's own
+  `tox -e mypy` environment (mypy 2.4.0, every requirement installed)
+  with `check_untyped_defs` turned on for `neutron.agent.*`, the agent
+  tree reports 221 errors and nothing outside `neutron/agent` changes.
+  In `agent/l3` and `agent/dhcp` it is 101 errors in 13 of 32
+  modules; the other 19 are already clean. The two largest router
+  classes hold 46 (`dvr_local_router.py` 24, `ha_router.py` 22, all
+  `union-attr`, `index` and `override`); the two agent mixins hold 29
+  (`ha.py` 22, `dvr.py` 7), 27 of them mixin-shaped; the other eight
+  L3 files hold 23, none above 5; the DHCP agent holds 3. Outside
+  those packages the DHCP driver, `linux/dhcp.py`, holds 4, and the
+  rest of `neutron/agent` fails in 34 of 114 files. An earlier
+  scratch venv without neutron's requirements gave higher counts
+  (130 for the agent tree), because unresolved imports turn into
+  `Any | None` unions; the tox figures replace them.
 - **Two populations of error.** About half are `union-attr` and
   `index` on values that came from `dict.get()` or an attribute that
   may be `None` (`Item "None" of "Any | None" has no attribute
   "get_name"`, `Value of type "Any | None" is not indexable`). Each
   one is either a real latent crash or a missing narrowing, and
   deciding which is the useful work. The other large block is
-  `attr-defined` and `call-arg` from the mixin style:
+  `attr-defined` and `call-arg` from the mixin style, and it is
+  confined to the two agent mixins, `ha.py` and `dvr.py`:
   `AgentMixin.__init__` calling `super().__init__(host)` and reading
   `self.conf` it never defines. Those are false positives for the
   code as written and need either a `Protocol` describing what the
   mixin expects of its host or a targeted ignore, and either choice
   is a style discussion with the core team. The `override` errors are
-  real signature drift (`Namespace.create` versus `DvrSnatNamespace`,
-  `FipNamespace` and `HaRouterNamespace`; `BaseRouterInfo.delete`
-  versus `RouterInfo.delete`).
+  real signature drift: `Namespace.create` versus
+  `DvrSnatNamespace`, `FipNamespace` and `HaRouterNamespace`, and
+  `BaseRouterInfo.delete` and `process` versus five router classes.
 - **Precedents.** Nova runs `check_untyped_defs = true` over an
   explicit file list in `pyproject.toml` and grows the list. Neutron
   already points mypy at the whole tree, so its equivalent is a
@@ -115,14 +119,15 @@ the plan must say so for each series before Mikal repushes:
   repeating it has confused reviewers before. The `config.yaml`
   `depends_on` field stays empty: that
   field names another series in this repository, not a Gerrit change.
-- **Phase 3 overlaps 1012621 textually.** Patch 241 rewrites
-  `dvr.py:21-43` (`get_fip_ns` and the lock) and the scratch run's
-  `dvr.py` errors sit at lines 24, 36 to 38, 44 and 48, inside or
-  beside those hunks. A phase 3 patch for `dvr.py` written against
-  master would conflict with 241 in Gerrit, so it is authored on top
-  of 1012621 and the phase 3 root carries `Depends-On:` for it unless
-  it has merged. `item_allocator.py` (1012622) is already clean and is
-  not touched. `dvr_fip_ns.py` is touched by neither 241 nor 242.
+- **Phase 4 overlaps 1012621 textually.** Patch 241 rewrites
+  `dvr.py:21-43` (`get_fip_ns` and the lock), and every one of
+  `dvr.py`'s seven errors sits at lines 24, 36 to 38, 44 and 48,
+  inside or beside those hunks. All seven are `AgentMixin` attribute
+  reads, so `dvr.py` belongs to phase 4, which is already held until
+  the `dvr-fip-ns-locking` topic merges; if it has not, phase 4 is
+  authored on top of 1012621 with a `Depends-On:` for it.
+  `item_allocator.py` (1012622) is already clean, and phase 3's files
+  are touched by neither 241 nor 242.
 - **Both agents' `agent.py` are touched by the import-memory topic**
   (1012169, 1012170, 1012182, tracked in
   [privsep-memory](privsep-memory.md)) and by the merged
@@ -131,10 +136,11 @@ the plan must say so for each series before Mikal repushes:
   authoring time by applying the phase's series over those changes'
   current revisions; if it conflicts, the same Depends-On rule
   applies.
-- **Phase 1 depends on nothing.** It changes `pyproject.toml` only
-  and names modules the in-flight changes do not touch, which is one
-  reason it goes first and can be pushed while the agent-bugs topics
-  are still in review.
+- **Phase 1 depends on nothing, and nothing depends on it.** It
+  changes `pyproject.toml` only. Of the files the nine agent-bugs
+  changes touch, only `item_allocator.py` (1012622) becomes checked,
+  and with all nine applied the phase 1 configuration still passes,
+  so the two topics can merge in either order.
 
 `tools/check-depends-on.py` (offline in pre-commit, online by hand)
 validates the footers; run it online once before each repush so an
@@ -159,16 +165,16 @@ neutron-lib; the OVN agent and the OVS agent (`agent/l2`,
 
 ## Open questions
 
-- **Override versus allowlist.** Default: `[[tool.mypy.overrides]]`
-  blocks with `module = [...]` and `check_untyped_defs = true`, one
-  block, modules listed alphabetically, next to the existing
-  "gradually enable" comment. An explicit `files` list, as nova has,
-  would narrow what is checked today and is the wrong direction for a
-  tree that already runs mypy everywhere.
+- **Override versus allowlist.** Settled in phase 1's Decision 1:
+  turn `check_untyped_defs` on by package wildcard and list the
+  failing modules in a second override that turns it off again. An
+  explicit `files` list, as nova has, would narrow what is checked
+  today and is the wrong direction for a tree that already runs mypy
+  everywhere.
 - **Mixins.** Default: phase 4 is `Proposed` until phases 1 to 3 have
   had review. If reviewers are warm, offer a `Protocol` for the agent
-  attributes the L3 mixins read; if not, exclude the three files by
-  name in the override comment and stop there. Do not open the
+  attributes the two L3 agent mixins read; if not, leave `ha.py` and
+  `dvr.py` on the exception list with a comment and stop there. Do not open the
   question on Gerrit before there is a merged phase to point at.
 - **How much to annotate.** Default: return types on the base-class
   and driver interfaces (`DhcpBase`, `Namespace`, `BaseRouterInfo`,
@@ -215,54 +221,275 @@ neutron-lib; the OVN agent and the OVS agent (`agent/l2`,
 - Leave the work uncommitted in this repository; the management
   session reviews and commits each step.
 
-## Phase 1 --- measure, then enable what already passes
+## Phase 1 --- check untyped bodies in the L3 and DHCP agents
 
-Series `neutron-agent-typing-base/`, one patch (246), neutron worktree
-`neutron-typing-base` at `source_sha`.
+Series `neutron-agent-typing-base/`, one patch (246), Gerrit topic
+`agent-typing`, against neutron `61f6db5ac9`. Branch
+`neutron-agent-typing-phase-1` in worktree
+`kerbside-patches-wt-agent-typing-p1`, stacked on `neutron-agent-bugs`
+because that unpushed branch holds this plan and patches 237 to 245.
+If `neutron-agent-bugs` merges to `develop` first, rebase onto
+`develop`; nothing here touches its files.
+
+Planning effort: high. The patch is a configuration change, but its
+shape decides how every later phase reads to upstream reviewers. The
+steps themselves are low and medium effort because the configuration
+below is final and verified.
+
+### What the survey found
+
+Surveyed 2026-10-28 in the management session. The master plan's
+Situation, Dependencies and phase 2 to 4 sections were corrected at
+source in the same commit as this section, so later steps need not
+redo it.
+
+- **Upstream has not moved.** `upstream/master` is still `61f6db5ac9`.
+- **Baseline passes.** `tox -e mypy` at `61f6db5ac9`: `Success: no
+  issues found in 1196 source files`, mypy 2.4.0, about 6 s of mypy
+  time once the environment exists. It also prints one note, at
+  `router_info.py:65`, "By default the bodies of untyped functions are
+  not checked, consider using --check-untyped-defs
+  [annotation-unchecked]". mypy is not pinned: upper-constraints
+  carries only `mypy_extensions`, so every pep8 run takes the latest
+  release.
+- **The tox counts replace the scratch counts.** With
+  `check_untyped_defs` on for `neutron.agent.*` in the tox
+  environment: 101 errors in 13 of the 32 modules in `agent/l3` and
+  `agent/dhcp`. The scratch venv the master plan was first written
+  from overstated them. The figures and the corrected phase 3/4 split
+  are in the master plan's Situation.
+- **The override shape works, and is verified by script.** A wildcard
+  override turning `check_untyped_defs` on for both packages, plus a
+  concrete-name override turning it off for the failing modules,
+  passes. mypy's documented rule that concrete module names beat
+  wildcards holds in practice. A probe added to an untyped body fails
+  in `item_allocator.py`, `extensions/qos/fip.py`,
+  `agent/dhcp/__init__.py` and in a new module, and passes in `ha.py`
+  (excepted) and `linux/utils.py` (out of scope).
+- **The exception list is 12 modules, not 13.**
+  `dvr_edge_ha_router.py` reports one error when everything is
+  checked, but passes once `ha_router.py` is excepted. Its error comes
+  from an attribute type mypy infers only by checking `ha_router.py`'s
+  bodies. So removing a module from the list can surface errors in
+  another module, and each later removal patch has to run the whole
+  of mypy, not just look at its own file.
+- **The in-flight agent-bugs changes do not interact.** With all nine
+  applied (237 to 245) and the final configuration, mypy passes.
+  `item_allocator.py`, which 1012622 changes, becomes checked and
+  stays clean.
+- **Upstream is already looking at this code's typing.** Brian Haley's
+  open change 1011933 ("Tweak BaseRouterInfo mypy annotation",
+  2026-10-22, his own Review-Priority+1, no code review yet) moves
+  `internal_ports: list[dict]` to class level to silence the
+  `annotation-unchecked` note. It touches only `router_info.py`, which
+  is on the exception list, so there is no conflict, and the note
+  stays until either 1011933 merges or phase 3 clears `router_info.py`.
+  Stephen Finucane moved mypy into tox (982004, 517a51bb30). Those two
+  are the natural reviewers.
+- **`pyproject.toml` churns, but not here.** About thirty merged
+  changes touched it in the last year, mostly entry points and ruff
+  configuration. Patch 246 inserts between the end of `[tool.mypy]`
+  and the `[tool.ruff]` header, and only the `[tool.ruff]` and
+  `line-length` lines of its trailing context are near anyone else's
+  edits. The daily rebase handles a context shift.
 
 ### Decisions
 
-1. **Measure inside tox first.** `tox -e pep8` with a temporary
-   override enabling `check_untyped_defs` for all of `neutron.agent.*`
-   gives the real per-file counts with neutron's dependencies
-   installed. The step records the counts in the execution notes and
-   replaces the scratch numbers in this plan's Situation if they
-   differ by more than a handful per file. This is the input phases 2
-   to 4 are planned from.
-2. **Patch 246 enables the clean modules and nothing else.** One
-   `[[tool.mypy.overrides]]` block listing every `neutron.agent.l3.*`
-   and `neutron.agent.dhcp.*` module (and `neutron.agent.l3.extensions.*`)
-   that reports zero errors in the tox measurement, with
-   `check_untyped_defs = true`. No code change. The commit message
-   says what the override does, that the listed modules already pass,
-   and that later changes will add modules as they are made to pass.
-   Subject: "mypy: Check untyped function bodies in the clean agent
-   modules".
-3. **Scope stays at `agent/l3` and `agent/dhcp`** for this patch even
-   though 34 other `agent/` modules are also clean; adding them later
-   is a one-line change each and keeps this patch about the two
-   agents the series is for.
+1. **Wildcard on, exceptions off.** This departs from the master
+   plan's first outline, which listed the clean modules. Patch 246
+   enables `check_untyped_defs` for `neutron.agent.dhcp.*` and
+   `neutron.agent.l3.*` and turns it off again for the twelve modules
+   that fail. A new module in either package is checked from its
+   first commit, which an allowlist cannot do. The exception list is
+   the to-do list, and every later patch in this plan shows as a
+   deleted line in it. It is also the shorter list (12 against 20).
+   This is the decision a reviewer is most likely to argue with, from
+   either side: "use an allowlist like nova" or "why not all of
+   `neutron.agent`". The answer to the first is the new-module point.
+   The second is a 34-entry exception list, offered as a follow-up if
+   asked, not pre-empted.
+2. **Scope is the two packages.** `neutron/agent/linux/dhcp.py`, the
+   DHCP driver, is phase 2's because it sits in `neutron.agent.linux`,
+   whose other 30-odd failing modules are out of this plan's scope.
+   Phase 2 adds it by name to the first override.
+3. **No code changes in patch 246, not even the one-error modules.**
+   `dvr_snat_ns.py` and `dvr_router_base.py` each have one `override`
+   error that is a real signature mismatch with its base class. Fixing
+   them here would turn a one-minute configuration review into a
+   design review. They are phase 3's first patches.
+4. **The configuration is final.** It is the block below, verified by
+   the script below at `61f6db5ac9`. It goes directly after the
+   `exclude = "(?x)(^neutron/tests/$)"` line that ends `[tool.mypy]`,
+   with one blank line before it and one before `[tool.ruff]`:
+
+   ```toml
+   # Check the bodies of unannotated functions in the L3 and DHCP agents.
+   # Modules are removed from the second list as they are made to pass;
+   # new modules in these packages are checked from the start.
+   [[tool.mypy.overrides]]
+   module = ["neutron.agent.dhcp.*", "neutron.agent.l3.*"]
+   check_untyped_defs = true
+
+   [[tool.mypy.overrides]]
+   module = [
+       "neutron.agent.dhcp.agent",
+       "neutron.agent.l3.agent",
+       "neutron.agent.l3.dvr",
+       "neutron.agent.l3.dvr_edge_router",
+       "neutron.agent.l3.dvr_fip_ns",
+       "neutron.agent.l3.dvr_local_router",
+       "neutron.agent.l3.dvr_router_base",
+       "neutron.agent.l3.dvr_snat_ns",
+       "neutron.agent.l3.ha",
+       "neutron.agent.l3.ha_router",
+       "neutron.agent.l3.l3_agent_extensions_manager",
+       "neutron.agent.l3.router_info",
+   ]
+   check_untyped_defs = false
+   ```
+
+5. **The commit message is fixed too.** It cites no bug, carries no
+   Depends-On and needs no release note, because it changes developer
+   tooling only:
+
+   ```
+   mypy: Check untyped function bodies in the L3 and DHCP agents
+
+   mypy does not look inside a function that has no annotations, and
+   almost nothing in the L3 and DHCP agents has any, so mypy checks very
+   little of either agent today.
+
+   Turn on check_untyped_defs for both packages, so that new modules are
+   checked from the start, and list the twelve modules that do not pass
+   yet as exceptions, to be removed as their errors are fixed.
+
+   Assisted-By: Claude Sonnet 5.5 (medium effort)
+   Change-Id: <from tools/commit-msg.hook>
+   Signed-off-by: Michael Still <mikal@stillhq.com>
+   ```
+
+6. **Publishing.** Patch 246 has no dependencies and can be pushed as
+   soon as Mikal has reviewed it, alongside the agent-bugs topics.
+   Adding Brian Haley and Stephen Finucane as reviewers is Mikal's
+   call at upload. If a reviewer asks a design question, answer it in
+   a comment. Do not mark the change WIP.
+
+### Verification script
+
+Run from the neutron worktree after `tox -e mypy` has built
+`.tox/mypy`. It leaves the tree as it found it, exits 0 only if every
+expectation holds, and takes about two minutes. It was run against the
+configuration above while planning and passed. The authoring step
+saves it as `verify-typing-p1.sh` beside the worktree, not inside it.
+
+```bash
+#!/bin/bash
+# Phase 1 verification for neutron-agent-typing.
+set -u
+MYPY=".tox/mypy/bin/mypy --cache-dir=.tox/mypy/mypy_cache --no-pretty"
+fail=0
+passes() { $MYPY > /dev/null 2>&1; }
+
+passes || { echo "FAIL: mypy does not pass on the unmodified tree"; exit 1; }
+echo "ok: clean tree passes"
+
+# 1. A probe in an untyped body must fail in checked modules and a new
+#    module, and pass in an excepted module and an out-of-scope one.
+probe='\n\ndef _mutation_probe(x):\n    y = None\n    return y.missing_attribute\n'
+expect() {  # expect <fail|pass> <file>
+    local want=$1 f=$2 new=0
+    [ -e "$f" ] || new=1
+    [ $new = 1 ] || cp "$f" "$f.verify-bak"
+    printf "$probe" >> "$f"
+    if passes; then got=pass; else got=fail; fi
+    if [ $new = 1 ]; then rm -f "$f"; else mv "$f.verify-bak" "$f"; fi
+    if [ "$got" = "$want" ]; then echo "ok: probe in $f -> $got"
+    else echo "FAIL: probe in $f -> $got, wanted $want"; fail=1; fi
+}
+expect fail neutron/agent/l3/item_allocator.py
+expect fail neutron/agent/l3/extensions/qos/fip.py
+expect fail neutron/agent/dhcp/__init__.py
+expect fail neutron/agent/l3/verify_new_module_probe.py
+expect pass neutron/agent/l3/ha.py
+expect pass neutron/agent/linux/utils.py
+
+# 2. Every module on the exception list must still need to be there:
+#    dropping it alone makes mypy fail.
+cp pyproject.toml pyproject.toml.verify-bak
+for m in $(python3 -c '
+import tomllib
+for o in tomllib.load(open("pyproject.toml", "rb"))["tool"]["mypy"].get("overrides", []):
+    if o.get("check_untyped_defs") is False:
+        print(*o["module"])'); do
+    grep -v "^    \"$m\",\$" pyproject.toml.verify-bak > pyproject.toml
+    if passes; then echo "FAIL: $m is excepted but passes"; fail=1
+    else echo "ok: $m still needs its exception"; fi
+done
+mv pyproject.toml.verify-bak pyproject.toml
+git status --short | grep -q . && { echo "FAIL: tree left modified"; git status --short; fail=1; }
+exit $fail
+```
 
 ### Steps
 
 | Step | Effort | Model | Isolation | Brief for sub-agent |
 |------|--------|-------|-----------|---------------------|
-| 1a | medium | sonnet | none | In `neutron-typing-base`, add a temporary override enabling `check_untyped_defs` for `neutron.agent.*`, run `tox -e pep8`, and report errors per file and per error code for `agent/l3`, `agent/dhcp` and `agent/linux/dhcp.py`. Save the raw output under the plan's scratch area. Revert the temporary override. |
-| 1b | low | sonnet | none | Patch 246 per Decision 2 using 1a's zero-error list. `tox -e pep8` must pass. Series directory, patch file, checks per Conventions. |
+| 1a | medium | sonnet | none | Author patch 246 in a neutron worktree at `61f6db5ac9`. Use `/tmp/claude-1000/-srv-kasm-profiles-mikal-vscode-src-reviews-neutron/01456ce4-0983-482a-85e0-d244c0f7cd34/scratchpad/neutron-typing-base` if it still exists (detached at `61f6db5ac9`, clean, `.tox/mypy` built). Otherwise create one with `git -C /srv/kasm_profiles/mikal/vscode/src/reviews/neutron worktree add --detach <path> 61f6db5ac91caa9e5d83e71dc1b3ec31d0611e8e` and run `tox -e mypy`. A tox environment does not survive `git worktree move`; rebuild it with `rm -rf .tox && tox -e mypy`. First check `git -C /srv/kasm_profiles/mikal/vscode/src/reviews/neutron fetch upstream` and report if `upstream/master` has moved past `61f6db5ac9` and touched `pyproject.toml` or `neutron/agent/l3`/`dhcp`. If it has, stop and report rather than adapting. Insert Decision 4's block verbatim into `pyproject.toml` after the `exclude = ...` line. Run `tox -e mypy` and expect `Success: no issues found in 1196 source files`. Write Decision 5's message to a file, run the kerbside-patches `tools/commit-msg.hook` over it to add the Change-Id, keep the footer order shown, and `git commit -F` it as Michael Still <mikal@stillhq.com>. Only then save the plan's verification script beside the worktree and run it from inside the worktree, expecting exit 0. It fails on a dirty tree by design. Run `tox -e pep8` once and expect it to pass. Report the sha, the last lines of the two tox runs verbatim, and the full verification script output. |
+| 1b | low | sonnet | none | Package patch 246 in `/srv/kasm_profiles/mikal/vscode/src/shakenfist/kerbside-patches-wt-agent-typing-p1`. Run `git -C <neutron worktree> show <1a sha> > _patches/patch246-neutron-master-mypy-check-untyped-agent-defs.patch`, then `python3 tools/extract-commit-message _patches/patch246-...patch`. Create `neutron-agent-typing-base/config.yaml` copied from `neutron-test-switch-interval/config.yaml`, with `destination_branch: agent-typing` and `release: master-neutron-agent-typing-base`, keeping both SHAs at `61f6db5ac91caa9e5d83e71dc1b3ec31d0611e8e`, `depends_on: ''` and `repush: true`. Create `neutron-agent-typing-base/ORDER` with the single line `../_patches/patch246-neutron-master-mypy-check-untyped-agent-defs.patch`, matching `neutron-test-switch-interval/ORDER`. Run `tools/recount-patch.py --check`, `tools/check-depends-on.py --offline` and `tools/check-llm-attribution.py` on the new files. Run `_build/test-apply.sh --skip-tests neutron-agent-typing-base`, `tools/gerrit-pre-push-lint --commit` from inside the neutron worktree, and `pre-commit run --all-files` here. Leave everything uncommitted. Report each command's result. |
+
+The management session then reviews the diff, records the execution
+note (patch sha, verification output, any upstream drift) and commits
+it as "Add the neutron agent mypy base series." Phase 1's Status row
+moves to `Complete` with that commit, because nothing here lands
+until Mikal's repush, and its upstream fate is tracked in the
+`Merged` cell.
+
+### Risks and mitigations
+
+- **A new mypy release flags a newly checked module.** mypy floats
+  with every pep8 run, so this would break pep8 for every neutron
+  change, not just ours. The likelihood is low: the 20 newly checked
+  modules are small and pass under 2.4.0. The fix is adding one line
+  to the exception list, which the comment above it explains, so
+  anyone can write it and the impact stays small. Mitigation: after patch 246
+  merges, the next agent-typing patch runs the verification script,
+  and Mikal's routine Zuul triage would see a pep8 break on his other
+  neutron changes.
+- **Upstream moves before upload.** A neutron change could make an
+  excepted module pass or a checked one fail. Step 1a stops if the
+  relevant files moved. Before the repush, Mikal or the session reruns
+  the verification script against current master, and part 2 of it
+  catches a stale exception.
+- **Reviewers want a different shape.** Decision 1 gives the answer
+  for both directions. The other shape is a five-minute revision,
+  with the same script, which reads its list from `pyproject.toml`.
+- **1011933 merges first.** Nothing changes for patch 246:
+  `router_info.py` stays excepted. The note disappears, which only
+  makes the patch's commit message slightly less obviously motivated.
 
 ### Definition of done
 
-- [ ] 1a's counts are in the execution notes and the Situation is corrected if needed.
+- [ ] `tox -e mypy` at patch 246 prints `Success: no issues found in 1196 source files` (or the then-current count, explained in the execution note).
+- [ ] The verification script exits 0 at patch 246, and its output is in the execution note.
 - [ ] `tox -e pep8` passes at patch 246.
+- [ ] The patch changes `pyproject.toml` only: `grep '^+++ ' _patches/patch246-*.patch` shows exactly one file.
 - [ ] `_build/test-apply.sh --skip-tests neutron-agent-typing-base` passes.
-- [ ] `tools/gerrit-pre-push-lint --commit` in the worktree reports no ERROR or WARNING.
+- [ ] `tools/gerrit-pre-push-lint --commit` in the neutron worktree reports no ERROR or WARNING.
 - [ ] `pre-commit run --all-files` passes in this repository.
+
+### Back brief
+
+No gate. The configuration and the message are fixed above, so
+reviewing this plan is the design review. If Mikal wants the
+allowlist shape or the agent-wide scope instead, that is a change to
+Decision 1 before step 1a runs, not during it.
 
 ## Phase 2 --- DHCP agent
 
 Series `neutron-agent-typing-dhcp/`, two or three patches, worktree
 `neutron-typing-dhcp` at `source_sha` or at the 1012618 revision per
-the Dependencies section. Re-planned from 1a's counts before it runs.
+the Dependencies section. Re-planned from the then-current tox counts
+before it runs.
 
 ### Decisions
 
@@ -274,11 +501,14 @@ the Dependencies section. Re-planned from 1a's counts before it runs.
    them it is the demonstration that the check works, which the
    commit message says in one sentence, citing the two changes.
 2. **Then the bodies.** Patch two fixes whatever `check_untyped_defs`
-   reports in `agent/dhcp/agent.py` and `agent/linux/dhcp.py` (8 and 7
-   in the scratch run, mostly `union-attr` on `self.conf` and `.get()`
-   results) by narrowing, not by ignores, and adds both modules to the
-   override. A finding that is a real bug becomes its own patch ahead
-   of this one, with a bug draft.
+   reports in `agent/dhcp/agent.py` and `agent/linux/dhcp.py` (3 and 4
+   in the tox measurement: an `override` on `get_ports`, a `.get()`
+   result used unchecked, `re.match` results used unchecked, and the
+   `DictModel` attribute magic) by narrowing, not by ignores. It
+   removes `neutron.agent.dhcp.agent` from phase 1's exception list
+   and adds `neutron.agent.linux.dhcp` to the checked list. A finding
+   that is a real bug becomes its own patch ahead of this one, with a
+   bug draft.
 3. **Gating.** Not published until the `dhcp-agent-fixes` topic has
    merged or carries the Depends-On footers above.
 
@@ -295,14 +525,19 @@ two steps for the patches plus one for the series directory.
 - [ ] `_build/test-apply.sh --skip-tests neutron-agent-typing-dhcp` passes; `tools/check-depends-on.py` run online reports nothing.
 - [ ] `pre-commit run --all-files` passes in this repository.
 
-## Phase 3 --- L3 agent, single-inheritance files
+## Phase 3 --- L3 agent, the router and namespace classes
 
 Series `neutron-agent-typing-l3/`, one patch per file or small group,
-smallest first from 1a's counts: `router_info.py`, `dvr_fip_ns.py`,
-`dvr_snat_ns.py`, `dvr_router_base.py`, `l3_agent_extensions_manager.py`,
-`agent.py`, `dvr.py` (on top of 1012621), `dvr_edge_router.py`.
-Published in batches of at most five with the next batch held until
-the previous has merged.
+smallest first from the tox measurement: `dvr_snat_ns.py` (1),
+`dvr_router_base.py` (1), `dvr_edge_ha_router.py` (1),
+`router_info.py` (3), `dvr_fip_ns.py` (3),
+`l3_agent_extensions_manager.py` (4), `agent.py` (5),
+`dvr_edge_router.py` (5), `ha_router.py` (22) and
+`dvr_local_router.py` (24). The `override` fixes to `Namespace.create`
+and `BaseRouterInfo.delete` and `process` cut across several files and
+go first as their own patches. Each patch removes its modules from
+phase 1's exception list. Published in batches of at most five with
+the next batch held until the previous has merged.
 
 ### Decisions
 
@@ -328,15 +563,16 @@ adds `tox -e py3 -- neutron.tests.unit.agent.l3` at the tip and
 `tox -e functional -- neutron.tests.functional.agent.l3` for any fix
 patch that touches namespace or router lifecycle.
 
-## Phase 4 --- L3 agent, the mixin files
+## Phase 4 --- L3 agent, the two agent mixins
 
-`ha.py`, `ha_router.py`, `dvr_local_router.py` and
-`dvr_edge_ha_router.py`. Proposed only. The open question above
-decides whether this becomes a `Protocol` series or an explicit
-exclusion with a comment, and it is not planned until the core team
-has reviewed at least one of phases 2 and 3. Either way the series is
-authored after the `dvr-fip-ns-locking` topic has merged, because
-`dvr_local_router.py` is where `get_fip_ns` is called.
+`ha.py` (`AgentMixin` for HA, 22 errors, 20 mixin-shaped) and
+`dvr.py` (`AgentMixin` for DVR, 7 errors, all mixin-shaped). Proposed
+only. The open question above decides whether this becomes a
+`Protocol` series or a permanent place on the exception list with a
+comment, and it is not planned until the core team has reviewed at
+least one of phases 2 and 3. Either way the series is authored after
+the `dvr-fip-ns-locking` topic has merged, because 1012621 rewrites
+the lines of `dvr.py` that carry its errors.
 
 ## Phase 5 --- push audit
 
@@ -355,3 +591,15 @@ as the changes are uploaded and reviewed.
   Counts shifted between a run over the L3/DHCP files alone (106
   errors) and one over all of `neutron/agent` (130), which is why
   phase 1 measures again in tox before anything is written.
+- 2026-10-28 (AEDT): Phase 1 planned in detail after a survey in
+  neutron's own tox environment, done in the planning session rather
+  than as a step because the patch's content depends on it entirely.
+  The tox counts replaced the scratch ones in Situation. The survey
+  moved `ha_router.py` and `dvr_local_router.py` from phase 4 to
+  phase 3, because their errors are ordinary narrowing and override
+  errors, and moved `dvr.py` from phase 3 to phase 4, because all its
+  errors are mixin attribute reads. It also replaced phase 1's
+  allowlist with a wildcard and an exception list (phase 1, Decision
+  1). Survey worktree:
+  `/tmp/claude-1000/-srv-kasm-profiles-mikal-vscode-src-reviews-neutron/01456ce4-0983-482a-85e0-d244c0f7cd34/scratchpad/neutron-typing-base`
+  (session scratch, may not survive the session).
