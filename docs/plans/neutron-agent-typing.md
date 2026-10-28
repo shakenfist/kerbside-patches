@@ -16,7 +16,7 @@ than a flood.
 | Phase | What | Status | Merged |
 |-------|------|--------|--------|
 | 1 | Enable `check_untyped_defs` for the L3 and DHCP agent packages, with the modules that fail listed as exceptions (`neutron-agent-typing-base`) | Complete | |
-| 2 | DHCP agent: driver return annotations on the `dhcp-agent-fixes` chain, body checks on the `agent-typing` chain, and two fixes to that chain the survey found | Not started | |
+| 2 | DHCP agent: driver return annotations on the `dhcp-agent-fixes` chain, body checks on the `agent-typing` chain, and two fixes to that chain the survey found | Complete | |
 | 3 | L3 agent, the router and namespace classes (`neutron-agent-typing-l3`) | Not started | |
 | 4 | L3 agent, the two agent mixins (`neutron-agent-typing-l3-mixins`) | Proposed | |
 | 5 | Push audit | Not started | |
@@ -893,3 +893,10 @@ as the changes are uploaded and reviewed.
   248, and `verify-typing-p1.sh` passes with 11 exceptions. 246 and 248
   cherry-picked onto the DHCP chain with 247 also pass: mypy succeeds
   and 310 tests pass.
+- 2026-10-28 (AEDT): Phase 2 complete. Step 2d's read-only checks all
+  passed. Every patch file matches its neutron commit, and the
+  Change-Ids of 237 to 240 still resolve to 1012616 to 1012619. The
+  only lint warnings are the two accepted release-note warnings. The
+  revised 237 to 240 and the new 247 need Mikal's repush of
+  `neutron-dhcp-agent-fixes`. 248 goes up with 246 in
+  `neutron-agent-typing-base`.
