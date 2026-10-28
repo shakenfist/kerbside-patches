@@ -879,3 +879,10 @@ as the changes are uploaded and reviewed.
   annotations, and found two defects in the `dhcp-agent-fixes` chain
   (`restart` in 239, test isolation exposed by 237), which phase 2's
   step 2a fixes if the back brief agrees.
+- 2026-10-28 (AEDT): Phase 2 step 2b. Patch 247 is neutron `aa8f056ce4`
+  on the rebuilt chain. `gerrit-pre-push-lint --stack 5` gives one
+  WARNING on it, "no release note found", where the definition of done
+  asks for none. It is accepted, not fixed: the change has no
+  user-visible effect, and none of neutron's own typing changes
+  (3d42164244, 3f29ba5cdf, e163bb5b6c, 517a51bb30) carries a release
+  note.

@@ -1,0 +1,88 @@
+commit aa8f056ce45083928876820f5888c505dfa484bb
+Author: Michael Still <mikal@stillhq.com>
+Date:   Wed Oct 28 15:18:42 2026 +1100
+
+    dhcp: Annotate the DHCP driver's return types
+    
+    mypy only checks return statements in functions that declare a return
+    type. Annotating the DhcpBase and DhcpLocalProcess entry points makes
+    it check their bodies against the declared types.
+    
+    Without the two preceding fixes in this series, this change makes mypy
+    report both missing returns.
+    
+    Assisted-By: Claude Sonnet 5.5 (medium effort)
+    Change-Id: I87cc595288c96004119935f1cfa9d1729f5e1a98
+    Signed-off-by: Michael Still <mikal@stillhq.com>
+
+diff --git a/neutron/agent/linux/dhcp.py b/neutron/agent/linux/dhcp.py
+index fd7d893783..982d9b3442 100644
+--- a/neutron/agent/linux/dhcp.py
++++ b/neutron/agent/linux/dhcp.py
+@@ -185,25 +185,25 @@ class DhcpBase(metaclass=abc.ABCMeta):
+         self.segment = segment
+ 
+     @abc.abstractmethod
+-    def enable(self):
++    def enable(self) -> bool:
+         """Enables DHCP for this network."""
+ 
+     @abc.abstractmethod
+-    def disable(self, retain_port=False, block=False, **kwargs):
++    def disable(self, retain_port=False, block=False, **kwargs) -> None:
+         """Disable dhcp for this network."""
+ 
+-    def restart(self):
++    def restart(self) -> bool:
+         """Restart the dhcp service for the network."""
+         self.disable(retain_port=True, block=True)
+         return self.enable()
+ 
+     @property
+     @abc.abstractmethod
+-    def active(self):
++    def active(self) -> bool:
+         """Boolean representing the running state of the DHCP server."""
+ 
+     @abc.abstractmethod
+-    def reload_allocations(self):
++    def reload_allocations(self) -> None:
+         """Force the DHCP server to reload the assignment database."""
+ 
+     @classmethod
+@@ -273,7 +273,7 @@ class DhcpLocalProcess(DhcpBase, metaclass=abc.ABCMeta):
+                 del cls._interfaces[network_id]
+ 
+     @classmethod
+-    def _has_running_interfaces(cls, network_id):
++    def _has_running_interfaces(cls, network_id) -> bool:
+         """Safe method that checks for interfaces"""
+         return bool(cls._interfaces.get(network_id))
+ 
+@@ -309,7 +309,7 @@ class DhcpLocalProcess(DhcpBase, metaclass=abc.ABCMeta):
+                 return True
+         return False
+ 
+-    def enable(self):
++    def enable(self) -> bool:
+         """Enables DHCP for this network by spawning a local process.
+ 
+         Returns True if the process was started and False if it was not.
+@@ -351,7 +351,7 @@ class DhcpLocalProcess(DhcpBase, metaclass=abc.ABCMeta):
+             pid_file=self.get_conf_file_name('pid'),
+             run_as_root=True)
+ 
+-    def disable(self, retain_port=False, block=False, **kwargs):
++    def disable(self, retain_port=False, block=False, **kwargs) -> None:
+         """Disable DHCP for this network by killing the local process."""
+         pm = self._get_process_manager()
+         self.process_monitor.unregister(pm.uuid, self.service_name)
+@@ -412,7 +412,7 @@ class DhcpLocalProcess(DhcpBase, metaclass=abc.ABCMeta):
+         return self.device_manager.get_interface_name(self.network, port)
+ 
+     @property
+-    def active(self):
++    def active(self) -> bool:
+         return self._get_process_manager().active
+ 
+     @property
