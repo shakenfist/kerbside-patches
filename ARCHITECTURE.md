@@ -372,8 +372,9 @@ It includes:
 Four lanes run alongside the test workflows and are independent of
 them:
 
-- `secret-scanning.yml` -- scans every commit reachable from `HEAD`
-  for leaked credentials via `tools/gitleaks-scan.sh`. Deliberately
+- `secret-scanning.yml` -- scans for leaked credentials via
+  `tools/gitleaks-scan.sh`: a pull request's own commits, the commits
+  a push to develop added, and the full history daily. Deliberately
   its own workflow with no path filter, because a credential pasted
   into documentation is still a credential.
 - `codeql-analysis.yml` -- CodeQL analysis on pushes and pull

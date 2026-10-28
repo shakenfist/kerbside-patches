@@ -4,7 +4,7 @@ Four things scan this repository, and they cover different ground.
 
 | Scanner | Where it runs | What it looks for |
 |---------|---------------|-------------------|
-| gitleaks | `secret-scanning.yml` | Credentials anywhere in this repository's own history |
+| gitleaks | `secret-scanning.yml` | Credentials in this repository's own history: new commits per event, all of it daily |
 | GitHub secret scanning | GitHub, on push | Known third party credential formats |
 | Push protection | GitHub, before a push lands | The same formats, rejected rather than reported |
 | CodeQL | `codeql-analysis.yml` | Code-level security defects |
@@ -25,15 +25,39 @@ tools/gitleaks-scan.sh
 
 # Or point it at a specific binary
 tools/gitleaks-scan.sh --gitleaks /tmp/gitleaks
+
+# Only the commits on your branch
+tools/gitleaks-scan.sh --range origin/develop..HEAD
 ```
 
-The script scans every commit reachable from `HEAD`, which on a pull
-request means the whole of develop plus the branch under test. It
-refuses to run against a shallow clone rather than reporting a clean
+With no `--range` the script scans every commit reachable from `HEAD`.
+It refuses to run against a shallow clone rather than reporting a clean
 history it never looked at, so CI checks out with `fetch-depth: 0`.
 
-The scan takes a few minutes here rather than the few seconds it takes
-on a source tree, because the history carries large patch files.
+A full-history scan takes over ten minutes here rather than the few
+seconds it takes on a source tree, because the history carries large
+patch files. A range of a few commits, layer data included, takes
+seconds.
+
+### What CI scans
+
+| Event | Scanned |
+|-------|---------|
+| Pull request | The PR's own commits (`base..head`) |
+| Push to develop | The commits the push added (`before..after`) |
+| Daily schedule, manual dispatch | The full history |
+
+Scanning the full history on every event held one of the two shared
+static runners for over ten minutes each time, and every other
+repository's gate jobs queued behind it. Every commit still gets
+scanned on its way onto develop, and the daily run is the backstop.
+
+The script widens a range to the full history itself in two cases. If
+the range changes `.gitleaks.toml`, `.gitleaksignore` or the script,
+the new rules must hold against the history already on develop, not
+just the commits that introduced them. And if the start of the range
+is not in the clone (after a force push to develop), there is no way
+to tell which commits are new.
 
 ### The positive control
 
