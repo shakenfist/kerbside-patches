@@ -804,8 +804,11 @@ the `index.md` row were made in the same commit.
 
 - **The counts are as the Situation section says.** 69 errors in ten
   files. `dvr_edge_ha_router.py` is not on the exception list and is
-  clean today. Its one error appears only once `ha_router` is
-  checked, so the `ha_router` patch must fix it.
+  clean today. Its one error appears only once `dvr_router_base` is
+  checked, because that module's `__init__` sets `snat_ports` to
+  `None`. So the patch that takes `dvr_router_base` off the list must
+  fix it. (The survey first credited this error to `ha_router`. Step
+  3a found the real cause and corrected it here.)
 - **There are four families, not two:**
 
   | Module | Errors | Override | None until initialised | Other |
@@ -912,8 +915,7 @@ the `index.md` row were made in the same commit.
    signature the default the class docstring already explains.
    Out-of-tree subclasses are unaffected: they subclass `RouterInfo`,
    whose signatures do not change. This clears all nine `override`
-   errors and takes `dvr_router_base` and `dvr_snat_ns` off the
-   exception list. Subject: "l3: Make router and namespace overrides
+   errors and takes `dvr_snat_ns` off the exception list. Subject: "l3: Make router and namespace overrides
    match their bases".
 3. **Narrow a `None`-until-initialised attribute in its reader, and
    read each reader as a possible bug first.** This is the decision
@@ -954,13 +956,13 @@ the `index.md` row were made in the same commit.
 
    | Patch | Modules leaving the list | Errors |
    |-------|--------------------------|--------|
-   | Overrides (Decision 2) | `dvr_router_base`, `dvr_snat_ns` | 9 |
+   | Overrides (Decision 2) | `dvr_snat_ns` | 9 |
    | `router_info` | `router_info` | 2 |
    | `l3_agent_extensions_manager` | itself | 4 |
    | `dvr_fip_ns` | itself | 2 |
    | `agent` | `neutron.agent.l3.agent` | 5 |
-   | `dvr_edge_router` | itself | 4 |
-   | `ha_router` (fixes `dvr_edge_ha_router` too) | `ha_router` | 20 |
+   | `dvr_edge_router` (fixes `dvr_edge_ha_router`'s `snat_ports` too) | itself, `dvr_router_base` | 5 |
+   | `ha_router` | `ha_router` | 19 |
    | `dvr_local_router` | itself | 23 |
 
    Fix patches go immediately before the patch for their module.
@@ -1022,9 +1024,9 @@ want="neutron.agent.l3.dvr neutron.agent.l3.ha"
 
 | Step | Effort | Model | Isolation | Brief for sub-agent |
 |------|--------|-------|-----------|---------------------|
-| 3a | high | opus | none | In the neutron worktree, cut branch `typing-l3` from `typing-chain` (`bae3c5ae22`). Write the override patch per Decision 2. Remove `dvr_router_base` and `dvr_snat_ns` from the exception list. Expect `tox -e mypy` to pass, `verify-typing-p1.sh` to exit 0, and `tox -e py3 -- neutron.tests.unit.agent.l3` and `tox -e pep8` to pass. Commit under the conventions, with the Change-Id from the hook. Add the patch and message files, and append the patch to `neutron-agent-typing-base/ORDER` as a commented-out line (`# ../_patches/patch249-...`), per Decision 1. Run `_build/test-apply.sh --skip-tests neutron-agent-typing-base` and confirm it still applies only 246 and 248. Leave kerbside-patches uncommitted. |
+| 3a | high | opus | none | In the neutron worktree, cut branch `typing-l3` from `typing-chain` (`bae3c5ae22`). Write the override patch per Decision 2. Remove `dvr_snat_ns` from the exception list. Expect `tox -e mypy` to pass, `verify-typing-p1.sh` to exit 0, and `tox -e py3 -- neutron.tests.unit.agent.l3` and `tox -e pep8` to pass. Commit under the conventions, with the Change-Id from the hook. Add the patch and message files, and append the patch to `neutron-agent-typing-base/ORDER` as a commented-out line (`# ../_patches/patch249-...`), per Decision 1. Run `_build/test-apply.sh --skip-tests neutron-agent-typing-base` and confirm it still applies only 246 and 248. Leave kerbside-patches uncommitted. |
 | 3b | high | opus | none | The `router_info`, `l3_agent_extensions_manager`, `dvr_fip_ns` and `agent` patches, in that order, per Decisions 3 and 4, on 3a's commit. Before writing anything, report each `None`-until-initialised reader in those modules (`radvd`, `agent_gateway_port`, `process_monitor`) as reachable or not, with the call path. Stop if any is reachable, so the management session can approve a fix patch. Then one commit per module, each removing its module from the list. Run `verify-typing-p1.sh` at each commit, `tox -e py3 -- neutron.tests.unit.agent.l3` and `tox -e pep8` at each commit, and `check-each-commit.sh 61f6db5ac9` at the end. Add the patch files to the series. |
-| 3c | high | opus | none | The `dvr_edge_router` and `ha_router` patches, per Decisions 3 and 4, on 3b's tip. Report on the `ha_port`, `keepalived_manager`, `conntrackd_manager`, `snat_iptables_manager` and `snat_ports` readers first, starting with the three leads in the survey, and stop for approval of any fix patch as in 3b. For each approved fix: a unit test that fails without it, a release note, and a bug draft in `docs/neutron-agent-bugs-findings.md`. Then the typing patches. `dvr_edge_ha_router` must pass when `ha_router` leaves the list. Run the same checks as 3b, plus `tox -e py3 -- neutron.tests.unit.agent.l3.test_agent`. |
+| 3c | high | opus | none | The `dvr_edge_router` and `ha_router` patches, per Decisions 3 and 4, on 3b's tip. Report on the `ha_port`, `keepalived_manager`, `conntrackd_manager`, `snat_iptables_manager` and `snat_ports` readers first, starting with the three leads in the survey, and stop for approval of any fix patch as in 3b. For each approved fix: a unit test that fails without it, a release note, and a bug draft in `docs/neutron-agent-bugs-findings.md`. Then the typing patches. The `dvr_edge_router` patch also takes `dvr_router_base` off the list, which needs the `snat_ports` reader in `dvr_edge_ha_router.py:116` settled. Run the same checks as 3b, plus `tox -e py3 -- neutron.tests.unit.agent.l3.test_agent`. |
 | 3d | high | opus | none | The `dvr_local_router` patch, per Decisions 3 and 4, on 3c's tip, with the same reachability report and fix gate. The `fip_ns` readers are one family: decide reachability per caller of each reader, not per line. Any fix patch that edits `neutron/tests/unit/agent/l3/test_dvr_local_router.py` must also apply over patch 241. Check that with `git apply --check` on a branch with 241 applied, and report the result. Then the checks of 3b, and `check-p3-exceptions.sh` at the tip. |
 | 3e | low | sonnet | none | Read-only packaging checks. Run `tools/recount-patch.py --check`, `tools/check-depends-on.py --offline` and `tools/check-llm-attribution.py` on every new patch file. Run `_build/test-apply.sh --skip-tests neutron-agent-typing-base`, which applies 246 and 248 only. Then copy `neutron-agent-typing-base/` to an untracked `neutron-agent-typing-base-p3check/`, uncomment its `ORDER`, run `test-apply` on it, and delete the copy, confirming `git status` shows nothing left. Run `tools/gerrit-pre-push-lint --stack N` over the whole chain. Run `check-each-commit.sh 61f6db5ac9` and `pre-commit run --all-files` here. Report each result, and fix nothing. |
 
@@ -1200,3 +1202,19 @@ as the changes are uploaded and reviewed.
   over it, `bae3c5ae22`. Change-Ids are unchanged. `tox -e mypy`
   passed at both, `verify-typing-p1.sh` exited 0 at 248, and
   `test-apply` passed.
+- 2026-10-28 (AEDT): Phase 3 step 3a (Opus, high). Patch 249 is neutron
+  `d61ad04626` on 248, Change-Id
+  `Ia47b54b1ac43a2d58a8a63f20e36f16a423b49a4`, appended commented out
+  to `neutron-agent-typing-base/ORDER`. It departed from the brief in
+  one place. `dvr_router_base` stays on the exception list, because
+  checking it makes `snat_ports` `Any | None` and fails
+  `dvr_edge_ha_router.py:116`, one of the survey's crash-path leads.
+  The management session reproduced that single error. The survey,
+  Decision 5's table and steps 3a and 3c were corrected, and
+  `dvr_router_base` now leaves the list with the `dvr_edge_router`
+  patch. All nine `override` errors are gone. `tox -e mypy` and
+  `pep8` pass, and the L3 unit tests pass (424, 1 skipped). Lint gives
+  only the accepted release-note warning. The step also found that
+  `test-apply` can report success without applying anything when a
+  stale `agent-typing` branch is left in `src/neutron`. It deleted
+  that branch and reran.

@@ -1,2 +1,3 @@
 ../_patches/patch246-neutron-master-mypy-check-untyped-agent-defs.patch
 ../_patches/patch248-neutron-master-mypy-check-dhcp-bodies.patch
+# ../_patches/patch249-neutron-master-l3-router-namespace-overrides.patch
