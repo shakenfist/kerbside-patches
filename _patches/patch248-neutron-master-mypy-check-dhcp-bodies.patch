@@ -1,0 +1,102 @@
+commit 0eb3009f56b91f9768845180ec3027fad76f1634
+Author: Michael Still <mikal@stillhq.com>
+Date:   Wed Oct 28 15:28:39 2026 +1100
+
+    mypy: Check the DHCP agent and driver function bodies
+    
+    Check the bodies of unannotated functions in the dnsmasq driver module
+    too, and take the DHCP agent off the list of modules that skip them.
+    
+    The errors this finds are narrowing rather than bugs: an Optional regex
+    match, a dict.get of a key that is always present, an untyped attribute
+    initialiser, a super().__getattr__ no superclass has, and a get_ports
+    signature that differs by design.
+    
+    Assisted-By: Claude Sonnet 5.5 (medium effort)
+    Change-Id: I4e2ba47294713cbd3889155213597d5baf42bfbe
+    Signed-off-by: Michael Still <mikal@stillhq.com>
+
+diff --git a/neutron/agent/dhcp/agent.py b/neutron/agent/dhcp/agent.py
+index 2f8c863b99..4c8f708395 100644
+--- a/neutron/agent/dhcp/agent.py
++++ b/neutron/agent/dhcp/agent.py
+@@ -970,7 +970,8 @@ class DhcpPluginApi(base_agent_rpc.BasePluginApi):
+         if port:
+             return dhcp.DictModel(port)
+ 
+-    def get_ports(self, port_filters):
++    # The DHCP plugin API binds its own context, so the signature differs.
++    def get_ports(self, port_filters):  # type: ignore[override]
+         ports = super().get_ports(self.context, port_filters)
+         if ports:
+             return [dhcp.DictModel(port) for port in ports]
+@@ -1154,7 +1155,7 @@ class DhcpAgentWithStateReport(DhcpAgent):
+ 
+     def _report_state(self):
+         try:
+-            configurations = self.agent_state.get('configurations')
++            configurations = self.agent_state['configurations']
+             configurations.update(self.cache.get_state())
+             configurations['pending_updates'] = self._queue.qsize
+             ctx = context.get_admin_context_without_session()
+diff --git a/neutron/agent/linux/dhcp.py b/neutron/agent/linux/dhcp.py
+index fa0de1daac..6f47776b55 100644
+--- a/neutron/agent/linux/dhcp.py
++++ b/neutron/agent/linux/dhcp.py
+@@ -23,6 +23,7 @@ import re
+ import shutil
+ import signal
+ import time
++import typing
+ 
+ import netaddr
+ from neutron_lib.api.definitions import extra_dhcp_opt as edo_ext
+@@ -83,7 +84,7 @@ class DictModel(collections.abc.MutableMapping):
+     def __init__(self, *args, **kwargs):
+         """Convert dict values to DictModel values."""
+         temp_dict = dict(*args)
+-        self._dictmodel_internal_storage = {}
++        self._dictmodel_internal_storage: dict[str, typing.Any] = {}
+ 
+         def needs_upgrade(item):
+             """Check if `item` is a dict and needs to be changed to DictModel.
+@@ -111,7 +112,7 @@ class DictModel(collections.abc.MutableMapping):
+     def __getattr__(self, name):
+         try:
+             if name == '_dictmodel_internal_storage':
+-                return super().__getattr__(name)
++                raise AttributeError(name)
+             return self.__getitem__(name)
+         except KeyError as e:
+             raise AttributeError(e)
+@@ -1402,6 +1403,8 @@ class Dnsmasq(DhcpLocalProcess):
+         option = option.split("\n", 1)[0]
+         pattern = "(tag:(.*),)?(.*)$"
+         matches = re.match(pattern, option)
++        if matches is None:
++            raise ValueError(f'Malformed DHCP option {option!r}')
+         extra_tag = matches.groups()[0]
+         option = matches.groups()[2]
+ 
+diff --git a/pyproject.toml b/pyproject.toml
+index 1115f5ce50..28d12f570c 100644
+--- a/pyproject.toml
++++ b/pyproject.toml
+@@ -369,12 +369,15 @@ exclude = "(?x)(^neutron/tests/$)"
+ # Modules are removed from the second list as they are made to pass;
+ # new modules in these packages are checked from the start.
+ [[tool.mypy.overrides]]
+-module = ["neutron.agent.dhcp.*", "neutron.agent.l3.*"]
++module = [
++    "neutron.agent.dhcp.*",
++    "neutron.agent.l3.*",
++    "neutron.agent.linux.dhcp",
++]
+ check_untyped_defs = true
+ 
+ [[tool.mypy.overrides]]
+ module = [
+-    "neutron.agent.dhcp.agent",
+     "neutron.agent.l3.agent",
+     "neutron.agent.l3.dvr",
+     "neutron.agent.l3.dvr_edge_router",

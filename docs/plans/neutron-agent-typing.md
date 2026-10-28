@@ -886,3 +886,10 @@ as the changes are uploaded and reviewed.
   user-visible effect, and none of neutron's own typing changes
   (3d42164244, 3f29ba5cdf, e163bb5b6c, 517a51bb30) carries a release
   note.
+- 2026-10-28 (AEDT): Phase 2 step 2c. Patch 248 is neutron `0eb3009f56`
+  on 246. The review rewrote its commit message, which had left out
+  the `__getattr__` change. Its Change-Id is unchanged. The release-note
+  warning is accepted as for 247. 296 DHCP unit tests pass on 246 plus
+  248, and `verify-typing-p1.sh` passes with 11 exceptions. 246 and 248
+  cherry-picked onto the DHCP chain with 247 also pass: mypy succeeds
+  and 310 tests pass.
