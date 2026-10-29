@@ -1,4 +1,4 @@
-WIP / PoC: Add an nsenter friendly all-in-one inventory.
+Add an nsenter friendly all-in-one inventory.
 
 This patch series adds a containerized version of kolla-ansible as
 built by the Kolla patch the series depends on. The container needs

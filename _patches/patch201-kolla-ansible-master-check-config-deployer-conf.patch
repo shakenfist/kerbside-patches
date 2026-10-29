@@ -2,7 +2,7 @@ commit b33a3f335484e50444fd86f9d075d322cd40536a
 Author: Michael Still <mikal@stillhq.com>
 Date:   Tue Oct 27 18:04:17 2026 +1100
 
-    WIP / PoC: Ignore deployer.conf in check-config.sh.
+    Ignore deployer.conf in check-config.sh.
     
     deployer.conf is the configuration file of a containerised deployer
     launcher, a prototype which runs kolla-ansible from a container. It

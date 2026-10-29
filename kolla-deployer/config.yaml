@@ -9,5 +9,5 @@ source_sha: b65a746e6758c1a4a0ea2ece7946d7984a0811ec
 previous_source_sha: 114f68b9edc9c36bd7c1d215f17048f779669b3a
 skip_rebase: false
 skip_claude: true
-wip: true
+wip: false
 repush: true

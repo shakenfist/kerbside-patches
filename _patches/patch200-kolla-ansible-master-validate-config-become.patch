@@ -2,7 +2,7 @@ commit a86c1a542e623e7b3e4994ca29ddfae948a9d5ad
 Author: Michael Still <mikal@stillhq.com>
 Date:   Tue Oct 27 18:04:16 2026 +1100
 
-    WIP / PoC: Allow validate-config to skip become on localhost.
+    Allow validate-config to skip become on localhost.
     
     The service-config-validate role writes the oslo-config-validator
     output on the deploy host using become. Where the deploy host user

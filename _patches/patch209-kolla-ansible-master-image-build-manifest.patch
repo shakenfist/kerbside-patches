@@ -2,7 +2,7 @@ commit e5e8161988befe1d657d45c8b261bdc5de692cfb
 Author: Michael Still <mikal@stillhq.com>
 Date:   Tue Oct 27 18:04:17 2026 +1100
 
-    WIP / PoC: Pull images by digest from a build manifest.
+    Pull images by digest from a build manifest.
     
     A tag can be pushed again, so a deployment pulling by tag may run images
     other than the ones its deployer was built and tested with: a node added

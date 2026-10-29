@@ -2,7 +2,7 @@ commit 6ec3c6e93dc3555da40a1584f72a38c5890c4f8c
 Author: Michael Still <mikal@stillhq.com>
 Date:   Tue Oct 27 18:04:17 2026 +1100
 
-    WIP / PoC: Add an nsenter friendly all-in-one inventory.
+    Add an nsenter friendly all-in-one inventory.
     
     This patch series adds a containerized version of kolla-ansible as
     built by the Kolla patch the series depends on. The container needs

@@ -1,16 +1,18 @@
 # The containerised deployer: a draft upstream proposal
 
 This is a draft of a post to openstack-discuss, for Kolla and
-Kolla-Ansible reviewers. It has not been sent. Nothing it describes
-is on Gerrit, and the community.docker issue in Appendix A has not
-been filed; each of those is a separate decision. For how to build
+Kolla-Ansible reviewers. It has not been sent. The series is on
+Gerrit under the topic
+[containerised-deployer](https://review.opendev.org/q/topic:%22containerised-deployer%22),
+one change per patch (the table under *The series* links them); the
+community.docker issue in Appendix A has not been filed. For how to build
 and run the deployer today, see
 [the containerised deployer](containerised-deployer.md); for the
 evidence behind every number below, see
 [the containerised deployer plan](plans/containerised-deployer.md).
 
-The changes were checked against Kolla `f738a5e56` and Kolla-Ansible
-`24644b3ba`, the pins at the time of writing.
+The changes were checked against Kolla `b65a746e6` and Kolla-Ansible
+`2b0526689`, the pins at the time of writing.
 
 **Subject:** `[kolla] Running Kolla-Ansible from a Kolla-built image, pinned by digest`
 
@@ -286,8 +288,10 @@ A few points the commit messages leave for review:
 
 Whether Kolla and Kolla-Ansible want this, and if so in what order
 the changes should go up. If it is easier to talk through than to review, we would be
-glad to bring it to the PTG. Nothing is on Gerrit yet, and we would
-rather hear objections before it is.
+glad to bring it to the PTG. The series is on Gerrit under the topic
+`containerised-deployer` and is ready for review, but we would rather
+hear objections to its shape here than as comments spread over seven
+changes.
 
 ---
 
