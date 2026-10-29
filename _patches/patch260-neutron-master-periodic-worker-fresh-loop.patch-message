@@ -1,0 +1,13 @@
+worker: Do not restart a finished looping call
+
+oslo.service's threading backend wakes wait() before it releases the
+loop's thread, and refuses to start that looping call again until it
+has, so PeriodicWorker.start() straight after stop() and wait() could
+raise RuntimeError. wait() now drops the finished loop for a new one.
+
+The oslo.service side is fixed separately; this keeps neutron working
+with releases that predate that fix.
+
+Assisted-By: Claude Opus 5.5 (medium effort)
+Change-Id: I9043501d8cda2c422e873e81d68ccd030e8549b1
+Signed-off-by: Michael Still <mikal@stillhq.com>

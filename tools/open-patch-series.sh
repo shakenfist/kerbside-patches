@@ -1,7 +1,8 @@
 #!/bin/bash
 
 # Open all of the patches in an ORDER file in vscode, handling fixing
-# the paths along the way.
+# the paths along the way. A patch's review commentary
+# (_patches/<patch stem>.md) is opened beside it when there is one.
 #
 # Usage: tools/open-patch-series.sh [-a|--all] <series>
 #
@@ -50,6 +51,11 @@ for patch in ${patches}
 do
     echo "Opening ${patch}"
     code "${patch}"
+    commentary="${patch%.patch}.md"
+    if [ -f "${commentary}" ]; then
+        echo "Opening ${commentary}"
+        code "${commentary}"
+    fi
 done
 code "${series}/config.yaml"
 

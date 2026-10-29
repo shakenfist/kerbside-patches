@@ -249,6 +249,71 @@ Fix:
 
 * l3: Finish deleting an HA router that failed to initialize
 
+## Looping call cannot be restarted as soon as wait() returns
+
+**Title:** Threading backend: starting a looping call right after wait()
+returns can raise "can only run one function at a time"
+
+**Affects:** oslo.service master (4.2.0 and later, since the threading
+backend was added in 5de514f); neutron `PeriodicWorker` as a consumer
+
+This is filed against oslo.service, with neutron as an affected project.
+
+In the threading backend, the loop thread calls `done.send()` when it
+finishes, which wakes `wait()`. The loop's `_thread` is only cleared later,
+by the futurist done callback `_on_done`. A `start()` made in between still
+sees `_thread` set, and raises `RuntimeError: A fixed interval looping call
+can only run one function at a time`. Under eventlet the same sequence was
+safe, because the link callbacks ran before any waiter was scheduled.
+
+neutron's `PeriodicWorker.reset()` does exactly `stop()`, `wait()`,
+`start()` on one looping call. Production does not reach it today: under the
+threading backend a SIGHUP makes cotyledon restart the worker process instead
+of calling `reset()`. The unit tests do reach it. With a 10 us thread switch
+interval, `neutron.tests.unit.test_worker` failed 4 of 160 runs, against 0
+of 160 at the default 5 ms. A standalone script that delays `_on_done` by
+10 ms fails every restart.
+
+The oslo.service fix treats a loop that has signalled done as finished, and
+has a late done callback leave a newer thread alone. Until that is released,
+neutron's `PeriodicWorker.wait()` drops the finished looping call so that the
+next `start()` builds a new one.
+
+Fix:
+
+* loopingcall: Allow a restart once wait() returns (oslo.service)
+* worker: Do not restart a finished looping call (neutron)
+
+## OVN L3 functional tests use a chassis before its agent is cached
+
+**Title:** ovn_l3 functional tests can fail with InvalidL3Agent because
+they look up a new chassis's agent before the agent cache has it
+
+**Affects:** neutron master (functional tests only)
+
+`add_fake_chassis` writes the `Chassis` row and then the `Chassis_Private`
+row in two transactions. Four tests in
+`neutron/tests/functional/services/ovn_l3/test_plugin.py` wait for the
+`Chassis` row to be created, then call an L3 plugin method that looks the
+chassis up with `get_agent()`. The agent cache is filled by
+`ChassisAgentWriteEvent` from the `Chassis_Private` row, on the IDL's notify
+thread, so the lookup can run first and raise `AgentNotFound`, which the
+plugin turns into `InvalidL3Agent`.
+
+`test_list_routers_on_l3_agent_no_routers` failed this way in
+neutron-functional on https://review.opendev.org/c/openstack/neutron/+/1012625,
+which shortens the thread switch interval under test.
+`test_update_router_in_l3_agent_not_hosted`,
+`test_remove_router_from_l3_agent_not_hosted` and, less likely,
+`test_add_router_to_l3_agent` share the pattern.
+
+The fix adds a helper that also waits until the agent is in the cache,
+which is how `test_ovsdb_monitor.py` already waits for agents.
+
+Fix:
+
+* tests: Wait for the OVN agent before using a new chassis
+
 ## Found but not addressed
 
 These came from the same reading and from two read-only sweeps of the L3
