@@ -130,6 +130,9 @@ else
     cleanup_output=false
 fi
 
+# The EXIT trap below calls this. shellcheck 0.11's SC2329 misses that
+# when every path through the script ends in an explicit exit.
+# shellcheck disable=SC2329
 cleanup() {
     if [ "${cleanup_output}" = true ]; then
         rm -rf "${output_dir}"
