@@ -7,6 +7,14 @@ Takes patch test results JSON as input and outputs analysis including:
 - Suggested new patch names for release-specific copies
 - Next available patch number
 
+A patch shared between series that track the same upstream branch (the
+main `kolla-ansible/` series and the `kolla-ansible-deployer/` or
+`kolla-ansible-kerbside/` series, say, all of which have
+`source_branch: master` in their config.yaml) fails identically in every
+one of them, so the fix is one in-place edit and never a copy. A copy is
+only right when the other users track a different upstream branch, which
+is what makes the same patch need different content.
+
 Usage:
     ./analyze-shared-patches.py <patch-test-results.json>
 
@@ -74,6 +82,37 @@ def find_patch_usage(patch_path):
                 break
 
     return sorted(used_by)
+
+
+def load_series_source(project):
+    """Return what upstream a series directory tracks, as (repo, source_branch).
+
+    Read from the series' config.yaml. Every series directory has one; a
+    directory without one (or without the key) falls back to the branch
+    implied by its name, so that `kolla-ansible-2025.1` and `kolla-ansible`
+    still count as different sources and `kolla-ansible` and
+    `kolla-ansible-deployer` do not. The repo cannot be guessed from a
+    name and stays None in that case.
+    """
+    repo = None
+    source_branch = None
+
+    try:
+        with open(os.path.join(project, 'config.yaml'), 'r') as f:
+            config = yaml.safe_load(f) or {}
+        repo = config.get('repo')
+        source_branch = config.get('source_branch')
+    except FileNotFoundError:
+        pass
+    except Exception as e:
+        print(f'Warning: Could not read {project}/config.yaml: {e}',
+              file=sys.stderr)
+
+    if not source_branch:
+        release = extract_release_from_project(project)
+        source_branch = 'master' if release == 'master' else f'stable/{release}'
+
+    return (repo, source_branch)
 
 
 def get_next_patch_number():
@@ -179,29 +218,43 @@ def analyze_failures(test_results):
         if not patch:
             continue
 
-        # Find all projects using this patch
+        # Find all projects using this patch, and split them by the
+        # upstream they track. Series on the same upstream branch see the
+        # same failure and want the same edit.
         all_users = find_patch_usage(patch)
         other_users = [p for p in all_users if p != project]
 
+        source = load_series_source(project)
+        same_source_users = [p for p in other_users if load_series_source(p) == source]
+        other_release_users = [p for p in other_users if load_series_source(p) != source]
+
         # Determine strategy
-        if len(all_users) <= 1:
-            # Only used by one project (or not found) - safe to modify in place
+        if not other_release_users:
+            # Every user tracks the same upstream branch - fix the one patch
+            # in place, and it is fixed for all of them.
             strategy = 'modify_in_place'
             suggested_name = None
+            copy_for = []
         else:
-            # Used by multiple projects - need to create a copy
+            # Some users track a different upstream branch and must keep the
+            # patch as it is - give this branch its own copy, and point every
+            # series on this branch at it.
             strategy = 'create_copy'
             suggested_name = generate_patch_name(
                 patch, project, release_mappings, next_patch_num
             )
             next_patch_num += 1
+            copy_for = [project] + same_source_users
 
         analyzed.append({
             'patch': patch,
             'failed_in': project,
             'also_used_by': other_users,
+            'same_source_users': same_source_users,
+            'other_release_users': other_release_users,
             'strategy': strategy,
             'suggested_name': suggested_name,
+            'copy_for': copy_for,
             'error': error,
         })
 

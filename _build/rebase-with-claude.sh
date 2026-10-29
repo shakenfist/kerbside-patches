@@ -282,11 +282,14 @@ cat >> "${output_dir}/claude-prompt.txt" << 'PROMPT_EOF'
    **If strategy is "modify_in_place":**
    - Update the patch file directly so it applies cleanly
    - Follow docs/patch-editing.md about editing diff headers
+   - Do NOT create a copy, even when same_source_users lists other
+     projects: they track the same upstream branch and need the same edit
 
    **If strategy is "create_copy":**
    - Create a NEW patch file with the suggested_name from the analysis
-   - Update the ORDER file for the failing project to use the new patch
-   - Leave the original patch unchanged for other releases
+   - Update the ORDER file of every project in copy_for to use the new
+     patch (they all track the failing project's upstream branch)
+   - Leave the original patch unchanged for other_release_users
 
 6. Test your fix: ./_build/test-apply.sh --skip-tests <project>
 7. If successful, stage your changes (do not commit - the user will review)
