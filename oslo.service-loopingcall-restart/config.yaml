@@ -5,6 +5,6 @@ shallow_clone: true
 directory: oslo.service
 release: master-oslo.service-loopingcall-restart
 depends_on: ''
-source_sha: e0f0ee5c728b7fe64c3c91474601cc5458edbb2e
+source_sha: a2e23f909916e78b9c31b2cb411da9e2b5a83f15
 previous_source_sha: e0f0ee5c728b7fe64c3c91474601cc5458edbb2e
 repush: true
