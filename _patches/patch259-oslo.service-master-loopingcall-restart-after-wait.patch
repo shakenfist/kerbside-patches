@@ -1,0 +1,171 @@
+commit 3446d084097953bc8cf8367cbe00fb581f4d8b7f
+Author: Michael Still <mikal@stillhq.com>
+Date:   Thu Oct 29 07:33:31 2026 +1100
+
+    loopingcall: Allow a restart once wait() returns
+    
+    With the threading backend, wait() wakes when the loop signals done,
+    but the loop's thread is only released later by its done callback, so
+    a start() straight after wait() could raise RuntimeError. A loop that
+    has signalled done now counts as finished, and a late done callback
+    leaves a newer thread alone.
+    
+    The eventlet backend was not affected: its link callbacks run before
+    any waiter is scheduled.
+    
+    Assisted-By: Claude Opus 5.5 (medium effort)
+    Change-Id: I748102bbeab585f8ceb0eb3729451753866b486b
+    Signed-off-by: Michael Still <mikal@stillhq.com>
+
+diff --git a/oslo_service/backend/_common/loopingcall.py b/oslo_service/backend/_common/loopingcall.py
+index affc6d7..89aa659 100644
+--- a/oslo_service/backend/_common/loopingcall.py
++++ b/oslo_service/backend/_common/loopingcall.py
+@@ -144,9 +144,21 @@ class LoopingCallBase(metaclass=abc.ABCMeta):
+     def _spawn_loop(self, loop_func):
+         """Spawn the loop function in the appropriate backend."""
+ 
+-    def _on_done(self, *args, **kwargs):
++    def _on_done(self, thread, *args, **kwargs):
+         """Callback when the loop is done."""
+-        self._thread = None
++        # A restart may already have replaced the thread this callback is
++        # for, so only clear our own.
++        if self._thread is thread:
++            self._thread = None
++
++    def _is_looping(self):
++        """Whether a started loop is still running.
++
++        A loop that has signalled done counts as finished even before its
++        thread's done callback runs, because that signal wakes wait() first
++        and a caller may restart the loop as soon as wait() returns.
++        """
++        return self._thread is not None and not self.done.ready()
+ 
+     def _start(self, idle_for, initial_delay=None, stop_on_exception=True):
+         """Start the looping.
+@@ -162,7 +174,7 @@ class LoopingCallBase(metaclass=abc.ABCMeta):
+             occurs.
+         :returns: Done event instance
+         """
+-        if self._thread is not None:
++        if self._is_looping():
+             raise RuntimeError(self._RUN_ONLY_ONE_MESSAGE)
+ 
+         self.done = self._create_done_event()
+@@ -364,7 +376,7 @@ class BackOffLoopingCallBase(LoopingCallBase):
+         jitter=0.75,
+         min_interval=0.001,
+     ):
+-        if self._thread is not None:
++        if self._is_looping():
+             raise RuntimeError(self._RUN_ONLY_ONE_MESSAGE)
+ 
+         # Reset any prior state.
+diff --git a/oslo_service/backend/_threading/loopingcall.py b/oslo_service/backend/_threading/loopingcall.py
+index 4364725..a8373ad 100644
+--- a/oslo_service/backend/_threading/loopingcall.py
++++ b/oslo_service/backend/_threading/loopingcall.py
+@@ -42,6 +42,9 @@ class FutureEvent:
+         self._exc_info = (exc_type, exc_value, tb)
+         self._event.set()
+ 
++    def ready(self):
++        return self._event.is_set()
++
+     def wait(self, timeout=None):
+         flag = self._event.wait(timeout)
+ 
+diff --git a/oslo_service/tests/backend/threading/test_loopingcall.py b/oslo_service/tests/backend/threading/test_loopingcall.py
+new file mode 100644
+index 0000000..4dcc930
+--- /dev/null
++++ b/oslo_service/tests/backend/threading/test_loopingcall.py
+@@ -0,0 +1,71 @@
++# Licensed under the Apache License, Version 2.0 (the "License"); you may
++# not use this file except in compliance with the License. You may obtain
++# a copy of the License at
++#
++#      http://www.apache.org/licenses/LICENSE-2.0
++#
++# Unless required by applicable law or agreed to in writing, software
++# distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
++# WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++# See the License for the specific language governing permissions and
++# limitations under the License.
++
++from unittest import mock
++from unittest import TestCase
++
++from oslo_service.backend._common import loopingcall as common_loopingcall
++from oslo_service.backend._threading import loopingcall
++
++
++class LoopingCallRestartTestCase(TestCase):
++    """Restarting a looping call once wait() has returned (threading)."""
++
++    def _stop_and_wait(self, loop):
++        loop.stop()
++        loop.wait()
++
++    def _start_held(self, loop, **kwargs):
++        # Hold back the thread's done callback, as if the thread that ran
++        # the loop had not yet been scheduled after signalling done.
++        with mock.patch.object(loop, '_on_done'):
++            loop.start(**kwargs)
++
++    def test_fixed_interval_restart_before_done_callback(self):
++        loop = loopingcall.FixedIntervalLoopingCall(f=mock.Mock())
++        self.addCleanup(self._stop_and_wait, loop)
++        self._start_held(loop, interval=60, initial_delay=60)
++        self._stop_and_wait(loop)
++
++        loop.start(interval=60, initial_delay=60)
++
++    def test_backoff_restart_before_done_callback(self):
++        loop = loopingcall.BackOffLoopingCall(f=mock.Mock())
++        self.addCleanup(self._stop_and_wait, loop)
++        self._start_held(loop, initial_delay=60)
++        self._stop_and_wait(loop)
++
++        loop.start(initial_delay=60)
++
++    def test_start_while_running_raises(self):
++        loop = loopingcall.FixedIntervalLoopingCall(f=mock.Mock())
++        self.addCleanup(self._stop_and_wait, loop)
++        loop.start(interval=60, initial_delay=60)
++
++        self.assertRaises(RuntimeError, loop.start,
++                          interval=60, initial_delay=60)
++
++    def test_late_done_callback_keeps_new_thread(self):
++        loop = loopingcall.FixedIntervalLoopingCall(f=mock.Mock())
++        self.addCleanup(self._stop_and_wait, loop)
++        self._start_held(loop, interval=60, initial_delay=60)
++        old_thread = loop._thread
++        self._stop_and_wait(loop)
++        loop.start(interval=60, initial_delay=60)
++        new_thread = loop._thread
++
++        # The first loop's done callback finally runs.
++        common_loopingcall.LoopingCallBase._on_done(loop, old_thread)
++
++        self.assertIs(new_thread, loop._thread)
++        self.assertRaises(RuntimeError, loop.start,
++                          interval=60, initial_delay=60)
+diff --git a/releasenotes/notes/loopingcall-restart-after-wait-3b7e1c9a5d2f4e60.yaml b/releasenotes/notes/loopingcall-restart-after-wait-3b7e1c9a5d2f4e60.yaml
+new file mode 100644
+index 0000000..d422592
+--- /dev/null
++++ b/releasenotes/notes/loopingcall-restart-after-wait-3b7e1c9a5d2f4e60.yaml
+@@ -0,0 +1,9 @@
++---
++fixes:
++  - |
++    With the threading backend, starting a looping call again as soon as
++    ``wait()`` had returned could raise ``RuntimeError: A fixed interval
++    looping call can only run one function at a time``, because ``wait()``
++    returned before the finished loop's thread was released. A loop that
++    has signalled done is now treated as finished, so it can be restarted
++    straight away.

@@ -60,6 +60,9 @@ unit tested by pre-commit; no other Python here is linted.
    `Assisted-By: <model> (<effort> effort)` line, never
    `Co-Authored-By:` (that is for people); pre-commit and
    `gerrit-pre-push-lint` enforce it.
+8. When reviewers need context the message cannot carry, draft
+   a Gerrit comment in `_patches/<patch stem>.md`; see
+   [docs/patch-editing.md](docs/patch-editing.md#review-commentary).
 
 A patch in `_patches/` can be listed by several `ORDER` files (one
 per release). When only one release needs a change, copy the patch

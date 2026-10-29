@@ -1,0 +1,114 @@
+commit 2cd25f17943f65f9773012c7eec88030c276ce54
+Author: Michael Still <mikal@stillhq.com>
+Date:   Thu Oct 29 07:36:18 2026 +1100
+
+    tests: Wait for the OVN agent before using a new chassis
+    
+    Four ovn_l3 functional tests wait for the Chassis row and then look up
+    its agent, but the agent cache is filled from the Chassis_Private row,
+    written after it, so get_agent() could still raise AgentNotFound. They
+    now also wait until the agent is in the cache.
+    
+    Assisted-By: Claude Opus 5.5 (medium effort)
+    Change-Id: Idfd0869609938d6ca111ad32b9c6620cfe719895
+    Signed-off-by: Michael Still <mikal@stillhq.com>
+
+diff --git a/neutron/tests/functional/services/ovn_l3/test_plugin.py b/neutron/tests/functional/services/ovn_l3/test_plugin.py
+index 8eb93ac7a6..f6f448c3b0 100644
+--- a/neutron/tests/functional/services/ovn_l3/test_plugin.py
++++ b/neutron/tests/functional/services/ovn_l3/test_plugin.py
+@@ -29,6 +29,7 @@ from neutron.common.ovn import utils as ovn_utils
+ from neutron.common import utils as n_utils
+ from neutron.conf.plugins.ml2.drivers.ovn import ovn_conf
+ from neutron.extensions import l3agentscheduler
++from neutron.plugins.ml2.drivers.ovn.agent import neutron_agent
+ from neutron.scheduler import l3_ovn_scheduler as l3_sched
+ from neutron.tests.functional import base
+ from neutron.tests.functional.common.ovn import test_utils as ovn_test_utils
+@@ -1229,6 +1230,26 @@ class TestRouter(base.TestOVNFunctionalBase):
+         router = self._create_router('router1', gw_info=gw_info)
+         return router
+ 
++    def _add_fake_chassis_and_wait(self, host, **kwargs):
++        """Add a fake chassis and wait until its agent can be looked up."""
++        ch_event = ovn_test_utils.WaitForChassisCreate(host)
++        self.sb_api.idl.notify_handler.watch_event(ch_event)
++        chassis = self.add_fake_chassis(host, **kwargs)
++        ch_event.wait()
++        # The agent cache is filled from the Chassis_Private row, which is
++        # written after the Chassis row, so the agent can still be missing.
++        n_utils.wait_until_true(
++            lambda: self._is_agent_cached(chassis), timeout=10)
++        return chassis
++
++    @staticmethod
++    def _is_agent_cached(agent_id):
++        try:
++            neutron_agent.AgentCache().get(agent_id)
++        except KeyError:
++            return False
++        return True
++
+     def _is_chassis_scheduled_on_router(self, router_id, chassis_name):
+         result = self.l3_plugin.list_l3_agents_hosting_router(
+             self.context, router_id)
+@@ -1262,12 +1283,9 @@ class TestRouter(base.TestOVNFunctionalBase):
+         self.assertIn(router['id'], router_ids)
+ 
+     def test_list_routers_on_l3_agent_no_routers(self):
+-        ch_event = ovn_test_utils.WaitForChassisCreate('ovs-host3')
+-        self.sb_api.idl.notify_handler.watch_event(ch_event)
+-        chassis3 = self.add_fake_chassis(
++        chassis3 = self._add_fake_chassis_and_wait(
+             'ovs-host3', physical_nets=['physnet3'],
+             enable_chassis_as_gw=True, azs=[])
+-        ch_event.wait()
+         result = self.l3_plugin.list_routers_on_l3_agent(
+             self.context, chassis3)
+         self.assertEqual([], result['routers'])
+@@ -1277,12 +1295,9 @@ class TestRouter(base.TestOVNFunctionalBase):
+             'ext1', 'flat', 'physnet3', None, "20.0.0.1", "20.0.0.0/24")
+         gw_info = {'network_id': ext['network']['id']}
+         router = self._create_router('router1', gw_info=gw_info)
+-        ch_event = ovn_test_utils.WaitForChassisCreate('ovs-host3')
+-        self.sb_api.idl.notify_handler.watch_event(ch_event)
+-        chassis3 = self.add_fake_chassis(
++        chassis3 = self._add_fake_chassis_and_wait(
+             'ovs-host3', physical_nets=['physnet3'],
+             enable_chassis_as_gw=True, azs=[])
+-        ch_event.wait()
+ 
+         # The ChassisEvent will automatically schedule the new gateway
+         # chassis into the HA_Chassis_Group. Wait for that to happen,
+@@ -1346,14 +1361,11 @@ class TestRouter(base.TestOVNFunctionalBase):
+ 
+     def test_update_router_in_l3_agent_not_hosted(self):
+         router = self._create_router_with_gw_chassis()
+-        ch_event = ovn_test_utils.WaitForChassisCreate('ovs-host3')
+-        self.sb_api.idl.notify_handler.watch_event(ch_event)
+         # The chassis is NOT a gateway chassis. It cannot be assigned to
+         # a router.
+-        chassis3 = self.add_fake_chassis(
++        chassis3 = self._add_fake_chassis_and_wait(
+             'ovs-host3', physical_nets=['physnet3'],
+             enable_chassis_as_gw=False, azs=[])
+-        ch_event.wait()
+         self.assertRaises(
+             l3agentscheduler.RouterNotHostedByL3Agent,
+             self.l3_plugin.update_router_in_l3_agent,
+@@ -1390,14 +1402,11 @@ class TestRouter(base.TestOVNFunctionalBase):
+ 
+     def test_remove_router_from_l3_agent_not_hosted(self):
+         router = self._create_router_with_gw_chassis()
+-        ch_event = ovn_test_utils.WaitForChassisCreate('ovs-host3')
+-        self.sb_api.idl.notify_handler.watch_event(ch_event)
+         # The chassis is NOT a gateway chassis. It cannot be assigned to
+         # a router.
+-        chassis3 = self.add_fake_chassis(
++        chassis3 = self._add_fake_chassis_and_wait(
+             'ovs-host3', physical_nets=['physnet3'],
+             enable_chassis_as_gw=False, azs=[])
+-        ch_event.wait()
+         self.assertRaises(
+             l3agentscheduler.RouterNotHostedByL3Agent,
+             self.l3_plugin.remove_router_from_l3_agent,

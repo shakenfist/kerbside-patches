@@ -239,6 +239,44 @@ them all the same `destination_branch` so they share a Gerrit topic.
 Put a cross-series `Depends-On` only on the root patch of the later
 series.
 
+## Review commentary
+
+Most patches should be understandable from their commit message alone.
+Sometimes a reviewer needs context that does not belong in the message: how
+the problem was found, the evidence, design alternatives that were weighed,
+or related work that is deliberately left out. Typical cases are a fix in a
+project we do not usually contribute to, or a race found through another
+project's tests. For those, write a review comment next to the patch, in a
+file with the patch's own stem and a `.md` extension:
+
+```
+_patches/patch259-oslo.service-master-loopingcall-restart-after-wait.patch
+_patches/patch259-oslo.service-master-loopingcall-restart-after-wait.patch-message
+_patches/patch259-oslo.service-master-loopingcall-restart-after-wait.md
+```
+
+The file opens with a short header:
+
+- **Status:** `draft`, or `posted on PS<N>, <date>`.
+- **Change:** the project and the Change-Id.
+- **Post:** when the comment should be posted.
+
+Everything after a `---` line is the comment itself, written as Gerrit
+Markdown. Nothing posts the comment automatically: Mikal posts it and
+then updates the status line. If a new patchset changes something the
+comment describes, revise the comment before posting it again.
+
+The comment complements the Launchpad bug rather than repeating it. The bug
+says what is broken and how to see it. The comment explains the patch to its
+reviewers, and links the bug.
+
+These files are Markdown outside `docs/plans/`, so the
+`docs-line-references` pre-commit hook applies to them. Refer to code by
+function name, or by a link pinned to a commit, not by file and line number.
+`tools/open-patch-series.sh` opens the comment next to its patch, and the
+patch tools ignore it, because they only read `.patch` and `.patch-message`
+files.
+
 ## Linter issues
 
 Kolla-Ansible runs `tox -elinters`, which includes ansible-lint. The common
