@@ -399,6 +399,11 @@ changes are uploaded and reviewed, the same way
 
 ## Execution notes
 
+- 2026-10-29 (AEDT): Mikal repushed `neutron-dhcp-agent-fixes`.
+  1012616 to 1012619 are now at patchset 2, carrying the revised 237
+  and 239 and the rebased 238 and 240. Patch 247 was uploaded as
+  [1012794](https://review.opendev.org/c/openstack/neutron/+/1012794).
+  `tools/gerrit-push-status.py` reports the series as current.
 - 2026-10-29 (AEDT): 1012625 (patch 245) failed Zuul on two races that
   the shorter switch interval exposed, as phase 5's Decision 3 expected.
   Neither test failed on any other change in the last 30 builds of its
