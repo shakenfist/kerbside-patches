@@ -1,0 +1,139 @@
+commit baa2ea2c40237bc74edc42c3b81fc991b47dce6f
+Author: Michael Still <mikal@stillhq.com>
+Date:   Wed Oct 28 15:08:00 2026 +1100
+
+    dhcp: Keep every segment's subnets on the cached network
+    
+    Since 06bc855dcf (2024) call_driver has set network.subnets to each
+    segment's subnets in turn on the caller's network, often the cached
+    one, and never restored them, so it kept only the last segment's.
+    
+    Each segment's driver call now gets a shallow copy holding only its
+    subnets. The copy shares the ports list, which DeviceManager.setup
+    extends and the next segment's stale device cleanup reads.
+    
+    Assisted-By: Claude Opus 5.5 (high effort)
+    Change-Id: I7b71a6f39860be53b4e3068b938b3f8e666f1b1d
+    Signed-off-by: Michael Still <mikal@stillhq.com>
+
+diff --git a/neutron/agent/dhcp/agent.py b/neutron/agent/dhcp/agent.py
+index 0c607eb3aa..ae6831120b 100644
+--- a/neutron/agent/dhcp/agent.py
++++ b/neutron/agent/dhcp/agent.py
+@@ -15,6 +15,7 @@
+ 
+ import collections
+ from concurrent import futures
++import copy
+ import functools
+ import os
+ import signal
+@@ -267,9 +268,17 @@ class DhcpAgent(manager.Manager):
+         if sid_subnets:
+             ret = []
+             for seg_id, subnets in sid_subnets.items():
+-                network.subnets = subnets
++                # Give the driver a copy holding only this segment's
++                # subnets, so the caller's (often cached) network keeps
++                # them all. The ports list stays shared: DeviceManager.setup
++                # adds each segment's DHCP port to it, and the next
++                # segment's stale device cleanup must see that port (bug
++                # #2051729).
++                net_seg = copy.copy(network)
++                net_seg.subnets = subnets
++                net_seg.ports = network.ports
+                 ret.append(self._call_driver(
+-                    action, network, segment=sid_segment.get(seg_id),
++                    action, net_seg, segment=sid_segment.get(seg_id),
+                     **action_kwargs))
+             return all(ret)
+         # In case subnets are not attached to segments. default behavior.
+diff --git a/neutron/tests/unit/agent/dhcp/test_agent.py b/neutron/tests/unit/agent/dhcp/test_agent.py
+index 358c5f853c..1e026ac472 100644
+--- a/neutron/tests/unit/agent/dhcp/test_agent.py
++++ b/neutron/tests/unit/agent/dhcp/test_agent.py
+@@ -422,7 +422,7 @@ class TestDhcpAgent(base.BaseTestCase):
+                                             mock.ANY,
+                                             None)
+ 
+-    def test_call_driver_enable_with_segments(self):
++    def _make_two_segment_network(self):
+         seg0 = dhcp.DictModel(id='seg0', segment_index=0)
+         seg1 = dhcp.DictModel(id='seg1', segment_index=1)
+ 
+@@ -434,19 +434,58 @@ class TestDhcpAgent(base.BaseTestCase):
+             project_id=FAKE_PROJECT_ID,
+             admin_state_up=True,
+             subnets=[sub0, sub1],
++            ports=[],
+             # We don't know order of segments stored.
+             segments=[seg1, seg0])
++        return network, (seg0, seg1), (sub0, sub1)
++
++    def test_call_driver_enable_with_segments(self):
++        network, (seg0, seg1), (sub0, sub1) = (
++            self._make_two_segment_network())
+ 
+         agent = dhcp_agent.DhcpAgent(cfg.CONF)
+         agent.init_host()
+         with mock.patch.object(agent,
+                                '_call_driver') as _call_driver:
+             self.assertTrue(agent.call_driver('enable', network))
+-            # The public function call_driver() is calling the private
+-            # _call_driver().
+-            _call_driver.assert_has_calls([
+-                mock.call("enable", network, segment=seg0),
+-                mock.call("enable", network, segment=seg1)])
++
++        # The public function call_driver() is calling the private
++        # _call_driver() once per segment, each time with a network that
++        # holds only that segment's subnets.
++        self.assertEqual(2, _call_driver.call_count)
++        calls = [(c.args[0], c.args[1], c.kwargs['segment'])
++                 for c in _call_driver.call_args_list]
++        for (action, net_seg, segment), seg, sub in zip(
++                calls, (seg0, seg1), (sub0, sub1)):
++            self.assertEqual('enable', action)
++            self.assertIs(seg, segment)
++            self.assertEqual([sub], net_seg.subnets)
++            self.assertEqual(network.id, net_seg.id)
++            self.assertEqual(network.namespace, net_seg.namespace)
++        # The caller's network, often the cached one, keeps every subnet.
++        self.assertEqual([sub0, sub1], network.subnets)
++
++    def test_call_driver_with_segments_shares_ports(self):
++        network, _, _ = self._make_two_segment_network()
++        seen_ports = []
++
++        def fake_call_driver(action, net_seg, segment=None):
++            # Each segment's driver call sees the DHCP ports added by the
++            # segments before it (bug #2051729).
++            seen_ports.append([p.id for p in net_seg.ports])
++            net_seg.ports.append(
++                dhcp.DictModel(id=f'dhcp-{segment.id}'))
++            return True
++
++        agent = dhcp_agent.DhcpAgent(cfg.CONF)
++        agent.init_host()
++        with mock.patch.object(agent, '_call_driver',
++                               side_effect=fake_call_driver):
++            self.assertTrue(agent.call_driver('enable', network))
++
++        self.assertEqual([[], ['dhcp-seg0']], seen_ports)
++        self.assertEqual(['dhcp-seg0', 'dhcp-seg1'],
++                         [p.id for p in network.ports])
+ 
+     def test_call_driver_no_network(self):
+         network = None
+diff --git a/releasenotes/notes/dhcp-routed-network-subnets-kept-aa97969931ae8a97.yaml b/releasenotes/notes/dhcp-routed-network-subnets-kept-aa97969931ae8a97.yaml
+new file mode 100644
+index 0000000000..4a78271f4d
+--- /dev/null
++++ b/releasenotes/notes/dhcp-routed-network-subnets-kept-aa97969931ae8a97.yaml
+@@ -0,0 +1,6 @@
++---
++fixes:
++  - |
++    On routed (multi-segment) networks the DHCP agent no longer leaves its
++    cached network object holding only the last segment's subnets after a
++    driver call.

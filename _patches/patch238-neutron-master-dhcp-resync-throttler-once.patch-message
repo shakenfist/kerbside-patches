@@ -1,0 +1,13 @@
+dhcp: Build the resync throttler once
+
+Since 2018 _periodic_resync_helper has built a new utils.throttler on
+every pass, so each call got a fresh LockWithTimer with timestamp 0 and
+never waited: resync_throttle has never throttled anything. Build the
+throttled callable once in __init__ and reuse it in the loop.
+
+A unit test drives two resync events 3 seconds apart with a 10 second
+throttle and checks only the second one sleeps, for the remaining 7.
+
+Assisted-By: Claude Sonnet 5.5 (medium effort)
+Change-Id: Ibc69980ebd20c0a249f03fb9b043c87e49e9271f
+Signed-off-by: Michael Still <mikal@stillhq.com>

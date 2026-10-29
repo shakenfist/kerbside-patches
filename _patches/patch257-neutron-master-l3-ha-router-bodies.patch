@@ -1,0 +1,189 @@
+commit 9f5edbfba0434e823c71f89a48e5d8906ba84ccd
+Author: Michael Still <mikal@stillhq.com>
+Date:   Wed Oct 28 17:43:14 2026 +1100
+
+    l3: Check the function bodies in the HA router
+    
+    The readers of ha_port and keepalived_manager go through one accessor
+    each, which raises a RuntimeError naming the attribute if it is unset,
+    rather than an AttributeError or TypeError on None. enable_conntrackd()
+    and external_gateway_updated() check conntrackd_manager and ex_gw_port.
+    
+    Assisted-By: Claude Opus 5.5 (high effort)
+    Change-Id: I1113efc375d1edf459bb706ea8bae4b14413b540
+    Signed-off-by: Michael Still <mikal@stillhq.com>
+
+diff --git a/neutron/agent/l3/ha_router.py b/neutron/agent/l3/ha_router.py
+index 3254243b01..4945b285c7 100644
+--- a/neutron/agent/l3/ha_router.py
++++ b/neutron/agent/l3/ha_router.py
+@@ -22,6 +22,7 @@ from neutron_lib import constants as n_consts
+ from neutron_lib.utils import runtime
+ from oslo_log import log as logging
+ 
++from neutron._i18n import _
+ from neutron.agent.l3 import ha_state
+ from neutron.agent.l3 import namespaces
+ from neutron.agent.l3 import router_info as router
+@@ -92,6 +93,18 @@ class HaRouter(router.RouterInfo):
+         return HaRouterNamespace(
+             router_id, agent_conf, iface_driver, use_ipv6)
+ 
++    def _get_ha_port(self):
++        if self.ha_port is None:
++            raise RuntimeError(
++                _('ha_port used before the router was initialized'))
++        return self.ha_port
++
++    def _get_keepalived_manager(self):
++        if self.keepalived_manager is None:
++            raise RuntimeError(
++                _('keepalived_manager used before the router was initialized'))
++        return self.keepalived_manager
++
+     @property
+     def ha_state_path(self):
+         if not self._ha_state_path and self.keepalived_manager:
+@@ -111,7 +124,7 @@ class HaRouter(router.RouterInfo):
+         # When the physical host was down/up, the 'primary' router may still
+         # have its original state in the _ha_state_path file. We directly
+         # reset it to 'backup'.
+-        if (not self.keepalived_manager.check_processes() and
++        if (not self._get_keepalived_manager().check_processes() and
+                 os.path.exists(self.ha_state_path) and
+                 self.ha_state == 'primary'):
+             LOG.debug("Setting ha_state of router %s to: backup",
+@@ -166,13 +179,13 @@ class HaRouter(router.RouterInfo):
+         self.spawn_state_change_monitor(process_monitor)
+ 
+     def _get_ha_port_fixed_ip_with_subnet(self, subnet):
+-        for fixed_ip in self.ha_port.get('fixed_ips', []):
++        for fixed_ip in self._get_ha_port().get('fixed_ips', []):
+             if fixed_ip['subnet_id'] == subnet['id']:
+                 return fixed_ip['ip_address']
+         return None
+ 
+     def _get_conntrackd_ipv4_interface(self):
+-        return self.ha_port['fixed_ips'][0]['ip_address']
++        return self._get_ha_port()['fixed_ips'][0]['ip_address']
+ 
+     def _init_conntrackd_manager(self, process_monitor):
+         self.conntrackd_manager = conntrackd.ConntrackdManager(
+@@ -201,7 +214,7 @@ class HaRouter(router.RouterInfo):
+         config = self.keepalived_manager.config
+ 
+         interface_name = self.get_ha_device_name()
+-        subnets = self.ha_port.get('subnets', [])
++        subnets = self._get_ha_port().get('subnets', [])
+         ha_port_cidrs = [subnet['cidr'] for subnet in subnets]
+         instance = keepalived.KeepalivedInstance(
+             'BACKUP',
+@@ -236,37 +249,43 @@ class HaRouter(router.RouterInfo):
+                 pass
+ 
+     def enable_keepalived(self):
+-        self.keepalived_manager.spawn()
++        self._get_keepalived_manager().spawn()
+ 
+     def disable_keepalived(self, remove_config=True):
+         self._disable_manager(self.keepalived_manager, remove_config)
+ 
+     def enable_conntrackd(self):
++        if self.conntrackd_manager is None:
++            raise RuntimeError(
++                _('conntrackd_manager used before the router was initialized'))
+         self.conntrackd_manager.spawn()
+ 
+     def disable_conntrackd(self, remove_config=True):
+         self._disable_manager(self.conntrackd_manager, remove_config)
+ 
+     def _get_keepalived_instance(self):
+-        return self.keepalived_manager.config.get_instance(self.ha_vr_id)
++        return self._get_keepalived_manager().config.get_instance(
++            self.ha_vr_id)
+ 
+     def _get_primary_vip(self):
+         return self._get_keepalived_instance().get_primary_vip()
+ 
+     def get_ha_device_name(self):
+-        return (HA_DEV_PREFIX + self.ha_port['id'])[:self.driver.DEV_NAME_LEN]
++        ha_port_id = self._get_ha_port()['id']
++        return (HA_DEV_PREFIX + ha_port_id)[:self.driver.DEV_NAME_LEN]
+ 
+     def ha_network_added(self):
++        ha_port = self._get_ha_port()
+         interface_name = self.get_ha_device_name()
+ 
+-        self.driver.plug(self.ha_port['network_id'],
+-                         self.ha_port['id'],
++        self.driver.plug(ha_port['network_id'],
++                         ha_port['id'],
+                          interface_name,
+-                         self.ha_port['mac_address'],
++                         ha_port['mac_address'],
+                          namespace=self.ha_namespace,
+                          prefix=HA_DEV_PREFIX,
+-                         mtu=self.ha_port.get('mtu'))
+-        ip_cidrs = common_utils.fixed_ip_cidrs(self.ha_port['fixed_ips'])
++                         mtu=ha_port.get('mtu'))
++        ip_cidrs = common_utils.fixed_ip_cidrs(ha_port['fixed_ips'])
+         self.driver.init_l3(interface_name, ip_cidrs,
+                             namespace=self.ha_namespace,
+                             preserve_ips=[self._get_primary_vip()])
+@@ -312,7 +331,7 @@ class HaRouter(router.RouterInfo):
+             for route in new_routes]
+         if self.router.get('distributed', False):
+             super().routes_updated(old_routes, new_routes)
+-        self.keepalived_manager.get_process().reload_cfg()
++        self._get_keepalived_manager().get_process().reload_cfg()
+ 
+     def _add_default_gw_virtual_route(self, ex_gw_port, interface_name):
+         gateway_ips = self._get_external_gw_ips(ex_gw_port)
+@@ -350,7 +369,7 @@ class HaRouter(router.RouterInfo):
+         it manage IPv4 addresses. If the router is not in the primary state,
+         we must delete the address first as it is autoconfigured by the kernel.
+         """
+-        manager = self.keepalived_manager
++        manager = self._get_keepalived_manager()
+         if manager.get_process().active:
+             if self.ha_state == 'primary':
+                 return False
+@@ -446,7 +465,7 @@ class HaRouter(router.RouterInfo):
+     def _get_state_change_monitor_callback(self):
+         ha_device = self.get_ha_device_name()
+         ha_cidr = self._get_primary_vip()
+-        config_dir = self.keepalived_manager.get_conf_dir()
++        config_dir = self._get_keepalived_manager().get_conf_dir()
+ 
+         if (
+             self.agent_conf.router_log_files_in_ha_confs or
+@@ -556,6 +575,9 @@ class HaRouter(router.RouterInfo):
+                                           interface_name, enable)
+ 
+     def external_gateway_updated(self, ex_gw_port, interface_name):
++        if self.ex_gw_port is None:
++            raise RuntimeError(
++                _('ex_gw_port used before the router was processed'))
+         self._plug_external_gateway(
+             ex_gw_port, interface_name, self.ha_namespace)
+         ip_cidrs = common_utils.fixed_ip_cidrs(self.ex_gw_port['fixed_ips'])
+@@ -620,6 +642,6 @@ class HaRouter(router.RouterInfo):
+ 
+     @runtime.synchronized('enable_radvd')
+     def enable_radvd(self, internal_ports=None):
+-        if (self.keepalived_manager.get_process().active and
++        if (self._get_keepalived_manager().get_process().active and
+                 self.ha_state == 'primary'):
+             super().enable_radvd(internal_ports)
+diff --git a/pyproject.toml b/pyproject.toml
+index dc183dab80..d30961a0ff 100644
+--- a/pyproject.toml
++++ b/pyproject.toml
+@@ -383,7 +383,6 @@ module = [
+     "neutron.agent.l3.dvr",
+     "neutron.agent.l3.dvr_local_router",
+     "neutron.agent.l3.ha",
+-    "neutron.agent.l3.ha_router",
+ ]
+ check_untyped_defs = false
+ 

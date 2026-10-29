@@ -1,0 +1,13 @@
+dhcp: Keep every segment's subnets on the cached network
+
+Since 06bc855dcf (2024) call_driver has set network.subnets to each
+segment's subnets in turn on the caller's network, often the cached
+one, and never restored them, so it kept only the last segment's.
+
+Each segment's driver call now gets a shallow copy holding only its
+subnets. The copy shares the ports list, which DeviceManager.setup
+extends and the next segment's stale device cleanup reads.
+
+Assisted-By: Claude Opus 5.5 (high effort)
+Change-Id: I7b71a6f39860be53b4e3068b938b3f8e666f1b1d
+Signed-off-by: Michael Still <mikal@stillhq.com>

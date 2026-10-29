@@ -1,0 +1,242 @@
+commit 15ec54b589d1e99bcc132a086cbcf1ceb31b4073
+Author: Michael Still <mikal@stillhq.com>
+Date:   Wed Oct 28 08:47:37 2026 +1100
+
+    l3: Lock ItemAllocator and write its state atomically
+    
+    The fip link-local and rule-priority allocators are shared by every
+    router on the agent but had no lock, and _write truncated and rewrote
+    the state file, so concurrent workers could corrupt what the next
+    restart reads. Lock each allocator and replace its file atomically.
+    
+    Assisted-By: Claude Opus 5.5 (high effort)
+    Change-Id: I33c5ac70b219fd82cfd8f0f6a2d7c1a41d2650a1
+    Signed-off-by: Michael Still <mikal@stillhq.com>
+
+diff --git a/neutron/agent/l3/item_allocator.py b/neutron/agent/l3/item_allocator.py
+index 83c120d5b9..4a3090febb 100644
+--- a/neutron/agent/l3/item_allocator.py
++++ b/neutron/agent/l3/item_allocator.py
+@@ -12,9 +12,12 @@
+ #    License for the specific language governing permissions and limitations
+ #    under the License.
+ 
++import contextlib
+ import os
++import threading
+ 
+ from oslo_log import log as logging
++from oslo_utils import uuidutils
+ 
+ from neutron._i18n import _
+ 
+@@ -47,6 +50,10 @@ class ItemAllocator:
+ 
+         self.remembered = {}
+         self.pool = item_pool
++        # One allocator is shared by every router using the fip namespace,
++        # and routers are processed by concurrent workers. allocate and
++        # release call lookup, hence a re-entrant lock.
++        self._lock = threading.RLock()
+ 
+         read_error = False
+         for line in self._read():
+@@ -69,12 +76,13 @@ class ItemAllocator:
+ 
+         See if there are any current or remembered allocations for the key.
+         """
+-        if key in self.allocations:
+-            return self.allocations[key]
++        with self._lock:
++            if key in self.allocations:
++                return self.allocations[key]
+ 
+-        if key in self.remembered:
+-            self.allocations[key] = self.remembered.pop(key)
+-            return self.allocations[key]
++            if key in self.remembered:
++                self.allocations[key] = self.remembered.pop(key)
++                return self.allocations[key]
+ 
+     def allocate(self, key):
+         """Try to allocate an item of ItemClass type.
+@@ -93,31 +101,34 @@ class ItemAllocator:
+         allocations to free the pool.  This final desperate step will not
+         happen often in practice.
+         """
+-        entry = self.lookup(key)
+-        if entry:
+-            return entry
+-
+-        if not self.pool:
+-            # Desperate times.  Try to get more in the pool.
+-            self.pool.update(self.remembered.values())
+-            self.remembered.clear()
++        with self._lock:
++            entry = self.lookup(key)
++            if entry:
++                return entry
++
+             if not self.pool:
+-                # The number of address pairs allocated from the
+-                # pool depends upon the prefix length specified
+-                # in DVR_FIP_LL_CIDR
+-                raise RuntimeError(_("Cannot allocate item of type: "
+-                                     "%(class)s from pool using file %(file)s")
+-                                   % {'class': self.ItemClass,
+-                                      'file': self.state_file})
+-
+-        self.allocations[key] = self.pool.pop()
+-        self._write_allocations()
+-        return self.allocations[key]
++                # Desperate times.  Try to get more in the pool.
++                self.pool.update(self.remembered.values())
++                self.remembered.clear()
++                if not self.pool:
++                    # The number of address pairs allocated from the
++                    # pool depends upon the prefix length specified
++                    # in DVR_FIP_LL_CIDR
++                    raise RuntimeError(
++                        _("Cannot allocate item of type: "
++                          "%(class)s from pool using file %(file)s")
++                        % {'class': self.ItemClass,
++                           'file': self.state_file})
++
++            self.allocations[key] = self.pool.pop()
++            self._write_allocations()
++            return self.allocations[key]
+ 
+     def release(self, key):
+-        if self.lookup(key):
+-            self.pool.add(self.allocations.pop(key))
+-            self._write_allocations()
++        with self._lock:
++            if self.lookup(key):
++                self.pool.add(self.allocations.pop(key))
++                self._write_allocations()
+ 
+     def _write_allocations(self):
+         current = [f"{k},{v}\n" for k, v in self.allocations.items()]
+@@ -127,8 +138,18 @@ class ItemAllocator:
+         self._write(current)
+ 
+     def _write(self, lines):
+-        with open(self.state_file, "w") as f:
+-            f.writelines(lines)
++        # Write a new file beside the state file and rename it over the
++        # state file, so a failed write never leaves a truncated file. The
++        # new file gets the same umask-derived mode as open(path, 'w').
++        tmp_file = f'{self.state_file}.{uuidutils.generate_uuid()}.tmp'
++        try:
++            with open(tmp_file, 'x') as f:
++                f.writelines(lines)
++            os.replace(tmp_file, self.state_file)
++        except Exception:
++            with contextlib.suppress(OSError):
++                os.unlink(tmp_file)
++            raise
+ 
+     def _read(self):
+         if not os.path.exists(self.state_file):
+diff --git a/neutron/tests/unit/agent/l3/test_item_allocator.py b/neutron/tests/unit/agent/l3/test_item_allocator.py
+index dd697f05ec..1413c48a66 100644
+--- a/neutron/tests/unit/agent/l3/test_item_allocator.py
++++ b/neutron/tests/unit/agent/l3/test_item_allocator.py
+@@ -12,6 +12,9 @@
+ #    License for the specific language governing permissions and limitations
+ #    under the License.
+ 
++import os
++import sys
++import threading
+ from unittest import mock
+ 
+ from neutron.agent.l3 import item_allocator as ia
+@@ -139,3 +142,74 @@ class TestItemAllocator(base.BaseTestCase):
+         self.assertIn(allocation, a.pool)
+         self.assertEqual({}, a.allocations)
+         write.assert_called_once_with([])
++
++    def test_concurrent_allocate_distinct_keys(self):
++        # Every DVR router on an agent shares the fip namespace's
++        # allocators, and pool workers process routers concurrently.
++        # Switch threads as often as possible to expose any interleaving.
++        self.addCleanup(sys.setswitchinterval, sys.getswitchinterval())
++        sys.setswitchinterval(1e-6)
++        state_file = self.get_temp_file_path('allocations')
++        test_pool = {TestObject(s) for s in range(32768, 33768)}
++        a = ia.ItemAllocator(state_file, TestObject, test_pool)
++        pool_size = len(a.pool)
++        num_threads = 64
++        start = threading.Barrier(num_threads, timeout=10)
++        results = {}
++        errors = []
++
++        def allocate(key):
++            try:
++                start.wait()
++                results[key] = a.allocate(key)
++            except Exception as e:
++                errors.append(e)
++
++        threads = [threading.Thread(target=allocate, args=('key%d' % i,))
++                   for i in range(num_threads)]
++        for t in threads:
++            t.start()
++        for t in threads:
++            t.join(timeout=10)
++        self.assertFalse(any(t.is_alive() for t in threads))
++
++        self.assertEqual([], errors)
++        self.assertEqual(num_threads, len(results))
++        self.assertEqual(num_threads,
++                         len({str(v) for v in results.values()}))
++        self.assertEqual(pool_size - num_threads, len(a.pool))
++        with open(state_file) as f:
++            content = f.read()
++        self.assertTrue(content.endswith('\n'))
++        expected = {k: str(v) for k, v in results.items()}
++        self.assertEqual(
++            expected,
++            dict(line.split(',') for line in content.splitlines()))
++
++    def test_write_failure_keeps_previous_state(self):
++        state_file = self.get_temp_file_path('allocations')
++        with open(state_file, 'w') as f:
++            f.write('deadbeef,33000\n')
++        test_pool = {TestObject(33000), TestObject(33001)}
++        a = ia.ItemAllocator(state_file, TestObject, test_pool)
++
++        with mock.patch.object(os, 'replace',
++                               side_effect=OSError('replace failed')):
++            self.assertRaises(OSError, a.allocate, 'abcdef12')
++
++        with open(state_file) as f:
++            self.assertEqual('deadbeef,33000\n', f.read())
++        self.assertEqual([os.path.basename(state_file)],
++                         os.listdir(os.path.dirname(state_file)))
++
++    def test_write_file_mode(self):
++        # The state file gets the mode a plain open(path, 'w') would give.
++        reference = self.get_temp_file_path('reference')
++        with open(reference, 'w'):
++            pass
++        state_file = self.get_temp_file_path('allocations')
++        test_pool = {TestObject(33000), TestObject(33001)}
++        a = ia.ItemAllocator(state_file, TestObject, test_pool)
++        a.allocate('deadbeef')
++        self.assertEqual(os.stat(reference).st_mode,
++                         os.stat(state_file).st_mode)
+diff --git a/releasenotes/notes/dvr-item-allocator-locking-f03424c4cb922d1b.yaml b/releasenotes/notes/dvr-item-allocator-locking-f03424c4cb922d1b.yaml
+new file mode 100644
+index 0000000000..1824ee6ce9
+--- /dev/null
++++ b/releasenotes/notes/dvr-item-allocator-locking-f03424c4cb922d1b.yaml
+@@ -0,0 +1,7 @@
++---
++fixes:
++  - |
++    The DVR link-local and rule-priority allocators shared by every router on
++    an L3 agent are now locked and write their state files atomically, so
++    concurrent router processing can no longer hand out a duplicate
++    allocation or leave a partly written state file.

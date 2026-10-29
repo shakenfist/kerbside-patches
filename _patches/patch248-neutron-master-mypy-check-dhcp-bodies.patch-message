@@ -1,0 +1,13 @@
+mypy: Check the DHCP agent and driver function bodies
+
+Check the bodies of unannotated functions in the dnsmasq driver module
+too, and take the DHCP agent off the list of modules that skip them.
+
+The errors this finds are narrowing rather than bugs: an Optional regex
+match, a dict.get of a key that is always present, an untyped attribute
+initialiser, a super().__getattr__ no superclass has, and a get_ports
+signature that differs by design.
+
+Assisted-By: Claude Sonnet 5.5 (medium effort)
+Change-Id: I4e2ba47294713cbd3889155213597d5baf42bfbe
+Signed-off-by: Michael Still <mikal@stillhq.com>

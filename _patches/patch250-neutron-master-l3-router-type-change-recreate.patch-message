@@ -1,0 +1,13 @@
+l3: Re-create a router whose type changed instead of swapping it
+
+The fix for bug 1892846 (489e0ead72) swapped a router whose type
+changed for an object that was never initialized, and left the old
+router's keepalived, radvd and state change processes running. An IPv6
+router then failed in enable_radvd and ran on without radvd.
+
+Delete the stale router and add it again, as the DVR HA branch below
+already does, so the new object is initialized before it is processed.
+
+Assisted-By: Claude Opus 5.5 (high effort)
+Change-Id: I1ef3962f0e95d446f422d8a967666ea0e87239be
+Signed-off-by: Michael Still <mikal@stillhq.com>

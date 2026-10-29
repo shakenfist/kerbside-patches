@@ -1,0 +1,154 @@
+commit 7022c6c79abb66cf5f77131b2bfa4e2f7175cf11
+Author: Michael Still <mikal@stillhq.com>
+Date:   Wed Oct 28 08:45:01 2026 +1100
+
+    hacking: Add N351 for config reads at import time
+    
+    N351 reports a cfg.CONF option read outside any function. Such a read
+    runs at import, so any process that imports the module before parsing
+    its configuration sees the default. The ovsdb manager options and the
+    three sites fixed in the previous change were all found by hand.
+    
+    The check follows "def" lines rather than the indent, so reads inside
+    module-level blocks such as "try:" and class bodies are caught too,
+    while reads in a lambda or behind register_opts and friends are not.
+    
+    Assisted-By: Claude Opus 5.5 (high effort)
+    Change-Id: Idda61a65682799d796bee649e785ca180b9ca9f0
+    Signed-off-by: Michael Still <mikal@stillhq.com>
+
+diff --git a/HACKING.rst b/HACKING.rst
+index c5f82402c7..7bf1d6215b 100644
+--- a/HACKING.rst
++++ b/HACKING.rst
+@@ -28,6 +28,8 @@ Below you can find a list of checks specific to this repository.
+   with [obj for obj in data if test(obj)].
+ - [N346] Use neutron_lib.db.api.sqla_listen rather than sqlalchemy
+ - [N348] Test code must not import six library
++- [N351] Do not read configuration options at import time; read them
++  where they are used.
+ 
+ .. note::
+    When adding a new hacking check to this repository or ``neutron-lib``, make
+diff --git a/neutron/hacking/checks.py b/neutron/hacking/checks.py
+index 3e61738710..0195520734 100644
+--- a/neutron/hacking/checks.py
++++ b/neutron/hacking/checks.py
+@@ -47,6 +47,12 @@ import_version_from_packaging = (
+ filter_lazy_subquery = re.compile(r".*lazy=.+subquery")
+ filter_subquery_load = re.compile(r".*subqueryload\(")
+ 
++conf_attribute = re.compile(r"(?<![\w.])(?:cfg\.)?CONF\.(\w+)(\s*\()?")
++conf_not_option_reads = frozenset((
++    'import_group', 'import_opt', 'register_cli_opt', 'register_cli_opts',
++    'register_group', 'register_opt', 'register_opts', 'set_default',
++    'set_override'))
++
+ 
+ @core.flake8ext
+ def check_assert_called_once_with(logical_line, filename):
+@@ -269,3 +275,39 @@ def check_no_sqlalchemy_lazy_subquery(logical_line):
+ 
+     if filter_subquery_load.match(logical_line):
+         yield (0, msg)
++
++
++@core.flake8ext
++def check_no_config_read_at_import(logical_line, indent_level, checker_state,
++                                   filename, noqa):
++    """N351 - Do not read configuration options at import time.
++
++    A read outside any function runs at import, so it sees the option's
++    default in any process that imports the module before parsing its
++    configuration. Blocks such as "try:" at module level count too, which
++    is why this tracks the enclosing "def" lines rather than the indent.
++    """
++    msg = ("N351: Do not read configuration options at import time; read "
++           "them where they are used.")
++
++    scopes = checker_state.setdefault('scopes', [])
++    while scopes and scopes[-1][0] >= indent_level:
++        scopes.pop()
++    in_function = any(is_def for _indent, is_def in scopes)
++    is_def = logical_line.startswith(('def ', 'async def '))
++    if is_def or logical_line.startswith('class '):
++        scopes.append((indent_level, is_def))
++
++    if noqa or in_function or 'neutron/tests/' in filename:
++        return
++
++    lambda_at = logical_line.find('lambda')
++    for match in conf_attribute.finditer(logical_line):
++        attribute, is_call = match.groups()
++        if attribute in conf_not_option_reads or is_call:
++            continue
++        # A lambda's body runs when it is called, not when it is defined.
++        if 0 <= lambda_at < match.start():
++            continue
++        yield (match.start(), msg)
++        return
+diff --git a/neutron/tests/unit/hacking/test_checks.py b/neutron/tests/unit/hacking/test_checks.py
+index cec4489b1e..7d5190de99 100644
+--- a/neutron/tests/unit/hacking/test_checks.py
++++ b/neutron/tests/unit/hacking/test_checks.py
+@@ -285,3 +285,48 @@ class HackingTestCase(base.BaseTestCase):
+             f, "backref=orm.backref('tags', lazy='selectin', viewonly=True),")
+         self.assertLinePasses(
+             f, "query.options(orm.selectinload(ml2_models.PortBinding.port))")
++
++    def _check_config_read_at_import(self, lines,
++                                     filename='neutron/foo.py'):
++        """Run N351 over (indent_level, line) pairs as flake8 would.
++
++        Returns the indexes of the lines it reports.
++        """
++        checker_state = {}
++        hits = []
++        for index, (indent_level, line) in enumerate(lines):
++            if list(checks.check_no_config_read_at_import(
++                    line, indent_level, checker_state, filename, False)):
++                hits.append(index)
++        return hits
++
++    def test_check_no_config_read_at_import(self):
++        check = self._check_config_read_at_import
++        self.assertEqual([0], check([(0, 'X = cfg.CONF.foo')]))
++        self.assertEqual([0], check([(0, 'X = cfg.CONF.GROUP.foo')]))
++        self.assertEqual([0], check([(0, 'X = CONF.foo')]))
++        self.assertEqual([], check([(0, 'cfg.CONF.register_opts(opts)')]))
++        self.assertEqual([], check([(0, 'CONF = cfg.CONF')]))
++        self.assertEqual([], check([(0, 'cfg.CONF(args)')]))
++        self.assertEqual([], check([(0, 'X = self.CONF.foo')]))
++        self.assertEqual([], check([(0, 'f(lambda: cfg.CONF.foo)')]))
++        self.assertEqual(
++            [], check([(0, 'X = cfg.CONF.foo')], 'neutron/tests/unit/foo.py'))
++
++    def test_check_no_config_read_at_import_blocks(self):
++        check = self._check_config_read_at_import
++        # Module level blocks and class bodies run at import.
++        self.assertEqual([1], check([(0, 'try:'),
++                                     (4, '_debug = cfg.CONF.debug')]))
++        self.assertEqual([1], check([(0, 'class Foo:'),
++                                     (4, 'x = cfg.CONF.foo')]))
++        # Function bodies do not, and the module level resumes after them.
++        self.assertEqual([4], check([(0, 'def foo():'),
++                                     (4, 'if cfg.CONF.foo:'),
++                                     (8, 'return cfg.CONF.bar'),
++                                     (0, 'class Foo:'),
++                                     (4, 'x = cfg.CONF.foo'),
++                                     (4, 'def bar(self):'),
++                                     (8, 'return cfg.CONF.foo')]))
++        # Default arguments are evaluated when the function is defined.
++        self.assertEqual([0], check([(0, 'def foo(x=cfg.CONF.foo):')]))
+diff --git a/tox.ini b/tox.ini
+index dc1c24bd56..1a41eb18b2 100644
+--- a/tox.ini
++++ b/tox.ini
+@@ -233,6 +233,7 @@ extension =
+   N348 = checks:check_no_import_six
+   N349 = checks:check_no_import_packaging
+   N350 = checks:check_no_sqlalchemy_lazy_subquery
++  N351 = checks:check_no_config_read_at_import
+ paths = ./neutron/hacking
+ 
+ [doc8]

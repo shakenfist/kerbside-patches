@@ -1,0 +1,10 @@
+l3: Lock ItemAllocator and write its state atomically
+
+The fip link-local and rule-priority allocators are shared by every
+router on the agent but had no lock, and _write truncated and rewrote
+the state file, so concurrent workers could corrupt what the next
+restart reads. Lock each allocator and replace its file atomically.
+
+Assisted-By: Claude Opus 5.5 (high effort)
+Change-Id: I33c5ac70b219fd82cfd8f0f6a2d7c1a41d2650a1
+Signed-off-by: Michael Still <mikal@stillhq.com>

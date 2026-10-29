@@ -1,0 +1,14 @@
+hacking: Add N351 for config reads at import time
+
+N351 reports a cfg.CONF option read outside any function. Such a read
+runs at import, so any process that imports the module before parsing
+its configuration sees the default. The ovsdb manager options and the
+three sites fixed in the previous change were all found by hand.
+
+The check follows "def" lines rather than the indent, so reads inside
+module-level blocks such as "try:" and class bodies are caught too,
+while reads in a lambda or behind register_opts and friends are not.
+
+Assisted-By: Claude Opus 5.5 (high effort)
+Change-Id: Idda61a65682799d796bee649e785ca180b9ca9f0
+Signed-off-by: Michael Still <mikal@stillhq.com>

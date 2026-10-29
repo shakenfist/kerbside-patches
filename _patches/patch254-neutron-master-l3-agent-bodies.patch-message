@@ -1,0 +1,10 @@
+l3: Check the function bodies in the L3 agent
+
+Annotate agent_state and heartbeat where init_host() assigns them, so
+mypy can type their reads in _report_state(). The legacy state change
+check raises a RuntimeError naming process_monitor if it is unset,
+inside the try that already logs and skips any failure to register.
+
+Assisted-By: Claude Opus 5.5 (high effort)
+Change-Id: I7f8ef0f85f15671084bea3ec1901aff633a52242
+Signed-off-by: Michael Still <mikal@stillhq.com>
