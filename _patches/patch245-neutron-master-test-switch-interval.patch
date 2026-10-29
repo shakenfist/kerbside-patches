@@ -1,0 +1,43 @@
+commit 63321cd5c4005cd5a3849621d65ec7db4bae999e
+Author: Michael Still <mikal@stillhq.com>
+Date:   Wed Oct 28 08:39:23 2026 +1100
+
+    tests: Shorten the thread switch interval under test
+    
+    CPython preempts a thread only after a waiter has waited the switch
+    interval (5 ms), and the agents now run real threads since eventlet's
+    removal, so races in sections shorter than that never surface in CI.
+    DietTestCase now sets a 10 us interval and restores the old one.
+    
+    Over six interleaved runs each on a loaded host, the median wall time
+    of neutron.tests.unit.agent went from 60.1 s to 55.6 s: no measurable
+    cost.
+    
+    Assisted-By: Claude Opus 5.5 (medium effort)
+    Change-Id: I733f018f9c54672443e41a011412f0f9b3adcac7
+    Signed-off-by: Michael Still <mikal@stillhq.com>
+
+diff --git a/neutron/tests/base.py b/neutron/tests/base.py
+index 0eb11405db..46c2295b05 100644
+--- a/neutron/tests/base.py
++++ b/neutron/tests/base.py
+@@ -23,6 +23,7 @@ import logging
+ import os
+ import os.path
+ import queue
++import sys
+ import threading
+ from unittest import mock
+ import warnings
+@@ -249,6 +250,11 @@ class DietTestCase(base.BaseTestCase, metaclass=_CatchErrorsMetaclass):
+         # memory db with connection close or reconnect
+         cfg.CONF.set_override('connection_recycle_time', -1, group='database')
+ 
++        # CPython preempts a thread only after another has waited the switch
++        # interval (5 ms by default); shorten it so short races can surface.
++        self.addCleanup(sys.setswitchinterval, sys.getswitchinterval())
++        sys.setswitchinterval(1e-5)
++
+         # Configure this first to ensure pm debugging support for setUp()
+         debugger = os.environ.get('OS_POST_MORTEM_DEBUGGER')
+         if debugger:

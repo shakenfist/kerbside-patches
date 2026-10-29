@@ -1,0 +1,52 @@
+commit e2986c8934cd919196eff6ff78b2fe5728160f1f
+Author: Michael Still <mikal@stillhq.com>
+Date:   Wed Oct 28 16:57:24 2026 +1100
+
+    l3: Check the function bodies in router_info
+    
+    enable_radvd() now raises a RuntimeError naming radvd if it runs before
+    initialize() has created the monitor, rather than an AttributeError on
+    None. RouterInfo declares host as None, since only DVR routers set it
+    and only they have centralized floating IPs to compare it with.
+    
+    Assisted-By: Claude Opus 5.5 (high effort)
+    Change-Id: I4e6f0f9e8a7e7a328c3c9abfb7c372fc1afaea75
+    Signed-off-by: Michael Still <mikal@stillhq.com>
+
+diff --git a/neutron/agent/l3/router_info.py b/neutron/agent/l3/router_info.py
+index defb1a6dd8..82dc6272a9 100644
+--- a/neutron/agent/l3/router_info.py
++++ b/neutron/agent/l3/router_info.py
+@@ -120,6 +120,10 @@ class BaseRouterInfo(metaclass=abc.ABCMeta):
+ 
+ class RouterInfo(BaseRouterInfo):
+ 
++    # Only DVR routers set this, and only they have centralized
++    # floating IPs to compare it with.
++    host: str | None = None
++
+     def __init__(self,
+                  agent,
+                  router_id,
+@@ -619,6 +623,9 @@ class RouterInfo(BaseRouterInfo):
+         LOG.debug('Spawning radvd daemon in router device: %s', self.router_id)
+         if not internal_ports:
+             internal_ports = self.internal_ports
++        if self.radvd is None:
++            raise RuntimeError(
++                _('radvd used before the router was initialized'))
+         self.radvd.enable(internal_ports)
+ 
+     def disable_radvd(self):
+diff --git a/pyproject.toml b/pyproject.toml
+index 0003446dd6..ee1359990e 100644
+--- a/pyproject.toml
++++ b/pyproject.toml
+@@ -389,7 +389,6 @@ module = [
+     "neutron.agent.l3.ha",
+     "neutron.agent.l3.ha_router",
+     "neutron.agent.l3.l3_agent_extensions_manager",
+-    "neutron.agent.l3.router_info",
+ ]
+ check_untyped_defs = false
+ 

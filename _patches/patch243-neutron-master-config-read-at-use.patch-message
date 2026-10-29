@@ -1,0 +1,15 @@
+Read config options where they are used, not at import
+
+objects/base.py, quotasv2.py and quotasv2_detail.py read options at
+import, so any tool that imports them before parsing its configuration,
+such as neutron-ovn-db-sync-util, sees the defaults. Read "debug" and
+"quota_driver" when they are used, and always register the ORM hook.
+
+quotasv2 compared the run-time driver with its own import-time value,
+so whether its description said "per project" depended on import
+order. It now checks the driver against QUOTA_DB_DRIVERS, a tuple of
+the two database drivers added to neutron.conf.quota.
+
+Assisted-By: Claude Opus 5.5 (high effort)
+Change-Id: Iebbb77f7b7190126973711100896c0fa1d487570
+Signed-off-by: Michael Still <mikal@stillhq.com>

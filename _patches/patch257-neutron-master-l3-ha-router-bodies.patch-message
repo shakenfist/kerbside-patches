@@ -1,0 +1,10 @@
+l3: Check the function bodies in the HA router
+
+The readers of ha_port and keepalived_manager go through one accessor
+each, which raises a RuntimeError naming the attribute if it is unset,
+rather than an AttributeError or TypeError on None. enable_conntrackd()
+and external_gateway_updated() check conntrackd_manager and ex_gw_port.
+
+Assisted-By: Claude Opus 5.5 (high effort)
+Change-Id: I1113efc375d1edf459bb706ea8bae4b14413b540
+Signed-off-by: Michael Still <mikal@stillhq.com>

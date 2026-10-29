@@ -1,0 +1,10 @@
+l3: Check the function bodies in router_info
+
+enable_radvd() now raises a RuntimeError naming radvd if it runs before
+initialize() has created the monitor, rather than an AttributeError on
+None. RouterInfo declares host as None, since only DVR routers set it
+and only they have centralized floating IPs to compare it with.
+
+Assisted-By: Claude Opus 5.5 (high effort)
+Change-Id: I4e6f0f9e8a7e7a328c3c9abfb7c372fc1afaea75
+Signed-off-by: Michael Still <mikal@stillhq.com>

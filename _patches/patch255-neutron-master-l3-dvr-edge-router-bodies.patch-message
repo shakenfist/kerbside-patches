@@ -1,0 +1,10 @@
+l3: Check the function bodies in the DVR edge router
+
+The centralized floating IP NAT rules raise a RuntimeError naming
+snat_iptables_manager if they run before the SNAT gateway exists, and
+the DVR edge HA router's gateway removal raises one naming snat_ports if
+it runs before the first process(). Neither path can reach that today.
+
+Assisted-By: Claude Opus 5.5 (high effort)
+Change-Id: If50292aecb19d0e94dd4fd3ad72f93363e409204
+Signed-off-by: Michael Still <mikal@stillhq.com>

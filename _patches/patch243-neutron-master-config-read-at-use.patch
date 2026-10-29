@@ -1,0 +1,263 @@
+commit 501ced2cd99b207d5c1af01e0959ad8da9615dfd
+Author: Michael Still <mikal@stillhq.com>
+Date:   Wed Oct 28 08:37:49 2026 +1100
+
+    Read config options where they are used, not at import
+    
+    objects/base.py, quotasv2.py and quotasv2_detail.py read options at
+    import, so any tool that imports them before parsing its configuration,
+    such as neutron-ovn-db-sync-util, sees the defaults. Read "debug" and
+    "quota_driver" when they are used, and always register the ORM hook.
+    
+    quotasv2 compared the run-time driver with its own import-time value,
+    so whether its description said "per project" depended on import
+    order. It now checks the driver against QUOTA_DB_DRIVERS, a tuple of
+    the two database drivers added to neutron.conf.quota.
+    
+    Assisted-By: Claude Opus 5.5 (high effort)
+    Change-Id: Iebbb77f7b7190126973711100896c0fa1d487570
+    Signed-off-by: Michael Still <mikal@stillhq.com>
+
+diff --git a/neutron/conf/quota.py b/neutron/conf/quota.py
+index 2cef49477b..5b2fa6f5ff 100644
+--- a/neutron/conf/quota.py
++++ b/neutron/conf/quota.py
+@@ -24,6 +24,8 @@ QUOTA_DB_DRIVER_LEGACY = QUOTA_DB_DIRECTORY + 'driver.DbQuotaDriver'
+ QUOTA_DB_DRIVER_NO_LOCK = (QUOTA_DB_DIRECTORY +
+                            'driver_nolock.DbQuotaNoLockDriver')
+ QUOTA_DB_DRIVER_NULL = QUOTA_DB_DIRECTORY + 'driver_null.DbQuotaDriverNull'
++# The drivers that keep per project quotas in the database.
++QUOTA_DB_DRIVERS = (QUOTA_DB_DRIVER_LEGACY, QUOTA_DB_DRIVER_NO_LOCK)
+ 
+ QUOTA_DB_DRIVER = QUOTA_DB_DRIVER_NO_LOCK
+ QUOTAS_CFG_GROUP = 'QUOTAS'
+diff --git a/neutron/extensions/quotasv2.py b/neutron/extensions/quotasv2.py
+index 1e4dc235c5..0446726834 100644
+--- a/neutron/extensions/quotasv2.py
++++ b/neutron/extensions/quotasv2.py
+@@ -31,6 +31,7 @@ from neutron.api import extensions
+ from neutron.api.v2 import base
+ from neutron.api.v2 import resource
+ from neutron.api import wsgi
++from neutron.conf import quota as quota_conf
+ from neutron.db.quota import api as quota_api
+ from neutron import policy
+ from neutron import quota
+@@ -41,7 +42,6 @@ DEFAULT_QUOTAS_ACTION = 'default'
+ RESOURCE_NAME = 'quota'
+ RESOURCE_COLLECTION = RESOURCE_NAME + "s"
+ QUOTAS = quota.QUOTAS
+-DB_QUOTA_DRIVER = cfg.CONF.QUOTAS.quota_driver
+ EXTENDED_ATTRIBUTES_2_0 = {
+     RESOURCE_COLLECTION: {}
+ }
+@@ -187,7 +187,7 @@ class Quotasv2(api_extensions.ExtensionDescriptor):
+     @classmethod
+     def get_description(cls):
+         description = 'Expose functions for quotas management'
+-        if cfg.CONF.QUOTAS.quota_driver == DB_QUOTA_DRIVER:
++        if cfg.CONF.QUOTAS.quota_driver in quota_conf.QUOTA_DB_DRIVERS:
+             description += ' per project'
+         return description
+ 
+diff --git a/neutron/extensions/quotasv2_detail.py b/neutron/extensions/quotasv2_detail.py
+index 5087022a52..d17dc7d0c8 100644
+--- a/neutron/extensions/quotasv2_detail.py
++++ b/neutron/extensions/quotasv2_detail.py
+@@ -23,8 +23,7 @@ from oslo_config import cfg
+ from neutron._i18n import _
+ from neutron.api import extensions
+ from neutron.api.v2 import resource
+-from neutron.db.quota import driver
+-from neutron.db.quota import driver_nolock
++from neutron.conf import quota as quota_conf
+ from neutron.extensions import quotasv2
+ from neutron.quota import resource_registry
+ 
+@@ -32,18 +31,16 @@ from neutron.quota import resource_registry
+ DETAIL_QUOTAS_ACTION = 'details'
+ RESOURCE_NAME = 'quota'
+ ALIAS = RESOURCE_NAME + '_' + DETAIL_QUOTAS_ACTION
+-QUOTA_DRIVER = cfg.CONF.QUOTAS.quota_driver
+ RESOURCE_COLLECTION = RESOURCE_NAME + "s"
+-DB_QUOTA_DRIVERS = tuple('.'.join([klass.__module__, klass.__name__])
+-                         for klass in (driver.DbQuotaDriver,
+-                                       driver_nolock.DbQuotaNoLockDriver,
+-                                       )
+-                         )
+ EXTENDED_ATTRIBUTES_2_0 = {
+     RESOURCE_COLLECTION: {}
+ }
+ 
+ 
++def _uses_db_quota_driver():
++    return cfg.CONF.QUOTAS.quota_driver in quota_conf.QUOTA_DB_DRIVERS
++
++
+ class DetailQuotaSetsController(quotasv2.QuotaSetsController):
+ 
+     def _get_detailed_quotas(self, request, project_id):
+@@ -67,7 +64,7 @@ class Quotasv2_detail(api_extensions.ExtensionDescriptor):
+ 
+     # Ensure new extension is not loaded with old conf driver.
+     extensions.register_custom_supported_check(
+-        ALIAS, lambda: QUOTA_DRIVER in DB_QUOTA_DRIVERS, plugin_agnostic=True)
++        ALIAS, _uses_db_quota_driver, plugin_agnostic=True)
+ 
+     @classmethod
+     def get_name(cls):
+diff --git a/neutron/objects/base.py b/neutron/objects/base.py
+index 8a3505b2df..117c6023e4 100644
+--- a/neutron/objects/base.py
++++ b/neutron/objects/base.py
+@@ -56,22 +56,22 @@ _NO_DB_MODEL = object()
+ # under non-autocommit, a transaction must be explicitly created
+ # (writer/reader) and sticks open.
+ # This evaluation is done only in debug mode to monitor the Neutron code
+-# compliance to SQLAlchemy 2.0.
++# compliance to SQLAlchemy 2.0. "debug" is read when the listener runs, not
++# at import, because some tools import this module before parsing their
++# configuration.
+ def do_orm_execute(orm_execute_state):
++    try:
++        if not cfg.CONF.debug:
++            return
++    except cfg.NoSuchOptError:
++        return
+     if not orm_execute_state.session.in_transaction():
+         trace_string = '\n'.join(traceback.format_stack(sys._getframe(1)))
+         LOG.warning('ORM session: SQL execution without transaction in '
+                     'progress, traceback:\n%s', trace_string)
+ 
+ 
+-try:
+-    _debug = cfg.CONF.debug
+-except cfg.NoSuchOptError:
+-    _debug = False
+-
+-
+-if _debug:
+-    db_api.sqla_listen(orm.Session, 'do_orm_execute', do_orm_execute)
++db_api.sqla_listen(orm.Session, 'do_orm_execute', do_orm_execute)
+ 
+ 
+ def get_object_class_by_model(model):
+diff --git a/neutron/tests/unit/extensions/test_quotasv2.py b/neutron/tests/unit/extensions/test_quotasv2.py
+index 1ffbb4c4dc..c9f4cbeb33 100644
+--- a/neutron/tests/unit/extensions/test_quotasv2.py
++++ b/neutron/tests/unit/extensions/test_quotasv2.py
+@@ -33,6 +33,8 @@ from neutron.db.quota import api as quota_api
+ from neutron.db.quota import driver
+ from neutron.db.quota import driver_nolock
+ from neutron.db.quota import driver_null
++from neutron.extensions import quotasv2
++from neutron.extensions import quotasv2_detail
+ from neutron import quota
+ from neutron.quota import resource_registry
+ from neutron.tests import base
+@@ -525,3 +527,33 @@ class TestQuotaDriverLoad(base.BaseTestCase):
+                 module,
+                 '.'.join([klass.__module__, klass.__name__]),
+                 klass.__name__)
++
++
++class TestQuotaExtensionDriverCheck(base.BaseTestCase):
++    """The quota extensions read "quota_driver" when asked, not at import."""
++
++    def _set_quota_driver(self, quota_driver):
++        cfg.CONF.set_override('quota_driver', quota_driver, group='QUOTAS')
++        self.addCleanup(cfg.CONF.clear_override, 'quota_driver',
++                        group='QUOTAS')
++
++    def test_description_with_db_driver(self):
++        for quota_driver in qconf.QUOTA_DB_DRIVERS:
++            self._set_quota_driver(quota_driver)
++            self.assertEqual(
++                'Expose functions for quotas management per project',
++                quotasv2.Quotasv2.get_description())
++
++    def test_description_without_db_driver(self):
++        self._set_quota_driver(qconf.QUOTA_DB_DRIVER_NULL)
++        self.assertEqual('Expose functions for quotas management',
++                         quotasv2.Quotasv2.get_description())
++
++    def test_detail_supported_check(self):
++        check = extensions.EXTENSION_SUPPORTED_CHECK_MAP[
++            quotasv2_detail.ALIAS]
++        self._set_quota_driver(qconf.QUOTA_DB_DRIVER_NULL)
++        self.assertFalse(check())
++        for quota_driver in qconf.QUOTA_DB_DRIVERS:
++            self._set_quota_driver(quota_driver)
++            self.assertTrue(check())
+diff --git a/neutron/tests/unit/objects/test_base.py b/neutron/tests/unit/objects/test_base.py
+index 916d3e75cc..f57e5d8237 100644
+--- a/neutron/tests/unit/objects/test_base.py
++++ b/neutron/tests/unit/objects/test_base.py
+@@ -14,6 +14,7 @@ import collections
+ from collections import abc
+ import copy
+ import itertools
++import logging
+ import random
+ from unittest import mock
+ 
+@@ -30,6 +31,7 @@ from neutron_lib.objects.logapi import event_types
+ from neutron_lib.objects import utils as obj_utils
+ from neutron_lib.tests import tools as lib_test_tools
+ from neutron_lib.utils import helpers
++from oslo_config import cfg
+ from oslo_db import exception as obj_exc
+ from oslo_db.sqlalchemy import utils as db_utils
+ from oslo_utils import uuidutils
+@@ -1408,6 +1410,38 @@ class NeutronObjectCountTestCase(test_base.BaseTestCase):
+             expected, FakeNeutronObject.count(None, count=expected))
+ 
+ 
++class DoOrmExecuteTestCase(test_base.BaseTestCase):
++
++    def setUp(self):
++        super().setUp()
++        self.log = self.useFixture(fixtures.FakeLogger(
++            name=base.__name__, level=logging.WARNING))
++        self.orm_execute_state = mock.Mock()
++        self.orm_execute_state.session.in_transaction.return_value = False
++
++    def _set_debug(self, value):
++        cfg.CONF.set_override('debug', value)
++        self.addCleanup(cfg.CONF.clear_override, 'debug')
++
++    def test_warns_without_transaction_in_debug_mode(self):
++        self._set_debug(True)
++        base.do_orm_execute(self.orm_execute_state)
++        self.assertIn('SQL execution without transaction in progress',
++                      self.log.output)
++
++    def test_silent_without_debug_mode(self):
++        self._set_debug(False)
++        base.do_orm_execute(self.orm_execute_state)
++        self.assertEqual('', self.log.output)
++        self.orm_execute_state.session.in_transaction.assert_not_called()
++
++    def test_silent_in_transaction(self):
++        self._set_debug(True)
++        self.orm_execute_state.session.in_transaction.return_value = True
++        base.do_orm_execute(self.orm_execute_state)
++        self.assertEqual('', self.log.output)
++
++
+ class BaseDbObjectCompositePrimaryKeyWithIdTestCase(BaseObjectIfaceTestCase):
+ 
+     _test_class = FakeNeutronObjectCompositePrimaryKeyWithId
+diff --git a/releasenotes/notes/config-read-at-use-da8ca3797a3d3202.yaml b/releasenotes/notes/config-read-at-use-da8ca3797a3d3202.yaml
+new file mode 100644
+index 0000000000..891f2b209b
+--- /dev/null
++++ b/releasenotes/notes/config-read-at-use-da8ca3797a3d3202.yaml
+@@ -0,0 +1,7 @@
++---
++fixes:
++  - |
++    The ORM "SQL execution without transaction" debug warning is now emitted
++    whenever ``debug`` is true, and the quota extensions report the configured
++    ``quota_driver``, regardless of whether the module was imported before the
++    configuration was parsed.

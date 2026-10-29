@@ -1,0 +1,10 @@
+l3: Check the function bodies in the extensions manager
+
+stevedore types an extension's obj as optional, but the constructor
+already rejects any extension whose obj is not an L3AgentExtension.
+Iterate the extensions through one helper that narrows obj with the
+same isinstance check, so mypy can check the four notifiers.
+
+Assisted-By: Claude Opus 5.5 (high effort)
+Change-Id: I35413e2136bbff8bb365ee6b3e822194309b2e22
+Signed-off-by: Michael Still <mikal@stillhq.com>

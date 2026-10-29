@@ -1,0 +1,62 @@
+commit 5b4dd79162bfbf1815846fe0691d857971a9041b
+Author: Michael Still <mikal@stillhq.com>
+Date:   Wed Oct 28 17:04:51 2026 +1100
+
+    l3: Check the function bodies in dvr_fip_ns
+    
+    The FIP namespace is shared by every router on an external network, so
+    another thread can clear agent_gateway_port while a router links to it.
+    Read it once, raise a RuntimeError naming it if it is unset, and use
+    the same value in the failure path that unsubscribes the network.
+    
+    Assisted-By: Claude Opus 5.5 (high effort)
+    Change-Id: Ifd494064ca1add97730aa911136512c5895c78b4
+    Signed-off-by: Michael Still <mikal@stillhq.com>
+
+diff --git a/neutron/agent/l3/dvr_fip_ns.py b/neutron/agent/l3/dvr_fip_ns.py
+index d01c4a8b31..6028c8d420 100644
+--- a/neutron/agent/l3/dvr_fip_ns.py
++++ b/neutron/agent/l3/dvr_fip_ns.py
+@@ -282,13 +282,18 @@ class FipNamespace(namespaces.Namespace):
+         # TODO(Swami): Rename the _get_snat_idx function to some
+         # generic name that can be used for SNAT and FIP
+         rt_tbl_index = ri._get_snat_idx(fip_2_rtr)
+-        interface_name = self.get_ext_device_name(
+-            self.agent_gateway_port['id'])
++        # Read the gateway port once. The namespace is shared by every
++        # router on the external network, and another thread can clear it.
++        agent_gateway_port = self.agent_gateway_port
++        if agent_gateway_port is None:
++            raise RuntimeError(_(
++                'agent_gateway_port used before the FIP gateway was set up'))
++        interface_name = self.get_ext_device_name(agent_gateway_port['id'])
+         try:
+             # The lock is used to make sure another thread doesn't call to
+             # update the gateway route before we are done initializing things.
+             with self._fip_port_lock(interface_name):
+-                self._update_gateway_route(self.agent_gateway_port,
++                self._update_gateway_route(agent_gateway_port,
+                                            interface_name,
+                                            tbl_index=rt_tbl_index)
+         except Exception:
+@@ -297,7 +302,7 @@ class FipNamespace(namespaces.Namespace):
+             # the next call will trigger the interface to be plugged.
+             # We reraise the exception in order to resync the router.
+             with excutils.save_and_reraise_exception():
+-                self.unsubscribe(self.agent_gateway_port['network_id'])
++                self.unsubscribe(agent_gateway_port['network_id'])
+                 self.agent_gateway_port = None
+                 LOG.exception('DVR: Gateway setup in FIP namespace '
+                               'failed')
+diff --git a/pyproject.toml b/pyproject.toml
+index e92a36c9c7..03db7039e7 100644
+--- a/pyproject.toml
++++ b/pyproject.toml
+@@ -383,7 +383,6 @@ module = [
+     "neutron.agent.l3.agent",
+     "neutron.agent.l3.dvr",
+     "neutron.agent.l3.dvr_edge_router",
+-    "neutron.agent.l3.dvr_fip_ns",
+     "neutron.agent.l3.dvr_local_router",
+     "neutron.agent.l3.dvr_router_base",
+     "neutron.agent.l3.ha",
