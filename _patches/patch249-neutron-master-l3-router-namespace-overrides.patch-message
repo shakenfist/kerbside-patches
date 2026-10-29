@@ -1,0 +1,14 @@
+l3: Make router and namespace overrides match their bases
+
+BaseRouterInfo.delete() and process() still declare an agent argument
+that the 2015 router refactors removed from every subclass and caller,
+so mypy flags each override. Drop it and its docstring line.
+
+Namespace.create() takes ipv6_forwarding, but the SNAT, FIP and HA
+namespaces drop it. Accept it and pass it through, keeping each
+default: on for SNAT and FIP, off for HA namespaces until the router
+is primary. mypy can now check the bodies in dvr_snat_ns.
+
+Assisted-By: Claude Opus 5.5 (high effort)
+Change-Id: Ia47b54b1ac43a2d58a8a63f20e36f16a423b49a4
+Signed-off-by: Michael Still <mikal@stillhq.com>

@@ -1,0 +1,10 @@
+l3: Check the function bodies in dvr_fip_ns
+
+The FIP namespace is shared by every router on an external network, so
+another thread can clear agent_gateway_port while a router links to it.
+Read it once, raise a RuntimeError naming it if it is unset, and use
+the same value in the failure path that unsubscribes the network.
+
+Assisted-By: Claude Opus 5.5 (high effort)
+Change-Id: Ifd494064ca1add97730aa911136512c5895c78b4
+Signed-off-by: Michael Still <mikal@stillhq.com>

@@ -1,0 +1,96 @@
+commit dfde6603472f6c44da4886325dee1510af6b2987
+Author: Michael Still <mikal@stillhq.com>
+Date:   Wed Oct 28 15:08:00 2026 +1100
+
+    dhcp: Return the result of _has_running_interfaces
+    
+    _has_running_interfaces always returned None since the 2023 change
+    that added it, so the namespace is deleted on every segment disable
+    of a multi-segment network while other segments' dnsmasq still run
+    in it. Return the value, and test both branches.
+    
+    Assisted-By: Claude Sonnet 5.5 (low effort)
+    Change-Id: Ib9ecc14e83d609b5255a130954602563512f06a0
+    Signed-off-by: Michael Still <mikal@stillhq.com>
+
+diff --git a/neutron/agent/linux/dhcp.py b/neutron/agent/linux/dhcp.py
+index fa0de1daac..ead6fcb044 100644
+--- a/neutron/agent/linux/dhcp.py
++++ b/neutron/agent/linux/dhcp.py
+@@ -275,7 +275,7 @@ class DhcpLocalProcess(DhcpBase, metaclass=abc.ABCMeta):
+     @classmethod
+     def _has_running_interfaces(cls, network_id):
+         """Safe method that checks for interfaces"""
+-        bool(cls._interfaces.get(network_id))
++        return bool(cls._interfaces.get(network_id))
+ 
+     @staticmethod
+     def get_confs_dir(conf):
+diff --git a/neutron/tests/unit/agent/linux/test_dhcp.py b/neutron/tests/unit/agent/linux/test_dhcp.py
+index 71e29f930c..e5ffa78bc7 100644
+--- a/neutron/tests/unit/agent/linux/test_dhcp.py
++++ b/neutron/tests/unit/agent/linux/test_dhcp.py
+@@ -13,6 +13,7 @@
+ #    License for the specific language governing permissions and limitations
+ #    under the License.
+ 
++import collections
+ import copy
+ import os
+ import signal
+@@ -1156,6 +1157,11 @@ class TestBase(TestConfBase):
+ 
+         self.mock_mgr.return_value.driver.bridged = True
+ 
++        # The running-interface registry is class level; give each
++        # test its own so no test sees what an earlier one left.
++        mock.patch.object(dhcp.DhcpLocalProcess, '_interfaces',
++                          collections.defaultdict(set)).start()
++
+ 
+ class TestDhcpBase(TestBase):
+ 
+@@ -1334,6 +1340,31 @@ class TestDhcpLocalProcess(TestBase):
+ 
+         delete_ns.assert_called_with('qdhcp-ns')
+ 
++    def test_destroy_namespace_and_port_other_segment_running(self):
++        network = FakeDualNetwork()
++        lp = LocalChild(self.conf, network, segment=FakeSegment())
++        lp.device_manager = mock.Mock()
++        LocalChild._add_running_interface('tap-other', network.id)
++
++        with mock.patch('neutron.agent.linux.ip_lib.'
++                        'delete_network_namespace') as delete_ns:
++            lp._destroy_namespace_and_port()
++
++        delete_ns.assert_not_called()
++
++    def test_destroy_namespace_and_port_no_other_segment_running(self):
++        network = FakeDualNetwork()
++        lp = LocalChild(self.conf, network, segment=FakeSegment())
++        lp.device_manager = mock.Mock()
++        LocalChild._add_running_interface('tap-other', network.id)
++        LocalChild._del_running_interface('tap-other', network.id)
++
++        with mock.patch('neutron.agent.linux.ip_lib.'
++                        'delete_network_namespace') as delete_ns:
++            lp._destroy_namespace_and_port()
++
++        delete_ns.assert_called_once_with('qdhcp-ns')
++
+     def test_enable_disable_two_networks(self):
+         attrs_to_mock = {'active': mock.DEFAULT}
+ 
+diff --git a/releasenotes/notes/dhcp-segment-namespace-kept-07735261ef1d2aec.yaml b/releasenotes/notes/dhcp-segment-namespace-kept-07735261ef1d2aec.yaml
+new file mode 100644
+index 0000000000..dfd42e7eb4
+--- /dev/null
++++ b/releasenotes/notes/dhcp-segment-namespace-kept-07735261ef1d2aec.yaml
+@@ -0,0 +1,6 @@
++---
++fixes:
++  - |
++    On routed (multi-segment) networks, disabling DHCP for one segment no
++    longer deletes the network namespace while another segment's dnsmasq is
++    still running in it.

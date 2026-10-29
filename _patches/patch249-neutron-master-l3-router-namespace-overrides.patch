@@ -1,0 +1,102 @@
+commit d61ad046262118becb46d4ec6e9ffa74d954528a
+Author: Michael Still <mikal@stillhq.com>
+Date:   Wed Oct 28 16:43:14 2026 +1100
+
+    l3: Make router and namespace overrides match their bases
+    
+    BaseRouterInfo.delete() and process() still declare an agent argument
+    that the 2015 router refactors removed from every subclass and caller,
+    so mypy flags each override. Drop it and its docstring line.
+    
+    Namespace.create() takes ipv6_forwarding, but the SNAT, FIP and HA
+    namespaces drop it. Accept it and pass it through, keeping each
+    default: on for SNAT and FIP, off for HA namespaces until the router
+    is primary. mypy can now check the bodies in dvr_snat_ns.
+    
+    Assisted-By: Claude Opus 5.5 (high effort)
+    Change-Id: Ia47b54b1ac43a2d58a8a63f20e36f16a423b49a4
+    Signed-off-by: Michael Still <mikal@stillhq.com>
+
+diff --git a/neutron/agent/l3/dvr_fip_ns.py b/neutron/agent/l3/dvr_fip_ns.py
+index 3c9d1686f0..d01c4a8b31 100644
+--- a/neutron/agent/l3/dvr_fip_ns.py
++++ b/neutron/agent/l3/dvr_fip_ns.py
+@@ -203,10 +203,10 @@ class FipNamespace(namespaces.Namespace):
+         cmd = ['sysctl', '-w', 'net.ipv4.conf.%s.proxy_arp=1' % interface_name]
+         ip_wrapper.netns.execute(cmd, check_exit_code=False, privsep_exec=True)
+ 
+-    def create(self):
++    def create(self, ipv6_forwarding=True):
+         LOG.debug("DVR: add fip namespace: %s", self.name)
+         # parent class will ensure the namespace exists and turn-on forwarding
+-        super().create()
++        super().create(ipv6_forwarding=ipv6_forwarding)
+         ip_lib.set_ip_nonlocal_bind_for_namespace(self.name, 1,
+                                                   root_namespace=True)
+ 
+diff --git a/neutron/agent/l3/dvr_snat_ns.py b/neutron/agent/l3/dvr_snat_ns.py
+index c5b73c72c1..3bc8181de9 100644
+--- a/neutron/agent/l3/dvr_snat_ns.py
++++ b/neutron/agent/l3/dvr_snat_ns.py
+@@ -28,8 +28,8 @@ class SnatNamespace(namespaces.Namespace):
+         super().__init__(
+             name, agent_conf, driver, use_ipv6)
+ 
+-    def create(self):
+-        super().create()
++    def create(self, ipv6_forwarding=True):
++        super().create(ipv6_forwarding=ipv6_forwarding)
+         # Set nonlocal_bind to 1 to allow setup applications in HA mode
+         # for example ipsec from VPNaaS
+         ip_lib.set_ip_nonlocal_bind_for_namespace(self.name, 1)
+diff --git a/neutron/agent/l3/ha_router.py b/neutron/agent/l3/ha_router.py
+index 7116788370..dee944db3e 100644
+--- a/neutron/agent/l3/ha_router.py
++++ b/neutron/agent/l3/ha_router.py
+@@ -66,8 +66,8 @@ class HaRouterNamespace(namespaces.RouterNamespace):
+     which cause lost connectivity to Floating IPs.
+     """
+ 
+-    def create(self):
+-        super().create(ipv6_forwarding=False)
++    def create(self, ipv6_forwarding=False):
++        super().create(ipv6_forwarding=ipv6_forwarding)
+         # HA router namespaces should have ip_nonlocal_bind enabled
+         ip_lib.set_ip_nonlocal_bind_for_namespace(self.name, 1)
+         # Linux should not automatically assign link-local addr for HA routers
+diff --git a/neutron/agent/l3/router_info.py b/neutron/agent/l3/router_info.py
+index e5f3218790..defb1a6dd8 100644
+--- a/neutron/agent/l3/router_info.py
++++ b/neutron/agent/l3/router_info.py
+@@ -91,17 +91,15 @@ class BaseRouterInfo(metaclass=abc.ABCMeta):
+         self._snat_enabled = self._router.get('enable_snat', True)
+ 
+     @abc.abstractmethod
+-    def delete(self, agent):
++    def delete(self):
+         pass
+ 
+     @abc.abstractmethod
+-    def process(self, agent):
++    def process(self):
+         """Process updates to this router
+ 
+         This method is the point where the agent requests that updates be
+         applied to this router.
+-
+-        :param agent: Passes the agent in order to send RPC messages.
+         """
+ 
+     def get_ex_gw_port(self):
+diff --git a/pyproject.toml b/pyproject.toml
+index 3ebbf54e49..0003446dd6 100644
+--- a/pyproject.toml
++++ b/pyproject.toml
+@@ -386,7 +386,6 @@ module = [
+     "neutron.agent.l3.dvr_fip_ns",
+     "neutron.agent.l3.dvr_local_router",
+     "neutron.agent.l3.dvr_router_base",
+-    "neutron.agent.l3.dvr_snat_ns",
+     "neutron.agent.l3.ha",
+     "neutron.agent.l3.ha_router",
+     "neutron.agent.l3.l3_agent_extensions_manager",

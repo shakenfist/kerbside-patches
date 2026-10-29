@@ -1,0 +1,12 @@
+dhcp: Annotate the DHCP driver's return types
+
+mypy only checks return statements in functions that declare a return
+type. Annotating the DhcpBase and DhcpLocalProcess entry points makes
+it check their bodies against the declared types.
+
+Without the two preceding fixes in this series, this change makes mypy
+report both missing returns.
+
+Assisted-By: Claude Sonnet 5.5 (medium effort)
+Change-Id: I87cc595288c96004119935f1cfa9d1729f5e1a98
+Signed-off-by: Michael Still <mikal@stillhq.com>

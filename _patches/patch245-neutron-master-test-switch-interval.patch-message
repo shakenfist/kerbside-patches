@@ -1,0 +1,14 @@
+tests: Shorten the thread switch interval under test
+
+CPython preempts a thread only after a waiter has waited the switch
+interval (5 ms), and the agents now run real threads since eventlet's
+removal, so races in sections shorter than that never surface in CI.
+DietTestCase now sets a 10 us interval and restores the old one.
+
+Over six interleaved runs each on a loaded host, the median wall time
+of neutron.tests.unit.agent went from 60.1 s to 55.6 s: no measurable
+cost.
+
+Assisted-By: Claude Opus 5.5 (medium effort)
+Change-Id: I733f018f9c54672443e41a011412f0f9b3adcac7
+Signed-off-by: Michael Still <mikal@stillhq.com>

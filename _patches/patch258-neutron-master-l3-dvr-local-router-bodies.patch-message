@@ -1,0 +1,10 @@
+l3: Check the function bodies in the DVR local router
+
+The readers of fip_ns go through one accessor, which raises a
+RuntimeError naming the attribute if it runs before process() has set
+it, rather than an AttributeError on None. No reader can reach that
+today. _get_snat_idx() takes the IPv4 index from int(net.ip).
+
+Assisted-By: Claude Opus 5.5 (high effort)
+Change-Id: I753897aef2ccffa5d425dafafb020c9ea538dfe0
+Signed-off-by: Michael Still <mikal@stillhq.com>

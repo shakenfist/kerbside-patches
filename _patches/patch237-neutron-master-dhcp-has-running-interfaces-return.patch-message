@@ -1,0 +1,10 @@
+dhcp: Return the result of _has_running_interfaces
+
+_has_running_interfaces always returned None since the 2023 change
+that added it, so the namespace is deleted on every segment disable
+of a multi-segment network while other segments' dnsmasq still run
+in it. Return the value, and test both branches.
+
+Assisted-By: Claude Sonnet 5.5 (low effort)
+Change-Id: Ib9ecc14e83d609b5255a130954602563512f06a0
+Signed-off-by: Michael Still <mikal@stillhq.com>

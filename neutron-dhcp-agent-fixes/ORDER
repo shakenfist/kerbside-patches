@@ -1,0 +1,5 @@
+../_patches/patch237-neutron-master-dhcp-has-running-interfaces-return.patch
+../_patches/patch238-neutron-master-dhcp-resync-throttler-once.patch
+../_patches/patch239-neutron-master-dhcp-failed-start-not-cached.patch
+../_patches/patch240-neutron-master-dhcp-segment-subnets-kept.patch
+../_patches/patch247-neutron-master-dhcp-driver-return-annotations.patch

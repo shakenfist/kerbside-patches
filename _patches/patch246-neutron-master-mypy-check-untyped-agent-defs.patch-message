@@ -1,0 +1,13 @@
+mypy: Check untyped function bodies in the L3 and DHCP agents
+
+mypy does not look inside a function that has no annotations, and
+almost nothing in the L3 and DHCP agents has any, so mypy checks very
+little of either agent today.
+
+Turn on check_untyped_defs for both packages, so that new modules are
+checked from the start, and list the twelve modules that do not pass
+yet as exceptions, to be removed as their errors are fixed.
+
+Assisted-By: Claude Sonnet 5.5 (medium effort)
+Change-Id: I2af9c68d9175aa4634f3d9a2d205ebc55be0ae4b
+Signed-off-by: Michael Still <mikal@stillhq.com>
