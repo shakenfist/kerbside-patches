@@ -78,6 +78,16 @@ repos:
         pass_filenames: false
         files: ^tools/(check-llm-attribution\.py|gerrit-pre-push-lint|patch_message\.py|test-patch-message-attribution\.py)$
 
+  - repo: local
+    hooks:
+      - id: gerrit-push-status-tests
+        name: gerrit-push-status unit tests
+        entry: python tools/test-gerrit-push-status.py
+        language: python
+        additional_dependencies: [pyyaml]
+        pass_filenames: false
+        files: ^tools/(gerrit-push-status\.py|patch_message\.py|test-gerrit-push-status\.py)$
+
   # The launcher inventory is the venv inventory with a different connection
   # for the kolla host. Nothing else keeps them in step, so a group added to
   # one would pass CI on the other.
@@ -114,7 +124,7 @@ repos:
     rev: 7.4.1
     hooks:
       - id: flake8
-        files: ^(deployer/|tools/(write-build-manifest|test-write-build-manifest\.py|measure-deployer-bootstrap|test-measure-deployer-bootstrap\.py|ci-select-lanes\.py|test-ci-select-lanes\.py|test-ci-merge-group-current\.py|test-ci-auto-retry\.py|test-collect-layer-data-pr\.py|test-data-pr-auto-merge\.py|check-llm-attribution\.py|test-patch-message-attribution\.py|import-memory/[^/]+\.py)$)
+        files: ^(deployer/|tools/(write-build-manifest|test-write-build-manifest\.py|measure-deployer-bootstrap|test-measure-deployer-bootstrap\.py|ci-select-lanes\.py|test-ci-select-lanes\.py|test-ci-merge-group-current\.py|test-ci-auto-retry\.py|test-collect-layer-data-pr\.py|test-data-pr-auto-merge\.py|check-llm-attribution\.py|test-patch-message-attribution\.py|gerrit-push-status\.py|test-gerrit-push-status\.py|import-memory/[^/]+\.py)$)
         args: ['--max-line-length=120']
 
   - repo: local
