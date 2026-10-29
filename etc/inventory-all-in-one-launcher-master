@@ -11,8 +11,10 @@
 #
 # The nsenter connection runs commands on the host with the container's
 # environment, including HOME=/var/lib/kolla-ansible, so ~ points at a path the
-# host lacks. ansible_remote_tmp is therefore absolute; USER is substituted by
-# tools/bootstrap-kolla-ansible.
+# host lacks. ~<user> is expanded by the host's shell from the host's passwd
+# database instead, so ansible_remote_tmp names the invoking user's real home
+# (root's, for the bootstrap steps that run as root). A fixed path under /tmp
+# would be shared between users and open to a symlink race.
 #
 # The caller's PATH comes along too, so Python interpreter discovery depends on
 # who runs Ansible. Pinning the interpreter here does not help: kolla-ansible's
@@ -21,7 +23,7 @@
 # host the image's PATH (see tools/bootstrap-kolla-ansible).
 [all:vars]
 ansible_connection=community.docker.nsenter
-ansible_remote_tmp=/tmp/.ansible-kolla-USER
+ansible_remote_tmp=~{{ lookup('pipe', 'id -un') }}/.ansible/tmp
 
 # These initial groups are the only groups required to be modified. The
 # additional groups are for more control of the environment.

@@ -201,20 +201,21 @@ order listed.
 
 | Change | Repository | Patch file | Status | Upstream tests |
 |---|---|---|---|---|
-| The `kolla-ansible` deployer image | `openstack/kolla` | `patch199-kolla-ansible-deployer-image.patch` | applies to pristine upstream with git apply -C1; not on Gerrit | py3 (172) and pep8 pass on pristine Kolla |
-| `validate-config` without controller-side `become` | `openstack/kolla-ansible` | `patch200-kolla-ansible-master-validate-config-become.patch` | applies to pristine upstream with git apply -C1; not on Gerrit | py3, pep8 and linters pass on pristine Kolla-Ansible, applied in this order |
-| Ignore `deployer.conf` in `tests/check-config.sh` (needed only if upstream adopts the launcher, which is all that writes the file) | `openstack/kolla-ansible` | `patch201-kolla-ansible-master-check-config-deployer-conf.patch` | applies to pristine upstream with git apply -C1; not on Gerrit | py3, pep8 and linters pass on pristine Kolla-Ansible, applied in this order |
-| Version safeguards (deployer against configuration and deployment) | `openstack/kolla-ansible` | `patch206-kolla-ansible-master-deployer-guards.patch` | applies to pristine upstream with git apply -C1; not on Gerrit | py3, pep8 and linters pass on pristine Kolla-Ansible, applied in this order |
-| Digest references in `kolla_container` | `openstack/kolla-ansible` | `patch208-kolla-ansible-master-kolla-container-digests.patch` | applies to pristine upstream with git apply -C1; not on Gerrit | py3, pep8 and linters pass on pristine Kolla-Ansible, applied in this order |
-| Pull by digest from a build manifest (`kolla_image_full`) | `openstack/kolla-ansible` | `patch209-kolla-ansible-master-image-build-manifest.patch` | applies to pristine upstream with git apply -C1, after 206 and 208; not on Gerrit | py3, pep8 and linters pass on pristine Kolla-Ansible, applied in this order |
-| An all-in-one inventory for the deployer (new file, ~600 lines; nothing here deploys with it) | `openstack/kolla-ansible` | `patch214-kolla-ansible-master-deployer-all-in-one.patch` | applies to pristine upstream with git apply -C1; not on Gerrit | py3, pep8 and linters pass on pristine Kolla-Ansible, applied in this order |
+| The `kolla-ansible` deployer image | `openstack/kolla` | `patch199-kolla-ansible-deployer-image.patch` | applies to pristine upstream with git apply -C1; [1011443](https://review.opendev.org/c/openstack/kolla/+/1011443) | py3 (172) and pep8 pass on pristine Kolla |
+| `validate-config` without controller-side `become` | `openstack/kolla-ansible` | `patch200-kolla-ansible-master-validate-config-become.patch` | applies to pristine upstream with git apply -C1; [1011940](https://review.opendev.org/c/openstack/kolla-ansible/+/1011940) | py3, pep8 and linters pass on pristine Kolla-Ansible, applied in this order |
+| Ignore `deployer.conf` in `tests/check-config.sh` (needed only if upstream adopts the launcher, which is all that writes the file) | `openstack/kolla-ansible` | `patch201-kolla-ansible-master-check-config-deployer-conf.patch` | applies to pristine upstream with git apply -C1; [1011941](https://review.opendev.org/c/openstack/kolla-ansible/+/1011941) | py3, pep8 and linters pass on pristine Kolla-Ansible, applied in this order |
+| Version safeguards (deployer against configuration and deployment) | `openstack/kolla-ansible` | `patch206-kolla-ansible-master-deployer-guards.patch` | applies to pristine upstream with git apply -C1; [1011942](https://review.opendev.org/c/openstack/kolla-ansible/+/1011942) | py3, pep8 and linters pass on pristine Kolla-Ansible, applied in this order |
+| Digest references in `kolla_container` | `openstack/kolla-ansible` | `patch208-kolla-ansible-master-kolla-container-digests.patch` | applies to pristine upstream with git apply -C1; [1011943](https://review.opendev.org/c/openstack/kolla-ansible/+/1011943) | py3, pep8 and linters pass on pristine Kolla-Ansible, applied in this order |
+| Pull by digest from a build manifest (`kolla_image_full`) | `openstack/kolla-ansible` | `patch209-kolla-ansible-master-image-build-manifest.patch` | applies to pristine upstream with git apply -C1, after 206 and 208; [1011944](https://review.opendev.org/c/openstack/kolla-ansible/+/1011944) | py3, pep8 and linters pass on pristine Kolla-Ansible, applied in this order |
+| An all-in-one inventory for the deployer (new file, ~600 lines; nothing here deploys with it) | `openstack/kolla-ansible` | `patch214-kolla-ansible-master-deployer-all-in-one.patch` | applies to pristine upstream with git apply -C1; [1011945](https://review.opendev.org/c/openstack/kolla-ansible/+/1011945) | py3, pep8 and linters pass on pristine Kolla-Ansible, applied in this order |
 | Record digests after the publish push | `openstack/kolla` | none (Appendix B, a sketch) | not written as a patch | n/a |
 | nsenter `remote_user` and environment leak | `ansible-collections/community.docker` | none (Appendix A, an issue) | not filed | n/a |
 | The launcher | open question | `deployer/launcher/` in shakenfist/kerbside-patches | runs in our CI; destination undecided | n/a |
 
 patch214 is upstream's `all-in-one` copied with an 18-line header
 comment, two `[all:vars]` lines (the nsenter connection and an
-absolute `ansible_remote_tmp`), and the host renamed from `localhost`
+`ansible_remote_tmp` under the invoking user's home on the host), and
+the host renamed from `localhost`
 to `kolla` on its six group lines. Nothing else differs: like
 `all-in-one`, it does not pin `ansible_python_interpreter`, so
 interpreter discovery on the host is unchanged.
@@ -321,8 +322,10 @@ default `remote_tmp`, `~/.ansible/tmp`, through `remote_user`. We
 expected that to give `/root/.ansible/tmp`, which an ordinary user
 cannot create. In fact `~` expanded through the container's `HOME`,
 `/var/lib/kolla-ansible`, giving a path the host does not have, and
-every module failed. Setting `ansible_remote_tmp` to an absolute path
-avoids it.
+every module failed. Setting `ansible_remote_tmp` to
+`~<user>/.ansible/tmp` avoids it, because the host's shell expands
+`~<user>` from the host's passwd database rather than from `HOME`; so
+does an absolute path.
 
 **2. The environment.** Commands on the host receive the controller's
 whole environment: `PATH`, `HOME` and application variables all
@@ -349,7 +352,7 @@ docker run --rm -it --privileged --pid host \
 ```
 
 The module fails on its temporary directory; with
-`-e ansible_remote_tmp=/tmp/.ansible-$(id -un)` it succeeds, and its
+`-e "ansible_remote_tmp=~$(id -un)/.ansible/tmp"` it succeeds, and its
 output shows the container's `HOME` and `PATH`.
 
 **What we would ask for.**
@@ -359,7 +362,7 @@ output shows the container's `HOME` and `PATH`.
 * Run commands on the host with a clean environment, or one derived
   from the host's, rather than the controller's.
 
-The absolute `ansible_remote_tmp` is a workaround that every
+The `ansible_remote_tmp` override is a workaround that every
 inventory using the plugin this way has to repeat, which is why we
 would rather not ship it as permanent advice.
 

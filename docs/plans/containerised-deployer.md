@@ -4891,11 +4891,19 @@ We will know this plan has succeeded when the following are true:
   Actions masks it, so nothing leaks in CI; a local run prints it.
   Pre-existing. #1932 tracks it, with the uses of `--password` on a
   command line.
-* **patch214's `ansible_remote_tmp=/tmp/.ansible-kolla` is a
-  predictable path shared in world-writable `/tmp`.** A local user can
-  win a symlink or rename race on it. The fix is a per-user or
-  `mktemp` path, once upstream has a bootstrap to substitute it; Appendix
-  A of the proposal already calls the workaround temporary.
+* **patch214's `ansible_remote_tmp=/tmp/.ansible-kolla` was a
+  predictable path shared in world-writable `/tmp`.** A local user could
+  win a symlink or rename race on it. *Fixed 2026-10-30, after the plan
+  closed:* the inventory now sets
+  `~{{ lookup('pipe', 'id -un') }}/.ansible/tmp`. The host's shell
+  expands `~<user>` from the host's passwd database, not from the
+  leaked `HOME`, so it is the user's real home, with Ansible's usual
+  0700 directory beneath it; a probe through the nsenter plugin as an
+  unprivileged user confirmed the path and a module run. The CI
+  inventory `etc/inventory-all-in-one-launcher-master` uses the same
+  value, so `tools/bootstrap-kolla-ansible` no longer substitutes
+  `USER` into it, and its root-run steps no longer need
+  `-e ansible_remote_tmp=/tmp/.ansible-kolla-root`: `~root` is theirs.
 
 ### Bugs fixed during this work
 
