@@ -1,12 +1,13 @@
 # Non-OpenStack upstream series
 
 This tree carries patch series against upstreams outside OpenStack --
-today, qemu, the Linux kernel and Open vSwitch. The qemu and Linux
-series came out of building
+today, qemu, the Linux kernel, Open vSwitch and spice-server. The
+qemu, Linux and spice-server series came out of building
 [Kerbside](https://github.com/shakenfist/kerbside); see
 [docs/plans/upstream-series.md](../docs/plans/upstream-series.md) for
-the plan this was built from and its current phase. The Open vSwitch
-patch came out of
+the plan the qemu and Linux series were built from and its current
+phase, and [spice/README.md](spice/README.md) for spice-server. The
+Open vSwitch patch came out of
 [docs/plans/privsep-memory.md](../docs/plans/privsep-memory.md).
 
 ## How this differs from `_patches/`
@@ -108,6 +109,21 @@ their `Signed-off-by`. `openvswitch/series/v1/0001-*.patch` (python-ovs's
 poller stops importing eventlet) carries both; Michael reviews it and
 sends it to dev@openvswitch.org with `git send-email`, as
 `openvswitch/README.md` describes.
+
+### spice -- to be submitted by Michael
+
+spice-server has no written policy on AI-assisted patches, but its
+history accepts them: 56 commits on master since 2026-02-09 carry a
+`Co-Authored-By: Claude` trailer (to adeb620a04, 2026-10-29). Its maintainer
+wrote 54 of them, and two other authors one each (9d6be696 and
+4ff6e95f). So, unlike qemu, the series is `submit`. The patches in
+`spice/series/v1/` carry `Assisted-by: Claude Opus 5.5` and no
+`Signed-off-by`, as the Linux series does: Michael reviews it, adds his
+own `Signed-off-by`, and sends it, either as a merge request on
+gitlab.freedesktop.org or to the spice-devel list, which
+spice-server's `README` names for patches. `spice/README.md` has the
+recipe, and notes that spice-server's own AI-assisted commits use a
+`Co-Authored-By:` trailer, which the sender may convert to.
 
 ## How to verify a series applies
 

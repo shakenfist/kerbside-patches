@@ -181,12 +181,17 @@ The same patch is often listed in several `ORDER` files, for example
 one release, there are two ways to fix it:
 
 * **Modify in place** when the patch is used by only one project, or
-  every project using it needs the same change.
-* **Create a copy** when only one release needs different content.
-  Give the copy the next free number (`_build/get-next-patch-number.py`,
-  which also checks open PRs), name it for the release's codename, point
-  the failing project's `ORDER` file at it, and leave the original alone
-  for the other releases.
+  every project using it tracks the same upstream branch (the same
+  `repo` and `source_branch` in their `config.yaml`). The main
+  `kolla-ansible/` series and the `kolla-ansible-deployer/` and
+  `kolla-ansible-kerbside/` series are all `master`, so a patch they
+  share fails identically in each and gets one edit, never a copy.
+* **Create a copy** when a user on a different upstream branch needs
+  the patch left as it is. Give the copy the next free number
+  (`_build/get-next-patch-number.py`, which also checks open PRs), name
+  it for the release's codename, point the `ORDER` file of every series
+  on the failing branch at it, and leave the original alone for the
+  other releases.
 
 Copies are named `patch{number:03d}-{project}-{codename}-{description}.patch`,
 for example `patch118-kolla-ansible-epoxy-compressed-zstd.patch`. The
@@ -194,6 +199,10 @@ codenames come from `_build/release-names.yaml` (2025.1 is `epoxy`,
 2026.1 is `gazpacho`, and `master` stays `master`).
 `_build/analyze-shared-patches.py <results.json>` makes this decision
 for a set of failures from `test-patches-for-ci.sh`, and suggests names.
+Its output lists the other users of each failing patch split into
+`same_source_users` and `other_release_users`, and for a copy the
+`copy_for` list of series whose `ORDER` should point at it.
+`tools/test-analyze-shared-patches.py` pins which way each case falls.
 
 ## Independent patch series
 

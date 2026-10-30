@@ -1,0 +1,121 @@
+From 9e456119d929dc8e05dca31f77de16e93d95b1e6 Mon Sep 17 00:00:00 2001
+From: Michael Still <mikal@stillhq.com>
+Date: Fri, 30 Oct 2026 08:45:50 +1100
+Subject: [PATCH 3/3] gstreamer-encoder: probe hardware encoders on any GPU
+
+gstreamer_encoder only looks for hardware encoding plugins when udev
+reports an Intel GPU. Of the plugins it then looks for, only msdk is
+Intel's: va, GStreamer's own VA-API plugin, and the older vaapi drive
+any GPU with a VA-API driver, such as AMD GPUs with Mesa's radeonsi.
+Hosts with such a GPU always encode in software.
+
+Look for the plugins whenever the host has a DRM render node, which
+every GPU those plugins can drive has. msdk is still preferred where it
+exists, and each plugin keeps its options. The va options suit radeonsi
+too: on an AMD Phoenix GPU with Mesa 25.0 and GStreamer 1.26,
+vah264enc accepts them, and test-gst's H.264 check passes with
+vapostproc and vah264enc in the pipeline. A plugin that is found but
+cannot be used falls back to software, as the previous patch made it.
+
+Measured on that GPU, with a qemu that sends each damaged region as a
+whole rather than in 32-pixel columns, so that the video makes one
+640x480 stream, and a client that prefers H.264 on a link shaped with
+netem: vah264enc encoded every H.264 stream, with no fallbacks. qemu
+used 0.13 CPU cores against 0.15 to 0.16 with x264enc. At 80 ms round
+trip and 10 Mbit/s, with the guest filling that region with random
+noise 30 times a second, the smaller output (5.5 against 7.3 Mbit/s)
+cut the delay from a key press to its drawing from 186 to 107 ms at
+the median and from 1262 to 275 ms at the 95th percentile; on the
+other links, and with less noise, latency was unchanged. qemu's peak
+resident memory grows by 56 to 64 MiB, the VA driver loaded into it,
+but only once a GStreamer encoder is built: with spice:mjpeg streams it
+did not change.
+
+The Intel check was the server's only use of spice-common's udev
+helper, so drop the include.
+
+Assisted-by: Claude Opus 5.5
+---
+ server/gstreamer-encoder.c | 31 ++++++++++++++++++++++++++-----
+ 1 file changed, 26 insertions(+), 5 deletions(-)
+
+diff --git a/server/gstreamer-encoder.c b/server/gstreamer-encoder.c
+index 65323e64..9b783a6a 100644
+--- a/server/gstreamer-encoder.c
++++ b/server/gstreamer-encoder.c
+@@ -45,7 +45,6 @@
+ #include "red-common.h"
+ #include "video-encoder.h"
+ #include "utils.h"
+-#include "common/udev.h"
+ #ifdef HAVE_GSTREAMER_DMABUF_ENCODING
+ #include "drm/drm_fourcc.h"
+ #endif
+@@ -986,6 +985,9 @@ static bool gst_element_usable(const gchar *feature_name)
+     return usable;
+ }
+ 
++/* msdk is Intel's plugin. va, GStreamer's own VA-API plugin, and vaapi, the
++ * older gstreamer-vaapi, work with any GPU that has a VA-API driver.
++ */
+ static gchar *find_best_hw_plugin(const gchar *codec_name)
+ {
+     static const char plugins[][8] = {"msdk", "va", "vaapi"};
+@@ -1005,6 +1007,25 @@ static gchar *find_best_hw_plugin(const gchar *codec_name)
+     return feature_name;
+ }
+ 
++/* Returns true if the host has a DRM render node. Every GPU that the hardware
++ * plugins can drive has one, whatever its vendor.
++ */
++static bool has_render_node(void)
++{
++    GDir *dir = g_dir_open("/dev/dri", 0, NULL);
++    const gchar *name;
++    bool found = false;
++
++    if (!dir) {
++        return false;
++    }
++    while (!found && (name = g_dir_read_name(dir)) != NULL) {
++        found = g_str_has_prefix(name, "renderD");
++    }
++    g_dir_close(dir);
++    return found;
++}
++
+ typedef struct {
+     bool probed;
+     /* NULL if there is no usable hardware encoder for the codec */
+@@ -1025,7 +1046,7 @@ static const HwPlugins *get_hw_plugins(SpiceVideoCodecType codec_type)
+     g_mutex_lock(&lock);
+     if (!plugins->probed) {
+         plugins->probed = true;
+-        if (spice_udev_detect_gpu(INTEL_VENDOR_ID) == VENDOR_GPU_DETECTED) {
++        if (has_render_node()) {
+             plugins->encoder = find_best_hw_plugin(codec_name);
+             plugins->vpp = plugins->encoder ? find_best_hw_plugin(NULL) : NULL;
+             if (!plugins->vpp) {
+@@ -1073,8 +1094,8 @@ static gchar *get_hw_gstenc_opts(const gchar *encoder, const gchar *codec_name)
+     return gstenc_opts;
+ }
+ 
+-static bool try_intel_hw_plugins(SpiceVideoCodecType codec_type, gchar **converter,
+-                                 gchar **gstenc_name, gchar **gstenc_opts)
++static bool try_hw_plugins(SpiceVideoCodecType codec_type, gchar **converter,
++                           gchar **gstenc_name, gchar **gstenc_opts)
+ {
+     const char *codec_name = video_codecs[codec_type];
+ 
+@@ -1220,7 +1241,7 @@ static gboolean create_pipeline_with(SpiceGstEncoder *encoder, bool try_hw)
+     }
+ 
+     encoder->hw_pipeline = try_hw &&
+-        try_intel_hw_plugins(encoder->base.codec_type, &converter, &gstenc_name, &gstenc_opts);
++        try_hw_plugins(encoder->base.codec_type, &converter, &gstenc_name, &gstenc_opts);
+ 
+     GError *err = NULL;
+     gchar *desc = g_strdup_printf("appsrc is-live=true format=time do-timestamp=true name=src !"
+-- 
+2.47.3
+
