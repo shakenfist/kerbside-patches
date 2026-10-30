@@ -873,7 +873,7 @@ diff --git a/ansible/roles/neutron/defaults/main.yml b/ansible/roles/neutron/def
 index 93ec57321..7c0d80946 100644
 --- a/ansible/roles/neutron/defaults/main.yml
 +++ b/ansible/roles/neutron/defaults/main.yml
-@@ -299,71 +299,71 @@ neutron_tag: "{{ openstack_tag }}"
+@@ -299,67 +299,67 @@ neutron_tag: "{{ openstack_tag }}"
  
  neutron_dhcp_agent_image: "{{ docker_image_url }}neutron-dhcp-agent"
  neutron_dhcp_agent_tag: "{{ neutron_tag }}"
@@ -909,11 +909,6 @@ index 93ec57321..7c0d80946 100644
  neutron_ovn_maintenance_worker_tag: "{{ neutron_tag }}"
 -neutron_ovn_maintenance_worker_image_full: "{{ neutron_ovn_maintenance_worker_image }}:{{ neutron_ovn_maintenance_worker_tag }}"
 +neutron_ovn_maintenance_worker_image_full: "{{ lookup('kolla_image_full', neutron_ovn_maintenance_worker_image, neutron_ovn_maintenance_worker_tag) }}"
- 
- neutron_ovn_metadata_agent_image: "{{ docker_image_url }}neutron-metadata-agent"
- neutron_ovn_metadata_agent_tag: "{{ neutron_tag }}"
--neutron_ovn_metadata_agent_image_full: "{{ neutron_ovn_metadata_agent_image }}:{{ neutron_ovn_metadata_agent_tag }}"
-+neutron_ovn_metadata_agent_image_full: "{{ lookup('kolla_image_full', neutron_ovn_metadata_agent_image, neutron_ovn_metadata_agent_tag) }}"
  
  neutron_openvswitch_agent_image: "{{ docker_image_url }}neutron-openvswitch-agent"
  neutron_openvswitch_agent_tag: "{{ neutron_tag }}"

@@ -5,6 +5,6 @@ shallow_clone: true
 directory: neutron
 release: master-neutron-dvr-fip-ns-locking
 depends_on: ''
-source_sha: 61f6db5ac91caa9e5d83e71dc1b3ec31d0611e8e
+source_sha: 6ff6ecff2aab4a7a8df704595093f345073f832e
 previous_source_sha: 61f6db5ac91caa9e5d83e71dc1b3ec31d0611e8e
 repush: true
