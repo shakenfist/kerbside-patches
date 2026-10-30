@@ -1,0 +1,54 @@
+From 6460c5d7718f3097c233c40bd7800d221fdb5587 Mon Sep 17 00:00:00 2001
+From: Michael Still <mikal@stillhq.com>
+Date: Fri, 30 Oct 2026 08:41:03 +1100
+Subject: [PATCH] display-channel: trace the last 64 drawables, not 8
+
+When a streamable drawable leaves the tree without a stream,
+video_stream_trace_add_drawable() records its geometry, time and frame
+count in a small ring. When a later drawable of exactly the same size
+and destination arrives within RED_STREAM_DETECTION_MAX_DELTA,
+video_stream_trace_update() finds that entry and carries its frame
+count on, so the drawable counts towards the
+RED_STREAM_FRAMES_START_CONDITION frames that start a stream instead of
+starting again from zero.
+
+The ring holds eight entries. That is enough while the drawables of a
+video area leave the tree one at a time, each shortly before its
+successor arrives. It is not when many leave together, as they do when
+the server renders a surface for an update area request or frees
+drawables because it is short of them or of device memory, and each
+update of the area is split into many drawables of the same shape.
+qemu's non-GL display path splits updates that way: it compares the
+damaged area with its mirror of the surface in 32-pixel-wide columns
+and sends one copy per run of changed columns, so a 640-pixel-wide
+video can arrive as up to 20 drawables per update. After such a flush
+only the last eight columns keep their frame counts, and the others
+start counting again.
+
+Raise the ring to 64 entries, enough for every column of a typical
+video window. Each entry is 56 bytes, so the ring grows by about 3 KiB
+per display channel. video_stream_trace_update() searches it linearly,
+but only for a streamable drawable that has no stream, and each
+comparison is a time check and a few integer compares.
+
+Assisted-by: Claude Opus 5.5
+---
+ server/display-channel-private.h | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/server/display-channel-private.h b/server/display-channel-private.h
+index 4e73fa8e..9d85c692 100644
+--- a/server/display-channel-private.h
++++ b/server/display-channel-private.h
+@@ -22,7 +22,7 @@
+ 
+ #include "push-visibility.h"
+ 
+-#define TRACE_ITEMS_SHIFT 3
++#define TRACE_ITEMS_SHIFT 6
+ #define NUM_TRACE_ITEMS (1 << TRACE_ITEMS_SHIFT)
+ #define ITEMS_TRACE_MASK (NUM_TRACE_ITEMS - 1)
+ 
+-- 
+2.47.3
+
