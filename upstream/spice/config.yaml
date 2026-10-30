@@ -1,0 +1,8 @@
+# See ../README.md for what these keys mean and why this file is not
+# named to match the OpenStack tooling's `./<project>/config.yaml`
+# discovery (find . -maxdepth 2 -name config.yaml).
+repo: https://gitlab.freedesktop.org/spice/spice.git
+branch: master
+base_sha: adeb620a04c43620416c5067b8bbfd1e4cf5eef5
+current_series: v1
+disposition: submit

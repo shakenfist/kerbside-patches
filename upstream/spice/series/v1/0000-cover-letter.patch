@@ -1,0 +1,95 @@
+From 9e456119d929dc8e05dca31f77de16e93d95b1e6 Mon Sep 17 00:00:00 2001
+From: Michael Still <mikal@stillhq.com>
+Date: Fri, 30 Oct 2026 17:26:16 +1100
+Subject: [PATCH 0/3] Fix a connect crash with streams; hardware encoding on any GPU
+
+This series fixes a crash that every spice-server tested hits when a
+client sends its video codec preference while the guest is already
+streaming, and then lets the GStreamer encoder use VA-API hardware
+encoders on GPUs other than Intel's, falling back to software when a
+hardware encoder cannot be used. It is based on master at adeb620a04.
+
+Patch 1, the crash. A display client is on the channel's client list
+from dcc_new(), but is given the existing streams only at the end of
+dcc_start(). A SPICE_MSGC_DISPLAY_PREFERRED_VIDEO_CODEC_TYPE handled in
+that window stops every stream, which queues a STREAM_CLIP for a stream
+the new client never had, and the clip's destructor dereferences the
+agent's NULL dcc. With streaming-video=all and a guest streaming before
+the client connects, 0.15.2, 0.16.0 and master crashed in 20 of 20
+connects; with the patch, 0 of 20. spice-gtk only sends the preference
+when the application asks it to, which remote-viewer never does, so
+remote-viewer does not hit this; a client that sends its preference at
+connect hits it every time. There is no new test: nothing in
+server/tests can link a display channel as a client.
+
+Patches 2 and 3, hardware encoding. Patch 2 probes a hardware element
+by taking it to READY before using it, and rebuilds a pipeline in
+software when a hardware one cannot be built, started or encode, or
+when the frame size is one the hardware encoder does not take. Patch 3
+replaces the Intel-only udev check with a check for a DRM render node,
+so GStreamer's va plugin is tried on AMD and other VA-API GPUs. They
+are split for review: patch 2 alone changes nothing on hosts without
+an Intel GPU.
+
+How this was measured. A Linux guest on virtio-vga under KVM draws an
+animated 640x480 region and, on each key press, a small box. The
+client connects through a proxy over a veth link shaped with netem
+(delay and rate, both directions). Latency is from a key press to the
+client drawing the box, 40 presses per case, three repeats, with the
+builds interleaved inside every pass so that they share the host's
+drift. The host is an AMD Ryzen 7 8845HS (Radeon 780M, Phoenix) on
+Debian 13, with Mesa 25.0.7's radeonsi VA-API driver and GStreamer
+1.26. Each build is made with Debian's flags and swapped in under the
+host's qemu with LD_LIBRARY_PATH; meson test passes after each patch.
+Stock qemu's non-GL display path cuts damage into 32-pixel columns,
+narrower than radeonsi's vah264enc accepts, so the encoder rows use a
+qemu that sends each damaged region whole, in one 640x480 stream. The
+client prefers H.264. Master plus patch 1, encoding with x264enc,
+against the whole series, encoding with vah264enc:
+
+                                     x264enc       vah264enc
+  qemu CPU, cores                    0.15 - 0.16   0.13
+  qemu peak RSS, MiB                 219 - 240     278 - 297
+  80 ms / 10 Mbit, heavy, p50 / p95  186 / 1262    107 / 275 ms
+  80 ms / 10 Mbit, heavy, display    7.3           5.5 Mbit/s
+
+vah264enc encoded every H.264 stream, with no fallbacks. Latency on the
+other links (20 ms / 50 Mbit, and 80 ms / 10 Mbit with less noise) did
+not change. The extra memory is the VA driver loaded into qemu, and is
+paid only once a GStreamer encoder is built: with spice:mjpeg streams
+the series made no difference to RSS. With /dev/dri hidden from qemu,
+or holding a render node that cannot be opened, streams were encoded
+by x264enc, as were streams 32 pixels wide.
+
+Two other changes were measured and dropped, since neither made a
+difference here:
+
+- Raising the stream trace ring from 8 to 64 entries. Under stock qemu,
+  whose column slivers outnumber the ring, every build created the same
+  streams, and 14 of 15 cells showed nothing. The ring is only searched
+  when many drawables leave the tree at once.
+- Raising MAX_FPS from 30 to 60. Streams were created at 60 fps as
+  intended, but latency, CPU, bandwidth and messages per second did not
+  change in any of 12 cells, with H.264 or MJPEG. The client received 4
+  to 12 stream frames a second whatever the ceiling, so on these links
+  rate control, not the ceiling, sets the frame rate.
+
+These patches were written with the help of an AI model, Claude Opus
+5.5, as their Assisted-by: trailers say. spice-server's own history
+credits Claude with a Co-Authored-By: trailer instead; the trailers
+can be switched to that form if it is preferred.
+
+Michael Still (3):
+  video-stream: skip streams a client has not been given
+  gstreamer-encoder: fall back to software when a hardware encoder fails
+  gstreamer-encoder: probe hardware encoders on any GPU
+
+ server/dcc.cpp             |   1 +
+ server/gstreamer-encoder.c | 244 ++++++++++++++++++++++++++++++-------
+ server/video-stream.cpp    |  14 ++-
+ server/video-stream.h      |   3 +
+ 4 files changed, 217 insertions(+), 45 deletions(-)
+
+-- 
+2.47.3
+

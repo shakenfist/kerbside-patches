@@ -1,32 +1,22 @@
-From 75a65ce4e9ecf37efa1c9def52e59b987eec43dc Mon Sep 17 00:00:00 2001
+From 5ce7b49c6b0e4d4800da49f1dc9adb75cead2061 Mon Sep 17 00:00:00 2001
 From: Michael Still <mikal@stillhq.com>
 Date: Fri, 30 Oct 2026 08:45:50 +1100
-Subject: [PATCH] gstreamer-encoder: probe hardware encoders on any GPU
+Subject: [PATCH 2/3] gstreamer-encoder: fall back to software when a hardware
+ encoder fails
 
-gstreamer_encoder only looks for hardware encoding plugins when udev
-reports an Intel GPU. Of the plugins it then looks for, only msdk is
-Intel's: va, GStreamer's own VA-API plugin, and the older vaapi drive
-any GPU with a VA-API driver, such as AMD GPUs with Mesa's radeonsi.
-Hosts with such a GPU always encode in software.
-
-Look for the plugins whenever the host has a DRM render node, which
-every GPU those plugins can drive has. msdk is still preferred where it
-exists, and each plugin keeps its options. The va options suit radeonsi
-too: on an AMD Phoenix GPU with Mesa 25.0 and GStreamer 1.26,
-vah264enc accepts them, and test-gst's H.264 check passes with
-vapostproc and vah264enc in the pipeline.
-
-Finding a plugin in the registry does not mean it works. The registry
-keeps listing a plugin's elements when the device they were registered
-for has gone, or cannot be opened from where the server runs. The
-pipeline then fails to build, if the element cannot be created, or to
-start. Today the first makes gstreamer_encoder_new() fail, so the
-stream falls back to another codec, and the second fails each frame
-until, after three failures, the stream stops encoding and sends its
-frames as images. So:
+Finding a hardware encoding plugin in the GStreamer registry does not
+mean it works. The registry keeps listing a plugin's elements when the
+device they were registered for has gone, or cannot be opened from
+where the server runs. The pipeline then fails to build, if the element
+cannot be created, or to start. Today the first makes
+gstreamer_encoder_new() fail, so the stream falls back to another
+codec, and the second fails each frame until, after three failures, the
+stream stops encoding and sends its frames as images. So:
 
 - probe each element by creating it and taking it to the READY state,
-  which opens its device, and remember the result for each codec;
+  which opens its device, and remember the result for each codec, so
+  that the GPU check and the probe run once per codec rather than for
+  every pipeline;
 - if a pipeline with a hardware encoder cannot be built or started, or
   fails to encode a frame, rebuild it with the software encoder rather
   than counting an error;
@@ -36,27 +26,23 @@ frames as images. So:
   would get frames of the wrong size. qemu's non-GL display path makes
   streams as narrow as 32 pixels.
 
-The Intel check was the server's only use of spice-common's udev
-helper, so drop the include.
+Hardware encoding is still tried only where udev finds an Intel GPU.
+These paths were tested on an AMD GPU with the next patch applied.
+With a render node that could not be opened and a GStreamer registry
+that still listed the va elements, the probe rejected them and the
+stream was encoded by x264enc. Streams 32 pixels wide were encoded by
+x264enc, and 640x480 streams by vah264enc.
 
 Assisted-by: Claude Opus 5.5
 ---
- server/gstreamer-encoder.c | 244 ++++++++++++++++++++++++++++++-------
- 1 file changed, 201 insertions(+), 43 deletions(-)
+ server/gstreamer-encoder.c | 219 ++++++++++++++++++++++++++++++-------
+ 1 file changed, 178 insertions(+), 41 deletions(-)
 
 diff --git a/server/gstreamer-encoder.c b/server/gstreamer-encoder.c
-index 328a36ff..9b783a6a 100644
+index 328a36ff..65323e64 100644
 --- a/server/gstreamer-encoder.c
 +++ b/server/gstreamer-encoder.c
-@@ -45,7 +45,6 @@
- #include "red-common.h"
- #include "video-encoder.h"
- #include "utils.h"
--#include "common/udev.h"
- #ifdef HAVE_GSTREAMER_DMABUF_ENCODING
- #include "drm/drm_fourcc.h"
- #endif
-@@ -128,6 +127,14 @@ typedef struct SpiceGstEncoder {
+@@ -128,6 +128,14 @@ typedef struct SpiceGstEncoder {
      GstElement *gstenc;
      GParamSpec *gstenc_bitrate_param;
  
@@ -71,7 +57,7 @@ index 328a36ff..9b783a6a 100644
      /* True if the encoder's bitrate can be modified while playing. */
      gboolean gstenc_bitrate_is_dynamic;
  
-@@ -958,6 +965,29 @@ static bool gst_features_lookup(const gchar *feature_name)
+@@ -958,6 +966,26 @@ static bool gst_features_lookup(const gchar *feature_name)
      return true;
  }
  
@@ -95,13 +81,10 @@ index 328a36ff..9b783a6a 100644
 +    return usable;
 +}
 +
-+/* msdk is Intel's plugin. va, GStreamer's own VA-API plugin, and vaapi, the
-+ * older gstreamer-vaapi, work with any GPU that has a VA-API driver.
-+ */
  static gchar *find_best_hw_plugin(const gchar *codec_name)
  {
      static const char plugins[][8] = {"msdk", "va", "vaapi"};
-@@ -967,7 +997,7 @@ static gchar *find_best_hw_plugin(const gchar *codec_name)
+@@ -967,7 +995,7 @@ static gchar *find_best_hw_plugin(const gchar *codec_name)
      for (i = 0; i < G_N_ELEMENTS(plugins); i++) {
          feature_name = !codec_name ? g_strconcat(plugins[i], "postproc", NULL) :
                         g_strconcat(plugins[i], codec_name, "enc", NULL);
@@ -110,29 +93,10 @@ index 328a36ff..9b783a6a 100644
              g_free(feature_name);
              feature_name = NULL;
              continue;
-@@ -977,6 +1007,63 @@ static gchar *find_best_hw_plugin(const gchar *codec_name)
+@@ -977,6 +1005,44 @@ static gchar *find_best_hw_plugin(const gchar *codec_name)
      return feature_name;
  }
  
-+/* Returns true if the host has a DRM render node. Every GPU that the hardware
-+ * plugins can drive has one, whatever its vendor.
-+ */
-+static bool has_render_node(void)
-+{
-+    GDir *dir = g_dir_open("/dev/dri", 0, NULL);
-+    const gchar *name;
-+    bool found = false;
-+
-+    if (!dir) {
-+        return false;
-+    }
-+    while (!found && (name = g_dir_read_name(dir)) != NULL) {
-+        found = g_str_has_prefix(name, "renderD");
-+    }
-+    g_dir_close(dir);
-+    return found;
-+}
-+
 +typedef struct {
 +    bool probed;
 +    /* NULL if there is no usable hardware encoder for the codec */
@@ -153,7 +117,7 @@ index 328a36ff..9b783a6a 100644
 +    g_mutex_lock(&lock);
 +    if (!plugins->probed) {
 +        plugins->probed = true;
-+        if (has_render_node()) {
++        if (spice_udev_detect_gpu(INTEL_VENDOR_ID) == VENDOR_GPU_DETECTED) {
 +            plugins->encoder = find_best_hw_plugin(codec_name);
 +            plugins->vpp = plugins->encoder ? find_best_hw_plugin(NULL) : NULL;
 +            if (!plugins->vpp) {
@@ -174,14 +138,13 @@ index 328a36ff..9b783a6a 100644
  static gchar *get_hw_gstenc_opts(const gchar *encoder, const gchar *codec_name)
  {
      gchar *gstenc_opts;
-@@ -1007,37 +1094,59 @@ static gchar *get_hw_gstenc_opts(const gchar *encoder, const gchar *codec_name)
+@@ -1007,37 +1073,59 @@ static gchar *get_hw_gstenc_opts(const gchar *encoder, const gchar *codec_name)
      return gstenc_opts;
  }
  
 -static void try_intel_hw_plugins(const gchar *codec_name, gchar **converter,
--                                 gchar **gstenc_name, gchar **gstenc_opts)
-+static bool try_hw_plugins(SpiceVideoCodecType codec_type, gchar **converter,
-+                           gchar **gstenc_name, gchar **gstenc_opts)
++static bool try_intel_hw_plugins(SpiceVideoCodecType codec_type, gchar **converter,
+                                  gchar **gstenc_name, gchar **gstenc_opts)
  {
 -    gchar *encoder, *vpp;
 +    const char *codec_name = video_codecs[codec_type];
@@ -252,7 +215,7 @@ index 328a36ff..9b783a6a 100644
  }
  
  /* At this time, only the following formats are supported by x264enc. */
-@@ -1077,7 +1186,7 @@ static gchar *get_gst_converter(void)
+@@ -1077,7 +1165,7 @@ static gchar *get_gst_converter(void)
      return g_strdup(gst_once.retval);
  }
  
@@ -261,7 +224,7 @@ index 328a36ff..9b783a6a 100644
  {
      gchar* gstenc_name = g_strdup(get_gst_codec_name(encoder));
      if (!gstenc_name) {
-@@ -1131,12 +1240,8 @@ static gboolean create_pipeline(SpiceGstEncoder *encoder)
+@@ -1131,12 +1219,8 @@ static gboolean create_pipeline(SpiceGstEncoder *encoder)
          return FALSE;
      }
  
@@ -272,11 +235,11 @@ index 328a36ff..9b783a6a 100644
 -                             &gstenc_opts);
 -    }
 +    encoder->hw_pipeline = try_hw &&
-+        try_hw_plugins(encoder->base.codec_type, &converter, &gstenc_name, &gstenc_opts);
++        try_intel_hw_plugins(encoder->base.codec_type, &converter, &gstenc_name, &gstenc_opts);
  
      GError *err = NULL;
      gchar *desc = g_strdup_printf("appsrc is-live=true format=time do-timestamp=true name=src !"
-@@ -1195,6 +1300,29 @@ static gboolean create_pipeline(SpiceGstEncoder *encoder)
+@@ -1195,6 +1279,29 @@ static gboolean create_pipeline(SpiceGstEncoder *encoder)
      return TRUE;
  }
  
@@ -306,7 +269,7 @@ index 328a36ff..9b783a6a 100644
  /* A helper for configure_pipeline() */
  static void set_gstenc_bitrate(SpiceGstEncoder *encoder)
  {
-@@ -1254,8 +1382,8 @@ static void set_gstenc_bitrate(SpiceGstEncoder *encoder)
+@@ -1254,8 +1361,8 @@ static void set_gstenc_bitrate(SpiceGstEncoder *encoder)
      spice_debug("setting the GStreamer %s to %" G_GUINT64_FORMAT, prop, gst_bit_rate);
  }
  
@@ -317,7 +280,7 @@ index 328a36ff..9b783a6a 100644
  {
      if (!encoder->pipeline && !create_pipeline(encoder)) {
          return FALSE;
-@@ -1296,6 +1424,41 @@ static gboolean configure_pipeline(SpiceGstEncoder *encoder)
+@@ -1296,6 +1403,41 @@ static gboolean configure_pipeline(SpiceGstEncoder *encoder)
      return TRUE;
  }
  
@@ -359,7 +322,7 @@ index 328a36ff..9b783a6a 100644
  /* A helper for the *_copy() functions */
  static int is_chunk_stride_aligned(const SpiceBitmap *bitmap, uint32_t index)
  {
-@@ -1667,6 +1830,13 @@ spice_gst_encoder_configure_pipeline(SpiceGstEncoder *encoder,
+@@ -1667,6 +1809,13 @@ spice_gst_encoder_configure_pipeline(SpiceGstEncoder *encoder,
          encoder->width = width;
          encoder->height = height;
  
@@ -373,7 +336,7 @@ index 328a36ff..9b783a6a 100644
          if (encoder->bit_rate == 0) {
              encoder->history[0].mm_time = frame_mm_time;
              encoder->max_bit_rate = get_bit_rate_cap(encoder);
-@@ -1738,13 +1908,7 @@ spice_gst_encoder_encode_frame(VideoEncoder *video_encoder,
+@@ -1738,13 +1887,7 @@ spice_gst_encoder_encode_frame(VideoEncoder *video_encoder,
      if (rc == VIDEO_ENCODER_FRAME_ENCODE_DONE) {
          rc = pull_compressed_buffer(encoder, outbuf);
          if (rc != VIDEO_ENCODER_FRAME_ENCODE_DONE) {
@@ -388,7 +351,7 @@ index 328a36ff..9b783a6a 100644
          }
      }
  
-@@ -1836,13 +2000,7 @@ spice_gst_encoder_encode_dmabuf(VideoEncoder *video_encoder,
+@@ -1836,13 +1979,7 @@ spice_gst_encoder_encode_dmabuf(VideoEncoder *video_encoder,
  
      rc = pull_compressed_buffer(encoder, outbuf);
      if (rc != VIDEO_ENCODER_FRAME_ENCODE_DONE) {

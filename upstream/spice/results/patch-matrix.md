@@ -102,8 +102,10 @@ spice-server's own log rather than assumed. A runs without it.
   flags, `meson test` 25 of 25), base master
   adeb620a04c43620416c5067b8bbfd1e4cf5eef5, spice-common 492c22f444,
   spice-protocol 0.14.5. Patch sha256 prefixes: 0001 e223ced28f51,
-  0002 4c6d63743266, 0003 fd124d13877f, 0004 0d050a78e8ce, identical
-  to `../series/drafts/`.
+  0002 4c6d63743266, 0003 fd124d13877f, 0004 0d050a78e8ce. 0002 and
+  0003 are kept unchanged in `../dropped/`. 0001 and 0004 became
+  `../series/v1/`, with fuller commit messages and 0004 split in two;
+  applied in order, v1 gives the same source tree as 0001 plus 0004.
 - Ryll 0d140b3 plus kerbside's `tools/shaped-link/ryll-surface-drawn-rect.patch`.
   Ryll does not decode H.264 streams at this commit (ryll#398): in B and
   C-h264 the key box latency is valid, since the key box is a DRAW_COPY,
