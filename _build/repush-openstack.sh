@@ -1,7 +1,7 @@
 #!/bin/bash -e
 
-# Reapply every series whose config.yaml sets repush: true and push it to
-# Gerrit with git review. Nothing runs this automatically; it is run by hand
+# Reapply every series with status push in series.yaml and push it to Gerrit
+# with git review. Nothing runs this automatically; it is run by hand
 # from a checkout that has Gerrit credentials.
 #
 # It first lists what will and will not be pushed and asks before starting.
@@ -23,19 +23,25 @@ count_patches() {
     grep -v -E '^#' "$1/ORDER" | grep -c -v '^[[:space:]]*$' || true
 }
 
+# Every series in series.yaml, in C collation order, split into those with
+# status push and the rest.
+all_series=$(tools/series.py list)
+pushable=$(tools/series.py list --status push)
 push=()
 no_push=()
-for config in */config.yaml; do
-    project=$(dirname "${config}")
-    if [ "$(yq -r '.repush // false' "${config}")" == "true" ]; then
+while read -r project; do
+    if [ -z "${project}" ]; then
+        continue
+    fi
+    if grep -q -x -F "${project}" <<< "${pushable}"; then
         push+=("${project}")
     else
         no_push+=("${project}")
     fi
-done
+done < <(LC_ALL=C sort <<< "${all_series}")
 
 if [ ${#push[@]} -eq 0 ]; then
-    echo "No series sets repush: true, nothing to push."
+    echo "No series has status push in series.yaml, nothing to push."
     exit 0
 fi
 
@@ -97,7 +103,7 @@ done
 echo
 echo "That is ${total_patches} patches in total."
 echo
-echo "Will not push ${#no_push[@]} series, as they do not set repush: true:"
+echo "Will not push ${#no_push[@]} series, as their status in series.yaml is not push:"
 echo
 for project in "${no_push[@]}"; do
     printf '    %-40s %7d\n' "${project}" "$(count_patches "${project}")"

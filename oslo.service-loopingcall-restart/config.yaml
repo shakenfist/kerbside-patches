@@ -7,4 +7,3 @@ release: master-oslo.service-loopingcall-restart
 depends_on: ''
 source_sha: 26de0c09a2c8ed8d8bc63b68e20bdc08f7f6181c
 previous_source_sha: a2e23f909916e78b9c31b2cb411da9e2b5a83f15
-repush: true

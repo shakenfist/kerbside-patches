@@ -7,4 +7,3 @@ release: master-devstack-privsep-memory-001
 depends_on: ''
 source_sha: 9d223a6c3e38522793c48dc2e004335182fdfede
 previous_source_sha: dd5ae8a2db244e828448139e1af42625b3db3630
-repush: true

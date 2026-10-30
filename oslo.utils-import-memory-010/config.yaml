@@ -7,4 +7,3 @@ release: master-oslo.utils-import-memory-010
 depends_on: ''
 source_sha: c235a42180fd192aeec6059cb3ed6c49b326f908
 previous_source_sha: 8d11103f2df4f60aa40dc91e6934c1dd1200593d
-repush: true

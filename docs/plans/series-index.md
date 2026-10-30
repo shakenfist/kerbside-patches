@@ -289,6 +289,39 @@ Planning effort: high. This phase changes scripts that CI runs
 | 1c | high | sonnet | none | Switch the eight discovery sites in the Situation table to `tools/series.py list`, keeping each script's own filters (`release`, `skip_rebase`). `repush-openstack.sh` and `gerrit-push-status.py --all` use `--status push`. Remove the `-maxdepth 2` comments along with the `find`. Before and after, record each script's discovered set (running only the discovery part, with nothing cloned) and show the sets are identical. `test-gerrit-push-status.py` must still pass. |
 | 1d | medium | sonnet | none | Update the docs. In `docs/patch-editing.md`, a new series is added to `series.yaml`, `repush` becomes `status`, and `NNN` is a name, not an order. Also update `docs/script-reference.md`, and AGENTS.md's "Adding a New Patch" step that creates a series directory. In ARCHITECTURE.md, mention that the index exists, in one line. |
 
+#### Execution notes
+
+2026-10-31 (AEDT). Back brief answers:
+
+- `neutron-agent-opts-import-memory-014` is only on the unmerged
+  `neutron-agent-bugs` branch, so this phase does not add it.
+  Whichever of the two branches lands second adds 014's entry, and
+  the links that put 007 and 013 after it. Once the index exists,
+  the check fails on a series directory without an entry, so this
+  cannot be forgotten.
+- The management session reviews the generated `after` links, and
+  Mikal sees them in the pull request rather than at a gate.
+- The session may push the branch and open the pull request when
+  the phase is done.
+
+Departures from the plan:
+
+- Step 1b, not 1c, moved `repush-openstack.sh` and
+  `gerrit-push-status.py --all` to the index. Decision 3 has
+  `repush:` removed in the same change that moves its readers, and
+  1b removes the key. Step 1c switches the other six sites.
+- The `check-series-index` pre-commit hook was registered in 1b,
+  with `series.yaml`, not in 1a. Without the index the hook fails,
+  so registering it in 1a would have left a commit that fails
+  pre-commit.
+- Step 1b kept 15 `after` links, all derived from footers: twelve
+  series after `devstack-privsep-memory-001`, and three within the
+  kolla projects. It added none by hand. It dropped four derived
+  links that involve a `carry` series, because a link onto a series
+  that is never pushed would wait forever, and a link from one
+  orders nothing. The four links arose because the main `kolla`
+  and `kolla-ansible` series also list the patches involved.
+
 ### Phase 2: push order and status
 
 Planning effort: high.
