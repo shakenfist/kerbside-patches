@@ -259,7 +259,7 @@ Each one has the default this plan will take if nobody answers.
 
 | Phase | What | Status | Merged |
 |-------|------|--------|--------|
-| 1. The index | `series.yaml`, `tools/series.py`, the pre-commit check, switching the eight discovery sites over, removing `repush:` | Not started | |
+| 1. The index | `series.yaml`, `tools/series.py`, the pre-commit check, switching the eight discovery sites over, removing `repush:` | In progress | |
 | 2. Push order and status | `tools/series-status.py`, and making `repush-openstack.sh` follow the index's order and offer only what needs pushing | Not started | |
 | 3. Shared clones | the mirror helper, used by `apply-patches-and-test.sh`, `bump-source-shas.sh`, `check-agent-startup.py` and `gerrit-push-status.py` | Not started | |
 | 4. Push audit | the checklist below, over all three phases | Not started | |
@@ -321,6 +321,21 @@ Departures from the plan:
   that is never pushed would wait forever, and a link from one
   orders nothing. The four links arose because the main `kolla`
   and `kolla-ansible` series also list the patches involved.
+
+Definition of done for this phase, checked 2026-10-31 (AEDT):
+
+- `tools/check-series-index.py` passes. With
+  `neutron-timecost-fix`'s entry removed, in a copy of the tree, it
+  fails with exit 1 and names the series.
+- The grep for `find`, the `*/config.yaml` glob and `repush` still
+  matches two kinds of line. One is `repush` as a verb ("a repush
+  would upload") in `gerrit-push-status.py` and its test. The other
+  is `rebase-with-claude.sh`'s `git diff --stat */config.yaml`, which
+  displays changes and does not discover series. Nothing reads the
+  `repush` key, and nothing finds series any other way.
+- All eight sites discover the same set of series as before: the
+  two moved in 1b, and the six in 1c, across 70 comparisons.
+- `pre-commit run --all-files` passes.
 
 ### Phase 2: push order and status
 
