@@ -82,7 +82,7 @@ class World:
     def write_series(self, order, source_sha=None):
         with open(os.path.join(self.series, 'config.yaml'), 'w') as f:
             f.write(f'repo: https://opendev.org/{PROJECT}\nsource_branch: master\n'
-                    f'destination_branch: demo\nsource_sha: {source_sha or self.base}\nrepush: true\n')
+                    f'destination_branch: demo\nsource_sha: {source_sha or self.base}\n')
         with open(os.path.join(self.series, 'ORDER'), 'w') as f:
             f.write(''.join(line + '\n' for line in order))
 
@@ -195,6 +195,27 @@ def test_moved_source_sha_rebases():
         world.write_series(['../_patches/patch001-demo.patch'], source_sha='0' * 40)
         check('moved source_sha rebases', world, [('patch001', 'rebase')])
     scenario(build)
+
+
+def test_all_selects_status_push():
+    with tempfile.TemporaryDirectory() as tmp:
+        with open(os.path.join(tmp, 'series.yaml'), 'w') as f:
+            f.write('demo:\n'
+                    '  demo-carried:\n    status: carry\n'
+                    '  demo-held:\n    status: hold\n'
+                    '  demo-pushed:\n    status: push\n'
+                    'other:\n'
+                    '  another-pushed:\n    status: push\n    after: [demo-pushed]\n')
+        topdir = status_tool.TOPDIR
+        status_tool.TOPDIR = tmp
+        try:
+            got = status_tool.repush_series()
+        finally:
+            status_tool.TOPDIR = topdir
+    expected = ['another-pushed', 'demo-pushed']
+    if got != expected:
+        raise TestFailure(f'--all selects status push: expected {expected}, got {got}')
+    print('ok   --all selects status push')
 
 
 def main():

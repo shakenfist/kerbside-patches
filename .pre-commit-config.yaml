@@ -86,11 +86,18 @@ repos:
         language: python
         additional_dependencies: [pyyaml]
         pass_filenames: false
-        files: ^tools/(gerrit-push-status\.py|patch_message\.py|test-gerrit-push-status\.py)$
+        files: ^tools/(gerrit-push-status\.py|patch_message\.py|series\.py|test-gerrit-push-status\.py)$
 
-  # tools/series.py reads series.yaml, the index of the series directories.
+  # series.yaml indexes the series directories: check it, and test its tools.
   - repo: local
     hooks:
+      - id: check-series-index
+        name: series.yaml agrees with the series directories
+        entry: python tools/check-series-index.py
+        language: python
+        additional_dependencies: [pyyaml]
+        pass_filenames: false
+        files: ^(series\.yaml|[^/]+/(config\.yaml|ORDER))$
       - id: series-index-tests
         name: series and check-series-index unit tests
         entry: python tools/test-series-index.py
