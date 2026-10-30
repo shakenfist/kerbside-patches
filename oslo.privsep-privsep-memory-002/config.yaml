@@ -7,4 +7,3 @@ release: master-oslo.privsep-privsep-memory-002
 depends_on: ''
 source_sha: ce05e5822236a3404c4d7a359cc4271d8291a265
 previous_source_sha: ce05e5822236a3404c4d7a359cc4271d8291a265
-repush: true

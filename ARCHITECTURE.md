@@ -77,6 +77,9 @@ ends with an upstream proposal. See
 
 ### Project Directories
 
+`series.yaml` at the root is the list of series: each project's series,
+with a status and the series each must be pushed after.
+
 Each `<project>[-<version>]/` directory contains:
 
 - `config.yaml` -- repo URL, branch, source SHA, release

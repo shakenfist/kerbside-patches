@@ -54,6 +54,11 @@ else
     echo "Mode: forward - will step forward ${count} commits from current SHA"
 fi
 
+# Activate venv if available
+if [ -e /srv/shakenfist/kerbside-patches-tools/bin/activate ]; then
+    . /srv/shakenfist/kerbside-patches-tools/bin/activate
+fi
+
 # Lock in new daily SHAs for each project we're patching
 cwd=$(pwd)
 # Several series can patch the same upstream repository (kolla-ansible has
@@ -61,9 +66,7 @@ cwd=$(pwd)
 # Record each repository and range in the changelog once, whichever series
 # reaches it first, rather than once per series.
 declare -A changelog_seen=()
-# -maxdepth 2 limits us to top-level ./<project>/config.yaml and avoids the
-# assembled src/ tree, where upstream repos ship their own config.yaml files.
-projects=$(find . -maxdepth 2 -type f -name "config.yaml" | cut -f 2 -d "/")
+projects=$(tools/series.py list) || exit 1
 for project in ${projects}; do
     mkdir -p src
     repo=$(yq -r .repo ${project}/config.yaml)

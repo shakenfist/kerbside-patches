@@ -26,7 +26,7 @@ compared too, but it is not pushed and does not affect the patches after it.
 
 Usage:
     tools/gerrit-push-status.py neutron-dhcp-agent-fixes [series...]
-    tools/gerrit-push-status.py --all     # every series with repush: true
+    tools/gerrit-push-status.py --all     # every series with status push in series.yaml
 
 The cache defaults to ~/.cache/kerbside-patches/gerrit-push-status, or
 $XDG_CACHE_HOME in place of ~/.cache; --cache-dir moves it.
@@ -35,6 +35,7 @@ Exit status:
     0   a repush would upload nothing
     1   at least one series has a patch to push
     2   review.opendev.org or opendev.org could not be reached
+    3   --all was given and series.yaml is missing or invalid
 """
 
 import argparse
@@ -50,6 +51,7 @@ import urllib.request
 
 import yaml
 
+import series as series_index
 from patch_message import extract
 
 GERRIT = 'https://review.opendev.org'
@@ -236,15 +238,9 @@ def report(series, config, rows):
 
 
 def repush_series():
-    """Return every series directory whose config says repush: true."""
-    found = []
-    for entry in sorted(os.listdir(TOPDIR)):
-        config = os.path.join(TOPDIR, entry, 'config.yaml')
-        if os.path.exists(os.path.join(TOPDIR, entry, 'ORDER')) and os.path.exists(config):
-            with open(config) as f:
-                if (yaml.safe_load(f) or {}).get('repush'):
-                    found.append(entry)
-    return found
+    """Return every series with status push in series.yaml, sorted by name."""
+    index = series_index.load(TOPDIR)
+    return sorted(s.name for s in series_index.select(index, statuses=['push']))
 
 
 def default_cache_dir():
@@ -255,19 +251,23 @@ def default_cache_dir():
 def main():
     parser = argparse.ArgumentParser(description=__doc__.split('\n', 1)[0])
     parser.add_argument('series', nargs='*', help='series directories, e.g. neutron-dhcp-agent-fixes')
-    parser.add_argument('--all', action='store_true', help='every series with repush: true')
+    parser.add_argument('--all', action='store_true', help='every series with status push in series.yaml')
     parser.add_argument('--cache-dir', default=default_cache_dir(),
                         help='where to keep the fetched patchsets (default: %(default)s)')
     args = parser.parse_args()
 
-    series = repush_series() if args.all else [s.rstrip('/') for s in args.series]
-    if not series:
+    try:
+        names = repush_series() if args.all else [s.rstrip('/') for s in args.series]
+    except series_index.SeriesError as e:
+        print(e, file=sys.stderr)
+        return 3
+    if not names:
         parser.error('name at least one series, or pass --all')
 
     cache = Cache(args.cache_dir)
     to_push = False
     try:
-        for name in series:
+        for name in names:
             config, rows = status(os.path.join(TOPDIR, name), cache)
             to_push = report(name, config, rows) or to_push
             print()
