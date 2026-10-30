@@ -144,8 +144,8 @@ echo
 echo -e "${YELLOW}Step 1: Finding kolla-ansible projects...${NC}"
 
 if [ -z "${projects}" ]; then
-    for dir in kolla-ansible*/; do
-        dir="${dir%/}"
+    kolla_ansible_series=$(tools/series.py list --project kolla-ansible) || exit 1
+    for dir in ${kolla_ansible_series}; do
         if [ ! -e "${dir}/config.yaml" ]; then
             continue
         fi
