@@ -1,0 +1,131 @@
+From 4a2776cad8b68691cbdace05584ba8927a5394df Mon Sep 17 00:00:00 2001
+From: Michael Still <mikal@stillhq.com>
+Date: Fri, 30 Oct 2026 06:50:03 +1100
+Subject: [PATCH 1/3] video-stream: skip streams a client has not been given
+
+A display channel client is in the channel's client list from
+dcc_new(), but it is only given the streams that already exist at the
+end of dcc_start(), in dcc_create_all_streams(). Before that,
+display_channel_client_wait_for_init() handles the client's messages.
+A client that sends SPICE_MSGC_DISPLAY_PREFERRED_VIDEO_CODEC_TYPE as
+soon as the channel is up gets there while the guest is streaming:
+video_stream_detach_and_stop() then queues STREAM_CLIP and
+STREAM_DESTROY for every client, the new one included. The new
+client's stream agents still have a NULL dcc, which only
+dcc_create_stream() sets. The first STREAM_CLIP goes out, telling the
+client to clip a stream it was never given, and when
+RedChannelClient::push() then releases the item, its destructor
+dereferences NULL through DCC_TO_DC() and the server crashes.
+
+Record in each stream agent whether the client has the stream, as
+surface_client_created does for surfaces: set when STREAM_CREATE is
+queued, cleared when STREAM_DESTROY is. Queue STREAM_CLIP and
+STREAM_DESTROY, and track the stream's region for a client, only while
+it has the stream. Set an agent's dcc when the client is created
+rather than when a stream is, since an agent belongs to one client for
+its whole life, so a pipe item can always reach the channel through
+it.
+
+With streaming-video=all, every connect of such a client to a guest
+that was already streaming crashed the server; with this change none
+did.
+
+The window is display_channel_client_wait_for_init(), which reads the
+client's messages synchronously until SPICE_MSGC_DISPLAY_INIT has
+been handled, so the preference must arrive before that message or
+in the same read. spice-gtk does not send it when the channel comes
+up: it sends it only when the application calls
+spice_display_channel_change_preferred_video_codec_types(), which
+remote-viewer never does and spicy does from a menu. A client that
+sends its preference at connect crashed 0.15.2, 0.16.0 and master
+alike.
+
+Assisted-by: Claude Opus 5.5
+---
+ server/dcc.cpp          |  1 +
+ server/video-stream.cpp | 14 ++++++++++++--
+ server/video-stream.h   |  3 +++
+ 3 files changed, 16 insertions(+), 2 deletions(-)
+
+diff --git a/server/dcc.cpp b/server/dcc.cpp
+index 8434ab31..3a32a5d1 100644
+--- a/server/dcc.cpp
++++ b/server/dcc.cpp
+@@ -336,6 +336,7 @@ static void dcc_init_stream_agents(DisplayChannelClient *dcc)
+     for (i = 0; i < dcc->priv->stream_agents.size(); i++) {
+         VideoStreamAgent *agent = &dcc->priv->stream_agents[i];
+         agent->stream = display_channel_get_nth_video_stream(display, i);
++        agent->dcc = dcc;
+         region_init(&agent->vis_region);
+         region_init(&agent->clip);
+     }
+diff --git a/server/video-stream.cpp b/server/video-stream.cpp
+index 5d2f7f85..5aa7cbe5 100644
+--- a/server/video-stream.cpp
++++ b/server/video-stream.cpp
+@@ -114,7 +114,10 @@ void video_stream_stop(DisplayChannel *display, VideoStream *stream)
+                 dcc_set_max_stream_bit_rate(dcc, stream_bit_rate);
+             }
+         }
+-        dcc->pipe_add(video_stream_destroy_item_new(stream_agent));
++        if (stream_agent->client_created) {
++            dcc->pipe_add(video_stream_destroy_item_new(stream_agent));
++            stream_agent->client_created = false;
++        }
+         video_stream_agent_stats_print(stream_agent);
+ 
+         if (stream == display->priv->gl_draw_stream) {
+@@ -297,6 +300,9 @@ static void attach_stream(DisplayChannel *display, Drawable *drawable, VideoStre
+         QRegion clip_in_draw_dest;
+ 
+         agent = dcc_get_video_stream_agent(dcc, stream_id);
++        if (!agent->client_created) {
++            continue;
++        }
+         region_or(&agent->vis_region, &drawable->tree_item.base.rgn);
+ 
+         region_init(&clip_in_draw_dest);
+@@ -845,7 +851,6 @@ void dcc_create_stream(DisplayChannelClient *dcc, VideoStream *stream)
+         region_clone(&agent->vis_region, &stream->current->tree_item.base.rgn);
+         region_clone(&agent->clip, &agent->vis_region);
+     }
+-    agent->dcc = dcc;
+ 
+     VideoEncoderRateControlCbs video_cbs;
+     video_cbs.opaque = agent;
+@@ -856,6 +861,7 @@ void dcc_create_stream(DisplayChannelClient *dcc, VideoStream *stream)
+     uint64_t initial_bit_rate = get_initial_bit_rate(dcc, stream);
+     agent->video_encoder = dcc_create_video_encoder(dcc, initial_bit_rate, &video_cbs);
+     dcc->pipe_add(video_stream_create_item_new(agent));
++    agent->client_created = true;
+ 
+     if (dcc->test_remote_cap(SPICE_DISPLAY_CAP_STREAM_REPORT)) {
+         auto report_pipe_item = red::make_shared<RedStreamActivateReportItem>();
+@@ -904,6 +910,10 @@ static void dcc_detach_stream_gracefully(DisplayChannelClient *dcc,
+     int stream_id = display_channel_get_video_stream_id(display, stream);
+     VideoStreamAgent *agent = dcc_get_video_stream_agent(dcc, stream_id);
+ 
++    if (!agent->client_created) {
++        return;
++    }
++
+     /* stopping the client from playing older frames at once*/
+     region_clear(&agent->clip);
+     dcc_video_stream_agent_clip(dcc, agent);
+diff --git a/server/video-stream.h b/server/video-stream.h
+index 62229c8c..5c71556b 100644
+--- a/server/video-stream.h
++++ b/server/video-stream.h
+@@ -73,6 +73,9 @@ struct VideoStreamAgent {
+     VideoStream *stream;
+     VideoEncoder *video_encoder;
+     DisplayChannelClient *dcc;
++    /* the client has this stream: its STREAM_CREATE is in the client's pipe
++     * or sent, and its STREAM_DESTROY is not */
++    bool client_created;
+ 
+     uint32_t report_id;
+ #ifdef STREAM_STATS
+-- 
+2.47.3
+

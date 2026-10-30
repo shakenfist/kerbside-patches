@@ -196,6 +196,17 @@ repos:
         pass_filenames: false
         files: ^(tools/(ci-auto-retry\.sh|test-ci-auto-retry\.py)|\.github/workflows/auto-retry-infra-failures\.yml)$
 
+      # The shared-patch analyzer decides whether a failing patch is edited in
+      # place or forked into a release copy, so its tests build series trees
+      # and pin which way each case falls.
+      - id: analyze-shared-patches-tests
+        name: analyze-shared-patches unit tests
+        entry: python tools/test-analyze-shared-patches.py
+        language: python
+        additional_dependencies: ['pyyaml']
+        pass_filenames: false
+        files: ^(_build/(analyze-shared-patches\.py|release-names\.yaml)|tools/test-analyze-shared-patches\.py)$
+
       - id: collect-layer-data-pr-tests
         name: collect-layer-data-pr unit tests
         entry: python tools/test-collect-layer-data-pr.py

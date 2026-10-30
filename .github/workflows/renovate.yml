@@ -45,7 +45,7 @@ jobs:
       - name: Set up Node
         uses: actions/setup-node@v7
         with:
-          node-version: 24
+          node-version: 26
           package-manager-cache: false
 
       # Renovate refreshes lock files with the runner's own tools, which
@@ -59,7 +59,7 @@ jobs:
       - name: Self-hosted Renovate
         env:
           # renovate: datasource=npm depName=renovate
-          PINNED_RENOVATE_VERSION: 44.181.6
+          PINNED_RENOVATE_VERSION: 44.186.4
           RENOVATE_TOKEN: ${{ secrets.RENOVATE_TOKEN }}
           RENOVATE_AUTODISCOVER: "true"
           RENOVATE_AUTODISCOVER_FILTER: ${{ github.repository }}
