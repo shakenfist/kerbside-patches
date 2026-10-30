@@ -49,12 +49,10 @@ is the first phase and is urgent.
 
 ## Layout, and why it is invisible to the OpenStack tooling
 
-Every existing tool discovers projects as `./<project>/config.yaml`:
-
-- `find . -maxdepth 2 -name config.yaml` in `assemble-source.sh`,
-  `bump-source-shas.sh`, `test-patches-for-ci.sh` and
-  `imagebuild.sh`;
-- a `*/config.yaml` glob in `rebase-with-claude.sh`.
+The existing tools used to discover projects as `./<project>/config.yaml`,
+with `find` or a glob. They now read the series from `series.yaml` through
+`tools/series.py`, so `upstream/` stays invisible because it has no entry
+there, and `tools/check-series-index.py` ignores `upstream/`.
 
 The patch hooks match `^_patches/`.
 

@@ -210,14 +210,24 @@ A fix that is going upstream on its own, unrelated to the rest of our
 stack, gets its own series directory rather than a line in the
 project's main `ORDER`: `neutron-timecost-fix/`,
 `kolla-magnum-setuptools-pin/` and `kolla-ansible-json-logging/` are
-examples. Its `config.yaml` differs from the main series in four keys:
+examples. Its `config.yaml` differs from the main series in three keys:
 
 | Key | Set to | Why |
 |-----|--------|-----|
 | `release` | a name of its own, e.g. `master-neutron-timecost-fix` | `assemble-source.sh` builds every series whose release matches the build's, so sharing `master` would pull it into image builds |
 | `destination_branch` | a short name for the class of problem, e.g. `import-time-config` | `repush-openstack.sh` runs `git review` from this branch, and git review uses the branch name as the Gerrit topic |
-| `repush` | `true` | lets `repush-openstack.sh` push the series to Gerrit |
 | `skip_rebase` | `false` (or absent) | see below |
+
+Creating the series also means adding it to `series.yaml`, which lists
+every series under the project it patches. Each entry has a `status`:
+`push` (keep it on Gerrit; `repush-openstack.sh` pushes it), `hold`
+(pushable, but not now) or `carry` (downstream only, never pushed).
+`after` lists the series that must be on Gerrit before this one is
+pushed, because its patches carry a `Depends-On` for one of theirs; a
+`note` is free text. `tools/series.py list --ordered` prints the series
+in push order. The `check-series-index` pre-commit hook fails when a
+series directory has no entry, an entry has no directory, or an `after`
+names a missing series or forms a cycle.
 
 A series that is a discussion starter rather than a change ready for
 review sets `wip: true` as well. `repush-openstack.sh` then pushes it
@@ -242,11 +252,13 @@ One piece of work can span several repositories, for example
 telemetry in devstack followed by fixes in oslo.privsep and neutron.
 Give each repository its own series named
 `<repository>-<topic>-<NNN>`, where the shared topic marks them as a
-group and `NNN` gives the landing order: `devstack-privsep-memory-001`,
-`oslo.privsep-privsep-memory-002`, `neutron-privsep-memory-003`. Give
-them all the same `destination_branch` so they share a Gerrit topic.
-Put a cross-series `Depends-On` only on the root patch of the later
-series.
+group and `NNN` only names the series: `devstack-privsep-memory-001`,
+`oslo.privsep-privsep-memory-002`, `neutron-privsep-memory-003`. The
+push order is the `after` links in `series.yaml`, not the number; a
+series numbered 014 once had to be pushed before 007. Give them all
+the same `destination_branch` so they share a Gerrit topic. Put a
+cross-series `Depends-On` only on the root patch of the later series,
+and name the series it depends on in `after`.
 
 ## Review commentary
 
