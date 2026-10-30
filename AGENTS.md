@@ -34,9 +34,9 @@ the only tested container OS: RHEL and Rocky dropped SPICE support.
 documentation belongs in `docs/`; this file and `ARCHITECTURE.md` are a
 summary and an index into it.
 
-Python under `deployer/`, `tools/write-build-manifest` and
-`tools/measure-deployer-bootstrap` is linted (flake8, 120 columns) and
-unit tested by pre-commit; no other Python here is linted.
+The Python that pre-commit lints (flake8, 120 columns) is whatever the
+flake8 hook's `files` regex in `.pre-commit-config.yaml` names; add a
+new tool there, with its unit tests as a hook of their own.
 
 ## Key Patterns
 
@@ -63,6 +63,12 @@ unit tested by pre-commit; no other Python here is linted.
 8. When reviewers need context the message cannot carry, draft
    a Gerrit comment in `_patches/<patch stem>.md`; see
    [docs/patch-editing.md](docs/patch-editing.md#review-commentary).
+
+A new series directory also needs an entry in `series.yaml`, the list
+of series (status, and `after` for any series it must be pushed
+after); the `check-series-index` hook fails without one. Scripts find
+series with `tools/series.py list`, never `find`. See
+[docs/patch-editing.md](docs/patch-editing.md#independent-patch-series).
 
 A patch in `_patches/` can be listed by several `ORDER` files (one
 per release). When only one release needs a change, copy the patch
