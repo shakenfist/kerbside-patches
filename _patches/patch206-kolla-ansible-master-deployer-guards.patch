@@ -2,7 +2,7 @@ commit 9b338ccbd064d3177822cf17c7badc0871ff1211
 Author: Michael Still <mikal@stillhq.com>
 Date:   Tue Oct 27 18:04:17 2026 +1100
 
-    WIP / PoC: Guard deployments against the wrong deployer.
+    Guard deployments against the wrong deployer.
     
     A Kolla Ansible deployer image packages one version of the deployment
     tool and is built alongside one set of service images. Nothing stops an

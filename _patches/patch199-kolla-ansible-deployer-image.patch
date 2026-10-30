@@ -2,7 +2,7 @@ commit 0667b97211d0e4897bbbf437451a6a663a9ee171
 Author: Michael Still <mikal@stillhq.com>
 Date:   Tue Oct 27 18:12:53 2026 +1100
 
-    WIP / PoC: Add a kolla-ansible deployer image.
+    Add a kolla-ansible deployer image.
     
     Kolla-Ansible is today installed onto the deploy host with pip, and
     its Ansible collections are then fetched from Galaxy and git by

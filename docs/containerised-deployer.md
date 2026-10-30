@@ -172,8 +172,10 @@ itself it needs three things, which
 
 * the host must not be named `localhost`;
 * `ansible_connection=community.docker.nsenter`; and
-* an absolute `ansible_remote_tmp`, such as
-  `/tmp/.ansible-kolla-<user>`.
+* an `ansible_remote_tmp` that does not expand through the container's
+  `HOME`. Both inventories use
+  `~{{ lookup('pipe', 'id -un') }}/.ansible/tmp`, the user's real home
+  on the host.
 
 `etc/inventory-all-in-one-launcher-master` is the one CI uses. It
 carries Kerbside's groups and names the host `kolla`. patch214 adds
@@ -368,8 +370,10 @@ caller, and documents that it always runs as root. Under the launcher
 it runs as the invoking user, and Ansible's default remote temporary
 directory then expands `~` through the container's `HOME`, a path the
 host does not have, so every module fails. The workaround is an
-absolute `ansible_remote_tmp` in the inventory; the fix belongs in
-community.docker (*The localhost connection*).
+`ansible_remote_tmp` in the inventory that the host can resolve, either
+`~<user>`, which the host's shell expands from its own passwd database,
+or an absolute path; the fix belongs in community.docker (*The
+localhost connection*).
 
 **The nsenter plugin leaks the caller's environment.** Commands on the
 host get the container's `PATH`, `HOME` and `KOLLA_*` variables. So

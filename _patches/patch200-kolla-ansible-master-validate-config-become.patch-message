@@ -1,4 +1,4 @@
-WIP / PoC: Allow validate-config to skip become on localhost.
+Allow validate-config to skip become on localhost.
 
 The service-config-validate role writes the oslo-config-validator
 output on the deploy host using become. Where the deploy host user

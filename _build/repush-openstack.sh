@@ -39,6 +39,48 @@ if [ ${#push[@]} -eq 0 ]; then
     exit 0
 fi
 
+# The patch files a series' ORDER lists, as paths from the top directory.
+series_patches() {
+    grep -v -E '^#' "$1/ORDER" | grep -v '^[[:space:]]*$' | sed "s|^|$1/|"
+}
+
+# Whether any patch in a series carries a Depends-On naming the repository of
+# another series being pushed.
+depends_on_pushed_series() {
+    local project="$1" other repo
+    for other in "${push[@]}"; do
+        if [ "${other}" == "${project}" ]; then
+            continue
+        fi
+        # https://opendev.org/openstack/kolla -> openstack/kolla, as a review
+        # URL names it. The trailing /+/ keeps openstack/kolla from matching
+        # openstack/kolla-ansible.
+        repo=$(yq -r .repo "${other}/config.yaml")
+        repo=${repo#https://opendev.org/}
+        # shellcheck disable=SC2046
+        if grep -q -E "^ *Depends-On: https://review.opendev.org/c/${repo}/\+/" $(series_patches "${project}"); then
+            return 0
+        fi
+    done
+    return 1
+}
+
+# A series whose patches depend on another series being pushed goes after it.
+# Pushed first, the dependent is in Zuul's check pipeline when its dependency
+# gets a new patchset, and Zuul dequeues it and every change behind it with
+# "This change depends on a change that failed to merge". Glob order gets this
+# wrong for kolla-ansible-deployer, which depends on kolla-deployer.
+independent=()
+dependent=()
+for project in "${push[@]}"; do
+    if depends_on_pushed_series "${project}"; then
+        dependent+=("${project}")
+    else
+        independent+=("${project}")
+    fi
+done
+push=("${independent[@]}" "${dependent[@]}")
+
 total_patches=0
 echo "Will push ${#push[@]} series to Gerrit:"
 echo

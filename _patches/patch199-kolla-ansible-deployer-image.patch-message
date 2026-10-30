@@ -1,4 +1,4 @@
-WIP / PoC: Add a kolla-ansible deployer image.
+Add a kolla-ansible deployer image.
 
 Kolla-Ansible is today installed onto the deploy host with pip, and
 its Ansible collections are then fetched from Galaxy and git by

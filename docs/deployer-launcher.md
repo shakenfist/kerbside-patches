@@ -238,10 +238,14 @@ The inventory:
   `localhost` replaces the implicit one, and the host's
   `ansible_connection` would send those tasks to the host, where
   they fail. Every use of `localhost` must stay in the container.
-* `ansible_remote_tmp` must be an absolute path, for example
-  `/tmp/.ansible-kolla-<user>`. The plugin runs as `root` as far as
-  Ansible is concerned, so `~` would expand through the container's
-  `HOME` (`/var/lib/kolla-ansible`), which the host does not have.
+* `ansible_remote_tmp` must not start with a bare `~`. The plugin
+  passes the container's `HOME` (`/var/lib/kolla-ansible`) to the
+  host, so `~` expands to a path the host does not have. `~<user>` is
+  expanded by the host's shell from the host's passwd database, so
+  `~{{ lookup('pipe', 'id -un') }}/.ansible/tmp`, which both the
+  upstream `all-in-one-deployer` inventory and CI's set, is the user's
+  real home on the host. A fixed path under `/tmp` also works, but is
+  shared between users and open to a symlink race.
 * The plugin passes the container's whole environment (`PATH`,
   `HOME`, `KOLLA_*`) to commands on the host. Python interpreter
   discovery on the host therefore depends on the `PATH` of whatever

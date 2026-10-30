@@ -2,7 +2,7 @@ commit 6ec3c6e93dc3555da40a1584f72a38c5890c4f8c
 Author: Michael Still <mikal@stillhq.com>
 Date:   Tue Oct 27 18:04:17 2026 +1100
 
-    WIP / PoC: Add an nsenter friendly all-in-one inventory.
+    Add an nsenter friendly all-in-one inventory.
     
     This patch series adds a containerized version of kolla-ansible as
     built by the Kolla patch the series depends on. The container needs
@@ -19,11 +19,14 @@ Date:   Tue Oct 27 18:04:17 2026 +1100
       in the container;
     * ansible_connection=community.docker.nsenter in [all:vars] replaces
       ansible_connection=local on each host line; and
-    * ansible_remote_tmp is an absolute path. The nsenter plugin assumes
-      that remote_user is root, and passes the container's environment,
-      including HOME, to commands on the host, so the default
-      ~/.ansible/tmp names a directory in the container's HOME, which the
-      host does not have.
+    * ansible_remote_tmp names the invoking user's home on the host. The
+      nsenter plugin passes the container's environment, including HOME,
+      to commands on the host, so the default ~/.ansible/tmp expands to a
+      directory in the container's HOME, which the host does not have.
+      ~<user> is expanded by the host's shell from its passwd database
+      instead, so ~{{ lookup('pipe', 'id -un') }}/.ansible/tmp is the
+      user's real home, and the temporary directory is not a predictable
+      path in a world-writable /tmp.
     
     Assisted-By: Claude Opus 5.5 (high effort)
     Change-Id: Ie28b1166516779eb3af0d4c61fd839ec188c4a24
@@ -34,7 +37,7 @@ new file mode 100644
 index 000000000..f955bb261
 --- /dev/null
 +++ b/ansible/inventory/all-in-one-deployer
-@@ -0,0 +1,611 @@
+@@ -0,0 +1,612 @@
 +# An all-in-one inventory for running Kolla Ansible from a container on the
 +# host it deploys to, such as the kolla-ansible deployer image. The container
 +# needs the host's PID namespace and privileges to enter the host's
@@ -48,14 +51,15 @@ index 000000000..f955bb261
 +# host instead.
 +#
 +# The nsenter plugin assumes that remote_user is root, and it passes the
-+# container's environment, including HOME, to commands on the host. A relative
-+# remote_tmp such as the default ~/.ansible/tmp would therefore name a path in
-+# the container's HOME, which the host may not have, so ansible_remote_tmp is
-+# absolute. If more than one user deploys from this host, give each their own
-+# directory.
++# container's environment, including HOME, to commands on the host. The
++# default remote_tmp, ~/.ansible/tmp, would therefore name a path in the
++# container's HOME, which the host may not have. ~<user> is expanded by the
++# host's shell from the host's passwd database instead, so ansible_remote_tmp
++# names the invoking user's real home. A fixed path under /tmp would be
++# shared between users and open to a symlink race.
 +[all:vars]
 +ansible_connection=community.docker.nsenter
-+ansible_remote_tmp=/tmp/.ansible-kolla
++ansible_remote_tmp=~{{ lookup('pipe', 'id -un') }}/.ansible/tmp
 +
 +# These initial groups are the only groups required to be modified. The
 +# additional groups are for more control of the environment.
@@ -673,7 +677,7 @@ index 000000000..a611d3267
 +    ``kolla-ansible`` from a container on the host it deploys to. It reaches
 +    that host with the ``community.docker.nsenter`` connection plugin rather
 +    than SSH, names the host ``kolla`` rather than ``localhost`` so that tasks
-+    delegated to ``localhost`` still run in the container, and sets an absolute
-+    ``ansible_remote_tmp``, because the plugin passes the container's ``HOME``
-+    to commands on the host. The container must share the host's PID namespace
-+    and be privileged.
++    delegated to ``localhost`` still run in the container, and sets
++    ``ansible_remote_tmp`` to the invoking user's home on the host, because the
++    plugin passes the container's ``HOME`` to commands on the host. The
++    container must share the host's PID namespace and be privileged.

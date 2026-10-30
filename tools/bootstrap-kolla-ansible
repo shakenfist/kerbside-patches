@@ -119,19 +119,17 @@ mkdir -p /etc/kolla
 cp -r etc/kolla /etc/
 cd "${topdir}"
 inventory_name="inventory-${topology}-${target_release}"
-venv_args=()
 if [ "${deployer}" == "launcher" ] && [ "${topology}" == "all-in-one" ]; then
     # Reach this host through community.docker.nsenter, because "local" would
     # be the launcher's container. The certificates and bootstrap-servers
     # calls below use the same inventory, so that bootstrap-servers prepares
     # the host Python the deploy will use (on Rocky it pip-installs the Docker
-    # SDK into it). They run as root, so they get their own remote tmp: as
-    # root they would create the inventory's one where ${SUDO_USER} could not
-    # use it. bootstrap-servers runs in a chroot of the deployer image, which
-    # gives the host the image's PATH, so interpreter discovery matches the
-    # deploy and needs no pin.
+    # SDK into it). They run as root, and the inventory's remote tmp is the
+    # running user's home, so they use root's and leave ${SUDO_USER}'s alone.
+    # bootstrap-servers runs in a chroot of the deployer image, which gives
+    # the host the image's PATH, so interpreter discovery matches the deploy
+    # and needs no pin.
     inventory_name="inventory-${topology}-launcher-${target_release}"
-    venv_args=(-e ansible_remote_tmp=/tmp/.ansible-kolla-root)
 fi
 if [ ! -e "etc/${inventory_name}" ]; then
     echo "Looked for inventory etc/${inventory_name}"
@@ -318,7 +316,7 @@ echo
 
 if [ "${deployer}" == "launcher" ]; then
     echo -e "${H2}Make certificates${Color_Off}"
-    "${launcher_ka}" certificates -i /etc/kolla/inventory "${venv_args[@]}"
+    "${launcher_ka}" certificates -i /etc/kolla/inventory
     echo
 
     echo -e "${H2}Bootstrap servers${Color_Off}"
@@ -326,7 +324,7 @@ if [ "${deployer}" == "launcher" ]; then
     # one install-engine put there on Debian. It needs root, and runs from an
     # unpacked copy of the deployer image rather than from a container, which
     # the replacement would kill.
-    "${launcher_ka}" bootstrap-servers -i /etc/kolla/inventory "${venv_args[@]}"
+    "${launcher_ka}" bootstrap-servers -i /etc/kolla/inventory
     echo
 
     # The launcher runs the deploy as ${SUDO_USER} through Docker. Nothing
@@ -355,11 +353,11 @@ if [ "${deployer}" == "launcher" ]; then
     echo
 else
     echo -e "${H2}Make certificates${Color_Off}"
-    kolla-ansible certificates -i /etc/kolla/inventory "${venv_args[@]}"
+    kolla-ansible certificates -i /etc/kolla/inventory
     echo
 
     echo -e "${H2}Bootstrap servers${Color_Off}"
-    kolla-ansible bootstrap-servers -i /etc/kolla/inventory "${venv_args[@]}"
+    kolla-ansible bootstrap-servers -i /etc/kolla/inventory
     echo
 fi
 

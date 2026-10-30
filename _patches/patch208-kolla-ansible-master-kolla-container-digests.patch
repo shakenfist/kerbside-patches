@@ -2,7 +2,7 @@ commit 5fac6f158c516e89c41784e24797e8eea47e1762
 Author: Michael Still <mikal@stillhq.com>
 Date:   Tue Oct 27 18:04:17 2026 +1100
 
-    WIP / PoC: Support image digests in kolla_container.
+    Support image digests in kolla_container.
     
     An operator can pin a service to an exact image by giving its
     <service>_image_full as a digest reference, repository@sha256:<hex>.
