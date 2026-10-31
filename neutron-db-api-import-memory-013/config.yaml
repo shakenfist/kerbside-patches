@@ -5,6 +5,6 @@ shallow_clone: true
 directory: neutron
 release: master-neutron-db-api-import-memory-013
 depends_on: ''
-source_sha: 6ff6ecff2aab4a7a8df704595093f345073f832e
-previous_source_sha: cf3549cf7fc328aea3e8c72fab000a37a5da4fa6
+source_sha: 5088316c13b17006fd5a0e017501b6be0624ec58
+previous_source_sha: 6ff6ecff2aab4a7a8df704595093f345073f832e
 repush: true
