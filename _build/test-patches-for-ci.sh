@@ -34,8 +34,7 @@ fi
 if [ $# -gt 0 ]; then
     projects="$@"
 else
-    projects=$(find . -maxdepth 2 -name "config.yaml" -type f | \
-               cut -f 2 -d "/" | sort)
+    projects=$(tools/series.py list) || exit 1
 fi
 
 # Initialize result tracking

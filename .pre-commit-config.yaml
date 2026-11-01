@@ -86,7 +86,25 @@ repos:
         language: python
         additional_dependencies: [pyyaml]
         pass_filenames: false
-        files: ^tools/(gerrit-push-status\.py|patch_message\.py|test-gerrit-push-status\.py)$
+        files: ^tools/(gerrit-push-status\.py|patch_message\.py|series\.py|test-gerrit-push-status\.py)$
+
+  # series.yaml indexes the series directories: check it, and test its tools.
+  - repo: local
+    hooks:
+      - id: check-series-index
+        name: series.yaml agrees with the series directories
+        entry: python tools/check-series-index.py
+        language: python
+        additional_dependencies: [pyyaml]
+        pass_filenames: false
+        files: ^(series\.yaml|[^/]+/(config\.yaml|ORDER))$
+      - id: series-index-tests
+        name: series and check-series-index unit tests
+        entry: python tools/test-series-index.py
+        language: python
+        additional_dependencies: [pyyaml]
+        pass_filenames: false
+        files: ^tools/(series\.py|check-series-index\.py|test-series-index\.py)$
 
   # The launcher inventory is the venv inventory with a different connection
   # for the kolla host. Nothing else keeps them in step, so a group added to
@@ -124,7 +142,7 @@ repos:
     rev: 7.4.1
     hooks:
       - id: flake8
-        files: ^(deployer/|tools/(write-build-manifest|test-write-build-manifest\.py|measure-deployer-bootstrap|test-measure-deployer-bootstrap\.py|ci-select-lanes\.py|test-ci-select-lanes\.py|test-ci-merge-group-current\.py|test-ci-auto-retry\.py|test-collect-layer-data-pr\.py|test-data-pr-auto-merge\.py|check-llm-attribution\.py|test-patch-message-attribution\.py|gerrit-push-status\.py|test-gerrit-push-status\.py|import-memory/[^/]+\.py)$)
+        files: ^(deployer/|tools/(write-build-manifest|test-write-build-manifest\.py|measure-deployer-bootstrap|test-measure-deployer-bootstrap\.py|ci-select-lanes\.py|test-ci-select-lanes\.py|test-ci-merge-group-current\.py|test-ci-auto-retry\.py|test-collect-layer-data-pr\.py|test-data-pr-auto-merge\.py|check-llm-attribution\.py|test-patch-message-attribution\.py|gerrit-push-status\.py|test-gerrit-push-status\.py|series\.py|check-series-index\.py|test-series-index\.py|import-memory/[^/]+\.py)$)
         args: ['--max-line-length=120']
 
   - repo: local

@@ -7,4 +7,3 @@ release: master-neutron-agent-pending-updates
 depends_on: ''
 source_sha: 5088316c13b17006fd5a0e017501b6be0624ec58
 previous_source_sha: 6ff6ecff2aab4a7a8df704595093f345073f832e
-repush: true

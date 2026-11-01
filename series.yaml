@@ -1,0 +1,102 @@
+# The patch series in this repository. tools/series.py documents the format,
+# and tools/check-series-index.py checks it against the series directories.
+ansible-collection-kolla:
+  ansible-collection-kolla:
+    status: carry
+devstack:
+  devstack-privsep-memory-001:
+    status: push
+futurist:
+  futurist-import-memory-004:
+    status: push
+    after: [devstack-privsep-memory-001]
+keystone:
+  keystone-import-memory-008:
+    status: push
+    after: [devstack-privsep-memory-001]
+kolla:
+  kolla:
+    status: carry
+  kolla-deployer:
+    status: push
+  kolla-kerbside:
+    status: push
+  kolla-magnum-setuptools-pin:
+    status: push
+  kolla-virtlogd-fail-loudly:
+    status: push
+    after: [kolla-ansible-fluentd-virtlogd]
+kolla-ansible:
+  kolla-ansible:
+    status: carry
+  kolla-ansible-deployer:
+    status: push
+    after: [kolla-deployer]
+  kolla-ansible-fluentd-patience:
+    status: push
+  kolla-ansible-fluentd-virtlogd:
+    status: push
+  kolla-ansible-host-virtlogd-precheck:
+    status: push
+  kolla-ansible-json-logging:
+    status: push
+    after: [kolla-ansible-kerbside]
+  kolla-ansible-kerbside:
+    status: push
+  kolla-ansible-mariadb-collations:
+    status: push
+neutron:
+  neutron-agent-pending-updates:
+    status: push
+  neutron-agent-typing-base:
+    status: push
+  neutron-db-api-import-memory-013:
+    status: push
+    after: [devstack-privsep-memory-001]
+  neutron-dhcp-agent-fixes:
+    status: push
+  neutron-dvr-fip-ns-locking:
+    status: push
+  neutron-import-memory-007:
+    status: push
+    after: [devstack-privsep-memory-001]
+  neutron-import-time-config-check:
+    status: push
+  neutron-ovsdb-helpers-fix:
+    status: push
+  neutron-privsep-memory-003:
+    status: push
+    after: [devstack-privsep-memory-001]
+  neutron-test-switch-interval:
+    status: push
+  neutron-timecost-fix:
+    status: push
+neutron-lib:
+  neutron-lib-db-api-import-memory-006:
+    status: push
+    after: [devstack-privsep-memory-001]
+  neutron-lib-import-memory-005:
+    status: push
+    after: [devstack-privsep-memory-001]
+oslo.messaging:
+  oslo.messaging-import-memory-011:
+    status: push
+    after: [devstack-privsep-memory-001]
+oslo.privsep:
+  oslo.privsep-privsep-memory-002:
+    status: push
+    after: [devstack-privsep-memory-001]
+oslo.service:
+  oslo.service-import-memory-012:
+    status: push
+    after: [devstack-privsep-memory-001]
+  oslo.service-loopingcall-restart:
+    status: push
+oslo.utils:
+  oslo.utils-import-memory-010:
+    status: push
+    after: [devstack-privsep-memory-001]
+placement:
+  placement-import-memory-009:
+    status: push
+    after: [devstack-privsep-memory-001]
