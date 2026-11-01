@@ -139,7 +139,7 @@ repos:
   # container engine, the manifest tool's need no registry, and the
   # measurement tool's need neither GitHub nor a real log.
   - repo: https://github.com/pycqa/flake8
-    rev: 7.4.1
+    rev: 7.5.0
     hooks:
       - id: flake8
         files: ^(deployer/|tools/(write-build-manifest|test-write-build-manifest\.py|measure-deployer-bootstrap|test-measure-deployer-bootstrap\.py|ci-select-lanes\.py|test-ci-select-lanes\.py|test-ci-merge-group-current\.py|test-ci-auto-retry\.py|test-collect-layer-data-pr\.py|test-data-pr-auto-merge\.py|check-llm-attribution\.py|test-patch-message-attribution\.py|gerrit-push-status\.py|test-gerrit-push-status\.py|series\.py|check-series-index\.py|test-series-index\.py|import-memory/[^/]+\.py)$)
