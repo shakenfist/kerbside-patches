@@ -40,7 +40,7 @@ if [ "${NAME}" == "Rocky Linux" ]; then
         libxslt jq gcc python3-devel dbus-devel glib2-devel dbus-python-devel \
         netcat openssl
     sudo dnf remove python3-virtualenv
-    _build/setup-tools-venv.sh tox yq occystrap virtualenv \
+    _build/setup-tools-venv.sh tox yq "${occystrap_requirement}" virtualenv \
         MarkupSafe==2.1.5 /srv/shakenfist/clingwrap
     echo
 
@@ -68,7 +68,7 @@ else
         python3-dbus python3-venv netcat-openbsd python3-apt \
         build-essential libpcre2-dev openssl
     sudo apt-get remove -y python3-virtualenv
-    _build/setup-tools-venv.sh tox yq occystrap virtualenv \
+    _build/setup-tools-venv.sh tox yq "${occystrap_requirement}" virtualenv \
         MarkupSafe==2.1.5 /srv/shakenfist/clingwrap
     echo
 

@@ -29,7 +29,7 @@ sudo dnf config-manager --set-enabled crb
 
 sudo dnf install -y moreutils pkg-config python3-lxml libxml2-devel libxslt jq
 sudo dnf remove python3-virtualenv
-sudo pip3 install tox yq occystrap virtualenv
+sudo pip3 install tox yq "occystrap>=0.4.18" virtualenv
 
 # Install a recent Docker. kernel-modules-extra provides the xt_addrtype
 # netfilter module that dockerd needs to install its NAT rules.

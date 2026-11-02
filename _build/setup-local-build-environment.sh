@@ -14,7 +14,7 @@ sudo apt-get install -y moreutils python3-venv pkg-config \
     libxml2-dev libxslt1-dev jq ca-certificates curl git libpq-dev
 sudo apt purge -y python3-virtualenv
 
-"$(dirname "$0")/setup-tools-venv.sh" virtualenv tox yq occystrap
+"$(dirname "$0")/setup-tools-venv.sh" virtualenv tox yq "occystrap>=0.4.18"
 
 # These build scripts require a more recent version of Docker than that packaged
 # by Debian, so we use the Docker repositories instead.
