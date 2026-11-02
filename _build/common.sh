@@ -83,6 +83,13 @@ dont_fetch_images="false"
 # Should we use the occystrap filtering proxy for image pushes?
 use_proxy="false"
 
+# The oldest occystrap the build works with. 0.4.18 is the first whose
+# dockerpush:// input copes with an image that lists the same layer blob
+# twice, which kolla's base image has done since 2026-11-02 (#2048). A
+# floor rather than an exact pin: pip upgrades an older install to meet
+# it, and fails loudly if the PyPI mirror does not have it yet.
+occystrap_requirement="occystrap>=0.4.18"
+
 # Should we skip the debsecan vulnerability scan?
 skip_debsecan="false"
 

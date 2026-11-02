@@ -125,7 +125,7 @@ push_image() {
     if [ ! -x /tmp/occystrap/bin/occystrap ]; then
         echo -e "${H3}Install occystrap for registry push${Color_Off}"
         python3 -mvenv /tmp/occystrap
-        /tmp/occystrap/bin/pip3 install occystrap
+        /tmp/occystrap/bin/pip3 install "${occystrap_requirement}"
     fi
 
     echo -e "    ${local_image} ${Arrow} occystrap ${Arrow} ${remote}"
@@ -190,7 +190,7 @@ then
     echo
     echo -e "${H2}Install occystrap for proxy${Color_Off}"
     python3 -mvenv /tmp/occystrap
-    /tmp/occystrap/bin/pip3 install occystrap
+    /tmp/occystrap/bin/pip3 install "${occystrap_requirement}"
 
     layers_dir="${topdir}/archive/layers"
     mkdir -p "${layers_dir}"
@@ -327,7 +327,7 @@ for target in ${build_targets}; do
             echo
             echo -e "${H2}Install occystrap for registry push${Color_Off}"
             python3 -mvenv /tmp/occystrap
-            /tmp/occystrap/bin/pip3 install occystrap
+            /tmp/occystrap/bin/pip3 install "${occystrap_requirement}"
 
             echo
             echo -e "${H2}Pushing to the CI registry${Color_Off}"
