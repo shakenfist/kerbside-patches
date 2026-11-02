@@ -1,5 +1,76 @@
 # The patch series in this repository. tools/series.py documents the format,
 # and tools/check-series-index.py checks it against the series directories.
+#
+# There is more than one "patch epic" expressed in the repository at the
+# moment, so this is how they link together (or not):
+#
+# kolla / kolla-ansible kerbside work
+#   - kolla-kerbside
+#     https://review.opendev.org/c/openstack/kolla/+/998073
+#
+#   - kolla-ansible-kerbside
+#     https://review.opendev.org/c/openstack/kolla-ansible/+/976889
+#
+#   - kolla-ansible-json-logging
+#     https://review.opendev.org/c/openstack/kolla-ansible/+/1005459
+
+# various kolla bug fixes and CI flake fixes
+#   - kolla-magnum-setuptools-pin
+#     https://review.opendev.org/c/openstack/kolla/+/1007307
+#
+#   - kolla-virtlogd-fail-loudly
+#     https://review.opendev.org/c/openstack/kolla/+/1010516
+
+# various kolla-ansible bug fixes and CI flake fixes
+#   - kolla-ansible-fluentd-patience
+#     https://review.opendev.org/c/openstack/kolla-ansible/+/1001633
+#
+#   - kolla-ansible-host-virtlogd-precheck
+#     https://review.opendev.org/c/openstack/kolla-ansible/+/1010517
+#
+#   - kolla-ansible-fluentd-virtlogd
+#     https://review.opendev.org/c/openstack/kolla-ansible/+/1010517
+#
+#   - kolla-ansible-mariadb-collations
+#     https://review.opendev.org/c/openstack/kolla-ansible/+/1007308
+
+# containerized deployer in kolla / kolla-ansible
+#   - kolla-deployer
+#     https://review.opendev.org/c/openstack/kolla/+/1011443
+#
+#   - kolla-ansible-deployer
+#     https://review.opendev.org/c/openstack/kolla-ansible/+/1011940
+
+# general neutron agent improvements: use unique timecost ids
+#   - neutron-timecost-fix (zuul ok, review happy but not merged)
+#     https://review.opendev.org/c/openstack/neutron/+/1009882
+#
+#   - neutron-import-time-config-check (zuul ok, no code review response)
+#     https://review.opendev.org/c/openstack/neutron/+/1012623
+#
+#   - neutron-dhcp-agent-fixes (zuul ok, no code review response)
+#     https://review.opendev.org/c/openstack/neutron/+/1012616
+#
+#   - neutron-dvr-fip-ns-locking (zuul ok, no code review response)
+#     https://review.opendev.org/c/openstack/neutron/+/1012621
+#
+#   - neutron-test-switch-interval (needs patches inserted at front)
+#     https://review.opendev.org/c/openstack/neutron/+/1012625
+#
+# neutron patches which are not yet uploaded
+#   - neutron-agent-typing-base
+
+# privsep memory usage improvements / bloaty imports work
+#   - devstack-privsep-memory-001 (code review ok, but needs another +2)
+#     https://review.opendev.org/c/openstack/devstack/+/1011786
+#
+#   - futurist-import-memory-004 (zuul failed, awaiting a recheck)
+#     https://review.opendev.org/c/openstack/futurist/+/1012147
+#
+#   - keystone-import-memory-008 (zuul ok, no code review response)
+#     https://review.opendev.org/c/openstack/keystone/+/1012171
+
+
 ansible-collection-kolla:
   ansible-collection-kolla:
     status: carry
@@ -46,8 +117,6 @@ kolla-ansible:
   kolla-ansible-mariadb-collations:
     status: push
 neutron:
-  neutron-agent-pending-updates:
-    status: push
   neutron-agent-typing-base:
     status: push
   neutron-db-api-import-memory-013:
@@ -61,8 +130,6 @@ neutron:
     status: push
     after: [devstack-privsep-memory-001]
   neutron-import-time-config-check:
-    status: push
-  neutron-ovsdb-helpers-fix:
     status: push
   neutron-privsep-memory-003:
     status: push
