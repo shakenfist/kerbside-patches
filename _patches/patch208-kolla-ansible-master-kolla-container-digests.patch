@@ -1,6 +1,6 @@
-commit 5fac6f158c516e89c41784e24797e8eea47e1762
+commit 7d61106c4a2a57b28cb6d5cdcbc110fbba2629a5
 Author: Michael Still <mikal@stillhq.com>
-Date:   Tue Oct 27 18:04:17 2026 +1100
+Date:   Tue Nov 3 19:29:47 2026 +1100
 
     Support image digests in kolla_container.
     
@@ -35,7 +35,7 @@ Date:   Tue Oct 27 18:04:17 2026 +1100
     Signed-off-by: Michael Still <mikal@stillhq.com>
 
 diff --git a/ansible/module_utils/kolla_docker_worker.py b/ansible/module_utils/kolla_docker_worker.py
-index f31c77f9e..f8ef06da8 100644
+index 172f8570c..51a50909c 100644
 --- a/ansible/module_utils/kolla_docker_worker.py
 +++ b/ansible/module_utils/kolla_docker_worker.py
 @@ -68,13 +68,43 @@ class DockerWorker(ContainerWorker):
@@ -117,7 +117,7 @@ index 000000000..4ff3ec245
 +    from a tag to a digest recreates the container once, as any change to
 +    its image does.
 diff --git a/tests/kolla_container_tests/test_docker_worker.py b/tests/kolla_container_tests/test_docker_worker.py
-index e912bf5d7..f0b6a0de2 100644
+index 1675d6126..93165a700 100644
 --- a/tests/kolla_container_tests/test_docker_worker.py
 +++ b/tests/kolla_container_tests/test_docker_worker.py
 @@ -20,6 +20,7 @@ import os
@@ -140,7 +140,7 @@ index e912bf5d7..f0b6a0de2 100644
  FAKE_DATA = {
  
      'params': {
-@@ -1037,6 +1043,187 @@ class TestImage(base.BaseTestCase):
+@@ -1058,6 +1064,187 @@ class TestImage(base.BaseTestCase):
              msg="Unknown error message: unexpected error",
              failed=True)
  
@@ -329,7 +329,7 @@ index e912bf5d7..f0b6a0de2 100644
          self.dw = get_DockerWorker(
              {'image': 'myregistrydomain.com:5000/ubuntu:16.04',
 diff --git a/tests/kolla_container_tests/test_podman_worker.py b/tests/kolla_container_tests/test_podman_worker.py
-index f05088981..9d8c63ec5 100644
+index 18363f350..46ef644b5 100644
 --- a/tests/kolla_container_tests/test_podman_worker.py
 +++ b/tests/kolla_container_tests/test_podman_worker.py
 @@ -21,6 +21,7 @@ import unittest

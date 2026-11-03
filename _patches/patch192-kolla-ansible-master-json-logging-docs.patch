@@ -1,6 +1,6 @@
-commit d3bec7b009b1f5a39af6ac7b0144563883e42d18
+commit 86af8c82eb5d73408e07a5e8d65905e946bf0c8d
 Author: Michael Still <mikal@stillhq.com>
-Date:   Tue Oct 27 18:11:10 2026 +1100
+Date:   Tue Nov 3 19:30:29 2026 +1100
 
     Document JSON logging.
     

@@ -1,6 +1,6 @@
-commit 7022c6c79abb66cf5f77131b2bfa4e2f7175cf11
+commit ef8ab814b27e434e8212c664a57144638b233244
 Author: Michael Still <mikal@stillhq.com>
-Date:   Wed Oct 28 08:45:01 2026 +1100
+Date:   Tue Nov 3 19:24:13 2026 +1100
 
     hacking: Add N351 for config reads at import time
     

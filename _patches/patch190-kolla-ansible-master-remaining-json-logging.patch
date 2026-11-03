@@ -1,6 +1,6 @@
-commit 57b4bb16ff7a9b2c922e71d01c85bea2fee08bc0
+commit b40c04a49a5636ea7492e625c91af0450bc27f0b
 Author: Michael Still <mikal@stillhq.com>
-Date:   Tue Oct 27 18:11:10 2026 +1100
+Date:   Tue Nov 3 19:30:29 2026 +1100
 
     Convert the remaining services to JSON logging.
     

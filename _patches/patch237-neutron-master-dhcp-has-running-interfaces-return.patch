@@ -1,6 +1,6 @@
-commit c792244f4736cb1e9333b1ff18efa88c585a17ce
+commit 25ff51d806b517d75dcc1104f0fedbafeefeb5b9
 Author: Michael Still <mikal@stillhq.com>
-Date:   Thu Oct 29 13:00:18 2026 +1100
+Date:   Tue Nov 3 19:20:11 2026 +1100
 
     dhcp: Return the result of _has_running_interfaces
     

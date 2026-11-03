@@ -1,6 +1,6 @@
-commit 2cd25f17943f65f9773012c7eec88030c276ce54
+commit f87fe26ac762ebd88674bcdd42af90b2f28b43fd
 Author: Michael Still <mikal@stillhq.com>
-Date:   Thu Oct 29 07:36:18 2026 +1100
+Date:   Tue Nov 3 19:25:39 2026 +1100
 
     tests: Wait for the OVN agent before using a new chassis
     

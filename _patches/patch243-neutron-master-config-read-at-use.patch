@@ -1,6 +1,6 @@
-commit 501ced2cd99b207d5c1af01e0959ad8da9615dfd
+commit babd23801f2431328a88cfa711150d8377504bf5
 Author: Michael Still <mikal@stillhq.com>
-Date:   Wed Oct 28 08:37:49 2026 +1100
+Date:   Tue Nov 3 19:24:12 2026 +1100
 
     Read config options where they are used, not at import
     

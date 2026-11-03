@@ -1,6 +1,6 @@
-commit e73321a35a6090a510ccbfb2baa2ffb6bf78edee
+commit df2004ca6853f214d120222025bc4a4425d54a7d
 Author: Michael Still <mikal@stillhq.com>
-Date:   Thu Oct 29 13:00:18 2026 +1100
+Date:   Tue Nov 3 19:20:11 2026 +1100
 
     dhcp: Do not cache a network whose dnsmasq failed to start
     
