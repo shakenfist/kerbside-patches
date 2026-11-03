@@ -36,6 +36,8 @@ kolla:
   kolla:
     status: carry
   kolla-deployer:
+    description: Containerized kolla-ansible deployer
+    upstream: https://review.opendev.org/c/openstack/kolla/+/1011443
     status: hold
     after: [kolla]
     note: Waiting for a reviewer.
@@ -140,7 +142,10 @@ class TestCheck(Repository):
 
     def test_wrong_project(self):
         # Move kolla-deployer from kolla to neutron.
-        self.make_tree(CLEAN.replace('  kolla-deployer:\n    status: hold\n    after: [kolla]\n'
+        self.make_tree(CLEAN.replace('  kolla-deployer:\n'
+                                     '    description: Containerized kolla-ansible deployer\n'
+                                     '    upstream: https://review.opendev.org/c/openstack/kolla/+/1011443\n'
+                                     '    status: hold\n    after: [kolla]\n'
                                      '    note: Waiting for a reviewer.\n', '')
                        .replace('neutron:\n', 'neutron:\n  kolla-deployer:\n    status: hold\n'))
         self.assertProblem('kolla-deployer: filed under neutron in series.yaml, but config.yaml says directory kolla')
@@ -205,12 +210,13 @@ class TestCheck(Repository):
         self.make_series('kolla-half', 'kolla', extra='repush: true\n', order=False)
         self.assertProblem('kolla-half/config.yaml: has a repush key')
 
-    def test_series_not_sorted(self):
+    def test_series_order_within_project_not_checked(self):
+        # Series within a project are grouped by epic with comments, not sorted
+        # by name, so an out-of-order series is not a problem.
         self.make_tree(CLEAN.replace('  neutron-import-memory-007:\n    status: push\n'
                                      '    after: [devstack-privsep-memory-001, neutron-opts-014]\n', '')
                        + '  neutron-import-memory-007:\n    status: push\n')
-        self.assertProblem('series under neutron are not sorted by name: neutron-opts-014 should come after '
-                           'neutron-import-memory-007')
+        self.assertProblem('series under neutron are not sorted by name', count=0)
 
     def test_projects_not_sorted(self):
         self.make_tree(CLEAN.replace('devstack:\n  devstack-privsep-memory-001:\n    status: push\n', '')

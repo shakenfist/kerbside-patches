@@ -2,168 +2,194 @@
 # and tools/check-series-index.py checks it against the series directories.
 #
 # There is more than one "patch epic" expressed in the repository at the
-# moment, so this is how they link together (or not):
-#
-# kolla / kolla-ansible kerbside work
-#   - kolla-kerbside
-#     https://review.opendev.org/c/openstack/kolla/+/998073
-#
-#   - kolla-ansible-kerbside
-#     https://review.opendev.org/c/openstack/kolla-ansible/+/976889
-#
-#   - kolla-ansible-json-logging
-#     https://review.opendev.org/c/openstack/kolla-ansible/+/1005459
-
-# various kolla bug fixes and CI flake fixes
-#   - kolla-magnum-setuptools-pin
-#     https://review.opendev.org/c/openstack/kolla/+/1007307
-#
-#   - kolla-virtlogd-fail-loudly
-#     https://review.opendev.org/c/openstack/kolla/+/1010516
-
-# various kolla-ansible bug fixes and CI flake fixes
-#   - kolla-ansible-fluentd-patience
-#     https://review.opendev.org/c/openstack/kolla-ansible/+/1001633
-#
-#   - kolla-ansible-host-virtlogd-precheck
-#     https://review.opendev.org/c/openstack/kolla-ansible/+/1010517
-#
-#   - kolla-ansible-fluentd-virtlogd
-#     https://review.opendev.org/c/openstack/kolla-ansible/+/1010517
-#
-#   - kolla-ansible-mariadb-collations
-#     https://review.opendev.org/c/openstack/kolla-ansible/+/1007308
-
-# containerized deployer in kolla / kolla-ansible
-#   - kolla-deployer
-#     https://review.opendev.org/c/openstack/kolla/+/1011443
-#
-#   - kolla-ansible-deployer
-#     https://review.opendev.org/c/openstack/kolla-ansible/+/1011940
-
-# general neutron agent improvements: use unique timecost ids
-#   - neutron-timecost-fix (zuul ok, review happy but not merged)
-#     https://review.opendev.org/c/openstack/neutron/+/1009882
-#
-#   - neutron-import-time-config-check (zuul ok, no code review response)
-#     https://review.opendev.org/c/openstack/neutron/+/1012623
-#
-#   - neutron-dhcp-agent-fixes (zuul ok, no code review response)
-#     https://review.opendev.org/c/openstack/neutron/+/1012616
-#
-#   - neutron-dvr-fip-ns-locking (zuul ok, no code review response)
-#     https://review.opendev.org/c/openstack/neutron/+/1012621
-#
-#   - neutron-test-switch-interval (needs patches inserted at front)
-#     https://review.opendev.org/c/openstack/neutron/+/1012625
-#
-# neutron patches which are not yet uploaded
-#   - neutron-agent-typing-base
-
-# privsep memory usage improvements / bloaty imports work
-#   - devstack-privsep-memory-001 (code review ok, but needs another +2)
-#     https://review.opendev.org/c/openstack/devstack/+/1011786
-#
-#   - futurist-import-memory-004 (zuul failed, awaiting a recheck)
-#     https://review.opendev.org/c/openstack/futurist/+/1012147
-#
-#   - keystone-import-memory-008 (zuul ok, no code review response)
-#     https://review.opendev.org/c/openstack/keystone/+/1012171
-
+# moment, so this is how they link together (or not).
 
 ansible-collection-kolla:
   ansible-collection-kolla:
     status: carry
+
 devstack:
   devstack-privsep-memory-001:
+    description: Fix memory usage measurements
+    upstream: https://review.opendev.org/c/openstack/devstack/+/1011786
     status: push
+
 futurist:
   futurist-import-memory-004:
+    description: Reduce imports to reduce memory usage
+    upstream: https://review.opendev.org/c/openstack/futurist/+/1012147
     status: push
     after: [devstack-privsep-memory-001]
+
 keystone:
   keystone-import-memory-008:
+    description: Reduce imports to reduce memory usage
+    upstream: https://review.opendev.org/c/openstack/keystone/+/1012171
     status: push
     after: [devstack-privsep-memory-001]
+
 kolla:
   kolla:
+    description: Internal series carrying all kolla patches
+    upstream: None
     status: carry
+
+  # Features
   kolla-deployer:
+    description: Containerized kolla-ansible deployer
+    upstream: https://review.opendev.org/c/openstack/kolla/+/1011443
     status: push
   kolla-kerbside:
+    description: Deploy Kerbside with Kolla-ansible
+    upstream: https://review.opendev.org/c/openstack/kolla/+/998073
     status: push
+
+  # Fixes
   kolla-magnum-setuptools-pin:
+    description: CI flake fix
+    upstream: https://review.opendev.org/c/openstack/kolla/+/1007307
     status: push
   kolla-virtlogd-fail-loudly:
+    description: Bug fix
+    upstream: https://review.opendev.org/c/openstack/kolla/+/1010516
     status: push
     after: [kolla-ansible-fluentd-virtlogd]
+
 kolla-ansible:
   kolla-ansible:
+    description: Internal series carrying all kolla-ansible patches
+    upstream: None
     status: carry
+
+  # Features
   kolla-ansible-deployer:
+    description: Containerized kolla-ansible deployer
+    upstream: https://review.opendev.org/c/openstack/kolla-ansible/+/1011940
     status: push
     after: [kolla-deployer]
-  kolla-ansible-fluentd-patience:
-    status: push
-  kolla-ansible-fluentd-virtlogd:
-    status: push
-  kolla-ansible-host-virtlogd-precheck:
-    status: push
   kolla-ansible-json-logging:
+    description: JSON logging follow on for Kerbside deployment
+    upstream: https://review.opendev.org/c/openstack/kolla-ansible/+/1005459
     status: push
     after: [kolla-ansible-kerbside]
   kolla-ansible-kerbside:
+    description: Deploy Kerbside with Kolla-Ansible
+    upstream: https://review.opendev.org/c/openstack/kolla-ansible/+/976889
+    status: push
+
+  # Fixes
+  kolla-ansible-fluentd-patience:
+    description: CI flake fix
+    upstream: https://review.opendev.org/c/openstack/kolla-ansible/+/1001633
+    status: push
+  kolla-ansible-fluentd-virtlogd:
+    description: Bug fix
+    upstream: https://review.opendev.org/c/openstack/kolla-ansible/+/1010517
+    status: push
+  kolla-ansible-host-virtlogd-precheck:
+    description: Bug fix
+    upstream: https://review.opendev.org/c/openstack/kolla-ansible/+/1010517
     status: push
   kolla-ansible-mariadb-collations:
+    description: CI flake fix
+    upstream: https://review.opendev.org/c/openstack/kolla-ansible/+/1007308
     status: push
+
 neutron:
-  neutron-agent-typing-base:
+  # General neutron agent improvements
+  neutron-timecost-fix:
+    description: Generate a timecost call id for every call
+    upstream: https://review.opendev.org/c/openstack/neutron/+/1009882
     status: push
-  neutron-db-api-import-memory-013:
+  neutron-import-time-config-check:
+    description: Config should not be read at import time
+    upstream: https://review.opendev.org/c/openstack/neutron/+/1012623
     status: push
-    after: [devstack-privsep-memory-001]
   neutron-dhcp-agent-fixes:
+    description: Various bug fixes and mypy guards against regressions
+    upstream: https://review.opendev.org/c/openstack/neutron/+/1012616
     status: push
   neutron-dvr-fip-ns-locking:
+    description: DVR lock correctness
+    upstream: https://review.opendev.org/c/openstack/neutron/+/1012621
     status: push
-  neutron-import-memory-007:
-    status: push
-    after: [devstack-privsep-memory-001]
-  neutron-import-time-config-check:
-    status: push
-  neutron-privsep-memory-003:
-    status: push
-    after: [devstack-privsep-memory-001]
   neutron-test-switch-interval:
+    description: Shake out locking bugs by task switching harder
+    upstream: https://review.opendev.org/c/openstack/neutron/+/1012625
     status: push
-  neutron-timecost-fix:
+
+  # Neutron memory usage
+  neutron-db-api-import-memory-013:
+    description: Cleanup imports which are not universally used
+    upstream: https://review.opendev.org/c/openstack/neutron/+/1012182
     status: push
+    after: [devstack-privsep-memory-001]
+  neutron-import-memory-007:
+    description: OVS agent memory usage cleanups
+    upstream: https://review.opendev.org/c/openstack/neutron/+/1012169
+    status: push
+    after: [devstack-privsep-memory-001]
+  neutron-privsep-memory-003:
+    description: privsep memory usage cleanups
+    upstream: https://review.opendev.org/c/openstack/neutron/+/1011796
+    status: push
+    after: [devstack-privsep-memory-001]
+
+  # Incomplete and not yet pushed
+  neutron-agent-typing-base:
+    description: Start adding mypy for neutron OVS agents
+    upstream: None
+    status: carry
+
 neutron-lib:
   neutron-lib-db-api-import-memory-006:
+    description: Load the DB API only for DB users
+    upstream: https://review.opendev.org/c/openstack/neutron-lib/+/1012152
     status: push
     after: [devstack-privsep-memory-001]
   neutron-lib-import-memory-005:
+    description: Import os_ken only when validating an ethertype
+    upstream: https://review.opendev.org/c/openstack/neutron-lib/+/1012151
     status: push
     after: [devstack-privsep-memory-001]
+
 oslo.messaging:
   oslo.messaging-import-memory-011:
+    description: Find patched threading without importing eventlet
+    upstream: https://review.opendev.org/c/openstack/oslo.messaging/+/1012179
     status: push
     after: [devstack-privsep-memory-001]
+
 oslo.privsep:
   oslo.privsep-privsep-memory-002:
+    description: Only inspect eventlet if it is already imported
+    upstream: https://review.opendev.org/c/openstack/oslo.privsep/+/1011795
     status: push
     after: [devstack-privsep-memory-001]
+
 oslo.service:
   oslo.service-import-memory-012:
+    description: Import eventlet only for the WSGI server
+    upstream: https://review.opendev.org/c/openstack/oslo.service/+/1012180
     status: push
     after: [devstack-privsep-memory-001]
+
+  # Not yet pushed
   oslo.service-loopingcall-restart:
-    status: push
+    description: loopingcall - allow a restart once wait() returns
+    upstream: None
+    status: carry
+
 oslo.utils:
   oslo.utils-import-memory-010:
+    description: Do not import eventlet in eventletutils until used
+    upstream: https://review.opendev.org/c/openstack/oslo.utils/+/1012175
     status: push
     after: [devstack-privsep-memory-001]
+
 placement:
   placement-import-memory-009:
+    description: Memory usage improvements
+    upstream: https://review.opendev.org/c/openstack/placement/+/1012173
     status: push
     after: [devstack-privsep-memory-001]
