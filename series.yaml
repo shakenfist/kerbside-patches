@@ -12,7 +12,8 @@ devstack:
   devstack-privsep-memory-001:
     description: Fix memory usage measurements
     upstream: https://review.opendev.org/c/openstack/devstack/+/1011786
-    status: push
+    status: carry
+    note: Significant review traction, so not rebasing right now
 
 futurist:
   futurist-import-memory-004:
@@ -100,7 +101,8 @@ neutron:
   neutron-timecost-fix:
     description: Generate a timecost call id for every call
     upstream: https://review.opendev.org/c/openstack/neutron/+/1009882
-    status: push
+    status: carry
+    note: Significant review traction, so not rebasing right now
   neutron-import-time-config-check:
     description: Config should not be read at import time
     upstream: https://review.opendev.org/c/openstack/neutron/+/1012623
@@ -122,7 +124,8 @@ neutron:
   neutron-db-api-import-memory-013:
     description: Cleanup imports which are not universally used
     upstream: https://review.opendev.org/c/openstack/neutron/+/1012182
-    status: push
+    status: carry
+    note: Significant review traction, so not rebasing right now
     after: [devstack-privsep-memory-001]
   neutron-import-memory-007:
     description: OVS agent memory usage cleanups
@@ -132,7 +135,8 @@ neutron:
   neutron-privsep-memory-003:
     description: privsep memory usage cleanups
     upstream: https://review.opendev.org/c/openstack/neutron/+/1011796
-    status: push
+    status: carry
+    note: Significant review traction, so not rebasing right now
     after: [devstack-privsep-memory-001]
 
   # Incomplete and not yet pushed
@@ -145,7 +149,8 @@ neutron-lib:
   neutron-lib-db-api-import-memory-006:
     description: Load the DB API only for DB users
     upstream: https://review.opendev.org/c/openstack/neutron-lib/+/1012152
-    status: push
+    status: carry
+    note: Significant review traction, so not rebasing right now
     after: [devstack-privsep-memory-001]
   neutron-lib-import-memory-005:
     description: Import os_ken only when validating an ethertype
@@ -164,7 +169,8 @@ oslo.privsep:
   oslo.privsep-privsep-memory-002:
     description: Only inspect eventlet if it is already imported
     upstream: https://review.opendev.org/c/openstack/oslo.privsep/+/1011795
-    status: push
+    status: carry
+    note: Significant review traction, so not rebasing right now
     after: [devstack-privsep-memory-001]
 
 oslo.service:
