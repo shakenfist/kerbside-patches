@@ -11,12 +11,13 @@ reports:
     - a series filed under a project other than its config.yaml `directory`;
     - a series listed under more than one project;
     - an entry that is not a mapping, has no status, has a status other than
-      push, hold or carry, or has a key other than status, after and note;
+      push, hold or carry, or has a key other than status, after, note,
+      description and upstream;
     - an `after` that is not a list, names something that is not a series, or
       names the series itself;
     - `after` links that form a cycle, naming the series in it;
-    - projects not sorted by name, or series not sorted by name within their
-      project;
+    - projects not sorted by name (series within a project are grouped by
+      epic with comments, not sorted);
     - a config.yaml with a `repush` key, which `status` in series.yaml replaces.
 
 Every problem is printed, not only the first. Checks that need Gerrit are not
@@ -92,9 +93,6 @@ def problems(root):
                 project_of.setdefault(name, project)
 
     found.extend(unsorted(index, 'projects are not sorted by name'))
-    for project, entries in index.items():
-        if isinstance(entries, dict):
-            found.extend(unsorted(entries, f'series under {project} are not sorted by name'))
 
     found_configs = configs(root)
     directories = series_directories(root, found_configs)

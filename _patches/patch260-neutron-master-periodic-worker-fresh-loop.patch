@@ -1,6 +1,6 @@
-commit 1d8b0ad6d83712f9c1fe919bab5cbccc1f53e7b9
+commit 75da8156c750f2bdfb732469d88e2f7fa58bdbf1
 Author: Michael Still <mikal@stillhq.com>
-Date:   Thu Oct 29 07:35:22 2026 +1100
+Date:   Tue Nov 3 19:25:39 2026 +1100
 
     worker: Do not restart a finished looping call
     

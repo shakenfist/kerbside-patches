@@ -1,6 +1,6 @@
-commit 6abc7c431687a2037d007eaa6f195dc37d7a461a
+commit f27208dd38bd6bd14d4036b7de74cc902cd22454
 Author: Michael Still <mikal@stillhq.com>
-Date:   Tue Oct 27 18:17:32 2026 +1100
+Date:   Tue Nov 3 19:23:16 2026 +1100
 
     db: Keep is_agent_down out of the agent utilities
     

@@ -1,6 +1,6 @@
-commit 74da364ad319891f8ffabc77a7100f52506eff28
+commit 38c0308f6d678c2da85a4f61bcf12813f7f3a651
 Author: Michael Still <mikal@stillhq.com>
-Date:   Tue Oct 27 18:14:08 2026 +1100
+Date:   Tue Nov 3 19:19:20 2026 +1100
 
     magnum: pin setuptools <82.
     

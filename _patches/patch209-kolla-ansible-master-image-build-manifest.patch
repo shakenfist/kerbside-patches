@@ -1,6 +1,6 @@
-commit e5e8161988befe1d657d45c8b261bdc5de692cfb
+commit e3173bfbd946754b626547e5853970a21840a296
 Author: Michael Still <mikal@stillhq.com>
-Date:   Tue Oct 27 18:04:17 2026 +1100
+Date:   Tue Nov 3 19:29:47 2026 +1100
 
     Pull images by digest from a build manifest.
     
@@ -870,7 +870,7 @@ index d0903fd9e..d1cc4156b 100644
  multipathd_default_volumes:
    - "{{ node_config_directory }}/multipathd/:{{ container_config_directory }}/:ro"
 diff --git a/ansible/roles/neutron/defaults/main.yml b/ansible/roles/neutron/defaults/main.yml
-index 93ec57321..7c0d80946 100644
+index fe7ca4b9e..a5f6ceba4 100644
 --- a/ansible/roles/neutron/defaults/main.yml
 +++ b/ansible/roles/neutron/defaults/main.yml
 @@ -299,67 +299,67 @@ neutron_tag: "{{ openstack_tag }}"
@@ -1990,7 +1990,7 @@ index 30271d8a2..dbde79f81 100644
  
  deps =
 diff --git a/zuul.d/scenarios/aio.yaml b/zuul.d/scenarios/aio.yaml
-index 512acc6e9..c4fab6ae6 100644
+index fbde38384..8012f2d29 100644
 --- a/zuul.d/scenarios/aio.yaml
 +++ b/zuul.d/scenarios/aio.yaml
 @@ -6,7 +6,7 @@

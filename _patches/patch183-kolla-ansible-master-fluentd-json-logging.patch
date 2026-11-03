@@ -1,6 +1,6 @@
-commit b14a011591d524f6b593a916167941cde16aea32
+commit eaab90ee763401f7f4709a46f7f2d1fc99fb83cc
 Author: Michael Still <mikal@stillhq.com>
-Date:   Tue Oct 27 18:11:07 2026 +1100
+Date:   Tue Nov 3 19:30:28 2026 +1100
 
     Add a fluentd path for JSON formatted OpenStack logs.
     

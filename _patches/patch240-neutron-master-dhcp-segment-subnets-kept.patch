@@ -1,6 +1,6 @@
-commit c43a8ab0ea920765e15a1636bf0e6d64433bfbe1
+commit 29519b77bee0d98125149f884cbf004cf95240ae
 Author: Michael Still <mikal@stillhq.com>
-Date:   Thu Oct 29 13:00:19 2026 +1100
+Date:   Tue Nov 3 19:20:11 2026 +1100
 
     dhcp: Keep every segment's subnets on the cached network
     

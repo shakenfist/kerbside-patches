@@ -1,6 +1,6 @@
-commit 8a73f56dfa03b1d65aea6d2ab69d07f86b741ec4
+commit 26d6aec8a316534023e5829588966319aac75599
 Author: Michael Still <mikal@stillhq.com>
-Date:   Tue Oct 27 18:11:50 2026 +1100
+Date:   Tue Nov 3 19:31:07 2026 +1100
 
     Deploy Kerbside with Kolla-Ansible.
     
@@ -70,7 +70,7 @@ index 000000000..d82a96475
 +kerbside_safety_upgrade: false
 +kerbside_enable_tls_backend: true
 diff --git a/ansible/inventory/all-in-one b/ansible/inventory/all-in-one
-index 543371a4a..512e29596 100644
+index 98607c2ee..9eeffecee 100644
 --- a/ansible/inventory/all-in-one
 +++ b/ansible/inventory/all-in-one
 @@ -27,6 +27,7 @@ network
@@ -81,7 +81,7 @@ index 543371a4a..512e29596 100644
  
  [collectd:children]
  compute
-@@ -587,3 +588,13 @@ letsencrypt
+@@ -583,3 +584,13 @@ letsencrypt
  
  [letsencrypt-lego:children]
  letsencrypt
@@ -96,7 +96,7 @@ index 543371a4a..512e29596 100644
 +[vdiproxy:children]
 +control
 diff --git a/ansible/inventory/multinode b/ansible/inventory/multinode
-index d7db4653d..84d14574a 100644
+index a0dd8d640..e83d9c5c8 100644
 --- a/ansible/inventory/multinode
 +++ b/ansible/inventory/multinode
 @@ -38,6 +38,7 @@ network
@@ -115,7 +115,7 @@ index d7db4653d..84d14574a 100644
  
  [collectd:children]
  compute
-@@ -604,3 +606,13 @@ letsencrypt
+@@ -600,3 +602,13 @@ letsencrypt
  
  [letsencrypt-lego:children]
  letsencrypt
@@ -1601,7 +1601,7 @@ index 35ea0bb95..88549c2d3 100644
  # OpenStack
  ####################
 diff --git a/ansible/site.yml b/ansible/site.yml
-index d95f17d35..ea57989cb 100644
+index a694b566c..8702213ca 100644
 --- a/ansible/site.yml
 +++ b/ansible/site.yml
 @@ -43,6 +43,7 @@

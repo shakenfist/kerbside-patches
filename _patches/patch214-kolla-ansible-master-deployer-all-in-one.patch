@@ -1,6 +1,6 @@
-commit 6ec3c6e93dc3555da40a1584f72a38c5890c4f8c
+commit 3c64a55d17d00d09664475ca3e548c197b46c1f7
 Author: Michael Still <mikal@stillhq.com>
-Date:   Tue Oct 27 18:04:17 2026 +1100
+Date:   Tue Nov 3 19:29:48 2026 +1100
 
     Add an nsenter friendly all-in-one inventory.
     
@@ -34,7 +34,7 @@ Date:   Tue Oct 27 18:04:17 2026 +1100
 
 diff --git a/ansible/inventory/all-in-one-deployer b/ansible/inventory/all-in-one-deployer
 new file mode 100644
-index 000000000..f955bb261
+index 000000000..816bd047b
 --- /dev/null
 +++ b/ansible/inventory/all-in-one-deployer
 @@ -0,0 +1,612 @@
@@ -666,7 +666,7 @@ index cac9f5eba..fa8f02842 100644
  
 diff --git a/releasenotes/notes/all-in-one-deployer-inventory-7df5e3655e059a3f.yaml b/releasenotes/notes/all-in-one-deployer-inventory-7df5e3655e059a3f.yaml
 new file mode 100644
-index 000000000..a611d3267
+index 000000000..e13ac70dc
 --- /dev/null
 +++ b/releasenotes/notes/all-in-one-deployer-inventory-7df5e3655e059a3f.yaml
 @@ -0,0 +1,11 @@

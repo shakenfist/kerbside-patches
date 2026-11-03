@@ -6,6 +6,8 @@ series that patch it, and each series to an entry:
 
     neutron:
       neutron-import-memory-007:
+        description: A descriptive thing
+        upstream: An optional URL to upstream review of the patch
         status: push
         after: [devstack-privsep-memory-001]
         note: Waiting on a reply from the reviewer.
@@ -15,6 +17,8 @@ series that patch it, and each series to an entry:
     after    the series whose changes must be on Gerrit before this one is
              pushed; optional
     note     free text; optional
+    description  a short summary of what the series does; optional
+    upstream     a URL to the upstream review of the series, or None; optional
 
 This is both a module for other tools (`import series`) and a command for
 shell scripts, which prints one series per line:
@@ -55,7 +59,7 @@ TOPDIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 INDEX = 'series.yaml'
 
 STATUSES = ('push', 'hold', 'carry')
-KEYS = ('status', 'after', 'note')
+KEYS = ('status', 'after', 'note', 'description', 'upstream')
 
 
 class SeriesError(Exception):
