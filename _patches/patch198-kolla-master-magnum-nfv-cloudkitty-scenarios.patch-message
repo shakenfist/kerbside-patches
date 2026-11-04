@@ -1,7 +1,7 @@
-CI: run the magnum, NFV and CloudKitty scenarios.
+CI: run the magnum and NFV scenarios.
 
-Kolla builds the designate, magnum, trove, tacker, mistral, barbican
-and cloudkitty images, but no job a Kolla change triggers deploys them,
+Kolla builds the designate, magnum, trove, tacker, mistral and
+barbican images, but no job a Kolla change triggers deploys them,
 so a change that breaks them at runtime passes check. Add templates
 running the matching Kolla-Ansible scenarios when those images change.
 
