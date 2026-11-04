@@ -5,8 +5,8 @@ shallow_clone: true
 directory: kolla
 release: containerised-deployer
 depends_on: ''
-source_sha: e7f13f6c58e1c0a34e8758745240d1c33f0f8e02
-previous_source_sha: b65a746e6758c1a4a0ea2ece7946d7984a0811ec
+source_sha: 6f5f6010a0e014ae42b6a622d527c7a0a2aba511
+previous_source_sha: e7f13f6c58e1c0a34e8758745240d1c33f0f8e02
 skip_rebase: false
 skip_claude: true
 wip: false
