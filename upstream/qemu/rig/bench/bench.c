@@ -1,4 +1,12 @@
-/* Microbenchmark: upstream 32px column diff vs v1 edge scan vs v2 diff. */
+/* Microbenchmark: upstream 32px column diff vs v1 edge scan vs v2 diff.
+ *
+ * SPDX-License-Identifier: GPL-2.0-or-later
+ *
+ * `old_diff()` below is a transcription of qemu's own
+ * qemu_spice_create_update() (ui/spice-display.c), so this file is a
+ * derivative work of qemu and carries qemu's licence, GPL-2.0-or-later.
+ * It is built only by the rig; nothing here is submitted upstream.
+ */
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdio.h>

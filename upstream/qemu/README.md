@@ -17,6 +17,14 @@ rectangles, sending each as one draw, pushing promptly (paced by
 measurement method and results are in
 `series/v2/v2-0000-cover-letter.patch` and `results/v2-summary.md`.
 
+> **Do not build v2 into an image.** The v2 diff helpers' byte loops are
+> unbounded, so a guest that writes its framebuffer while a diff is in
+> progress can drive a read past the end of the buffer
+> ([kerbside-patches#2032](https://github.com/shakenfist/kerbside-patches/issues/2032),
+> rated high by the spice-performance phase 6 push audit). The series is
+> for the measurement rig only until that is fixed. This bars the
+> `_patches/` route and any nova-libvirt image, not local rig builds.
+
 ## Building qemu
 
 The rig needs a locally built qemu with SPICE support, and without

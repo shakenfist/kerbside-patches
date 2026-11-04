@@ -89,13 +89,34 @@ son-of-SPICE spike (a Rust SPICE server on qemu's D-Bus display, which
 would bypass `ui/spice-display.c` entirely for Kerbside's own use,
 though Nova and oVirt deployments would still run in-qemu SPICE).
 
+## Licensing of what `upstream/` carries
+
+Each series is a derivative work of the project it patches and carries
+that project's licence, not this repository's:
+
+| Series | Licence | Why |
+|--------|---------|-----|
+| `qemu/` | GPL-2.0-or-later | Patches against qemu, and `rig/bench/bench.c` transcribes qemu's `qemu_spice_create_update()`. |
+| `spice/` | LGPL-2.1-or-later | Patches against spice-server. |
+| `linux/` | GPL-2.0-only | Patches against the kernel. |
+
+The rigs beside each series are covered by the same licence as the series
+they exercise, because each reproduces or links against that project's
+code. Add an SPDX identifier to any new rig file that does.
+
 ### linux -- to be submitted by Michael
 
 The kernel's
 [`Documentation/process/coding-assistants.rst`](https://docs.kernel.org/process/coding-assistants.html)
-accepts AI-assisted patches carrying an `Assisted-by:` tag, provided a
-human takes responsibility for the change with their own
-`Signed-off-by`. `linux/series/v1/0001-*.patch` carries `Assisted-by:
+accepts AI-assisted patches, and requires that a human take
+responsibility for the change with their own `Signed-off-by`; it states
+that an AI agent **must not** add one. Checked against the current text
+(`1e035297ffda`, 2026-10-13) by the phase 6 audit follow-up: that
+document, and `Documentation/` as a whole, documents **no**
+`Assisted-by:` trailer. The tag is convention rather than policy, and
+`Assisted-by: LLM` is by a wide margin the commonest form in kernel
+history (405 commits, against 59 for the next most common), so the
+series keeps it. `linux/series/v1/0001-*.patch` carries `Assisted-by:
 LLM` and deliberately **no** `Signed-off-by` -- only Michael can add
 that, by hand, immediately before sending, since it is his attestation
 that he wrote or reviewed the patch and has the right to submit it

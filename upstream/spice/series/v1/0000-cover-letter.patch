@@ -71,7 +71,7 @@ difference here:
 - Raising MAX_FPS from 30 to 60. Streams were created at 60 fps as
   intended, but latency, CPU, bandwidth and messages per second did not
   change in any of 12 cells, with H.264 or MJPEG. The client received 4
-  to 12 stream frames a second whatever the ceiling, so on these links
+  to 12 display messages a second whatever the ceiling, so on these links
   rate control, not the ceiling, sets the frame rate.
 
 These patches were written with the help of an AI model, Claude Opus
