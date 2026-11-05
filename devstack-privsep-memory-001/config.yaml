@@ -5,5 +5,5 @@ shallow_clone: true
 directory: devstack
 release: master-devstack-privsep-memory-001
 depends_on: ''
-source_sha: 91a563faf8783a2da73aee63775d3ed891c41640
-previous_source_sha: 9d223a6c3e38522793c48dc2e004335182fdfede
+source_sha: 991524263fbb83bd3e232b04a929e143504a68b2
+previous_source_sha: 91a563faf8783a2da73aee63775d3ed891c41640

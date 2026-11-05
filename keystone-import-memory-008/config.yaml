@@ -5,5 +5,5 @@ shallow_clone: true
 directory: keystone
 release: master-keystone-import-memory-008
 depends_on: ''
-source_sha: 4c0e43ecef46692448b8639272509aea699ce9e0
-previous_source_sha: e226ae14f5da354af9fed86296bb0e110ab020ec
+source_sha: 142d1d7909168133ab134cd176181ef221d8ef07
+previous_source_sha: 4c0e43ecef46692448b8639272509aea699ce9e0
