@@ -4,48 +4,20 @@ Date:   Fri Nov 6 13:45:19 2026 +1100
 
     Deploy Kerbside with Kolla-Ansible.
     
-    This change implements the Kerbside Kolla-Ansible deployment role. It is a
-    fairly large change, but I couldn't find a meaningful way to break it up
-    into smaller chunks.
+    This change implements the Kerbside Kolla-Ansible deployment role. While
+    Nova can now support protocol-native SPICE consoles, you need a proxy of
+    some form in between client traffic and the hypervisor to do this safely.
+    This patch implements a role for Kerbside, a SPICE proxy and application
+    level firewall.
     
-    The basic idea is that there is a proxy sitting in front of the Nova
-    hypervisors that can talk the SPICE protocol to clients, lookup where the
-    console is on the relevant hypervisor, and then build a SPICE connection
-    to that hypervisor. It then shovels SPICE packets back and forth between
-    the two.
-    
-    That proxy is called Kerbside and it consists of two components which
-    each have their own Kolla container. kerbside-api handles business logic
-    and is a uwsgi app. kerbside-proxy is the SPICE native component. Because
-    kerbside-proxy is not talking HTTP to clients, and expects TLS encrypted
-    traffic on the secure port, it uses the frontend certificates to do TLS
-    itself, and haproxy simply acts as a layer four load balancer.
-    
-    Because the proxy terminates TLS for every console it serves, whatever
-    kerbside_enable_tls_backend says about the REST API, it needs the backend
-    certificate and key wherever it runs. service-cert-copy places those only
-    on hosts in the tls-backend group, which is control and network, so the
-    role copies them itself for the Kerbside hosts and uses service-cert-copy
-    for the CA bundle alone. Without that, pointing the vdiproxy group at
-    dedicated hosts -- the reason it is a separate group -- leaves the proxy
-    with no certificate and it fails to start.
-    
-    The SPICE ports are the only tcp services in the tree exposed externally,
-    and haproxy's single external frontend was written for http: its SNI map
-    is built from http services alone, and the frontend emitter only skipped
-    the external http and redirect cases. An external tcp frontend was
-    therefore emitted next to its internal twin, binding the same address and
-    port wherever the internal and external VIPs are the same, and haproxy
-    refused the configuration. It is now skipped on the grounds the redirect
-    case already was. The proxy's external_fqdn cannot route the SPICE ports
-    in that mode either, which the defaults now say.
-    
-    Prompt: Michael asked for assistance with implementing the keystone
-    account for kerbside, updating to the new configuration file format,
-    updating role docs, and resolving Nova on the internal interface.
+    Kerbside consists of two components which each have their own Kolla
+    container. kerbside-api handles business logic and is a uwsgi app.
+    kerbside-proxy is the SPICE native component. Because kerbside-proxy is
+    not talking HTTP to clients, and expects TLS encrypted traffic on the
+    secure port, it uses the frontend certificates to do TLS itself, and
+    haproxy simply acts as a layer four load balancer.
     
     Change-Id: I73a7a0b521085fd4023b08ab6f8a137d53a8712a
-    Depends-On: https://review.opendev.org/c/openstack/kolla/+/975495
     Closes-Bug: #2131793
     Assisted-By: Claude Code
     Signed-off-by: Michael Still <mikal@stillhq.com>
@@ -99,12 +71,16 @@ index 98607c2ee..9eeffecee 100644
  
  [collectd:children]
  compute
-@@ -583,3 +584,13 @@ letsencrypt
+@@ -583,3 +584,17 @@ letsencrypt
  
  [letsencrypt-lego:children]
  letsencrypt
 +
-+# Kerbside
++# Kerbside. The API is an ordinary control plane service and sits with the
++# other APIs. The SPICE proxy carries console traffic, so it maps to
++# vdiproxy -- a machine role in the same sense as storage or monitoring --
++# and can be given hosts of its own. See the Kerbside guide in
++# doc/source/reference/compute/.
 +[kerbside_api:children]
 +control
 +
@@ -133,12 +109,16 @@ index a0dd8d640..e83d9c5c8 100644
  
  [collectd:children]
  compute
-@@ -600,3 +602,13 @@ letsencrypt
+@@ -600,3 +602,17 @@ letsencrypt
  
  [letsencrypt-lego:children]
  letsencrypt
 +
-+# Kerbside
++# Kerbside. The API is an ordinary control plane service and sits with the
++# other APIs. The SPICE proxy carries console traffic, so it maps to
++# vdiproxy -- a machine role in the same sense as storage or monitoring --
++# and can be given hosts of its own. See the Kerbside guide in
++# doc/source/reference/compute/.
 +[kerbside_api:children]
 +control
 +
@@ -1611,7 +1591,7 @@ new file mode 100644
 index 000000000..26573a40b
 --- /dev/null
 +++ b/doc/source/reference/compute/kerbside-guide.rst
-@@ -0,0 +1,73 @@
+@@ -0,0 +1,105 @@
 +.. _kerbside-guide:
 +
 +==========================
@@ -1645,6 +1625,38 @@ index 000000000..26573a40b
 +``kerbside_keystone_user``) is registered during deployment. Kerbside uses
 +this user to look up console details via the Nova API, which it reaches on
 +the internal endpoint unless ``kerbside_nova_interface`` says otherwise.
++
++Host layout
++~~~~~~~~~~~
++
++The two containers are mapped to different inventory groups, because they
++have different appetites. ``kerbside_api`` is an ordinary control plane
++service: it talks to the database and to Keystone, sits behind HAProxy, and
++belongs with the other API services on the control hosts.
++
++``kerbside_proxy`` carries every byte of every console session between
++clients and hypervisors, so in a deployment with many concurrent consoles it
++can warrant hardware of its own. It is therefore mapped to the ``vdiproxy``
++group rather than to ``control``:
++
++.. code-block:: ini
++
++   [kerbside_proxy:children]
++   vdiproxy
++
++   [vdiproxy:children]
++   control
++
++``vdiproxy`` is a machine role in the same sense as ``storage`` or
++``monitoring``, and it defaults to the control hosts. To give the proxy its
++own machines, replace the ``[vdiproxy:children]`` section with a list of
++hosts. Those hosts are then covered by the ``baremetal`` and ``common``
++groups, which already list ``vdiproxy``, so they are bootstrapped and run
++the common services without further changes.
++
++Note that the proxies do not need to be reachable by clients directly --
++clients reach them through HAProxy on the VIP -- but they do need to reach
++the hypervisors' SPICE ports and the internal Keystone and Nova endpoints.
 +
 +Connecting to consoles
 +~~~~~~~~~~~~~~~~~~~~~~
