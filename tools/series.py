@@ -41,6 +41,8 @@ apply after ordering, so a series still follows one that was filtered out.
 `after` prints the series named in SERIES' `after`, in the order written, and
 `project` prints SERIES' project.
 
+`order_patches` is here too, for the tools that ask what a series carries.
+
 --root names the repository to read series.yaml from; it defaults to the one
 holding this script. tools/check-series-index.py checks that the index agrees
 with the series directories.
@@ -115,6 +117,17 @@ class _UniqueKeyLoader(yaml.SafeLoader):
 
 def path(root=None):
     return os.path.join(root or TOPDIR, INDEX)
+
+
+def order_patches(root, name):
+    """Return the patches the series *name* lists in its ORDER, as written there.
+
+    Comments and blank lines are skipped, exactly as
+    _build/apply-patches-and-test.sh skips them. An empty result means every
+    patch of the series merged upstream, unless the series is a `pin`.
+    """
+    with open(os.path.join(root or TOPDIR, name, 'ORDER')) as f:
+        return [line.strip() for line in f if line.strip() and not line.lstrip().startswith('#')]
 
 
 def read(root=None):

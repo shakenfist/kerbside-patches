@@ -67,12 +67,6 @@ class ReapError(Exception):
 # What is finished                                                           #
 ##############################################################################
 
-def order_patches(root, name):
-    """Return the patches a series' ORDER lists, skipping comments and blank lines."""
-    with open(os.path.join(root, name, 'ORDER')) as f:
-        return [line.strip() for line in f if line.strip() and not line.lstrip().startswith('#')]
-
-
 def empty_series(index, root):
     """Return the series in *index* whose ORDER lists no patches, sorted by name.
 
@@ -83,7 +77,7 @@ def empty_series(index, root):
     for name, entry in sorted(index.items()):
         if entry.pin or not os.path.isfile(os.path.join(root, name, 'ORDER')):
             continue
-        if not order_patches(root, name):
+        if not series.order_patches(root, name):
             found.append(name)
     return found
 

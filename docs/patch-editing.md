@@ -276,8 +276,11 @@ tools/reap-empty-series.py --apply    # delete it; then commit
 ```
 
 It leaves git alone, so review and commit the deletion yourself. A
-series with `pin: true` is never reaped. The patch files themselves
-stay in `_patches/`: that directory is a pool with a long history, and most of
+series with `pin: true` is never reaped, and the `check-series-index`
+hook fails on any other series whose `ORDER` lists no patches, so a
+series cannot sit empty unnoticed -- which is how `neutron-timecost-fix`
+stayed in the tree for three days after its one patch merged. The patch
+files themselves stay in `_patches/`: that directory is a pool with a long history, and most of
 what is in it is no longer listed by any `ORDER`.
 
 One piece of work can span several repositories, for example

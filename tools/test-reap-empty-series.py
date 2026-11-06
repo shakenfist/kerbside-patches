@@ -148,7 +148,7 @@ class TestEmptySeries(Repository):
         self.assertEqual(self.found(), ['devstack-privsep-memory-001'])
 
     def test_a_pinned_series_is_never_reaped(self):
-        self.assertEqual(reap.order_patches(self.root, 'ansible-collection-kolla'), [])
+        self.assertEqual(series.order_patches(self.root, 'ansible-collection-kolla'), [])
         self.assertEqual(self.found(), [])
 
     def test_a_series_with_no_directory_is_left_to_the_index_check(self):
