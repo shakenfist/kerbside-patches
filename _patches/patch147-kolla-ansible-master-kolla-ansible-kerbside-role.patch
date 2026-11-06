@@ -30,6 +30,16 @@ Date:   Fri Nov 6 13:45:19 2026 +1100
     dedicated hosts -- the reason it is a separate group -- leaves the proxy
     with no certificate and it fails to start.
     
+    The SPICE ports are the only tcp services in the tree exposed externally,
+    and haproxy's single external frontend was written for http: its SNI map
+    is built from http services alone, and the frontend emitter only skipped
+    the external http and redirect cases. An external tcp frontend was
+    therefore emitted next to its internal twin, binding the same address and
+    port wherever the internal and external VIPs are the same, and haproxy
+    refused the configuration. It is now skipped on the grounds the redirect
+    case already was. The proxy's external_fqdn cannot route the SPICE ports
+    in that mode either, which the defaults now say.
+    
     Prompt: Michael asked for assistance with implementing the keystone
     account for kerbside, updating to the new configuration file format,
     updating role docs, and resolving Nova on the internal interface.
@@ -365,12 +375,33 @@ index 000000000..4409af80d
 +    time_format %c
 +  </parse>
 +</source>
+diff --git a/ansible/roles/haproxy-config/templates/haproxy_single_service_split.cfg.j2 b/ansible/roles/haproxy-config/templates/haproxy_single_service_split.cfg.j2
+--- a/ansible/roles/haproxy-config/templates/haproxy_single_service_split.cfg.j2
++++ b/ansible/roles/haproxy-config/templates/haproxy_single_service_split.cfg.j2
+@@ -153,12 +153,17 @@
+ {#             In single external frontend mode, skip frontends that conflict with or are subsumed
+                by the external_frontend:
+                - External http services are handled by the SNI/map frontend.
+                - External redirect services with no separate VIP duplicate the internal redirect
+                  on the same IP:port.
++               - External tcp services with no separate VIP do the same. They cannot be folded
++                 into the SNI/map frontend either, since that is built for http services only,
++                 so a tcp service is reached on its own port and its external_fqdn does not
++                 route to it.
+                - Internal http services on the same port as the SNI frontend conflict with it
+                  when there is no separate external VIP (single VIP means same bind address). #}
+ {%             if not (haproxy_single_external_frontend | bool and (
+                    (external | bool and mode == 'http') or
+                    (external | bool and mode == 'redirect' and not haproxy_enable_external_vip | bool) or
++                   (external | bool and mode == 'tcp' and not haproxy_enable_external_vip | bool) or
+                    (not external | bool and not haproxy_enable_external_vip | bool and mode == 'http' and haproxy_service.port | string == haproxy_single_external_frontend_public_port | string)
+                )) %}
 diff --git a/ansible/roles/kerbside/defaults/main.yml b/ansible/roles/kerbside/defaults/main.yml
 new file mode 100644
 index 000000000..8bfc04c4a
 --- /dev/null
 +++ b/ansible/roles/kerbside/defaults/main.yml
-@@ -0,0 +1,192 @@
+@@ -0,0 +1,197 @@
 +---
 +kerbside_services:
 +  kerbside_api:
@@ -420,6 +451,11 @@ index 000000000..8bfc04c4a
 +        tls_backend: false
 +        backend_tcp_extra:
 +          - "timeout tunnel {{ haproxy_kerbside_proxy_tunnel_timeout }}"
++      # NOTE(mikal): the SPICE ports are tcp, so haproxy's single external
++      # frontend cannot route them by name -- its SNI map is built for http
++      # services only. These entries bind the external VIP when there is one;
++      # external_fqdn is carried for consistency and does not resolve to the
++      # SPICE ports on its own.
 +      kerbside_proxy_insecure_external:
 +        enabled: "{{ enable_kerbside | bool }}"
 +        mode: "tcp"
@@ -732,7 +768,7 @@ new file mode 100644
 index 000000000..4af60e519
 --- /dev/null
 +++ b/ansible/roles/kerbside/tasks/config.yml
-@@ -0,0 +1,150 @@
+@@ -0,0 +1,141 @@
 +---
 +- name: Ensuring config directories exist
 +  become: true
@@ -754,15 +790,6 @@ index 000000000..4af60e519
 +    mode: "0770"
 +  delegate_to: "{{ groups['kerbside_api'][0] }}"
 +  run_once: true
-+
-+- name: Ensuring shared config directory exists
-+  become: true
-+  ansible.builtin.file:
-+    path: "/etc/kolla/kerbside"
-+    state: "directory"
-+    owner: "{{ config_owner_user }}"
-+    group: "{{ config_owner_group }}"
-+    mode: "0770"
 +
 +- name: Store the SPICE TLS CA cert in a fact for use in the template
 +  ansible.builtin.set_fact:
@@ -1013,7 +1040,7 @@ new file mode 100644
 index 000000000..fed9715e7
 --- /dev/null
 +++ b/ansible/roles/kerbside/tasks/precheck.yml
-@@ -0,0 +1,102 @@
+@@ -0,0 +1,88 @@
 +---
 +- name: Run service precheck
 +  ansible.builtin.import_role:
@@ -1021,20 +1048,6 @@ index 000000000..fed9715e7
 +  vars:
 +    service_precheck_services: "{{ kerbside_services }}"
 +    service_name: "{{ project_name }}"
-+
-+- name: Ensure there are hosts in the kerbside_api group
-+  ansible.builtin.fail:
-+    msg: "There are no nodes in the kerbside_api group"
-+  when:
-+    - enable_kerbside | bool
-+    - groups['kerbside_api'] | length == 0
-+
-+- name: Ensure there are hosts in the kerbside_proxy group
-+  ansible.builtin.fail:
-+    msg: "There are no nodes in the kerbside_proxy group"
-+  when:
-+    - enable_kerbside | bool
-+    - groups['kerbside_proxy'] | length == 0
 +
 +- name: Ensure Nova is configured for spice-direct consoles
 +  ansible.builtin.fail:

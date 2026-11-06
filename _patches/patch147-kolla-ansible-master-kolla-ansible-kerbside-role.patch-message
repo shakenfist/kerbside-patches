@@ -26,6 +26,16 @@ for the CA bundle alone. Without that, pointing the vdiproxy group at
 dedicated hosts -- the reason it is a separate group -- leaves the proxy
 with no certificate and it fails to start.
 
+The SPICE ports are the only tcp services in the tree exposed externally,
+and haproxy's single external frontend was written for http: its SNI map
+is built from http services alone, and the frontend emitter only skipped
+the external http and redirect cases. An external tcp frontend was
+therefore emitted next to its internal twin, binding the same address and
+port wherever the internal and external VIPs are the same, and haproxy
+refused the configuration. It is now skipped on the grounds the redirect
+case already was. The proxy's external_fqdn cannot route the SPICE ports
+in that mode either, which the defaults now say.
+
 Prompt: Michael asked for assistance with implementing the keystone
 account for kerbside, updating to the new configuration file format,
 updating role docs, and resolving Nova on the internal interface.
