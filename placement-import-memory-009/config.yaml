@@ -5,5 +5,5 @@ shallow_clone: true
 directory: placement
 release: master-placement-import-memory-009
 depends_on: ''
-source_sha: 4046d6b1918bc07467cc6020986e36b60877c8af
-previous_source_sha: 053222c7c58f5a7e5f62f3b91e9a43852647b83c
+source_sha: 180e7e4e2a198d24e290d90fba10f8be5dfa703c
+previous_source_sha: 4046d6b1918bc07467cc6020986e36b60877c8af
