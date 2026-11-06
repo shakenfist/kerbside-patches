@@ -1,6 +1,6 @@
-commit a527e187dff0fbe10142c4ce8f61e044f1fd6159
+commit 17bcc8ed1bb7a53beff7e29c081de68efe16f367
 Author: Michael Still <mikal@stillhq.com>
-Date:   Fri Nov 6 13:45:19 2026 +1100
+Date:   Fri Nov 6 18:20:46 2026 +1100
 
     Deploy Kerbside with Kolla-Ansible.
     
@@ -60,7 +60,7 @@ index 000000000..8c2d13e1c
 +kerbside_spice_direct_proxy_base_url: "{{ kerbside_external_fqdn | kolla_url(public_protocol, kerbside_api_public_port, '/nova-console.vv') }}"
 +kerbside_enable_tls_backend: true
 diff --git a/ansible/inventory/all-in-one b/ansible/inventory/all-in-one
-index 98607c2ee..9eeffecee 100644
+index 98607c2ee..164ad6fa6 100644
 --- a/ansible/inventory/all-in-one
 +++ b/ansible/inventory/all-in-one
 @@ -27,6 +27,7 @@ network
@@ -90,7 +90,7 @@ index 98607c2ee..9eeffecee 100644
 +[vdiproxy:children]
 +control
 diff --git a/ansible/inventory/multinode b/ansible/inventory/multinode
-index a0dd8d640..e83d9c5c8 100644
+index a0dd8d640..7abb37137 100644
 --- a/ansible/inventory/multinode
 +++ b/ansible/inventory/multinode
 @@ -38,6 +38,7 @@ network
@@ -356,11 +356,10 @@ index 000000000..4409af80d
 +  </parse>
 +</source>
 diff --git a/ansible/roles/haproxy-config/templates/haproxy_single_service_split.cfg.j2 b/ansible/roles/haproxy-config/templates/haproxy_single_service_split.cfg.j2
+index bae946b77..23e74ec6f 100644
 --- a/ansible/roles/haproxy-config/templates/haproxy_single_service_split.cfg.j2
 +++ b/ansible/roles/haproxy-config/templates/haproxy_single_service_split.cfg.j2
-@@ -153,12 +153,17 @@
- {#             In single external frontend mode, skip frontends that conflict with or are subsumed
-                by the external_frontend:
+@@ -155,11 +155,16 @@ backend {{ service_name }}_back
                 - External http services are handled by the SNI/map frontend.
                 - External redirect services with no separate VIP duplicate the internal redirect
                   on the same IP:port.
@@ -376,9 +375,10 @@ diff --git a/ansible/roles/haproxy-config/templates/haproxy_single_service_split
 +                   (external | bool and mode == 'tcp' and not haproxy_enable_external_vip | bool) or
                     (not external | bool and not haproxy_enable_external_vip | bool and mode == 'http' and haproxy_service.port | string == haproxy_single_external_frontend_public_port | string)
                 )) %}
+ {{ frontend_macro(haproxy_name, haproxy_service.port, mode, external,
 diff --git a/ansible/roles/kerbside/defaults/main.yml b/ansible/roles/kerbside/defaults/main.yml
 new file mode 100644
-index 000000000..8bfc04c4a
+index 000000000..8eb3dad51
 --- /dev/null
 +++ b/ansible/roles/kerbside/defaults/main.yml
 @@ -0,0 +1,197 @@
@@ -745,7 +745,7 @@ index 000000000..296e39383
 +    role: service-check
 diff --git a/ansible/roles/kerbside/tasks/config.yml b/ansible/roles/kerbside/tasks/config.yml
 new file mode 100644
-index 000000000..4af60e519
+index 000000000..add5543fc
 --- /dev/null
 +++ b/ansible/roles/kerbside/tasks/config.yml
 @@ -0,0 +1,141 @@
@@ -899,7 +899,7 @@ index 000000000..ed97d539c
 +---
 diff --git a/ansible/roles/kerbside/tasks/copy-certs.yml b/ansible/roles/kerbside/tasks/copy-certs.yml
 new file mode 100644
-index 000000000..3813d420b
+index 000000000..59e691d61
 --- /dev/null
 +++ b/ansible/roles/kerbside/tasks/copy-certs.yml
 @@ -0,0 +1,62 @@
@@ -1017,7 +1017,7 @@ index 000000000..7fa7afefb
 +  ansible.builtin.include_tasks: "{{ kolla_action }}.yml"
 diff --git a/ansible/roles/kerbside/tasks/precheck.yml b/ansible/roles/kerbside/tasks/precheck.yml
 new file mode 100644
-index 000000000..fed9715e7
+index 000000000..136066192
 --- /dev/null
 +++ b/ansible/roles/kerbside/tasks/precheck.yml
 @@ -0,0 +1,88 @@
@@ -1588,7 +1588,7 @@ index b13bd2ec9..1185ccc97 100644
     nova-cells-guide
 diff --git a/doc/source/reference/compute/kerbside-guide.rst b/doc/source/reference/compute/kerbside-guide.rst
 new file mode 100644
-index 000000000..26573a40b
+index 000000000..22884315a
 --- /dev/null
 +++ b/doc/source/reference/compute/kerbside-guide.rst
 @@ -0,0 +1,105 @@
