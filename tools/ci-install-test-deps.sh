@@ -20,7 +20,7 @@ if command -v apt-get >/dev/null 2>&1; then
     sudo apt-get install -y \
         python3-pip python3-dev python3-venv build-essential \
         moreutils libpq-dev libpcre2-dev
-    "${here}/../_build/setup-tools-venv.sh" yq tox
+    "${here}/../_build/setup-tools-venv.sh" yq tox jinja2
 
 elif command -v dnf >/dev/null 2>&1; then
     sudo dnf install -y dnf-plugins-core epel-release
@@ -32,7 +32,7 @@ elif command -v dnf >/dev/null 2>&1; then
     # upgrade-python relinks python3 -> 3.12 on rocky 9 and is a no-op on
     # rocky 10 and other distros, so run it before creating the venv.
     sudo "${here}/upgrade-python"
-    "${here}/../_build/setup-tools-venv.sh" yq tox flake8
+    "${here}/../_build/setup-tools-venv.sh" yq tox flake8 jinja2
 
 else
     echo "Unsupported runner: neither apt-get nor dnf found" >&2

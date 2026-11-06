@@ -1,0 +1,31 @@
+# Variables that upstream kolla-ansible templates reference and nothing in the
+# tree defines, which check-ansible-template-vars.py would otherwise report.
+#
+# Every entry here must be a variable the operator is required to supply, named
+# in a template branch an enable_* flag guards, and documented upstream as such.
+# Anything else is a bug and belongs in the patch that fixes it, not here.
+#
+# The checker reports an entry that the tree has since defined, so an exemption
+# cannot outlive its reason. It does not report an entry no template references
+# any more -- drop those by hand when a rebase moves the ground.
+#
+# Names a template marks optional itself, with "| default(...)" or
+# "is defined", need no entry: the checker reads those from the syntax tree.
+
+# cinder VAST backend -- doc/source/reference/storage/cinder-guide.rst, set in
+# globals.yml when enable_cinder_backend_vast is true.
+cinder_vast_password
+cinder_vast_subsystem
+cinder_vast_vippool_name
+
+# cinder Lightbits backend, under enable_cinder_backend_lightbits.
+lightbits_api_port
+lightbits_default_num_replicas
+lightbits_jwt
+lightbits_skip_ssl_verify
+lightbits_target_ips
+
+# cinder Pure Storage backends, under enable_cinder_backend_pure_nvme_tcp and
+# enable_cinder_backend_pure_roce.
+pure_nvme_tcp_backend
+pure_roce_backend

@@ -81,6 +81,24 @@ for project in ${projects}; do
         continue
     fi
 
+    # ansible-lint does not check that a variable a template references is
+    # defined anywhere, so an undefined one survives until something renders
+    # the template -- which, for a branch no deployment reaches, is never.
+    # This runs here because it needs the assembled tree, which is removed at
+    # the end of the loop, and before the tox checks because those may be
+    # skipped for a project with no linters environment.
+    echo "Checking template variables..."
+    set +e
+    tools/check-ansible-template-vars.py --tree "src/${directory}"
+    template_vars_exit=$?
+    set -e
+
+    if [ ${template_vars_exit} -ne 0 ]; then
+        echo
+        echo "FAILED: Undefined template variables in ${project}"
+    fi
+    echo
+
     # Run linters in the patched source tree
     pushd "src/${directory}" > /dev/null
 
@@ -122,6 +140,9 @@ for project in ${projects}; do
     if [ ${lint_exit} -ne 0 ]; then
         echo
         echo "FAILED: Lint errors in ${project}"
+    fi
+
+    if [ ${lint_exit} -ne 0 ] || [ ${template_vars_exit} -ne 0 ]; then
         overall_exit=1
         failed_projects="${failed_projects} ${project}"
     else
