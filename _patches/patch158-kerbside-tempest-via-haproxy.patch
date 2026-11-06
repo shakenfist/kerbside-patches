@@ -31,7 +31,7 @@ Date:   Fri Nov 6 13:45:19 2026 +1100
     walk of the SPICE protocol, which will land separately backed by
     shakenfist/ryll and shakenfist/uncalibrated-sextant.
     
-    Three changes are needed in kolla-ansible:
+    Four changes are needed in kolla-ansible:
     
     1. roles/kolla-ansible-tempest gains a new kolla_ansible_tempest_plugins
        list. Entries are appended to the pip install of the tempest venv,
@@ -45,6 +45,18 @@ Date:   Fri Nov 6 13:45:19 2026 +1100
     3. The same scenario file extends kolla_ansible_tempest_regex so the
        new test is selected alongside the existing smoke set and the
        spice-direct test added in patch157.
+    
+    4. A kolla-ansible-debian-trixie-kerbside-multinode-no-tls job runs the
+       scenario on two nodes with TLS off. Reviewers pointed out that the
+       existing jobs run in exactly the conditions that hide a cert handling
+       bug: with one node, and with TLS on. For the multinode job to be
+       worth anything the proxy has to run somewhere control does not, so
+       the CI inventory narrows control to the primary for this scenario,
+       the way it already does for masakari. That leaves the secondary a
+       vdiproxy host outside tls-backend, which is the shape an operator
+       gets from giving the proxy dedicated hosts. test_spice_via_kerbside
+       is left off this job because it fetches the console URL over HTTPS
+       using the Kolla CA, and there is no TLS front end to fetch it from.
     
     Prompt: Now add a tempest test which runs a SPICE console connection
     through the Kerbside haproxy front-end, after we discussed whether
@@ -84,8 +96,29 @@ index cdeefafbc..a7ce8b7bd 100644
      extra_args: "{{ ('-c' + kolla_ansible_tempest_upper_constraints) if kolla_ansible_tempest_upper_constraints | length > 0 }}"
      virtualenv: "{{ kolla_ansible_tempest_venv_path }}"
      virtualenv_command: "python3 -m venv"
+diff --git a/tests/templates/inventory.j2 b/tests/templates/inventory.j2
+index 3474a158f..2fb556ed4 100644
+--- a/tests/templates/inventory.j2
++++ b/tests/templates/inventory.j2
+@@ -5,8 +5,15 @@
+ # to conserve the resources. Hence, we set Masakari groups to use both
+ # primary and secondary while the parent group (control) uses only primary.
+ 
++# NOTE(mikal): the kerbside scenario narrows control for a different reason.
++# vdiproxy covers every host, so a control group of every host would put every
++# kerbside_proxy host in tls-backend too, and the multinode job would never
++# exercise a SPICE proxy running where control does not. With control at the
++# primary only, the secondary is a vdiproxy host outside tls-backend, which is
++# the shape an operator gets from giving the proxy dedicated hosts.
++
+ [control]
+-{% if scenario in ['masakari', 'multi-compute-ironic'] %}
++{% if scenario in ['kerbside', 'masakari', 'multi-compute-ironic'] %}
+ {%     for host in hostvars if host in ['primary'] %}
+ {{ host }} ansible_host={{ hostvars[host]['ansible_host'] }}
+ {%     endfor %}
 diff --git a/zuul.d/scenarios/kerbside.yaml b/zuul.d/scenarios/kerbside.yaml
-index 18b7a6a9f..8912b5eb2 100644
+index 18b7a6a9f..91f571cde 100644
 --- a/zuul.d/scenarios/kerbside.yaml
 +++ b/zuul.d/scenarios/kerbside.yaml
 @@ -15,8 +15,11 @@
@@ -100,3 +133,29 @@ index 18b7a6a9f..8912b5eb2 100644
        scenario_images_extra:
          - ^kerbside
          - ^nova-libvirt-spice
+@@ -36,6 +39,20 @@
+     parent: kolla-ansible-kerbside-base
+     nodeset: kolla-ansible-ubuntu-noble-16GB
+ 
++- job:
++    name: kolla-ansible-debian-trixie-kerbside-multinode-no-tls
++    parent: kolla-ansible-kerbside-base
++    nodeset: kolla-ansible-debian-trixie-multi-16GB
++    vars:
++      tls_enabled: false
++      # test_spice_via_kerbside fetches the console URL over HTTPS using the
++      # Kolla CA, which there is no front end for once TLS is off, so this
++      # job runs the deploy and the upstream spice-direct test only.
++      kolla_ansible_tempest_plugins: []
++      kolla_ansible_tempest_regex:
++        - .*smoke.*
++        - tempest\.api\.compute\.admin\.test_spice
++
+ - project-template:
+     name: kolla-ansible-scenario-kerbside
+     description: |
+@@ -45,3 +62,4 @@
+         - kolla-ansible-debian-trixie-kerbside
+         - kolla-ansible-rocky-10-kerbside
+         - kolla-ansible-ubuntu-noble-kerbside
++        - kolla-ansible-debian-trixie-kerbside-multinode-no-tls

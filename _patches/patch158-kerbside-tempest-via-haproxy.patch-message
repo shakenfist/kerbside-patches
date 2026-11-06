@@ -27,7 +27,7 @@ console -- that needs the auth ticket from the .vv file and a fuller
 walk of the SPICE protocol, which will land separately backed by
 shakenfist/ryll and shakenfist/uncalibrated-sextant.
 
-Three changes are needed in kolla-ansible:
+Four changes are needed in kolla-ansible:
 
 1. roles/kolla-ansible-tempest gains a new kolla_ansible_tempest_plugins
    list. Entries are appended to the pip install of the tempest venv,
@@ -41,6 +41,18 @@ Three changes are needed in kolla-ansible:
 3. The same scenario file extends kolla_ansible_tempest_regex so the
    new test is selected alongside the existing smoke set and the
    spice-direct test added in patch157.
+
+4. A kolla-ansible-debian-trixie-kerbside-multinode-no-tls job runs the
+   scenario on two nodes with TLS off. Reviewers pointed out that the
+   existing jobs run in exactly the conditions that hide a cert handling
+   bug: with one node, and with TLS on. For the multinode job to be
+   worth anything the proxy has to run somewhere control does not, so
+   the CI inventory narrows control to the primary for this scenario,
+   the way it already does for masakari. That leaves the secondary a
+   vdiproxy host outside tls-backend, which is the shape an operator
+   gets from giving the proxy dedicated hosts. test_spice_via_kerbside
+   is left off this job because it fetches the console URL over HTTPS
+   using the Kolla CA, and there is no TLS front end to fetch it from.
 
 Prompt: Now add a tempest test which runs a SPICE console connection
 through the Kerbside haproxy front-end, after we discussed whether

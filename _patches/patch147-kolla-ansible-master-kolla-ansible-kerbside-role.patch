@@ -21,6 +21,15 @@ Date:   Fri Nov 6 13:45:19 2026 +1100
     traffic on the secure port, it uses the frontend certificates to do TLS
     itself, and haproxy simply acts as a layer four load balancer.
     
+    Because the proxy terminates TLS for every console it serves, whatever
+    kerbside_enable_tls_backend says about the REST API, it needs the backend
+    certificate and key wherever it runs. service-cert-copy places those only
+    on hosts in the tls-backend group, which is control and network, so the
+    role copies them itself for the Kerbside hosts and uses service-cert-copy
+    for the CA bundle alone. Without that, pointing the vdiproxy group at
+    dedicated hosts -- the reason it is a separate group -- leaves the proxy
+    with no certificate and it fails to start.
+    
     Prompt: Michael asked for assistance with implementing the keystone
     account for kerbside, updating to the new configuration file format,
     updating role docs, and resolving Nova on the internal interface.
@@ -886,13 +895,51 @@ new file mode 100644
 index 000000000..3813d420b
 --- /dev/null
 +++ b/ansible/roles/kerbside/tasks/copy-certs.yml
-@@ -0,0 +1,24 @@
+@@ -0,0 +1,62 @@
 +---
-+- name: "Copy certificates and keys for {{ project_name }}"
++# NOTE(mikal): service-cert-copy gates the backend TLS certificate and key on
++# membership of the tls-backend group, which is control and network. Kerbside
++# terminates TLS for every SPICE console it serves, whatever
++# kerbside_enable_tls_backend says about its REST API, so kerbside_proxy needs
++# the certificate and key wherever it runs -- including the dedicated vdiproxy
++# hosts that having a separate group is for. The role is therefore used only
++# for the CA bundle, and the certificate and key are copied below.
++- name: "Copy CA certificates for {{ project_name }}"
 +  ansible.builtin.import_role:
 +    role: service-cert-copy
 +  vars:
 +    project_services: "{{ kerbside_services }}"
++    kolla_copy_backend_tls_files: false
++
++- name: "Copy certificate for {{ project_name }}"
++  vars:
++    certs:
++      - "{{ kolla_certificates_dir }}/{{ inventory_hostname }}/{{ project_name }}-cert.pem"
++      - "{{ kolla_certificates_dir }}/{{ inventory_hostname }}-cert.pem"
++      - "{{ kolla_certificates_dir }}/{{ project_name }}-cert.pem"
++      - "{{ kolla_tls_backend_cert }}"
++    kerbside_cert: "{{ lookup('first_found', certs) }}"
++  ansible.builtin.copy:
++    src: "{{ kerbside_cert }}"
++    dest: "{{ node_config_directory }}/{{ item.key }}/{{ project_name }}-cert.pem"
++    mode: "0644"
++  become: true
++  with_dict: "{{ kerbside_services | select_services_enabled_and_mapped_to_host }}"
++
++- name: "Copy key for {{ project_name }}"
++  vars:
++    keys:
++      - "{{ kolla_certificates_dir }}/{{ inventory_hostname }}/{{ project_name }}-key.pem"
++      - "{{ kolla_certificates_dir }}/{{ inventory_hostname }}-key.pem"
++      - "{{ kolla_certificates_dir }}/{{ project_name }}-key.pem"
++      - "{{ kolla_tls_backend_key }}"
++    kerbside_key: "{{ lookup('first_found', keys) }}"
++  ansible.builtin.copy:
++    src: "{{ kerbside_key }}"
++    dest: "{{ node_config_directory }}/{{ item.key }}/{{ project_name }}-key.pem"
++    mode: "0600"
++  become: true
++  with_dict: "{{ kerbside_services | select_services_enabled_and_mapped_to_host }}"
 +
 +- name: "Copy CA certificate"
 +  vars:

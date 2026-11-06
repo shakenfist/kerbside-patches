@@ -17,6 +17,15 @@ kerbside-proxy is not talking HTTP to clients, and expects TLS encrypted
 traffic on the secure port, it uses the frontend certificates to do TLS
 itself, and haproxy simply acts as a layer four load balancer.
 
+Because the proxy terminates TLS for every console it serves, whatever
+kerbside_enable_tls_backend says about the REST API, it needs the backend
+certificate and key wherever it runs. service-cert-copy places those only
+on hosts in the tls-backend group, which is control and network, so the
+role copies them itself for the Kerbside hosts and uses service-cert-copy
+for the CA bundle alone. Without that, pointing the vdiproxy group at
+dedicated hosts -- the reason it is a separate group -- leaves the proxy
+with no certificate and it fails to start.
+
 Prompt: Michael asked for assistance with implementing the keystone
 account for kerbside, updating to the new configuration file format,
 updating role docs, and resolving Nova on the internal interface.
