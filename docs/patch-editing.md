@@ -208,13 +208,13 @@ Its output lists the other users of each failing patch split into
 
 A fix that is going upstream on its own, unrelated to the rest of our
 stack, gets its own series directory rather than a line in the
-project's main `ORDER`: `neutron-timecost-fix/`,
+project's main `ORDER`: `neutron-import-time-config-check/`,
 `kolla-magnum-setuptools-pin/` and `kolla-ansible-json-logging/` are
 examples. Its `config.yaml` differs from the main series in three keys:
 
 | Key | Set to | Why |
 |-----|--------|-----|
-| `release` | a name of its own, e.g. `master-neutron-timecost-fix` | `assemble-source.sh` builds every series whose release matches the build's, so sharing `master` would pull it into image builds |
+| `release` | a name of its own, e.g. `master-neutron-import-time-config-check` | `assemble-source.sh` builds every series whose release matches the build's, so sharing `master` would pull it into image builds |
 | `destination_branch` | a short name for the class of problem, e.g. `import-time-config` | `repush-openstack.sh` runs `git review` from this branch, and git review uses the branch name as the Gerrit topic |
 | `skip_rebase` | `false` (or absent) | see below |
 

@@ -11,26 +11,17 @@ ansible-collection-kolla:
     status: carry
     pin: true
 
-devstack:
-  devstack-privsep-memory-001:
-    description: Fix memory usage measurements
-    upstream: https://review.opendev.org/c/openstack/devstack/+/1011786
-    status: carry
-    note: Significant review traction, so not rebasing right now
-
 futurist:
   futurist-import-memory-004:
     description: Reduce imports to reduce memory usage
     upstream: https://review.opendev.org/c/openstack/futurist/+/1012147
     status: push
-    after: [devstack-privsep-memory-001]
 
 keystone:
   keystone-import-memory-008:
     description: Reduce imports to reduce memory usage
     upstream: https://review.opendev.org/c/openstack/keystone/+/1012171
     status: push
-    after: [devstack-privsep-memory-001]
 
 kolla:
   kolla:
@@ -101,11 +92,6 @@ kolla-ansible:
 
 neutron:
   # General neutron agent improvements
-  neutron-timecost-fix:
-    description: Generate a timecost call id for every call
-    upstream: https://review.opendev.org/c/openstack/neutron/+/1009882
-    status: carry
-    note: Significant review traction, so not rebasing right now
   neutron-import-time-config-check:
     description: Config should not be read at import time
     upstream: https://review.opendev.org/c/openstack/neutron/+/1012623
@@ -129,18 +115,15 @@ neutron:
     upstream: https://review.opendev.org/c/openstack/neutron/+/1012182
     status: carry
     note: Significant review traction, so not rebasing right now
-    after: [devstack-privsep-memory-001]
   neutron-import-memory-007:
     description: OVS agent memory usage cleanups
     upstream: https://review.opendev.org/c/openstack/neutron/+/1012169
     status: push
-    after: [devstack-privsep-memory-001]
   neutron-privsep-memory-003:
     description: privsep memory usage cleanups
     upstream: https://review.opendev.org/c/openstack/neutron/+/1011796
     status: carry
     note: Significant review traction, so not rebasing right now
-    after: [devstack-privsep-memory-001]
 
   # Incomplete and not yet pushed
   neutron-agent-typing-base:
@@ -149,24 +132,16 @@ neutron:
     status: carry
 
 neutron-lib:
-  neutron-lib-db-api-import-memory-006:
-    description: Load the DB API only for DB users
-    upstream: https://review.opendev.org/c/openstack/neutron-lib/+/1012152
-    status: carry
-    note: Significant review traction, so not rebasing right now
-    after: [devstack-privsep-memory-001]
   neutron-lib-import-memory-005:
     description: Import os_ken only when validating an ethertype
     upstream: https://review.opendev.org/c/openstack/neutron-lib/+/1012151
     status: push
-    after: [devstack-privsep-memory-001]
 
 oslo.messaging:
   oslo.messaging-import-memory-011:
     description: Find patched threading without importing eventlet
     upstream: https://review.opendev.org/c/openstack/oslo.messaging/+/1012179
     status: push
-    after: [devstack-privsep-memory-001]
 
 oslo.privsep:
   oslo.privsep-privsep-memory-002:
@@ -174,14 +149,12 @@ oslo.privsep:
     upstream: https://review.opendev.org/c/openstack/oslo.privsep/+/1011795
     status: carry
     note: Significant review traction, so not rebasing right now
-    after: [devstack-privsep-memory-001]
 
 oslo.service:
   oslo.service-import-memory-012:
     description: Import eventlet only for the WSGI server
     upstream: https://review.opendev.org/c/openstack/oslo.service/+/1012180
     status: push
-    after: [devstack-privsep-memory-001]
 
   # Not yet pushed
   oslo.service-loopingcall-restart:
@@ -194,11 +167,9 @@ oslo.utils:
     description: Do not import eventlet in eventletutils until used
     upstream: https://review.opendev.org/c/openstack/oslo.utils/+/1012175
     status: push
-    after: [devstack-privsep-memory-001]
 
 placement:
   placement-import-memory-009:
     description: Memory usage improvements
     upstream: https://review.opendev.org/c/openstack/placement/+/1012173
     status: push
-    after: [devstack-privsep-memory-001]
