@@ -136,15 +136,19 @@ jobs:
           reaped=$(cat ${GITHUB_WORKSPACE}/rebase-output/reaped-series.txt 2>/dev/null || true)
           if [ -n "${reaped}" ]; then
             # shellcheck disable=SC2086
-            git commit -m "Reap the series with no patches left for ${DATESTAMP}.
+            git commit -F - -- series.yaml ${reaped} <<EOF
+          Reap the series with no patches left for ${DATESTAMP}.
 
-            Every patch of these series has merged upstream, so the daily
-            rebase dropped the last of them from the series' ORDER. What was
-            left applied nothing, and its config.yaml pinned a source SHA
-            that moved every day for no reason.
+          Every patch of these series has merged upstream, so the daily
+          rebase dropped the last of them from the series' ORDER. What is
+          left applies nothing, while its config.yaml pins a source SHA that
+          moves every day for no reason.
 
-            Assisted-By: Claude Code
-            Co-Authored-By: Claude <noreply@anthropic.com>" -- series.yaml ${reaped}
+          Reaped: $(echo ${reaped} | tr '\n' ' ')
+
+          Assisted-By: Claude Code
+          Co-Authored-By: Claude <noreply@anthropic.com>
+          EOF
           fi
 
       - name: Push branch and create PR
