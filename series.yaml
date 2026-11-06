@@ -119,11 +119,6 @@ neutron:
     description: OVS agent memory usage cleanups
     upstream: https://review.opendev.org/c/openstack/neutron/+/1012169
     status: push
-  neutron-privsep-memory-003:
-    description: privsep memory usage cleanups
-    upstream: https://review.opendev.org/c/openstack/neutron/+/1011796
-    status: carry
-    note: Significant review traction, so not rebasing right now
 
   # Incomplete and not yet pushed
   neutron-agent-typing-base:
