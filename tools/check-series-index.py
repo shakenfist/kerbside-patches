@@ -11,8 +11,8 @@ reports:
     - a series filed under a project other than its config.yaml `directory`;
     - a series listed under more than one project;
     - an entry that is not a mapping, has no status, has a status other than
-      push, hold or carry, or has a key other than status, after, note,
-      description and upstream;
+      push, hold or carry, has a `pin` that is not a boolean, or has a key
+      other than status, after, note, description, upstream and pin;
     - an `after` that is not a list, names something that is not a series, or
       names the series itself;
     - `after` links that form a cycle, naming the series in it;

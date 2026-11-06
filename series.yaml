@@ -6,7 +6,10 @@
 
 ansible-collection-kolla:
   ansible-collection-kolla:
+    description: Pins the collection for the image build; carries no patches
+    upstream: None
     status: carry
+    pin: true
 
 devstack:
   devstack-privsep-memory-001:

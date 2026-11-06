@@ -200,6 +200,16 @@ class TestCheck(Repository):
         self.make_tree(CLEAN.replace('note: Waiting for a reviewer.', 'note: [a, b]'))
         self.assertProblem('kolla-deployer: note must be a string')
 
+    def test_pin_must_be_a_boolean(self):
+        self.make_tree(CLEAN.replace('status: carry', 'status: carry\n    pin: yes please'))
+        self.assertProblem('kolla: pin must be true or false')
+
+    def test_a_pin_is_read_into_the_index(self):
+        self.make_tree(CLEAN.replace('status: carry', 'status: carry\n    pin: true'))
+        index = series.load(self.root)
+        self.assertTrue(index['kolla'].pin)
+        self.assertFalse(index['kolla-deployer'].pin)
+
     def test_repush_in_config(self):
         self.make_tree()
         self.make_series('kolla', 'kolla', extra='repush: false\n')

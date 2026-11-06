@@ -229,6 +229,11 @@ in push order. The `check-series-index` pre-commit hook fails when a
 series directory has no entry, an entry has no directory, or an `after`
 names a missing series or forms a cycle.
 
+A series that carries no patches, and is there only so the build pins a
+repository it does not patch, sets `pin: true`:
+`ansible-collection-kolla` is the one example. An empty `ORDER` is
+expected of it.
+
 A series that is a discussion starter rather than a change ready for
 review sets `wip: true` as well. `repush-openstack.sh` then pushes it
 with `git review --wip`, so every change in the series lands in Gerrit
@@ -247,6 +252,33 @@ daily while nothing checks that the patches still apply.
 Several series can patch the same repository. The daily changelog
 lists each repository and commit range once, whichever series reaches
 it first.
+
+### Retiring a series
+
+A series ends by merging. Each patch merges upstream on its own, stops
+applying, and the daily rebase's fixer drops it from the `ORDER` files
+that list it. When the last patch goes, the series is finished, and
+what is left behind applies nothing while its `config.yaml` pins a
+`source_sha` that moves every day.
+
+`tools/reap-empty-series.py` reaps it: the directory, the `series.yaml`
+entry, the project it was filed under if no other series is left there,
+and the series' name in every `after` that waited for it to reach
+Gerrit. `rebase-with-claude.sh` runs it, so the daily rebase's pull
+request carries the removal, and the names it reaped are in
+`reaped-series.txt` in the output directory. Run it by hand after
+emptying an `ORDER` yourself, rather than deleting a directory and
+hand-editing the index:
+
+```bash
+tools/reap-empty-series.py            # what would go, and what waits on it
+tools/reap-empty-series.py --apply    # delete it; then commit
+```
+
+It leaves git alone, so review and commit the deletion yourself. A
+series with `pin: true` is never reaped. The patch files themselves
+stay in `_patches/`: that directory is a pool with a long history, and most of
+what is in it is no longer listed by any `ORDER`.
 
 One piece of work can span several repositories, for example
 telemetry in devstack followed by fixes in oslo.privsep and neutron.

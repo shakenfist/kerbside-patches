@@ -5,6 +5,11 @@
 # This script is used by both the daily-rebase-checks.yml GitHub Actions
 # workflow and for interactive command-line use.
 #
+# A patch that has merged upstream no longer applies, and the fixer drops it
+# from the ORDER files that list it. Once that empties a series' ORDER the
+# series is finished, so tools/reap-empty-series.py then deletes it and its
+# series.yaml entry.
+#
 # Usage:
 #   _build/rebase-with-claude.sh [options] [project1 project2 ...]
 #
@@ -105,7 +110,9 @@ while [[ $# -gt 0 ]]; do
             shift 2
             ;;
         --help|-h)
-            head -45 "$0" | tail -42
+            # The header comment above, which is the help text. Printed by
+            # matching rather than by line count, so it cannot drift.
+            awk 'NR > 2 && /^#/ {print; next} NR > 2 {exit}' "$0"
             exit 0
             ;;
         -*)
@@ -139,6 +146,28 @@ cleanup() {
     fi
 }
 trap cleanup EXIT
+
+# Reap the series left with no patches at all, so the daily rebase's pull
+# request carries the removal rather than leaving behind a directory that
+# applies nothing and a config.yaml whose SHA moves every day.
+#
+# The names it reaped are left in ${output_dir}/reaped-series.txt, which the
+# daily rebase workflow commits; a reap it could not make safely empties that
+# file again rather than stopping the rebase, since the patch fixes are still
+# worth having.
+reap_empty_series() {
+    ./tools/reap-empty-series.py --list > "${output_dir}/reaped-series.txt"
+    if [ ! -s "${output_dir}/reaped-series.txt" ]; then
+        echo "Every series still has patches to carry; nothing to reap."
+        echo
+        return 0
+    fi
+    if ! ./tools/reap-empty-series.py --apply; then
+        echo -e "${RED}✗ Could not reap them; fix series.yaml by hand.${NC}"
+        true > "${output_dir}/reaped-series.txt"
+    fi
+    echo
+}
 
 # CI mode output helper
 ci_output() {
@@ -193,6 +222,9 @@ echo
 
 if [ ${test_exit_code} -eq 0 ]; then
     echo -e "${GREEN}✓ All patches applied successfully!${NC}"
+    echo
+    echo -e "${YELLOW}Step 3: Reaping the series with no patches left...${NC}"
+    reap_empty_series
     ci_output "patches_failed" "false"
     ci_output "fix_succeeded" "true"
     exit 0
@@ -335,7 +367,10 @@ else
 fi
 
 echo
-echo -e "${YELLOW}Step 5: Verifying fix...${NC}"
+echo -e "${YELLOW}Step 5: Reaping the series with no patches left...${NC}"
+reap_empty_series
+
+echo -e "${YELLOW}Step 6: Verifying fix...${NC}"
 
 # Clean up source directories
 rm -rf src/
@@ -359,7 +394,7 @@ if [ ${verify_exit_code} -eq 0 ]; then
     ci_output "fix_succeeded" "true"
     echo
     echo "Changes staged by Claude:"
-    git status --short _patches/ */ORDER 2>/dev/null || true
+    git status --short _patches/ */ORDER series.yaml 2>/dev/null || true
     echo
     if [ "${ci_mode}" = false ]; then
         echo "Review the changes, then commit when ready:"

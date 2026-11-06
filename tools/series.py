@@ -19,6 +19,10 @@ series that patch it, and each series to an entry:
     note     free text; optional
     description  a short summary of what the series does; optional
     upstream     a URL to the upstream review of the series, or None; optional
+    pin      true for a series that carries no patches, and is there only so
+             the build pins a repository it does not patch. An empty ORDER is
+             expected of it, and tools/reap-empty-series.py leaves it alone;
+             optional
 
 This is both a module for other tools (`import series`) and a command for
 shell scripts, which prints one series per line:
@@ -59,7 +63,7 @@ TOPDIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 INDEX = 'series.yaml'
 
 STATUSES = ('push', 'hold', 'carry')
-KEYS = ('status', 'after', 'note', 'description', 'upstream')
+KEYS = ('status', 'after', 'note', 'description', 'upstream', 'pin')
 
 
 class SeriesError(Exception):
@@ -85,6 +89,7 @@ class Series:
     status: str
     after: tuple = ()
     note: str = None
+    pin: bool = False
 
 
 ##############################################################################
@@ -163,6 +168,8 @@ def validate(raw):
                 problems.append(f'{name}: status {entry["status"]!r} is not one of {", ".join(STATUSES)}')
             if 'note' in entry and not isinstance(entry['note'], str):
                 problems.append(f'{name}: note must be a string')
+            if 'pin' in entry and not isinstance(entry['pin'], bool):
+                problems.append(f'{name}: pin must be true or false')
 
             after = entry.get('after', [])
             if not isinstance(after, list) or not all(isinstance(a, str) for a in after):
@@ -191,7 +198,8 @@ def load(root=None):
     for project, entries in (raw or {}).items():
         for name, entry in entries.items():
             index[name] = Series(name=name, project=project, status=entry['status'],
-                                 after=tuple(entry.get('after') or ()), note=entry.get('note'))
+                                 after=tuple(entry.get('after') or ()), note=entry.get('note'),
+                                 pin=bool(entry.get('pin')))
     return index
 
 

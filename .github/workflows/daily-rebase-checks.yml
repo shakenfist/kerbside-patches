@@ -125,6 +125,28 @@ jobs:
             Co-Authored-By: Claude <noreply@anthropic.com>"
           fi
 
+      # rebase-with-claude.sh reaps the series whose patches have all merged
+      # upstream, leaving their names in reaped-series.txt. Committing those
+      # paths by name rather than the whole index keeps a half finished fix,
+      # which Claude stages as it works, out of this commit.
+      - name: Commit reaped series
+        run: |
+          cd ${GITHUB_WORKSPACE}/kerbside-patches
+
+          reaped=$(cat ${GITHUB_WORKSPACE}/rebase-output/reaped-series.txt 2>/dev/null || true)
+          if [ -n "${reaped}" ]; then
+            # shellcheck disable=SC2086
+            git commit -m "Reap the series with no patches left for ${DATESTAMP}.
+
+            Every patch of these series has merged upstream, so the daily
+            rebase dropped the last of them from the series' ORDER. What was
+            left applied nothing, and its config.yaml pinned a source SHA
+            that moved every day for no reason.
+
+            Assisted-By: Claude Code
+            Co-Authored-By: Claude <noreply@anthropic.com>" -- series.yaml ${reaped}
+          fi
+
       - name: Push branch and create PR
         env:
           GITHUB_TOKEN: ${{ secrets.DAILY_REBASE_TOKEN }}
