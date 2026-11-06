@@ -117,6 +117,12 @@ scratch on every build and is listed in `.gitignore`.
 - Because `src/` is ignored, a finished build worktree can be
   torn down with a plain `git worktree remove`, with no
   `--force` needed.
+- The `check-ansible-template-vars` pre-commit hook reads the
+  assembled tree rather than the staged patch, because the
+  templates only exist there. Without an assembled `src/` it
+  passes with a notice, so it is not a gate on its own;
+  `tools/check-kolla-ansible-lint.sh` runs the same check in
+  CI, where the tree is always assembled.
 
 ### Working with Layer Data
 

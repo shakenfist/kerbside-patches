@@ -1,6 +1,6 @@
-commit 7bf437341c2c6a27133d51d0ce1db52177fda6cc
+commit ba0955c17a55bb4195f2a3e754171f41466cd14f
 Author: Michael Still <mikal@stillhq.com>
-Date:   Tue Nov 3 19:31:07 2026 +1100
+Date:   Fri Nov 6 18:20:47 2026 +1100
 
     Run the spice-direct tempest test in the kerbside scenario.
     
@@ -19,22 +19,6 @@ Date:   Tue Nov 3 19:31:07 2026 +1100
     in kolla-ansible currently sets that — python-tempestconf does
     not auto-detect SPICE from the cloud.
     
-    Two changes are needed:
-    
-    1. roles/kolla-ansible-tempest gains a new
-       kolla_ansible_tempest_discover_overrides list, whose entries
-       are appended as positional "section.option value" arguments to
-       discover-tempest-config. This is the same override syntax the
-       role already uses for compute.build_timeout, so no new code
-       path is introduced — just a per-scenario knob.
-    
-    2. zuul.d/scenarios/kerbside.yaml sets that override to enable
-       compute-feature-enabled.spice_console and extends
-       kolla_ansible_tempest_regex so the spice test is selected
-       alongside the existing smoke tests. The test has no smoke
-       decorator, so without this it would be discovered but not
-       run.
-    
     Note that this test _does_not_ validate that Kerbside is deployed
     and working correctly. That's the next step after this one.
     
@@ -43,7 +27,6 @@ Date:   Tue Nov 3 19:31:07 2026 +1100
     
     Assisted-By: Claude Opus 4.7 (medium effort)
     
-    Depends-On: https://review.opendev.org/c/openstack/kolla/+/986283
     Change-Id: I2c8d1e0a3f4b5d6c7e8f9a0b1c2d3e4f5a6b7c8d
     Signed-off-by: Michael Still <mikal@stillhq.com>
 

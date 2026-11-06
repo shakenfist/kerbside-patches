@@ -1,50 +1,20 @@
-commit 7d0c5e0d67f46cd03bfaac68624220a24a1de6a2
+commit 4c76410c6f3d31f77f355e2f5fdcb782a96165d7
 Author: Michael Still <mikal@stillhq.com>
-Date:   Tue Nov 3 19:31:07 2026 +1100
+Date:   Fri Nov 6 18:20:47 2026 +1100
 
     Run a Kerbside-fronted SPICE tempest test in the kerbside scenario.
     
-    Patch157 enabled the upstream spice-direct test, which speaks SPICE
-    to the hypervisor port Nova returns. That validates Nova's
-    spice-direct plumbing but does not exercise Kerbside at all. This
-    adds a follow-up test that proves the URL Nova returns is fronted
-    by Kerbside's haproxy and that Kerbside is answering as SPICE.
+    I2c8d1e0a3f4b5d6c7e8f9a0b1c2d3e4f5a6b7c8d enabled the upstream
+    spice-direct test, which speaks SPICE to the hypervisor port Nova
+    returns. That validates Nova's spice-direct plumbing but does not
+    exercise Kerbside at all. This patch adds a follow-up test that
+    proves the URL Nova returns is fronted by Kerbside's haproxy and
+    that Kerbside is answering as SPICE.
     
     The test lives in the kerbside-tempest-plugin, a separate releasable
     in the shakenfist/kerbside repository whose version is tied to
     Kerbside's via setuptools_scm. The plugin contributes one test,
-    kerbside_tempest_plugin.tests.api.test_spice_via_kerbside, which:
-    
-    1. Calls Nova's get-remote-console with spice-direct/spice.
-    2. HTTPS-GETs the returned URL using the Kolla-Ansible CA
-       (/etc/kolla/certificates/ca/root.crt by default), which is the
-       trust chain for the haproxy front-end Kerbside terminates.
-    3. Parses the .vv file Kerbside serves at that URL, extracts the
-       SPICE host, tls-port, and embedded CA certificate.
-    4. Opens a TLS connection to that host:tls-port trusting only the
-       embedded CA, sends a SpiceLinkMess for the main channel, and
-       reads back the SpiceLinkReply header. A SPICE magic in the reply
-       proves Kerbside is talking SPICE.
-    
-    The test does not yet authenticate or route through to a hypervisor
-    console -- that needs the auth ticket from the .vv file and a fuller
-    walk of the SPICE protocol, which will land separately backed by
-    shakenfist/ryll and shakenfist/uncalibrated-sextant.
-    
-    Three changes are needed in kolla-ansible:
-    
-    1. roles/kolla-ansible-tempest gains a new kolla_ansible_tempest_plugins
-       list. Entries are appended to the pip install of the tempest venv,
-       so callers can install tempest plugins from PyPI, git URLs, or
-       local paths.
-    
-    2. zuul.d/scenarios/kerbside.yaml uses that list to install
-       kerbside-tempest-plugin from the shakenfist/kerbside repo,
-       pulling from the develop branch.
-    
-    3. The same scenario file extends kolla_ansible_tempest_regex so the
-       new test is selected alongside the existing smoke set and the
-       spice-direct test added in patch157.
+    kerbside_tempest_plugin.tests.api.test_spice_via_kerbside
     
     Prompt: Now add a tempest test which runs a SPICE console connection
     through the Kerbside haproxy front-end, after we discussed whether
@@ -55,7 +25,6 @@ Date:   Tue Nov 3 19:31:07 2026 +1100
     
     Assisted-By: Claude Opus 4.7 (medium effort)
     
-    Depends-On: https://review.opendev.org/c/openstack/kolla/+/986283
     Change-Id: I3d9e2a8b4c5f1a6b7c8d9e0f1a2b3c4d5e6f7a8b
     Signed-off-by: Michael Still <mikal@stillhq.com>
 
@@ -84,8 +53,29 @@ index cdeefafbc..a7ce8b7bd 100644
      extra_args: "{{ ('-c' + kolla_ansible_tempest_upper_constraints) if kolla_ansible_tempest_upper_constraints | length > 0 }}"
      virtualenv: "{{ kolla_ansible_tempest_venv_path }}"
      virtualenv_command: "python3 -m venv"
+diff --git a/tests/templates/inventory.j2 b/tests/templates/inventory.j2
+index 3474a158f..2fb556ed4 100644
+--- a/tests/templates/inventory.j2
++++ b/tests/templates/inventory.j2
+@@ -5,8 +5,15 @@
+ # to conserve the resources. Hence, we set Masakari groups to use both
+ # primary and secondary while the parent group (control) uses only primary.
+ 
++# NOTE(mikal): the kerbside scenario narrows control for a different reason.
++# vdiproxy covers every host, so a control group of every host would put every
++# kerbside_proxy host in tls-backend too, and the multinode job would never
++# exercise a SPICE proxy running where control does not. With control at the
++# primary only, the secondary is a vdiproxy host outside tls-backend, which is
++# the shape an operator gets from giving the proxy dedicated hosts.
++
+ [control]
+-{% if scenario in ['masakari', 'multi-compute-ironic'] %}
++{% if scenario in ['kerbside', 'masakari', 'multi-compute-ironic'] %}
+ {%     for host in hostvars if host in ['primary'] %}
+ {{ host }} ansible_host={{ hostvars[host]['ansible_host'] }}
+ {%     endfor %}
 diff --git a/zuul.d/scenarios/kerbside.yaml b/zuul.d/scenarios/kerbside.yaml
-index 18b7a6a9f..8912b5eb2 100644
+index 18b7a6a9f..91f571cde 100644
 --- a/zuul.d/scenarios/kerbside.yaml
 +++ b/zuul.d/scenarios/kerbside.yaml
 @@ -15,8 +15,11 @@
@@ -100,3 +90,29 @@ index 18b7a6a9f..8912b5eb2 100644
        scenario_images_extra:
          - ^kerbside
          - ^nova-libvirt-spice
+@@ -36,6 +39,20 @@
+     parent: kolla-ansible-kerbside-base
+     nodeset: kolla-ansible-ubuntu-noble-16GB
+ 
++- job:
++    name: kolla-ansible-debian-trixie-kerbside-multinode-no-tls
++    parent: kolla-ansible-kerbside-base
++    nodeset: kolla-ansible-debian-trixie-multi-16GB
++    vars:
++      tls_enabled: false
++      # test_spice_via_kerbside fetches the console URL over HTTPS using the
++      # Kolla CA, which there is no front end for once TLS is off, so this
++      # job runs the deploy and the upstream spice-direct test only.
++      kolla_ansible_tempest_plugins: []
++      kolla_ansible_tempest_regex:
++        - .*smoke.*
++        - tempest\.api\.compute\.admin\.test_spice
++
+ - project-template:
+     name: kolla-ansible-scenario-kerbside
+     description: |
+@@ -45,3 +62,4 @@
+         - kolla-ansible-debian-trixie-kerbside
+         - kolla-ansible-rocky-10-kerbside
+         - kolla-ansible-ubuntu-noble-kerbside
++        - kolla-ansible-debian-trixie-kerbside-multinode-no-tls
