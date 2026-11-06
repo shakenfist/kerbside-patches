@@ -19,6 +19,10 @@ series that patch it, and each series to an entry:
     note     free text; optional
     description  a short summary of what the series does; optional
     upstream     a URL to the upstream review of the series, or None; optional
+    pin      true for a series that carries no patches, and is there only so
+             the build pins a repository it does not patch. An empty ORDER is
+             expected of it, and tools/reap-empty-series.py leaves it alone;
+             optional
 
 This is both a module for other tools (`import series`) and a command for
 shell scripts, which prints one series per line:
@@ -36,6 +40,8 @@ apply after ordering, so a series still follows one that was filtered out.
 
 `after` prints the series named in SERIES' `after`, in the order written, and
 `project` prints SERIES' project.
+
+`order_patches` is here too, for the tools that ask what a series carries.
 
 --root names the repository to read series.yaml from; it defaults to the one
 holding this script. tools/check-series-index.py checks that the index agrees
@@ -59,7 +65,7 @@ TOPDIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 INDEX = 'series.yaml'
 
 STATUSES = ('push', 'hold', 'carry')
-KEYS = ('status', 'after', 'note', 'description', 'upstream')
+KEYS = ('status', 'after', 'note', 'description', 'upstream', 'pin')
 
 
 class SeriesError(Exception):
@@ -85,6 +91,7 @@ class Series:
     status: str
     after: tuple = ()
     note: str = None
+    pin: bool = False
 
 
 ##############################################################################
@@ -110,6 +117,17 @@ class _UniqueKeyLoader(yaml.SafeLoader):
 
 def path(root=None):
     return os.path.join(root or TOPDIR, INDEX)
+
+
+def order_patches(root, name):
+    """Return the patches the series *name* lists in its ORDER, as written there.
+
+    Comments and blank lines are skipped, exactly as
+    _build/apply-patches-and-test.sh skips them. An empty result means every
+    patch of the series merged upstream, unless the series is a `pin`.
+    """
+    with open(os.path.join(root or TOPDIR, name, 'ORDER')) as f:
+        return [line.strip() for line in f if line.strip() and not line.lstrip().startswith('#')]
 
 
 def read(root=None):
@@ -163,6 +181,8 @@ def validate(raw):
                 problems.append(f'{name}: status {entry["status"]!r} is not one of {", ".join(STATUSES)}')
             if 'note' in entry and not isinstance(entry['note'], str):
                 problems.append(f'{name}: note must be a string')
+            if 'pin' in entry and not isinstance(entry['pin'], bool):
+                problems.append(f'{name}: pin must be true or false')
 
             after = entry.get('after', [])
             if not isinstance(after, list) or not all(isinstance(a, str) for a in after):
@@ -191,7 +211,8 @@ def load(root=None):
     for project, entries in (raw or {}).items():
         for name, entry in entries.items():
             index[name] = Series(name=name, project=project, status=entry['status'],
-                                 after=tuple(entry.get('after') or ()), note=entry.get('note'))
+                                 after=tuple(entry.get('after') or ()), note=entry.get('note'),
+                                 pin=bool(entry.get('pin')))
     return index
 
 

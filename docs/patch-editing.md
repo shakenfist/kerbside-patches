@@ -208,13 +208,13 @@ Its output lists the other users of each failing patch split into
 
 A fix that is going upstream on its own, unrelated to the rest of our
 stack, gets its own series directory rather than a line in the
-project's main `ORDER`: `neutron-timecost-fix/`,
+project's main `ORDER`: `neutron-import-time-config-check/`,
 `kolla-magnum-setuptools-pin/` and `kolla-ansible-json-logging/` are
 examples. Its `config.yaml` differs from the main series in three keys:
 
 | Key | Set to | Why |
 |-----|--------|-----|
-| `release` | a name of its own, e.g. `master-neutron-timecost-fix` | `assemble-source.sh` builds every series whose release matches the build's, so sharing `master` would pull it into image builds |
+| `release` | a name of its own, e.g. `master-neutron-import-time-config-check` | `assemble-source.sh` builds every series whose release matches the build's, so sharing `master` would pull it into image builds |
 | `destination_branch` | a short name for the class of problem, e.g. `import-time-config` | `repush-openstack.sh` runs `git review` from this branch, and git review uses the branch name as the Gerrit topic |
 | `skip_rebase` | `false` (or absent) | see below |
 
@@ -228,6 +228,11 @@ pushed, because its patches carry a `Depends-On` for one of theirs; a
 in push order. The `check-series-index` pre-commit hook fails when a
 series directory has no entry, an entry has no directory, or an `after`
 names a missing series or forms a cycle.
+
+A series that carries no patches, and is there only so the build pins a
+repository it does not patch, sets `pin: true`:
+`ansible-collection-kolla` is the one example. An empty `ORDER` is
+expected of it.
 
 A series that is a discussion starter rather than a change ready for
 review sets `wip: true` as well. `repush-openstack.sh` then pushes it
@@ -247,6 +252,36 @@ daily while nothing checks that the patches still apply.
 Several series can patch the same repository. The daily changelog
 lists each repository and commit range once, whichever series reaches
 it first.
+
+### Retiring a series
+
+A series ends by merging. Each patch merges upstream on its own, stops
+applying, and the daily rebase's fixer drops it from the `ORDER` files
+that list it. When the last patch goes, the series is finished, and
+what is left behind applies nothing while its `config.yaml` pins a
+`source_sha` that moves every day.
+
+`tools/reap-empty-series.py` reaps it: the directory, the `series.yaml`
+entry, the project it was filed under if no other series is left there,
+and the series' name in every `after` that waited for it to reach
+Gerrit. `rebase-with-claude.sh` runs it, so the daily rebase's pull
+request carries the removal, and the names it reaped are in
+`reaped-series.txt` in the output directory. Run it by hand after
+emptying an `ORDER` yourself, rather than deleting a directory and
+hand-editing the index:
+
+```bash
+tools/reap-empty-series.py            # what would go, and what waits on it
+tools/reap-empty-series.py --apply    # delete it; then commit
+```
+
+It leaves git alone, so review and commit the deletion yourself. A
+series with `pin: true` is never reaped, and the `check-series-index`
+hook fails on any other series whose `ORDER` lists no patches, so a
+series cannot sit empty unnoticed -- which is how `neutron-timecost-fix`
+stayed in the tree for three days after its one patch merged. The patch
+files themselves stay in `_patches/`: that directory is a pool with a long history, and most of
+what is in it is no longer listed by any `ORDER`.
 
 One piece of work can span several repositories, for example
 telemetry in devstack followed by fixes in oslo.privsep and neutron.

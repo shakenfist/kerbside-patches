@@ -67,7 +67,10 @@ new tool there, with its unit tests as a hook of their own.
 A new series directory also needs an entry in `series.yaml`, the list
 of series (status, and `after` for any series it must be pushed
 after); the `check-series-index` hook fails without one. Scripts find
-series with `tools/series.py list`, never `find`. See
+series with `tools/series.py list`, never `find`. A series whose
+`ORDER` empties, because every patch of it merged upstream, is retired
+with `tools/reap-empty-series.py --apply` -- never by deleting the
+directory and hand-editing the index. See
 [docs/patch-editing.md](docs/patch-editing.md#independent-patch-series).
 
 A patch in `_patches/` can be listed by several `ORDER` files (one

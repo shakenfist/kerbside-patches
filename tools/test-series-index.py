@@ -200,6 +200,33 @@ class TestCheck(Repository):
         self.make_tree(CLEAN.replace('note: Waiting for a reviewer.', 'note: [a, b]'))
         self.assertProblem('kolla-deployer: note must be a string')
 
+    def test_an_empty_order_is_a_series_to_retire(self):
+        self.make_tree()
+        with open(os.path.join(self.root, 'kolla-deployer', 'ORDER'), 'w') as f:
+            f.write('# patch001 merged upstream\n\n')
+        self.assertProblem('kolla-deployer: its ORDER lists no patches; run tools/reap-empty-series.py')
+
+    def test_a_pinned_series_may_have_an_empty_order(self):
+        self.make_tree(CLEAN.replace('  kolla:\n    status: carry\n', '  kolla:\n    status: carry\n    pin: true\n'))
+        with open(os.path.join(self.root, 'kolla', 'ORDER'), 'w') as f:
+            f.write('')
+        self.assertEqual(check.problems(self.root), [])
+
+    def test_a_pinned_series_may_not_carry_patches(self):
+        self.make_tree(CLEAN.replace('  kolla:\n    status: carry\n', '  kolla:\n    status: carry\n    pin: true\n'))
+        self.assertProblem('kolla: has pin: true in series.yaml, so it should carry no patches, '
+                           'but its ORDER lists 1')
+
+    def test_pin_must_be_a_boolean(self):
+        self.make_tree(CLEAN.replace('status: carry', 'status: carry\n    pin: yes please'))
+        self.assertProblem('kolla: pin must be true or false')
+
+    def test_a_pin_is_read_into_the_index(self):
+        self.make_tree(CLEAN.replace('status: carry', 'status: carry\n    pin: true'))
+        index = series.load(self.root)
+        self.assertTrue(index['kolla'].pin)
+        self.assertFalse(index['kolla-deployer'].pin)
+
     def test_repush_in_config(self):
         self.make_tree()
         self.make_series('kolla', 'kolla', extra='repush: false\n')

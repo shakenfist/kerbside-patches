@@ -8,11 +8,15 @@ reports:
 
     - a series directory with no entry in series.yaml, or an entry with no
       series directory;
+    - a series whose ORDER lists no patches, which means every patch of it
+      has merged upstream and tools/reap-empty-series.py should retire it;
+      or a series with `pin: true`, which carries no patches by design,
+      whose ORDER lists some after all;
     - a series filed under a project other than its config.yaml `directory`;
     - a series listed under more than one project;
     - an entry that is not a mapping, has no status, has a status other than
-      push, hold or carry, or has a key other than status, after, note,
-      description and upstream;
+      push, hold or carry, has a `pin` that is not a boolean, or has a key
+      other than status, after, note, description, upstream and pin;
     - an `after` that is not a list, names something that is not a series, or
       names the series itself;
     - `after` links that form a cycle, naming the series in it;
@@ -87,10 +91,13 @@ def problems(root):
     found.extend(series.validate(raw))
     index = raw if isinstance(raw, dict) else {}
     project_of = {}
+    pinned = set()
     for project, entries in index.items():
         if isinstance(entries, dict):
-            for name in entries:
+            for name, entry in entries.items():
                 project_of.setdefault(name, project)
+                if isinstance(entry, dict) and entry.get('pin') is True:
+                    pinned.add(name)
 
     found.extend(unsorted(index, 'projects are not sorted by name'))
 
@@ -100,6 +107,18 @@ def problems(root):
         found.append(f'{name}: has ORDER and config.yaml but no entry in {series.INDEX}')
     for name in sorted(set(project_of) - directories, key=str):
         found.append(f'{name}: listed in {series.INDEX} but there is no {name}/ with ORDER and config.yaml')
+
+    # A series ends by merging, patch by patch, until its ORDER is empty.
+    # Nothing else notices that, so the series would sit there applying
+    # nothing while its config.yaml pinned a source_sha that moves daily.
+    for name in sorted(directories):
+        empty = not series.order_patches(root, name)
+        if empty and name not in pinned:
+            found.append(f'{name}: its ORDER lists no patches; run '
+                         f'tools/reap-empty-series.py --apply to retire the series')
+        elif name in pinned and not empty:
+            found.append(f'{name}: has pin: true in {series.INDEX}, so it should carry no patches, '
+                         f'but its ORDER lists {len(series.order_patches(root, name))}')
 
     for name, config in found_configs.items():
         if isinstance(config, str):

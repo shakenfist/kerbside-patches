@@ -241,10 +241,16 @@ Out of scope:
 
 Each one has the default this plan will take if nobody answers.
 
-- **Retiring a series** once all its changes have merged. By
+- **Retiring a series** once all its changes have merged. ~~By
   default, `series-status` reports it as "all merged, retire" and
   nothing is removed automatically. Retiring means deleting the
-  directory and its index entry in one commit, by hand.
+  directory and its index entry in one commit, by hand.~~ Answered on
+  2026-11-06: it is automatic. `tools/reap-empty-series.py` reaps a
+  series whose `ORDER` has no patches left -- the directory, the index
+  entry, an emptied project, and every `after` that named it -- and
+  `rebase-with-claude.sh` runs it, so the daily rebase's pull request
+  carries the removal. A series that carries no patches by design sets
+  `pin: true`.
 - **Merge conflicts** on `series.yaml` from parallel worktrees.
   - Two worktrees adding series to the same project both edit the
     same block. The conflict is trivial (keep both entries), and
