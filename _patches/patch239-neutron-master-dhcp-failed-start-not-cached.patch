@@ -1,49 +1,241 @@
-commit df2004ca6853f214d120222025bc4a4425d54a7d
+commit 42dc7383e031e3fb7ec1b0bca53bef15fc99aeaa
 Author: Michael Still <mikal@stillhq.com>
-Date:   Tue Nov 3 19:20:11 2026 +1100
+Date:   Sat Nov 7 16:19:52 2026 +1100
 
-    dhcp: Do not cache a network whose dnsmasq failed to start
+    dhcp: Do not report ports of a network with no dnsmasq
     
     DhcpLocalProcess.enable logged a dnsmasq start timeout and returned
-    None, and _call_driver reported success anyway, so the agent cached the
-    network and marked its ports DHCP-ready. enable now returns False, and
-    _call_driver returns that and schedules a resync for the network.
+    None, so _call_driver reported success, the agent cached the network,
+    and the network's ports were reported to the server as DHCP-ready while
+    nothing was serving them. DhcpBase.restart dropped enable's result, so a
+    failed restart went the same way.
     
-    DhcpBase.restart dropped enable's result, so a failed restart after a
-    subnet change went the same way. restart now returns that result, and
-    refresh_dhcp_helper stops before marking the ports ready.
+    enable now returns False, and restart returns what enable returned.
+    _call_driver treats that as a failed call: it drops the network's ports
+    from the sets waiting to be reported, schedules a resync for the
+    network, and returns False.
     
-    Assisted-By: Claude Opus 5.5 (high effort)
+    The callers that mark ports DHCP-ready now all honour that result:
+    
+    * configure_dhcp_for_network returns whether the network's DHCP service
+      is running, and neither caches the network nor marks its ports ready
+      when it is not.
+    * refresh_dhcp_helper does not mark the ports ready when either of the
+      driver calls it makes failed.
+    * reload_allocations, which promotes a change to the agent port's IP
+      addresses into a restart, does not mark the port ready when that
+      restart failed.
+    * sync_state reports the ports of the networks it configured rather than
+      every port it knows, so a network that failed to start during the
+      resync does not have its ports reported either.
+    
+    A driver call that raised already meant the agent did not cache the
+    network; it now also means the network's ports are not reported.
+    
+    No port is lost by this: the resync that each failure schedules reports
+    the network's ports once its DHCP service is running.
+    
+    Assisted-By: Claude Opus 5 (high effort)
     Change-Id: I8ef0d5cfcddf3b352eda3688dee14595648ae643
     Signed-off-by: Michael Still <mikal@stillhq.com>
 
 diff --git a/neutron/agent/dhcp/agent.py b/neutron/agent/dhcp/agent.py
-index f9305cb5f4..0c607eb3aa 100644
+index 07cc826ff4..a0bd131e55 100644
 --- a/neutron/agent/dhcp/agent.py
 +++ b/neutron/agent/dhcp/agent.py
-@@ -300,6 +300,12 @@ class DhcpAgent(manager.Manager):
+@@ -97,6 +97,19 @@ class DHCPResourceUpdate(queue.ResourceUpdate):
+         return super().__lt__(other)
+ 
+ 
++def _was_configured(future):
++    """Whether a safe_configure_dhcp_for_network call succeeded.
++
++    ThreadPoolExecutorWithBlock.submit returns None when the agent is
++    stopping, and a future that was cancelled, has not finished or raised
++    has no result to read. In all of those cases the network's DHCP
++    service is not known to be running.
++    """
++    if not future or future.cancelled() or not future.done():
++        return False
++    return future.exception() is None and bool(future.result())
++
++
+ class DhcpAgent(manager.Manager):
+     """DHCP agent service manager.
+ 
+@@ -300,6 +313,15 @@ class DhcpAgent(manager.Manager):
              rv = getattr(driver, action)(**action_kwargs)
              if action == 'get_metadata_bind_interface':
                  return rv
 +            if action in ('enable', 'restart') and rv is False:
-+                # The driver could not start the DHCP service; retry the
-+                # network on the next resync rather than treating it as up.
++                # The driver could not start the DHCP service, so the
++                # network is not being served: stop reporting its ports as
++                # DHCP-ready and retry the network on the next resync
++                # rather than treating it as up.
++                self._discard_dhcp_ready_ports(network.id)
 +                self.schedule_resync(
 +                    f'Unable to {action} dhcp for {network.id}', network.id)
 +                return False
              return True
          except exceptions.Conflict:
              # No need to resync here, the agent will receive the event related
-@@ -553,6 +559,9 @@ class DhcpAgent(manager.Manager):
-             self.cache.put(network)
-         elif self.call_driver('restart', network):
+@@ -328,6 +350,18 @@ class DhcpAgent(manager.Manager):
+                 LOG.exception('Unable to %(action)s dhcp for %(net_id)s.',
+                               {'net_id': network.id, 'action': action})
+ 
++    def _discard_dhcp_ready_ports(self, network_id):
++        """Stop reporting a network's ports as DHCP-ready.
++
++        Called when the network has no running DHCP service, so that ports
++        waiting to be reported are not reported while that is true. The
++        resync scheduled by the same failure queues them again once the
++        service is running.
++        """
++        port_ids = set(self.cache.get_port_ids([network_id]))
++        self.dhcp_ready_ports -= port_ids
++        self.dhcp_prio_ready_ports -= port_ids
++
+     def schedule_resync(self, reason, network_id=None):
+         """Schedule a resync for a given network and reason. If no network is
+         specified, resync all networks.
+@@ -365,20 +399,26 @@ class DhcpAgent(manager.Manager):
+             with utils.ThreadPoolExecutorWithBlock(
+                     max_workers=self.conf.num_sync_threads,
+                     stopping_event=self._stopping_event) as pool:
+-                fs = []
++                fs = {}
+                 for network in active_networks:
+                     if (not only_nets or  # specifically resync all
+                             # missing net
+                             network.id not in known_network_ids or
+                             # specific network to sync
+                             network.id in only_nets):
+-                        fs.append(pool.submit(
++                        fs[network.id] = pool.submit(
+                             self.safe_configure_dhcp_for_network, network)
+-                        )
+-                futures.wait(fs)
++                futures.wait([f for f in fs.values() if f])
+             # we notify all ports in case some were created while the agent
+-            # was down
+-            self.dhcp_ready_ports |= set(self.cache.get_port_ids(only_nets))
++            # was down, except those of a network we could not configure:
++            # the resync that failure scheduled reports them once its DHCP
++            # service is running.
++            failed_ids = {net_id for net_id, f in fs.items()
++                          if not _was_configured(f)}
++            port_ids = set(self.cache.get_port_ids(only_nets))
++            if failed_ids:
++                port_ids -= set(self.cache.get_port_ids(failed_ids))
++            self.dhcp_ready_ports |= port_ids
+             LOG.info('Synchronizing state complete')
+ 
+         except Exception as e:
+@@ -480,36 +520,55 @@ class DhcpAgent(manager.Manager):
+ 
+     @utils.exception_logger()
+     def safe_configure_dhcp_for_network(self, network):
++        """Configure DHCP for a network, logging rather than raising.
++
++        Returns what configure_dhcp_for_network returned, and False if the
++        network has gone away.
++        """
+         try:
+             network_id = network.get('id')
+             LOG.info('Starting network %s dhcp configuration', network_id)
+-            self.configure_dhcp_for_network(network)
++            configured = self.configure_dhcp_for_network(network)
+             LOG.info('Finished network %s dhcp configuration', network_id)
++            return configured
+         except (exceptions.NetworkNotFound, RuntimeError):
+             LOG.warning('Network %s may have been deleted and '
+                         'its resources may have already been disposed.',
+                         network.id)
++        return False
+ 
+     def configure_dhcp_for_network(self, network):
++        """Configure DHCP for a network.
++
++        Returns False if the network's DHCP service should be running and
++        is not, and True otherwise.
++        """
+         if not network.admin_state_up:
+-            return
++            return True
+ 
+-        if (any(s for s in network.subnets if s.enable_dhcp) and
+-                self.call_driver('enable', network)):
+-            # Ensure we have an up-to-date network object
+-            # Without, the object may not contain the new DHCP port
+-            # which in turn could have a port wrongfully marked
+-            # as stale and deleted
+-            new_network = self.safe_get_network_info(network.id)
+-            if new_network:
+-                network = new_network
++        if not any(s for s in network.subnets if s.enable_dhcp):
++            return True
+ 
+-            self.update_isolated_metadata_proxy(network)
+-            self.cache.put(network)
+-            # After enabling dhcp for network, mark all existing
+-            # ports as ready. So that the status of ports which are
+-            # created before enabling dhcp can be updated.
+-            self.dhcp_ready_ports |= {p.id for p in network.ports}
++        if not self.call_driver('enable', network):
++            # The DHCP service is not running, so the network is not
++            # configured. call_driver has scheduled a resync to retry it.
++            return False
++
++        # Ensure we have an up-to-date network object
++        # Without, the object may not contain the new DHCP port
++        # which in turn could have a port wrongfully marked
++        # as stale and deleted
++        new_network = self.safe_get_network_info(network.id)
++        if new_network:
++            network = new_network
++
++        self.update_isolated_metadata_proxy(network)
++        self.cache.put(network)
++        # After enabling dhcp for network, mark all existing
++        # ports as ready. So that the status of ports which are
++        # created before enabling dhcp can be updated.
++        self.dhcp_ready_ports |= {p.id for p in network.ports}
++        return True
+ 
+     def disable_dhcp_helper(self, network_id):
+         """Disable DHCP for a network known to the agent."""
+@@ -549,10 +608,16 @@ class DhcpAgent(manager.Manager):
+         new_cidrs = [s.cidr for s in (network.subnets +
+                                       new_non_local_subnets) if s.enable_dhcp]
+         if old_cidrs == new_cidrs:
+-            self.call_driver('reload_allocations', network)
+-            self.cache.put(network)
+-        elif self.call_driver('restart', network):
++            configured = self.call_driver('reload_allocations', network)
              self.cache.put(network)
 +        else:
-+            # The DHCP service did not restart, so its ports are not ready.
++            configured = self.call_driver('restart', network)
++            if configured:
++                self.cache.put(network)
++        if not configured:
++            # The DHCP service is not running, so its ports are not ready.
++            # call_driver has scheduled a resync to retry the network.
 +            return
          # mark all ports as active in case the sync included
          # new ports that we hadn't seen yet.
          self.dhcp_ready_ports |= {p.id for p in network.ports}
+@@ -712,7 +777,10 @@ class DhcpAgent(manager.Manager):
+                           network.id, old_ips, new_ips)
+                 driver_action = 'restart'
+         self.cache.put_port(port)
+-        self.call_driver(driver_action, network)
++        if not self.call_driver(driver_action, network):
++            # The DHCP service is not running, so the port is not ready.
++            # call_driver has scheduled a resync to retry the network.
++            return
+         if prio:
+             self.dhcp_prio_ready_ports.add(port.id)
+         else:
 diff --git a/neutron/agent/linux/dhcp.py b/neutron/agent/linux/dhcp.py
 index ead6fcb044..fd7d893783 100644
 --- a/neutron/agent/linux/dhcp.py
@@ -77,10 +269,10 @@ index ead6fcb044..fd7d893783 100644
      def _enable(self):
          try:
 diff --git a/neutron/tests/unit/agent/dhcp/test_agent.py b/neutron/tests/unit/agent/dhcp/test_agent.py
-index b77799bcdd..358c5f853c 100644
+index a4f4f22502..adc69caf98 100644
 --- a/neutron/tests/unit/agent/dhcp/test_agent.py
 +++ b/neutron/tests/unit/agent/dhcp/test_agent.py
-@@ -496,6 +496,33 @@ class TestDhcpAgent(base.BaseTestCase):
+@@ -496,6 +496,72 @@ class TestDhcpAgent(base.BaseTestCase):
              trace_level='warning',
              expected_sync=False)
  
@@ -111,10 +303,87 @@ index b77799bcdd..358c5f853c 100644
 +    def test_call_driver_enable_returns_none(self):
 +        self._test_call_driver_start_result('enable', None, True, False)
 +
++    def test_call_driver_enable_failed_discards_ready_ports(self):
++        network = dhcp.NetModel(id=FAKE_NETWORK_UUID,
++                                project_id=FAKE_PROJECT_ID,
++                                admin_state_up=True,
++                                subnets=[fake_subnet1],
++                                ports=[fake_port1, fake_port2])
++        self.driver.return_value.enable.return_value = False
++        agent = dhcp_agent.DhcpAgent(HOSTNAME)
++        agent.init_host()
++        agent.cache.put(network)
++        agent.dhcp_ready_ports = {fake_port1.id, 'port-on-another-network'}
++        agent.dhcp_prio_ready_ports = {fake_port2.id}
++        with mock.patch.object(agent, 'schedule_resync'):
++            self.assertIs(False, agent.call_driver('enable', network))
++
++        # The network's ports are no longer waiting to be reported as
++        # DHCP-ready, and a port on another network still is.
++        self.assertEqual({'port-on-another-network'}, agent.dhcp_ready_ports)
++        self.assertEqual(set(), agent.dhcp_prio_ready_ports)
++
++    def test_was_configured(self):
++        self.assertFalse(dhcp_agent._was_configured(None))
++        for result, expected in ((True, True), (False, False), (None, False)):
++            future = futures.Future()
++            future.set_result(result)
++            self.assertEqual(expected, dhcp_agent._was_configured(future))
++
++    def test_was_configured_without_a_result(self):
++        pending = futures.Future()
++        self.assertFalse(dhcp_agent._was_configured(pending))
++
++        cancelled = futures.Future()
++        self.assertTrue(cancelled.cancel())
++        self.assertFalse(dhcp_agent._was_configured(cancelled))
++
++        raised = futures.Future()
++        raised.set_exception(RuntimeError())
++        self.assertFalse(dhcp_agent._was_configured(raised))
++
      def test_call_driver_get_metadata_bind_interface_returns(self):
          network = mock.MagicMock()
          self.driver().get_metadata_bind_interface.return_value = 'iface0'
-@@ -751,6 +778,63 @@ class TestDhcpAgent(base.BaseTestCase):
+@@ -563,6 +629,37 @@ class TestDhcpAgent(base.BaseTestCase):
+             wait_calls = [mock.call(mock.ANY), mock.call(mock.ANY)]
+             mock_wait.assert_has_calls(wait_calls)
+ 
++    def test_sync_state_configure_failed_ports_not_ready(self):
++        network_ports = {'good-net': ['good-port'],
++                         'bad-net': ['bad-port']}
++
++        def configure(network):
++            return network.id == 'good-net'
++
++        def get_port_ids(network_ids=None):
++            network_ids = network_ids or network_ports.keys()
++            return [port_id for net_id in network_ids
++                    for port_id in network_ports.get(net_id, [])]
++
++        with mock.patch(DHCP_PLUGIN) as plug:
++            mock_plugin = mock.Mock()
++            mock_plugin.get_active_networks_info.return_value = [
++                mock.Mock(id=net_id) for net_id in network_ports]
++            plug.return_value = mock_plugin
++
++            agent = dhcp_agent.DhcpAgent(HOSTNAME)
++            agent.init_host()
++            agent.dhcp_ready_ports = set()
++
++            with mock.patch.object(agent, 'cache') as cache, \
++                mock.patch.object(agent, 'safe_configure_dhcp_for_network',
++                                  side_effect=configure):
++                cache.get_network_ids.return_value = []
++                cache.get_port_ids.side_effect = get_port_ids
++                agent.sync_state()
++
++        self.assertEqual({'good-port'}, agent.dhcp_ready_ports)
++
+     def test_sync_state_for_all_networks_plugin_error(self):
+         with mock.patch(DHCP_PLUGIN) as plug:
+             mock_plugin = mock.Mock()
+@@ -751,6 +848,63 @@ class TestDhcpAgent(base.BaseTestCase):
          )
          self.assertIn(fake_port1.id, dhcp.dhcp_ready_ports)
  
@@ -178,6 +447,102 @@ index b77799bcdd..358c5f853c 100644
      def test_configure_dhcp_for_network_no_subnets_with_dhcp_enabled(self):
          dhcp = dhcp_agent.DhcpAgent(HOSTNAME)
          dhcp.init_host()
+@@ -766,6 +920,67 @@ class TestDhcpAgent(base.BaseTestCase):
+                          dhcp.cache.get_network_ids())
+         self.assertNotIn(fake_port_subnet_2.id, dhcp.dhcp_ready_ports)
+ 
++    def test_configure_dhcp_for_network_return_value(self):
++        agent = dhcp_agent.DhcpAgent(HOSTNAME)
++        agent.init_host()
++        with mock.patch.object(agent, 'update_isolated_metadata_proxy'), \
++            mock.patch.object(
++                agent, 'safe_get_network_info', return_value=None), \
++                mock.patch.object(agent, 'call_driver') as call_driver:
++            call_driver.return_value = True
++            self.assertIs(True,
++                          agent.configure_dhcp_for_network(fake_network))
++            call_driver.return_value = False
++            self.assertIs(False,
++                          agent.configure_dhcp_for_network(fake_network))
++
++            # A network the agent is not meant to serve is not a failure.
++            call_driver.reset_mock()
++            self.assertIs(
++                True,
++                agent.configure_dhcp_for_network(
++                    fake_network_no_dhcp_subnets))
++            self.assertIs(True,
++                          agent.configure_dhcp_for_network(fake_down_network))
++            call_driver.assert_not_called()
++
++    def test_safe_configure_dhcp_for_network_return_value(self):
++        agent = dhcp_agent.DhcpAgent(HOSTNAME)
++        agent.init_host()
++        for result in (True, False):
++            with mock.patch.object(agent, 'configure_dhcp_for_network',
++                                   return_value=result):
++                self.assertIs(
++                    result, agent.safe_configure_dhcp_for_network(
++                        fake_network))
++
++        with mock.patch.object(agent, 'configure_dhcp_for_network',
++                               side_effect=RuntimeError):
++            self.assertIs(
++                False, agent.safe_configure_dhcp_for_network(fake_network))
++
++    def test_refresh_dhcp_helper_reload_allocations_failed(self):
++        network = dhcp.NetModel(id=FAKE_NETWORK_UUID,
++                                project_id=FAKE_PROJECT_ID,
++                                admin_state_up=True,
++                                subnets=[fake_subnet1],
++                                ports=[fake_port1])
++        agent = dhcp_agent.DhcpAgent(HOSTNAME)
++        agent.init_host()
++        agent.cache.put(network)
++        agent.dhcp_ready_ports = set()
++        with mock.patch.object(
++                agent, 'safe_get_network_info', return_value=network), \
++            mock.patch.object(
++                agent, 'call_driver', return_value=None) as call_driver, \
++            mock.patch.object(
++                agent, 'update_isolated_metadata_proxy') as ump:
++            agent.refresh_dhcp_helper(network.id)
++
++        call_driver.assert_called_once_with('reload_allocations', network)
++        ump.assert_not_called()
++        self.assertEqual(set(), agent.dhcp_ready_ports)
++
+     def test_safe_configure_dhcp_for_network(self):
+         dhcp = dhcp_agent.DhcpAgent(HOSTNAME)
+         dhcp.init_host()
+@@ -1675,6 +1890,27 @@ class TestDhcpAgentEventHandler(base.BaseTestCase):
+         self.call_driver.assert_has_calls(
+             [mock.call.call_driver('restart', fake_network)])
+ 
++    def test_port_update_change_ip_on_dhcp_agents_port_restart_failed(self):
++        self.cache.get_network_by_id.return_value = fake_network
++        self.cache.get_port_by_id.return_value = fake_port1
++        self.call_driver.return_value = False
++        payload = {'port': copy.deepcopy(fake_port1),
++                   'priority': FAKE_PRIORITY}
++        device_id = utils.get_dhcp_agent_device_id(
++            payload['port']['network_id'], self.dhcp.conf.host)
++        payload['port']['fixed_ips'][0]['ip_address'] = '172.9.9.99'
++        payload['port']['device_id'] = device_id
++        with mock.patch.object(self.dhcp,
++                               'update_isolated_metadata_proxy') as ump:
++            self.dhcp.port_update_end(None, payload)
++            self.dhcp._process_resource_update()
++
++        self.call_driver.assert_called_once_with('restart', fake_network)
++        # dnsmasq is not running, so the port is not DHCP-ready.
++        self.assertEqual(set(), self.dhcp.dhcp_prio_ready_ports)
++        self.assertEqual(set(), self.dhcp.dhcp_ready_ports)
++        ump.assert_not_called()
++
+     def test_port_update_change_ip_on_dhcp_agents_port_cache_miss(self):
+         self.cache.get_network_by_id.return_value = fake_network
+         self.cache.get_port_by_id.return_value = None
 diff --git a/neutron/tests/unit/agent/linux/test_dhcp.py b/neutron/tests/unit/agent/linux/test_dhcp.py
 index e5ffa78bc7..843bdd79a5 100644
 --- a/neutron/tests/unit/agent/linux/test_dhcp.py
@@ -243,15 +608,15 @@ index e5ffa78bc7..843bdd79a5 100644
  
 diff --git a/releasenotes/notes/dhcp-failed-start-not-cached-eb993c54633f23fc.yaml b/releasenotes/notes/dhcp-failed-start-not-cached-eb993c54633f23fc.yaml
 new file mode 100644
-index 0000000000..d32dd5a31d
+index 0000000000..e382c18d32
 --- /dev/null
 +++ b/releasenotes/notes/dhcp-failed-start-not-cached-eb993c54633f23fc.yaml
 @@ -0,0 +1,8 @@
 +---
 +fixes:
 +  - |
-+    The DHCP agent no longer caches a network whose dnsmasq process failed
-+    to start, nor reports that network's ports as DHCP-ready. It now
-+    schedules a resync for the network so that the start is retried.
-+    The same applies when dnsmasq fails to restart after a change to the
-+    network's subnets.
++    The DHCP agent no longer reports a network's ports as DHCP-ready when
++    the network's dnsmasq process failed to start or to restart, and no
++    longer caches a network whose dnsmasq failed to start. It schedules a
++    resync for the network instead, and reports the ports once the DHCP
++    service is running.
