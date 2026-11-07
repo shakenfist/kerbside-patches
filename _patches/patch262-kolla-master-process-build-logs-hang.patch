@@ -1,0 +1,42 @@
+commit 5f004c387d558ec339be0fb955deae935d844748
+Author: Michael Still <mikal@stillhq.com>
+Date:   Sat Nov 7 13:08:43 2026 +1100
+
+    CI: stop process_build_logs backtracking.
+    
+    process_build_logs.py times out the kolla-build-rocky-10 post playbook:
+    its unanchored ".+" fields backtrack catastrophically over a 128kB
+    JSON-escaped pip warning in bifrost-base.log. Restrict every field that
+    cannot contain whitespace to "\S+".
+    
+    Change-Id: I624db955f0a63e2a9e8dd53ad72e567b83a8bb11
+    Assisted-By: Claude Opus 5
+    Signed-off-by: Michael Still <mikal@stillhq.com>
+
+diff --git a/tests/files/process_build_logs.py b/tests/files/process_build_logs.py
+index 248acf954..3ce9a3c0f 100755
+--- a/tests/files/process_build_logs.py
++++ b/tests/files/process_build_logs.py
+@@ -41,7 +41,7 @@ for filename in glob.glob(os.path.join(args['logdir'], '*.log')):
+     image = os.path.splitext(os.path.basename(filename))[0]
+     with open(filename) as f:
+         for line in f:
+-            m = re.search(r"Package (.+) is obsoleted by (.+),", line)
++            m = re.search(r"Package\s+(\S+) is obsoleted by (\S+),", line)
+             if m:
+                 if not m.group(1) in obsolete:
+                     obsolete[m.group(1)] = {'obsoleted_by': m.group(2),
+@@ -49,11 +49,11 @@ for filename in glob.glob(os.path.join(args['logdir'], '*.log')):
+                 else:
+                     obsolete[m.group(1)]['images'].append(image)
+ 
+-            m = re.search(r"Package (.+)\..+ .+ will be installed", line)
++            m = re.search(r"Package\s+(\S+)\.\S+ \S+ will be installed", line)
+             if m:
+                 pkg_installs[m.group(1)].add(image)
+ 
+-            m = re.search(r"Processing Dependency: (.+)\(", line)
++            m = re.search(r"Processing Dependency: (\S+)\(", line)
+             if m:
+                 pkg_installs[m.group(1)].add(image)
+ 
