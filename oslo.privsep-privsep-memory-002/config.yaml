@@ -5,5 +5,5 @@ shallow_clone: true
 directory: oslo.privsep
 release: master-oslo.privsep-privsep-memory-002
 depends_on: ''
-source_sha: 2a7b83034ef827a3aec96ccf61894086e4bde683
-previous_source_sha: ab33a355555fde56ec21c710ea84f748fed36eb8
+source_sha: 450704ee281f3d2001aad874fdf8adf727cb23e8
+previous_source_sha: 2a7b83034ef827a3aec96ccf61894086e4bde683
