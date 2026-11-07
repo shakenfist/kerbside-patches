@@ -1,9 +1,0 @@
-repo: https://opendev.org/openstack/oslo.privsep
-source_branch: master
-destination_branch: privsep-memory
-shallow_clone: true
-directory: oslo.privsep
-release: master-oslo.privsep-privsep-memory-002
-depends_on: ''
-source_sha: 450704ee281f3d2001aad874fdf8adf727cb23e8
-previous_source_sha: 2a7b83034ef827a3aec96ccf61894086e4bde683

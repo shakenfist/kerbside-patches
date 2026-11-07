@@ -138,13 +138,6 @@ oslo.messaging:
     upstream: https://review.opendev.org/c/openstack/oslo.messaging/+/1012179
     status: push
 
-oslo.privsep:
-  oslo.privsep-privsep-memory-002:
-    description: Only inspect eventlet if it is already imported
-    upstream: https://review.opendev.org/c/openstack/oslo.privsep/+/1011795
-    status: carry
-    note: Significant review traction, so not rebasing right now
-
 oslo.service:
   oslo.service-import-memory-012:
     description: Import eventlet only for the WSGI server
