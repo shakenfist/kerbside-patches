@@ -5,5 +5,5 @@ shallow_clone: true
 directory: neutron
 release: master-neutron-import-memory-007
 depends_on: ''
-source_sha: 849a2468c7f82565234e0ea8a06b77c249b740a9
-previous_source_sha: c61b8eb5b19999d69ea96eb0cd375515088710f8
+source_sha: e6f3d0227683eb3c792ec5a4661524acd1fb33ee
+previous_source_sha: 849a2468c7f82565234e0ea8a06b77c249b740a9
