@@ -99,11 +99,12 @@ neutron:
   neutron-import-time-config-check:
     description: Config should not be read at import time
     upstream: https://review.opendev.org/c/openstack/neutron/+/1012623
-    status: push
+    status: carry
   neutron-dhcp-agent-fixes:
     description: Various bug fixes and mypy guards against regressions
-    upstream: https://review.opendev.org/c/openstack/neutron/+/1012616
-    status: push
+    upstream: https://review.opendev.org/c/openstack/neutron/+/1012618
+    status: carry
+    note: Needs my attention to review comments
   neutron-dvr-fip-ns-locking:
     description: DVR lock correctness
     upstream: https://review.opendev.org/c/openstack/neutron/+/1012621
@@ -117,12 +118,13 @@ neutron:
   neutron-db-api-import-memory-013:
     description: Cleanup imports which are not universally used
     upstream: https://review.opendev.org/c/openstack/neutron/+/1012182
-    status: carry
+    status: push
     note: Significant review traction, so not rebasing right now
   neutron-import-memory-007:
     description: OVS agent memory usage cleanups
-    upstream: https://review.opendev.org/c/openstack/neutron/+/1012169
-    status: push
+    upstream: https://review.opendev.org/c/openstack/neutron/+/1012170
+    status: carry
+    note: Needs my attention to review comments
 
   # Incomplete and not yet pushed
   neutron-agent-typing-base:
