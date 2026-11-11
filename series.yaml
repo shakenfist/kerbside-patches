@@ -126,12 +126,6 @@ neutron:
     upstream: None
     status: carry
 
-neutron-lib:
-  neutron-lib-import-memory-005:
-    description: Import os_ken only when validating an ethertype
-    upstream: https://review.opendev.org/c/openstack/neutron-lib/+/1012151
-    status: push
-
 oslo.messaging:
   oslo.messaging-import-memory-011:
     description: Find patched threading without importing eventlet
