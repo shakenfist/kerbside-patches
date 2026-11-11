@@ -1,6 +1,6 @@
-commit 832a589af15976047784de051108acdbd72daa87
+commit a1a27146cb60f6aa270951b283a8a262445742cc
 Author: Michael Still <mikal@stillhq.com>
-Date:   Tue Nov 3 19:25:39 2026 +1100
+Date:   Thu Nov 12 05:59:04 2026 +1100
 
     tests: Shorten the thread switch interval under test
     
@@ -18,7 +18,7 @@ Date:   Tue Nov 3 19:25:39 2026 +1100
     Signed-off-by: Michael Still <mikal@stillhq.com>
 
 diff --git a/neutron/tests/base.py b/neutron/tests/base.py
-index 0eb11405db..46c2295b05 100644
+index 1f68b8e5c4..d97b905666 100644
 --- a/neutron/tests/base.py
 +++ b/neutron/tests/base.py
 @@ -23,6 +23,7 @@ import logging

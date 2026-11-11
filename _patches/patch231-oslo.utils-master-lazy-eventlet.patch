@@ -1,6 +1,6 @@
-commit 4f73e4251c9a33daadbe60f79217c916f0b493fc
+commit 3e91715ea64f7d424126f5d4a344608794b9bf2e
 Author: Michael Still <mikal@stillhq.com>
-Date:   Tue Nov 3 19:28:37 2026 +1100
+Date:   Thu Nov 12 06:07:05 2026 +1100
 
     Do not import eventlet in eventletutils until used
     

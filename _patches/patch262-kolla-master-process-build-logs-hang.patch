@@ -1,6 +1,6 @@
-commit 5f004c387d558ec339be0fb955deae935d844748
+commit 969f1a9e6cf4aaa81d4203780bead291c50e887f
 Author: Michael Still <mikal@stillhq.com>
-Date:   Sat Nov 7 13:08:43 2026 +1100
+Date:   Thu Nov 12 05:54:24 2026 +1100
 
     CI: stop process_build_logs backtracking.
     

@@ -1,6 +1,6 @@
-commit ea0178f1e4b00e5f7fc26057069a6189781f38cd
+commit 630f977ced682e11716335d6e1b7bfaf1433abd6
 Author: Michael Still <mikal@stillhq.com>
-Date:   Tue Nov 3 19:13:56 2026 +1100
+Date:   Thu Nov 12 05:24:34 2026 +1100
 
     Do not import eventlet until it is needed
     

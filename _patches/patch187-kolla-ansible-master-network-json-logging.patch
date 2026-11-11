@@ -1,6 +1,6 @@
-commit d0b3e2d0749b489bbf1b2a37fc85f77889829de7
+commit 0e36c0a70f60ef65511f58a104f0278023238c45
 Author: Michael Still <mikal@stillhq.com>
-Date:   Tue Nov 3 19:30:28 2026 +1100
+Date:   Thu Nov 12 06:10:25 2026 +1100
 
     Convert the networking services to JSON logging.
     

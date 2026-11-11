@@ -1,6 +1,6 @@
-commit 3582beeb5846a28316ca6bb74d437f33f703009d
+commit 40041a4de36e5d894febf75405068356608aedc5
 Author: Michael Still <mikal@stillhq.com>
-Date:   Tue Nov 3 19:29:47 2026 +1100
+Date:   Thu Nov 12 06:08:36 2026 +1100
 
     Guard deployments against the wrong deployer.
     
