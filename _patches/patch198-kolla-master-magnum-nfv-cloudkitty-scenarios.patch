@@ -1,6 +1,6 @@
-commit 3fa6a9dda3d9ff5a08d44cbe983861e237bf8c91
+commit 97d0f0c8edbaea8062d33e8809837eeffcdc6200
 Author: Michael Still <mikal@stillhq.com>
-Date:   Tue Nov 3 19:19:20 2026 +1100
+Date:   Thu Nov 12 05:51:45 2026 +1100
 
     CI: run the magnum and NFV scenarios.
     
@@ -22,13 +22,10 @@ Date:   Tue Nov 3 19:19:20 2026 +1100
     Signed-off-by: Michael Still <mikal@stillhq.com>
 
 diff --git a/zuul.d/project.yaml b/zuul.d/project.yaml
-index 782a5c640..8ee21b78f 100644
+index 5b3804929..8ee21b78f 100644
 --- a/zuul.d/project.yaml
 +++ b/zuul.d/project.yaml
-@@ -13,11 +13,13 @@
-       - kolla-scenario-bifrost
-       - kolla-scenario-cells
-       - kolla-scenario-cephadm
+@@ -16,8 +16,10 @@
        - kolla-scenario-cloudkitty
        - kolla-scenario-ironic
        - kolla-scenario-lets-encrypt

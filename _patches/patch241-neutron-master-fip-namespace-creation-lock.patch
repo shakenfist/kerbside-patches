@@ -1,6 +1,6 @@
-commit 1c2a6c65f811aa19a4da8e8cc9e8002be6dbadc3
+commit ae928ceb1324a4a160defe6f9b9fbbba8299d842
 Author: Michael Still <mikal@stillhq.com>
-Date:   Tue Nov 3 19:22:12 2026 +1100
+Date:   Thu Nov 12 05:57:53 2026 +1100
 
     l3: Serialise FipNamespace creation per external network
     
@@ -66,7 +66,7 @@ index 9fbd9fb733..36cf6223a9 100644
          return fip_ns
  
 diff --git a/neutron/tests/unit/agent/l3/test_dvr_local_router.py b/neutron/tests/unit/agent/l3/test_dvr_local_router.py
-index f32a7a6fc5..3f38286230 100644
+index 95ede69bad..17966f1322 100644
 --- a/neutron/tests/unit/agent/l3/test_dvr_local_router.py
 +++ b/neutron/tests/unit/agent/l3/test_dvr_local_router.py
 @@ -12,6 +12,7 @@
@@ -77,7 +77,7 @@ index f32a7a6fc5..3f38286230 100644
  from unittest import mock
  
  from neutron_lib.api.definitions import portbindings
-@@ -1029,3 +1030,50 @@ class TestDvrRouterOperations(base.BaseTestCase):
+@@ -1052,3 +1053,50 @@ class TestDvrRouterOperations(base.BaseTestCase):
              with open(ri._ha_state_path) as f:
                  state = f.readline()
                  self.assertEqual("backup", state)

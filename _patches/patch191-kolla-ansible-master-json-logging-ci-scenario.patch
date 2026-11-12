@@ -1,6 +1,6 @@
-commit 69c628d84b24d5684997b59abdb4124f21df2f9e
+commit df7334a0668deeffce616b7c922debe9d9736356
 Author: Michael Still <mikal@stillhq.com>
-Date:   Tue Nov 3 19:30:29 2026 +1100
+Date:   Thu Nov 12 06:10:25 2026 +1100
 
     Exercise JSON logging in the telemetry scenario.
     

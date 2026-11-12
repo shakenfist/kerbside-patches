@@ -1,14 +1,36 @@
-dhcp: Do not cache a network whose dnsmasq failed to start
+dhcp: Do not report ports of a network with no dnsmasq
 
 DhcpLocalProcess.enable logged a dnsmasq start timeout and returned
-None, and _call_driver reported success anyway, so the agent cached the
-network and marked its ports DHCP-ready. enable now returns False, and
-_call_driver returns that and schedules a resync for the network.
+None, so _call_driver reported success, the agent cached the network,
+and the network's ports were reported to the server as DHCP-ready while
+nothing was serving them. DhcpBase.restart dropped enable's result, so a
+failed restart went the same way.
 
-DhcpBase.restart dropped enable's result, so a failed restart after a
-subnet change went the same way. restart now returns that result, and
-refresh_dhcp_helper stops before marking the ports ready.
+enable now returns False, and restart returns what enable returned.
+_call_driver treats that as a failed call: it drops the network's ports
+from the sets waiting to be reported, schedules a resync for the
+network, and returns False.
 
-Assisted-By: Claude Opus 5.5 (high effort)
+The callers that mark ports DHCP-ready now all honour that result:
+
+* configure_dhcp_for_network returns whether the network's DHCP service
+  is running, and neither caches the network nor marks its ports ready
+  when it is not.
+* refresh_dhcp_helper does not mark the ports ready when either of the
+  driver calls it makes failed.
+* reload_allocations, which promotes a change to the agent port's IP
+  addresses into a restart, does not mark the port ready when that
+  restart failed.
+* sync_state reports the ports of the networks it configured rather than
+  every port it knows, so a network that failed to start during the
+  resync does not have its ports reported either.
+
+A driver call that raised already meant the agent did not cache the
+network; it now also means the network's ports are not reported.
+
+No port is lost by this: the resync that each failure schedules reports
+the network's ports once its DHCP service is running.
+
+Assisted-By: Claude Opus 5 (high effort)
 Change-Id: I8ef0d5cfcddf3b352eda3688dee14595648ae643
 Signed-off-by: Michael Still <mikal@stillhq.com>

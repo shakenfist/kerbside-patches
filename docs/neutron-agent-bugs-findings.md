@@ -156,14 +156,26 @@ even though nothing was serving DHCP. Because the network is cached, nothing
 retries it until the next full resync, if there is one.
 
 `enable` now returns `True` or `False`. It returns `False` instead of
-raising so that callers which ignore the result, such as `DhcpBase.restart`,
-behave as before. `_call_driver` returns `False` for a failed `enable` or
-`restart` and schedules a resync for that network, so the start is retried.
-Unit tests cover the driver return values and the agent's handling of them.
+raising so that callers which ignore the result behave as before, and
+`DhcpBase.restart`, which dropped it, returns what `enable` returned.
+
+`_call_driver` treats `False` as a failed call: it drops the network's ports
+from the two sets waiting to be reported to the server, schedules a resync
+for the network, and returns `False`. Rodolfo Alonso's review of the first
+version pointed out that gating only the two callers that version touched
+left the same bug reachable through `reload_allocations`, which promotes a
+change to the agent port's IP addresses into a restart. Every caller that
+marks ports DHCP-ready now honours the result instead:
+`configure_dhcp_for_network` (which returns whether the network's service is
+running), `refresh_dhcp_helper`, `reload_allocations`, and `sync_state`,
+which reports the ports of the networks it configured rather than every port
+it knows about. Unit tests cover the driver return values and each of those
+callers, and a mutation check confirms that breaking any one of them fails a
+test.
 
 Fix:
 
-* dhcp: Do not cache a network whose dnsmasq failed to start
+* dhcp: Do not report ports of a network with no dnsmasq
 
 ## Multi-segment network keeps only the last segment's subnets
 

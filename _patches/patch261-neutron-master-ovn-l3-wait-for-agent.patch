@@ -1,6 +1,6 @@
-commit f87fe26ac762ebd88674bcdd42af90b2f28b43fd
+commit 365b42b583a7df45edf729543c8709d324ae2a2c
 Author: Michael Still <mikal@stillhq.com>
-Date:   Tue Nov 3 19:25:39 2026 +1100
+Date:   Thu Nov 12 05:59:04 2026 +1100
 
     tests: Wait for the OVN agent before using a new chassis
     
@@ -14,7 +14,7 @@ Date:   Tue Nov 3 19:25:39 2026 +1100
     Signed-off-by: Michael Still <mikal@stillhq.com>
 
 diff --git a/neutron/tests/functional/services/ovn_l3/test_plugin.py b/neutron/tests/functional/services/ovn_l3/test_plugin.py
-index 8eb93ac7a6..f6f448c3b0 100644
+index fdf1c62c02..9e53a35d1d 100644
 --- a/neutron/tests/functional/services/ovn_l3/test_plugin.py
 +++ b/neutron/tests/functional/services/ovn_l3/test_plugin.py
 @@ -29,6 +29,7 @@ from neutron.common.ovn import utils as ovn_utils
@@ -25,7 +25,7 @@ index 8eb93ac7a6..f6f448c3b0 100644
  from neutron.scheduler import l3_ovn_scheduler as l3_sched
  from neutron.tests.functional import base
  from neutron.tests.functional.common.ovn import test_utils as ovn_test_utils
-@@ -1229,6 +1230,26 @@ class TestRouter(base.TestOVNFunctionalBase):
+@@ -1236,6 +1237,26 @@ class TestRouter(base.TestOVNFunctionalBase):
          router = self._create_router('router1', gw_info=gw_info)
          return router
  
@@ -52,7 +52,7 @@ index 8eb93ac7a6..f6f448c3b0 100644
      def _is_chassis_scheduled_on_router(self, router_id, chassis_name):
          result = self.l3_plugin.list_l3_agents_hosting_router(
              self.context, router_id)
-@@ -1262,12 +1283,9 @@ class TestRouter(base.TestOVNFunctionalBase):
+@@ -1269,12 +1290,9 @@ class TestRouter(base.TestOVNFunctionalBase):
          self.assertIn(router['id'], router_ids)
  
      def test_list_routers_on_l3_agent_no_routers(self):
@@ -66,7 +66,7 @@ index 8eb93ac7a6..f6f448c3b0 100644
          result = self.l3_plugin.list_routers_on_l3_agent(
              self.context, chassis3)
          self.assertEqual([], result['routers'])
-@@ -1277,12 +1295,9 @@ class TestRouter(base.TestOVNFunctionalBase):
+@@ -1284,12 +1302,9 @@ class TestRouter(base.TestOVNFunctionalBase):
              'ext1', 'flat', 'physnet3', None, "20.0.0.1", "20.0.0.0/24")
          gw_info = {'network_id': ext['network']['id']}
          router = self._create_router('router1', gw_info=gw_info)
@@ -80,7 +80,7 @@ index 8eb93ac7a6..f6f448c3b0 100644
  
          # The ChassisEvent will automatically schedule the new gateway
          # chassis into the HA_Chassis_Group. Wait for that to happen,
-@@ -1346,14 +1361,11 @@ class TestRouter(base.TestOVNFunctionalBase):
+@@ -1353,14 +1368,11 @@ class TestRouter(base.TestOVNFunctionalBase):
  
      def test_update_router_in_l3_agent_not_hosted(self):
          router = self._create_router_with_gw_chassis()
@@ -96,7 +96,7 @@ index 8eb93ac7a6..f6f448c3b0 100644
          self.assertRaises(
              l3agentscheduler.RouterNotHostedByL3Agent,
              self.l3_plugin.update_router_in_l3_agent,
-@@ -1390,14 +1402,11 @@ class TestRouter(base.TestOVNFunctionalBase):
+@@ -1397,14 +1409,11 @@ class TestRouter(base.TestOVNFunctionalBase):
  
      def test_remove_router_from_l3_agent_not_hosted(self):
          router = self._create_router_with_gw_chassis()

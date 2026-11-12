@@ -28,17 +28,13 @@ index 0c607eb3aa..ae6831120b 100644
  import functools
  import os
  import signal
-@@ -267,9 +268,17 @@ class DhcpAgent(manager.Manager):
+@@ -267,9 +268,13 @@ class DhcpAgent(manager.Manager):
          if sid_subnets:
              ret = []
              for seg_id, subnets in sid_subnets.items():
 -                network.subnets = subnets
-+                # Give the driver a copy holding only this segment's
-+                # subnets, so the caller's (often cached) network keeps
-+                # them all. The ports list stays shared: DeviceManager.setup
-+                # adds each segment's DHCP port to it, and the next
-+                # segment's stale device cleanup must see that port (bug
-+                # #2051729).
++                # Copy is needed to keep the cached network intact,
++                # see bug for more details #2051729.
 +                net_seg = copy.copy(network)
 +                net_seg.subnets = subnets
 +                net_seg.ports = network.ports

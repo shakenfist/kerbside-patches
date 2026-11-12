@@ -1,6 +1,6 @@
-commit b40c04a49a5636ea7492e625c91af0450bc27f0b
+commit 35f596d4f6bf15fb405b15ddd471e774ae51c86e
 Author: Michael Still <mikal@stillhq.com>
-Date:   Tue Nov 3 19:30:29 2026 +1100
+Date:   Thu Nov 12 06:10:25 2026 +1100
 
     Convert the remaining services to JSON logging.
     
@@ -101,7 +101,7 @@ index c3333f6c8..3cf1b9b0d 100644
  [service_credentials]
  auth_url = {{ keystone_internal_url }}
 diff --git a/ansible/roles/trove/templates/trove.conf.j2 b/ansible/roles/trove/templates/trove.conf.j2
-index c3d7052f2..50549c857 100644
+index e4fbd6c2e..abedf86a4 100644
 --- a/ansible/roles/trove/templates/trove.conf.j2
 +++ b/ansible/roles/trove/templates/trove.conf.j2
 @@ -1,5 +1,6 @@

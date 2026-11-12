@@ -1,6 +1,6 @@
-commit 3c64a55d17d00d09664475ca3e548c197b46c1f7
+commit 40a27a43834ec72771fc303c344368c6ee9e2521
 Author: Michael Still <mikal@stillhq.com>
-Date:   Tue Nov 3 19:29:48 2026 +1100
+Date:   Thu Nov 12 06:08:38 2026 +1100
 
     Add an nsenter friendly all-in-one inventory.
     

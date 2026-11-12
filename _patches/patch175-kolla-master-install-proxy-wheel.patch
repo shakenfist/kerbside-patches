@@ -1,6 +1,6 @@
-commit 5603167e80be35b74891091a0099a3a045704a8a
+commit 8e980614ac8399c870a1eb030c0da4f78098c32d
 Author: Michael Still <mikal@stillhq.com>
-Date:   Tue Nov 3 19:18:50 2026 +1100
+Date:   Thu Nov 12 05:50:14 2026 +1100
 
     Install the kerbside-proxy wheel into kerbside images.
     

@@ -1,6 +1,6 @@
-commit e3173bfbd946754b626547e5853970a21840a296
+commit d164d3634586bc0385755e260ad12ccdc9c85aee
 Author: Michael Still <mikal@stillhq.com>
-Date:   Tue Nov 3 19:29:47 2026 +1100
+Date:   Thu Nov 12 06:08:37 2026 +1100
 
     Pull images by digest from a build manifest.
     
