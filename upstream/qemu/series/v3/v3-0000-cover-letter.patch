@@ -43,9 +43,21 @@ smaller budget bounds the backlog better and splits a region into more
 drawables, which is what defeated stream detection to begin with. The
 default is four times the unpatched code's largest message, which leaves
 a 480x360 region in three bands; it is overridable at build time so the
-rig can sweep it. The sweep has not been run, so the default is reasoned
-rather than measured, and the band-versus-stream trade is the thing to
-measure first.
+rig can sweep it.
+
+Half of that sweep has now been run, on an unshaped link, and is in the
+rig's results/v3-summary.md. Banding does not defeat stream detection:
+spice-server forms one stream per band, so the 256 KB default gives
+three streams and 7% more bytes than v2, where stock gives twenty-odd
+32-pixel streams and four times the bytes. A budget above the region
+size reproduces v2 exactly, which is the control.
+
+What is still unmeasured is the half the cap exists for: keypress-to-
+draw behind a constrained link. The two axes disagree by construction --
+on streams a bigger budget is better, on backlog a smaller one is -- so
+the 64 KB arm, which looks worst above, is the one closest to the
+message size the unpatched code sent. The default should not be taken
+as chosen until that is measured.
 
 Everything else from v2's cover letter still applies: spice-server caps
 video streams at MAX_FPS 30 so pacing by max-refresh-rate costs no

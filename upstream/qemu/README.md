@@ -20,12 +20,20 @@ bytes one draw may carry. Full measurement method and results are in
 The fifth patch answers the slow-link regression `results/v2-summary.md`
 records: the server's ACK window counts messages rather than bytes, so
 one whole-region drawable lets a far larger backlog build than the
-32-pixel columns it replaced. It bands damage above a byte budget.
-**That budget is reasoned, not measured** -- it has unit tests and is
-checkpatch clean, but the sweep that would settle it against stream
-detection has not been run, which is the next thing this series needs.
-`SPICE_DISPLAY_MAX_DRAW_BYTES` is overridable at build time for exactly
-that sweep.
+32-pixel columns it replaced. It bands damage above a byte budget,
+`SPICE_DISPLAY_MAX_DRAW_BYTES`, overridable at build time.
+
+`results/v3-summary.md` measures what that costs. Banding does not
+defeat stream detection, which was the design's open risk: spice-server
+forms one stream per band, three at the 256 KB default, against one for
+v2 and twenty-odd for stock. The default carries 7% more bytes than v2
+while cutting the largest message from about 691 KB to about 230 KB.
+
+**The default is still not settled**, and that page says why: the cap
+exists to bound the backlog, and on that axis a smaller budget is
+better, so the arm that measures worst on streams may measure best on
+latency. Settling it needs kerbside's shaped-link rig per arm, which is
+the next thing this series needs.
 
 > **Do not build v2 into an image.** The v2 diff helpers' byte loops are
 > unbounded, so a guest that writes its framebuffer while a diff is in
