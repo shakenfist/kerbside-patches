@@ -1,0 +1,316 @@
+From dd174748deee9e51b6b04394429a43e567578034 Mon Sep 17 00:00:00 2001
+From: Michael Still <mikal@stillhq.com>
+Date: Sat, 14 Nov 2026 19:56:50 +1100
+Subject: [PATCH v3 5/5] ui/spice: cap the bytes carried by one DRAW_COPY
+
+Sending each damaged region as a single DRAW_COPY is what lets the spice
+server detect a video stream, but it also makes one message as large as
+the region. The server's ACK window counts messages, not bytes, so the
+backlog it allows grows with them: an unstreamed 640x480 region is about
+1.2 MB against about 60 KB for the 32 pixel columns the unpatched code
+sends, which on a slow link delays everything behind it. That shows up
+before stream detection has seen enough frames, and for any content the
+server will not stream at all.
+
+Split damage whose pixel payload exceeds SPICE_DISPLAY_MAX_DRAW_BYTES
+into a top-to-bottom stack of bands, each within the budget and each
+keeping the region's left and right edges. Stream detection matches on a
+drawable's position and size, and a banded region that repeats every
+frame presents each band at a steady position and size, so a stream can
+still form -- per band rather than per region.
+
+The budget is a starting point rather than a measured optimum: four
+times the largest message the unpatched code sends, which leaves a
+480x360 region in three bands rather than eleven. It is overridable at
+build time because the trade runs both ways, a smaller budget bounding
+the backlog better while fragmenting a region into more drawables.
+
+A band is at least one row, so a row wider than the budget is still sent
+rather than dropped or looped on; splitting on columns instead would
+undo the single-region geometry this series exists to produce.
+
+Prompt: The series was measured behind a shaped link and regressed badly
+whenever a region went out as a bitmap rather than a stream, so cap the
+bytes per drawable while keeping the stream geometry, with unit tests
+that fail without the cap and checkpatch clean.
+
+Co-Authored-By: Claude Opus 5 (1M context, high effort) <noreply@anthropic.com>
+---
+ include/ui/spice-damage.h      |  15 +++++
+ tests/unit/test-spice-damage.c | 118 +++++++++++++++++++++++++++++++++
+ ui/spice-damage.c              |  42 ++++++++++++
+ ui/spice-display.c             |  41 +++++++++++-
+ 4 files changed, 214 insertions(+), 2 deletions(-)
+
+diff --git a/include/ui/spice-damage.h b/include/ui/spice-damage.h
+index dde6f34..b3c4213 100644
+--- a/include/ui/spice-damage.h
++++ b/include/ui/spice-damage.h
+@@ -72,4 +72,19 @@ void simple_spice_damage_diff(const SimpleSpiceRect *rect, int bpp,
+                               int split_rows, int split_cols,
+                               SimpleSpiceRectFunc func, void *opaque);
+ 
++/*
++ * Call @func for @box, or for a top-to-bottom stack of bands covering it
++ * exactly when sending it whole would carry more than @max_bytes of pixel
++ * data (@bpp bytes per pixel). @max_bytes of 0 disables banding.
++ *
++ * A band is at least one row, so a single row wider than the budget is
++ * still reported rather than dropped or looped on. Bands keep @box's left
++ * and right edges, so each is a horizontal slice: the spice server's video
++ * stream detection matches on position and size, which a stack of bands
++ * that repeats every frame preserves per band.
++ */
++void simple_spice_damage_split_bytes(const SimpleSpiceRect *box, int bpp,
++                                     size_t max_bytes,
++                                     SimpleSpiceRectFunc func, void *opaque);
++
+ #endif /* UI_SPICE_DAMAGE_H */
+diff --git a/tests/unit/test-spice-damage.c b/tests/unit/test-spice-damage.c
+index c0a8683..f062854 100644
+--- a/tests/unit/test-spice-damage.c
++++ b/tests/unit/test-spice-damage.c
+@@ -493,6 +493,112 @@ static void test_diff_random(void)
+     g_rand_free(rand);
+ }
+ 
++/* Boxes the byte cap produced, in the order it produced them. */
++static void split(const SimpleSpiceRect *box, int bpp, size_t max_bytes,
++                  Boxes *boxes)
++{
++    boxes->num = 0;
++    simple_spice_damage_split_bytes(box, bpp, max_bytes, collect, boxes);
++}
++
++static void test_split_under_budget(void)
++{
++    SimpleSpiceRect box = { .left = 10, .top = 20, .right = 110, .bottom = 60 };
++    Boxes boxes;
++
++    /* 100 x 40 x 4 = 16000 bytes, and the budget is not a constraint. */
++    split(&box, 4, 16000, &boxes);
++    g_assert_cmpint(boxes.num, ==, 1);
++    g_assert_true(rect_eq(&boxes.box[0], 10, 20, 110, 60));
++
++    /* A disabled budget never bands, however large the box. */
++    split(&box, 4, 0, &boxes);
++    g_assert_cmpint(boxes.num, ==, 1);
++    g_assert_true(rect_eq(&boxes.box[0], 10, 20, 110, 60));
++}
++
++static void test_split_bands_cover_the_box_exactly(void)
++{
++    SimpleSpiceRect box = { .left = 5, .top = 7, .right = 105, .bottom = 57 };
++    Boxes boxes;
++    size_t row_bytes = 100 * 4;
++    int i;
++
++    /* Budget of ten rows: 50 rows of damage become five bands of ten. */
++    split(&box, 4, row_bytes * 10, &boxes);
++    g_assert_cmpint(boxes.num, ==, 5);
++    for (i = 0; i < boxes.num; i++) {
++        /* Full width, in order, no gaps and no overlap. */
++        g_assert_cmpint(boxes.box[i].left, ==, 5);
++        g_assert_cmpint(boxes.box[i].right, ==, 105);
++        g_assert_cmpint(boxes.box[i].top, ==, 7 + i * 10);
++        g_assert_cmpint(boxes.box[i].bottom, ==, 7 + (i + 1) * 10);
++        /* No band is over budget. */
++        g_assert_cmpint((boxes.box[i].bottom - boxes.box[i].top) * row_bytes,
++                        <=, row_bytes * 10);
++    }
++    g_assert_cmpint(boxes.box[boxes.num - 1].bottom, ==, 57);
++}
++
++static void test_split_last_band_is_the_remainder(void)
++{
++    SimpleSpiceRect box = { .left = 0, .top = 0, .right = 100, .bottom = 25 };
++    Boxes boxes;
++
++    /* 25 rows with a ten-row budget: 10, 10, 5. */
++    split(&box, 4, 100 * 4 * 10, &boxes);
++    g_assert_cmpint(boxes.num, ==, 3);
++    g_assert_true(rect_eq(&boxes.box[0], 0, 0, 100, 10));
++    g_assert_true(rect_eq(&boxes.box[1], 0, 10, 100, 20));
++    g_assert_true(rect_eq(&boxes.box[2], 0, 20, 100, 25));
++}
++
++static void test_split_single_row_over_budget_is_still_sent(void)
++{
++    SimpleSpiceRect box = { .left = 0, .top = 0, .right = 1000, .bottom = 3 };
++    Boxes boxes;
++
++    /*
++     * One row is 4000 bytes and the budget is 100, so no whole row fits.
++     * Each row goes on its own rather than being dropped or looped on;
++     * splitting on columns instead would undo the single-region geometry.
++     */
++    split(&box, 4, 100, &boxes);
++    g_assert_cmpint(boxes.num, ==, 3);
++    g_assert_true(rect_eq(&boxes.box[0], 0, 0, 1000, 1));
++    g_assert_true(rect_eq(&boxes.box[1], 0, 1, 1000, 2));
++    g_assert_true(rect_eq(&boxes.box[2], 0, 2, 1000, 3));
++}
++
++static void test_split_counts_bytes_not_pixels(void)
++{
++    SimpleSpiceRect box = { .left = 0, .top = 0, .right = 100, .bottom = 40 };
++    Boxes boxes;
++
++    /* 4000 bytes of budget is ten rows at 1 bpp and two at 4 bpp. */
++    split(&box, 1, 4000, &boxes);
++    g_assert_cmpint(boxes.num, ==, 1);
++    split(&box, 4, 4000, &boxes);
++    g_assert_cmpint(boxes.num, ==, 4);
++    g_assert_cmpint(boxes.box[0].bottom - boxes.box[0].top, ==, 10);
++}
++
++static void test_split_empty_box_reports_nothing(void)
++{
++    SimpleSpiceRect empty = {
++        .left = 10, .top = 10, .right = 10, .bottom = 20
++    };
++    SimpleSpiceRect flat = {
++        .left = 10, .top = 10, .right = 20, .bottom = 10
++    };
++    Boxes boxes;
++
++    split(&empty, 4, 64, &boxes);
++    g_assert_cmpint(boxes.num, ==, 0);
++    split(&flat, 4, 64, &boxes);
++    g_assert_cmpint(boxes.num, ==, 0);
++}
++
+ int main(int argc, char **argv)
+ {
+     g_test_init(&argc, &argv, NULL);
+@@ -509,6 +615,18 @@ int main(int argc, char **argv)
+     g_test_add_func("/spice-damage/diff/clip", test_diff_clip);
+     g_test_add_func("/spice-damage/diff/columns", test_diff_columns);
+     g_test_add_func("/spice-damage/diff/random", test_diff_random);
++    g_test_add_func("/spice-damage/split/under-budget",
++                    test_split_under_budget);
++    g_test_add_func("/spice-damage/split/cover",
++                    test_split_bands_cover_the_box_exactly);
++    g_test_add_func("/spice-damage/split/remainder",
++                    test_split_last_band_is_the_remainder);
++    g_test_add_func("/spice-damage/split/narrow-budget",
++                    test_split_single_row_over_budget_is_still_sent);
++    g_test_add_func("/spice-damage/split/bytes",
++                    test_split_counts_bytes_not_pixels);
++    g_test_add_func("/spice-damage/split/empty",
++                    test_split_empty_box_reports_nothing);
+ 
+     return g_test_run();
+ }
+diff --git a/ui/spice-damage.c b/ui/spice-damage.c
+index 126677b..87c063e 100644
+--- a/ui/spice-damage.c
++++ b/ui/spice-damage.c
+@@ -334,3 +334,45 @@ void simple_spice_damage_diff(const SimpleSpiceRect *rect, int bpp,
+ 
+     diff_rect(&s, rect);
+ }
++
++void simple_spice_damage_split_bytes(const SimpleSpiceRect *box, int bpp,
++                                     size_t max_bytes,
++                                     SimpleSpiceRectFunc func, void *opaque)
++{
++    int width = box->right - box->left;
++    int height = box->bottom - box->top;
++    size_t row_bytes;
++    int rows, y;
++
++    if (width <= 0 || height <= 0) {
++        return;
++    }
++
++    row_bytes = (size_t)width * bpp;
++    if (max_bytes == 0 || row_bytes == 0 ||
++        row_bytes * (size_t)height <= max_bytes) {
++        func(opaque, box);
++        return;
++    }
++
++    /*
++     * Whole rows that fit the budget. One row that does not fit on its own
++     * is still sent: the alternative is splitting on columns, which would
++     * undo the single-region geometry this series exists to produce.
++     */
++    rows = max_bytes / row_bytes;
++    if (rows < 1) {
++        rows = 1;
++    }
++
++    for (y = box->top; y < box->bottom; y += rows) {
++        SimpleSpiceRect band = {
++            .top    = y,
++            .bottom = MIN(y + rows, box->bottom),
++            .left   = box->left,
++            .right  = box->right,
++        };
++
++        func(opaque, &band);
++    }
++}
+diff --git a/ui/spice-display.c b/ui/spice-display.c
+index c423320..8f80f4a 100644
+--- a/ui/spice-display.c
++++ b/ui/spice-display.c
+@@ -200,8 +200,35 @@ static void qemu_spice_create_one_update(SimpleSpiceDisplay *ssd,
+ #define SPICE_DISPLAY_SPLIT_ROWS 32
+ #define SPICE_DISPLAY_SPLIT_COLS 32
+ 
+-static void qemu_spice_create_box_update(void *opaque,
+-                                         const SimpleSpiceRect *box)
++/*
++ * Largest pixel payload one DRAW_COPY may carry. Damage bigger than this
++ * is sent as a stack of bands instead.
++ *
++ * The spice server's ACK window counts messages, not bytes, so the backlog
++ * it allows is as large as the messages in it. Sending a whole damaged
++ * region as one drawable is what lets the server detect a video stream, but
++ * an unstreamed region of a 640x480 window is about 1.2 MB, against about
++ * 60 KB for the 32 pixel columns the unpatched code sends, which on a slow
++ * link made the first presses before a stream forms, and any content the
++ * server will not stream, far slower to arrive. Banding bounds the bytes
++ * per message while keeping each band's position and size steady from
++ * frame to frame, which is what stream detection matches on.
++ *
++ * The default is a starting point, not a measured optimum: it is four
++ * times the largest message the unpatched code sends, which bounds the
++ * backlog while leaving a 480x360 region -- the size stream detection
++ * cares about -- in three bands rather than eleven. It is overridable at
++ * build time so the rig can sweep it, because the trade is real in both
++ * directions: a smaller budget bounds the backlog better and fragments a
++ * region into more drawables, which is what defeated stream detection in
++ * the first place.
++ */
++#ifndef SPICE_DISPLAY_MAX_DRAW_BYTES
++#define SPICE_DISPLAY_MAX_DRAW_BYTES (256 * 1024)
++#endif
++
++static void qemu_spice_send_box_update(void *opaque,
++                                       const SimpleSpiceRect *box)
+ {
+     SimpleSpiceDisplay *ssd = opaque;
+     QXLRect update = {
+@@ -214,6 +241,16 @@ static void qemu_spice_create_box_update(void *opaque,
+     qemu_spice_create_one_update(ssd, &update);
+ }
+ 
++static void qemu_spice_create_box_update(void *opaque,
++                                         const SimpleSpiceRect *box)
++{
++    SimpleSpiceDisplay *ssd = opaque;
++
++    simple_spice_damage_split_bytes(box, surface_bytes_per_pixel(ssd->ds),
++                                    SPICE_DISPLAY_MAX_DRAW_BYTES,
++                                    qemu_spice_send_box_update, ssd);
++}
++
+ /*
+  * Turn damage into updates. The mirror diff shrinks each damage
+  * rectangle to the bounding boxes of the pixels that actually changed,
+-- 
+2.47.3
+

@@ -9,13 +9,23 @@ for the plan.
 qemu's non-GL SPICE display (`ui/spice-display.c`) unions damage into
 one box, diffs it against a mirror in 32-pixel columns, and only
 pushes on the 30ms refresh timer. That starves spice-server's video
-stream detection into many small streams instead of one. `series/v2/`
-(current; `series/v1/` is kept for history, see `v1` vs `v2` diffs in
-`results/`) fixes this in four patches: a bounded list of damage
-rectangles, sending each as one draw, pushing promptly (paced by
-`max-refresh-rate`), and splitting on unchanged columns too. Full
-measurement method and results are in
-`series/v2/v2-0000-cover-letter.patch` and `results/v2-summary.md`.
+stream detection into many small streams instead of one. `series/v3/`
+(current; `v1` and `v2` are kept for history, see the `v1` vs `v2`
+diffs in `results/`) fixes this in five patches: a bounded list of
+damage rectangles, sending each as one draw, pushing promptly (paced by
+`max-refresh-rate`), splitting on unchanged columns too, and capping the
+bytes one draw may carry. Full measurement method and results are in
+`series/v3/v3-0000-cover-letter.patch` and `results/v2-summary.md`.
+
+The fifth patch answers the slow-link regression `results/v2-summary.md`
+records: the server's ACK window counts messages rather than bytes, so
+one whole-region drawable lets a far larger backlog build than the
+32-pixel columns it replaced. It bands damage above a byte budget.
+**That budget is reasoned, not measured** -- it has unit tests and is
+checkpatch clean, but the sweep that would settle it against stream
+detection has not been run, which is the next thing this series needs.
+`SPICE_DISPLAY_MAX_DRAW_BYTES` is overridable at build time for exactly
+that sweep.
 
 > **Do not build v2 into an image.** The v2 diff helpers' byte loops are
 > unbounded, so a guest that writes its framebuffer while a diff is in

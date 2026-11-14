@@ -1,0 +1,84 @@
+From dd174748deee9e51b6b04394429a43e567578034 Mon Sep 17 00:00:00 2001
+From: Michael Still <mikal@stillhq.com>
+Date: Sat, 14 Nov 2026 19:56:50 +1100
+Subject: [PATCH v3 0/5] ui/spice: make non-GL damage handling stream friendly
+
+Without gl=on, the simple spice display unions all damage into one box,
+diffs it against a mirror in 32 pixel wide columns, sends one
+QXL_DRAW_COPY per changed column run, and only pushes on the 30ms GUI
+refresh timer. That starves spice-server's video stream detection: a
+guest playing a 480x360 video at 30 fps makes spice-server 0.15.2 start
+18-19 separate 32x360 H.264 streams, while thousands of small lossless
+column draws keep flowing.
+
+v3 adds one patch to v2 and changes nothing else. v2 was measured behind
+a shaped 80 ms / 10 Mbit link and regressed badly whenever a region went
+out as a bitmap rather than a stream: the server's ACK window counts
+messages and not bytes, so one 1.2 MB drawable where the unpatched code
+sends 60 KB columns makes the permitted backlog about twenty times
+larger. Keypress-to-draw went from about 200 ms to about 1 s before a
+stream forms, and from 2.1 s to 8.0 s for content streaming-video=filter
+will not stream. Patch 5 caps the pixel payload of one DRAW_COPY and
+sends larger damage as a stack of bands, each at a steady position and
+size so stream detection can still work, per band rather than per
+region.
+
+The series:
+
+ 1. tracks up to 16 disjoint damage rectangles instead of one union,
+    in a small spice independent helper with unit tests;
+ 2. uses the mirror diff only to trim each rectangle to the changed
+    pixels (splitting on 32+ unchanged rows) and sends each result as
+    one DRAW_COPY;
+ 3. pushes damage from a timer as soon as it arrives, paced by the
+    existing max-refresh-rate option (default 30), instead of waiting
+    for the refresh timer;
+ 4. also splits on 32+ unchanged columns, so side by side changes in
+    the same rows stay apart;
+ 5. caps the bytes in one DRAW_COPY, banding damage that exceeds it.
+
+Open question for patch 5, and the reason it is not presented as
+settled: the budget trades two failure modes against each other. A
+smaller budget bounds the backlog better and splits a region into more
+drawables, which is what defeated stream detection to begin with. The
+default is four times the unpatched code's largest message, which leaves
+a 480x360 region in three bands; it is overridable at build time so the
+rig can sweep it. The sweep has not been run, so the default is reasoned
+rather than measured, and the band-versus-stream trade is the thing to
+measure first.
+
+Everything else from v2's cover letter still applies: spice-server caps
+video streams at MAX_FPS 30 so pacing by max-refresh-rate costs no
+stream frames by default; qemu defaults streaming-video to off, so the
+stream benefits need filter or all, while patches 1-3 reduce draws,
+bytes and latency with streaming off; Linux virtio-gpu guests from 6.8
+on report full plane damage because ignore_damage_clips sticks once set,
+which the row and column diff trims back and which a separate kernel fix
+addresses; and the SPICE section in MAINTAINERS is orphaned, with ui/
+being Graphics.
+
+Michael Still (5):
+  ui/spice: track a bounded list of damage rectangles
+  ui/spice: send each damaged region as one DRAW_COPY
+  ui/spice: push damage promptly, paced by max-refresh-rate
+  ui/spice: also split damage on unchanged columns
+  ui/spice: cap the bytes carried by one DRAW_COPY
+
+ MAINTAINERS                    |   2 +
+ hw/display/qxl.c               |   2 +-
+ include/ui/spice-damage.h      |  90 +++++
+ include/ui/spice-display.h     |   5 +-
+ qemu-options.hx                |   2 +
+ tests/unit/meson.build         |   6 +
+ tests/unit/test-spice-damage.c | 632 +++++++++++++++++++++++++++++++++
+ ui/meson.build                 |   1 +
+ ui/spice-damage.c              | 378 ++++++++++++++++++++
+ ui/spice-display.c             | 211 +++++++----
+ 10 files changed, 1255 insertions(+), 74 deletions(-)
+ create mode 100644 include/ui/spice-damage.h
+ create mode 100644 tests/unit/test-spice-damage.c
+ create mode 100644 ui/spice-damage.c
+
+-- 
+2.47.3
+
