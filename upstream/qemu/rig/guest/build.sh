@@ -53,7 +53,12 @@ build_init init2.c init2
 # does not carry a deb13 apt source.
 fetch_kernel_image() {
     local pkg="linux-image-${DEBIAN_KERNEL_VERSION%-*}+deb13-amd64"
-    if apt-get download "$pkg" -o Dir::Cache::archives="$WORK" 2>/dev/null; then
+    # Download from $WORK: apt-get download writes to the current
+    # directory, and Dir::Cache::archives names the package cache rather
+    # than the download target, so passing it left the .deb wherever the
+    # caller was standing and the dpkg-deb below found nothing. Same bug,
+    # and same fix, as ../sysroot/build.sh had.
+    if (cd "$WORK" && apt-get download "$pkg" 2>/dev/null); then
         :
     else
         local url="https://snapshot.debian.org/archive/debian/latest/pool/main/l/linux/${pkg}_${DEBIAN_KERNEL_VERSION}_amd64.deb"
@@ -68,7 +73,17 @@ fetch_kernel_image
 VMLINUZ=$(find "$WORK/kernel-sysroot/boot" -name 'vmlinuz-*' | head -1)
 cp "$VMLINUZ" "$HERE/vmlinuz"
 
-MODDIR=$(find "$WORK/kernel-sysroot/lib/modules" -maxdepth 1 -mindepth 1 -type d | head -1)
+# Debian ships the modules under /usr/lib/modules since usrmerge; this
+# looked only in /lib/modules, which trixie's kernel packages do not
+# have, so MODDIR came back empty and every later step found nothing.
+# Both are accepted, so an older package still works.
+MODDIR=$(find "$WORK/kernel-sysroot/usr/lib/modules" \
+              "$WORK/kernel-sysroot/lib/modules" \
+              -maxdepth 1 -mindepth 1 -type d 2>/dev/null | head -1)
+if [ -z "$MODDIR" ]; then
+    echo "no module tree in the extracted kernel package" >&2
+    exit 1
+fi
 STOCK_MODS="virtio_dma_buf.ko drm.ko drm_kms_helper.ko drm_shmem_helper.ko virtio-gpu.ko"
 
 collect_stock_modules() {
