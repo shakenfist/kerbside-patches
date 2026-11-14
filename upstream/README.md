@@ -39,14 +39,21 @@ upstream/
   README.md            this file
   <project>/
     config.yaml         repo, branch, base_sha, disposition, ...
-    series/vN/          git format-patch output, cover letter included
+    series/vN/          git format-patch output, cover letter included;
+                        may also hold submission notes as markdown
     rig/                guest sources, run scripts, analysis tools
     results/            summary tables (curated, small; not raw captures)
 ```
 
 `series/` keeps every mailed version (v1, v2, ...), not just the
 current one, as a record of how the series developed; `config.yaml`'s
-`current_series` says which one is live. `results/` holds only
+`current_series` says which one is live. A series may also keep a
+markdown note beside its patches for what a submission needs to say but
+a commit message should not carry -- the decisions still open, the
+upstream's own policy on AI assistance, and the facts about other
+people's trees to re-check before sending. `linux/series/v1/BUG-REPORT.md`
+is the example. Nothing globs markdown there, so it does not disturb
+`git am series/vN/*.patch`. `results/` holds only
 summary tables generated from a run, in the tens of KB at most -- raw
 captures (qemu traces, pcaps, serial logs) run to hundreds of MB per
 run and are not committed; the rig regenerates them. `rig/` scripts
