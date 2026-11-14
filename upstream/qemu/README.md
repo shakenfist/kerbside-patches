@@ -37,13 +37,26 @@ rig/sysroot/build.sh
 git clone https://gitlab.com/qemu-project/qemu.git rig/qemu
 cd rig/qemu
 git checkout 30e8a06b64aa58a3990ba39cb5d09531e7d265e0   # config.yaml's base_sha
-git am ../../series/v2/v2-000{1,2,3,4}*.patch            # or v1, or none for stock
-./configure --target-list=x86_64-softmmu --enable-spice \
-    --enable-kvm \
-    --extra-cflags="-I$(pwd)/../sysroot/sysroot/usr/include" \
-    --extra-ldflags="-L$(pwd)/../sysroot/sysroot/usr/lib/x86_64-linux-gnu"
+git am ../../series/v3/v3-000{1,2,3,4,5}*.patch          # or v2, v1, or none
+SYS=$(pwd)/../sysroot/sysroot
+PKG_CONFIG_PATH="$SYS/usr/lib/x86_64-linux-gnu/pkgconfig:$SYS/usr/share/pkgconfig" \
+    ./configure --target-list=x86_64-softmmu --enable-spice --enable-kvm
 ninja -C build
 ```
+
+qemu finds spice through pkg-config, so `PKG_CONFIG_PATH` is what makes
+the dependency check succeed; the `--extra-cflags`/`--extra-ldflags`
+pair this section used to give instead does not, and meson fails with
+`Dependency "spice-server" not found`. Do not set
+`PKG_CONFIG_SYSROOT_DIR` to fix that: it rewrites every package's paths,
+not just spice's, and qemu's configure then fails on glib with
+`sizeof(size_t) doesn't match GLIB_SIZEOF_SIZE_T`. `rig/sysroot/build.sh`
+rewrites the `prefix=` in the two spice `.pc` files instead, which is
+why only `PKG_CONFIG_PATH` is needed here.
+
+A shallow fetch of the base commit is enough if a full clone is
+unwelcome: `git init`, `git remote add`, then
+`git fetch --depth 1 origin <base_sha>` and `git checkout FETCH_HEAD`.
 
 `rig/tools/matrix.sh`, `matrix2.sh` and `coverage.sh` each expect
 several such builds side by side (stock, and the series applied to
