@@ -39,13 +39,22 @@ is the first phase and is urgent.
 
 ## Status
 
-| Phase | What | Status |
-|-------|------|--------|
-| 1 | Import the series and rigs into `upstream/` | In progress |
-| 2 | Keep them applying: apply and rebase-check tooling | Not started |
-| 3 | Build and measure in CI | Not started |
-| 4 | Submission path for the kernel patch | Not started |
-| 5 | Push audit | Not started |
+| Phase | What | Status | Merged |
+|-------|------|--------|--------|
+| 1 | Import the series and rigs into `upstream/` | Complete | b53aa39c7e (#1748) |
+| 2 | Keep them applying: apply and rebase-check tooling | Not started | |
+| 3 | Build and measure in CI | Not started | |
+| 4 | Submission path for the kernel patch | Not started | |
+| 5 | Push audit | Complete, by proxy | see below |
+
+Phase 5 did not run here. This repository has no `PUSH-AUDIT.md`, so
+kerbside's spice-performance phase 6 applied its shared block's floor
+checklist to #1748 and #2024 and reviewed the carried qemu series
+itself, filing kerbside-patches#2032 and #2033. That audit is this
+repository's audit of record for those two merges; see
+`docs/plans/PLAN-spice-performance-phase-06-push-audit.md` in
+shakenfist/kerbside. A later series still needs its own audit, and a
+`PUSH-AUDIT.md` here would be the way to get one.
 
 ## Layout, and why it is invisible to the OpenStack tooling
 
@@ -200,7 +209,12 @@ the Status table as it lands.
 - **Whether any patched qemu should reach the Kolla
   nova-libvirt image.** That would be a normal `_patches/`
   project with its own `release`, and it is a separate decision
-  from keeping the series here.
+  from keeping the series here. **Blocked either way until
+  kerbside-patches#2032 is fixed:** the v2 diff helpers' byte loops
+  are unbounded, so a guest writing its framebuffer mid-diff can
+  drive a read past the end of the buffer (high, from the
+  spice-performance phase 6 audit). v2 must not be built into any
+  image until then; the rig is the only place it belongs.
 - **Whether the shaped-link rig in kerbside
   (`tools/shaped-link/`) and this tree's display rigs should
   share a guest.** Both build static PID-1 KMS guests on the
