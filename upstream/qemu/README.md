@@ -35,12 +35,13 @@ better, so the arm that measures worst on streams may measure best on
 latency. Settling it needs kerbside's shaped-link rig per arm, which is
 the next thing this series needs.
 
-> **Do not build v2 into an image.** The v2 diff helpers' byte loops are
-> unbounded, so a guest that writes its framebuffer while a diff is in
-> progress can drive a read past the end of the buffer
+> **Do not build this series into an image.** The diff helpers added in
+> v2-0002, which v3 carries unchanged, have unbounded byte loops, so a
+> guest that writes its framebuffer while a diff is in progress can
+> drive a read past the end of the buffer
 > ([kerbside-patches#2032](https://github.com/shakenfist/kerbside-patches/issues/2032),
-> rated high by the spice-performance phase 6 push audit). The series is
-> for the measurement rig only until that is fixed. This bars the
+> rated high by the spice-performance phase 6 push audit). Every series
+> here is for the measurement rig only until that is fixed. This bars the
 > `_patches/` route and any nova-libvirt image, not local rig builds.
 
 ## Building qemu
