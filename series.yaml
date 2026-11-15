@@ -40,10 +40,6 @@ kolla:
     status: push
 
   # Fixes
-  kolla-magnum-setuptools-pin:
-    description: CI flake fix
-    upstream: https://review.opendev.org/c/openstack/kolla/+/1007307
-    status: push
   kolla-process-build-logs-hang:
     description: CI post-run timeout fix
     upstream: https://review.opendev.org/c/openstack/kolla/+/1014642
