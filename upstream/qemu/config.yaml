@@ -4,5 +4,5 @@
 repo: https://gitlab.com/qemu-project/qemu.git
 branch: master
 base_sha: 30e8a06b64aa58a3990ba39cb5d09531e7d265e0
-current_series: v2
+current_series: v3
 disposition: carry

@@ -43,7 +43,11 @@ QPID=$!
 sleep 2
 cpu() { awk '{print $14 + $15}' /proc/$QPID/stat; }
 C0=$(cpu)
-timeout -s INT "$RYLL_SECS" "$RYLL" \
+# -k follows the SIGINT with a SIGKILL five seconds later. ryll does not
+# exit on SIGINT in headless mode -- without this the measurement ran for
+# eleven minutes instead of RYLL_SECS, which skews every per-second figure
+# derived from it and silently makes arms incomparable.
+timeout -s INT -k 5 "$RYLL_SECS" "$RYLL" \
     --direct 127.0.0.1:$PORT --headless ${RYLL_ARGS:---capture cap} > ryll.out 2> ryll.err
 C1=$(cpu 2>/dev/null || echo NA)
 kill $QPID 2>/dev/null

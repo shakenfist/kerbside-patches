@@ -9,20 +9,39 @@ for the plan.
 qemu's non-GL SPICE display (`ui/spice-display.c`) unions damage into
 one box, diffs it against a mirror in 32-pixel columns, and only
 pushes on the 30ms refresh timer. That starves spice-server's video
-stream detection into many small streams instead of one. `series/v2/`
-(current; `series/v1/` is kept for history, see `v1` vs `v2` diffs in
-`results/`) fixes this in four patches: a bounded list of damage
-rectangles, sending each as one draw, pushing promptly (paced by
-`max-refresh-rate`), and splitting on unchanged columns too. Full
-measurement method and results are in
-`series/v2/v2-0000-cover-letter.patch` and `results/v2-summary.md`.
+stream detection into many small streams instead of one. `series/v3/`
+(current; `v1` and `v2` are kept for history, see the `v1` vs `v2`
+diffs in `results/`) fixes this in five patches: a bounded list of
+damage rectangles, sending each as one draw, pushing promptly (paced by
+`max-refresh-rate`), splitting on unchanged columns too, and capping the
+bytes one draw may carry. Full measurement method and results are in
+`series/v3/v3-0000-cover-letter.patch` and `results/v2-summary.md`.
 
-> **Do not build v2 into an image.** The v2 diff helpers' byte loops are
-> unbounded, so a guest that writes its framebuffer while a diff is in
-> progress can drive a read past the end of the buffer
+The fifth patch answers the slow-link regression `results/v2-summary.md`
+records: the server's ACK window counts messages rather than bytes, so
+one whole-region drawable lets a far larger backlog build than the
+32-pixel columns it replaced. It bands damage above a byte budget,
+`SPICE_DISPLAY_MAX_DRAW_BYTES`, overridable at build time.
+
+`results/v3-summary.md` measures what that costs. Banding does not
+defeat stream detection, which was the design's open risk: spice-server
+forms one stream per band, three at the 256 KB default, against one for
+v2 and twenty-odd for stock. The default carries 7% more bytes than v2
+while cutting the largest message from about 691 KB to about 230 KB.
+
+**The default is still not settled**, and that page says why: the cap
+exists to bound the backlog, and on that axis a smaller budget is
+better, so the arm that measures worst on streams may measure best on
+latency. Settling it needs kerbside's shaped-link rig per arm, which is
+the next thing this series needs.
+
+> **Do not build this series into an image.** The diff helpers added in
+> v2-0002, which v3 carries unchanged, have unbounded byte loops, so a
+> guest that writes its framebuffer while a diff is in progress can
+> drive a read past the end of the buffer
 > ([kerbside-patches#2032](https://github.com/shakenfist/kerbside-patches/issues/2032),
-> rated high by the spice-performance phase 6 push audit). The series is
-> for the measurement rig only until that is fixed. This bars the
+> rated high by the spice-performance phase 6 push audit). Every series
+> here is for the measurement rig only until that is fixed. This bars the
 > `_patches/` route and any nova-libvirt image, not local rig builds.
 
 ## Building qemu
@@ -37,13 +56,26 @@ rig/sysroot/build.sh
 git clone https://gitlab.com/qemu-project/qemu.git rig/qemu
 cd rig/qemu
 git checkout 30e8a06b64aa58a3990ba39cb5d09531e7d265e0   # config.yaml's base_sha
-git am ../../series/v2/v2-000{1,2,3,4}*.patch            # or v1, or none for stock
-./configure --target-list=x86_64-softmmu --enable-spice \
-    --enable-kvm \
-    --extra-cflags="-I$(pwd)/../sysroot/sysroot/usr/include" \
-    --extra-ldflags="-L$(pwd)/../sysroot/sysroot/usr/lib/x86_64-linux-gnu"
+git am ../../series/v3/v3-000{1,2,3,4,5}*.patch          # or v2, v1, or none
+SYS=$(pwd)/../sysroot/sysroot
+PKG_CONFIG_PATH="$SYS/usr/lib/x86_64-linux-gnu/pkgconfig:$SYS/usr/share/pkgconfig" \
+    ./configure --target-list=x86_64-softmmu --enable-spice --enable-kvm
 ninja -C build
 ```
+
+qemu finds spice through pkg-config, so `PKG_CONFIG_PATH` is what makes
+the dependency check succeed; the `--extra-cflags`/`--extra-ldflags`
+pair this section used to give instead does not, and meson fails with
+`Dependency "spice-server" not found`. Do not set
+`PKG_CONFIG_SYSROOT_DIR` to fix that: it rewrites every package's paths,
+not just spice's, and qemu's configure then fails on glib with
+`sizeof(size_t) doesn't match GLIB_SIZEOF_SIZE_T`. `rig/sysroot/build.sh`
+rewrites the `prefix=` in the two spice `.pc` files instead, which is
+why only `PKG_CONFIG_PATH` is needed here.
+
+A shallow fetch of the base commit is enough if a full clone is
+unwelcome: `git init`, `git remote add`, then
+`git fetch --depth 1 origin <base_sha>` and `git checkout FETCH_HEAD`.
 
 `rig/tools/matrix.sh`, `matrix2.sh` and `coverage.sh` each expect
 several such builds side by side (stock, and the series applied to
