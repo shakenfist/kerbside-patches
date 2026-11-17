@@ -1,0 +1,44 @@
+Return concrete types from the green helpers
+
+The lazy eventlet import left futurist/_green.py exposing Pool, Queue and
+spawn as module attributes served by a module-level __getattr__. That
+works, but it costs the type checker everything it knew about them: the
+attributes are annotated Any, so GreenThreadPoolExecutor has to annotate
+its own _pool and _delayed_work as Any too, and a module that defines
+__getattr__ accepts any attribute at all, so a misspelled _green.Queu is
+only a runtime AttributeError.
+
+_green is internal, so nothing outside futurist depends on those
+attributes being attributes. Replace them with functools.cache'd
+accessors -- get_pool_class(), get_queue_class() and get_spawn() --
+annotated with the eventlet types they return. Nothing is imported until
+the first call, as before, and the cache makes that import happen once.
+eventlet ships no type information, so each accessor carries one
+no-any-return ignore; the point is that the Any now stops there instead
+of reaching the callers.
+
+Also stop GreenThreading being optional. It was GreenThreading | None,
+which bought nothing: constructing it imports nothing, and its methods
+raise when eventlet is missing. Non-optional removes two "is None"
+guards and two asserts from _futures.py. The four duplicated imports of
+eventlet.green.threading become one cached helper, which is also the one
+place that reports a missing eventlet for those primitives.
+
+No behaviour change beyond the error raised when eventlet is absent,
+which was RuntimeError before and still is, with a message naming what
+was wanted rather than the mixin that wanted it.
+
+What this does not fix: SynchronousExecutor still assigns _green.threading
+over an attribute typed as _thread.Threading, so that line keeps its
+ignore[assignment]. Giving the two threading facades a shared Protocol is
+the next step, and is left for its own change.
+
+Prompt: Stephen Finucane asked on the parent change for the class
+attributes to become cached methods returning concrete types, as a
+follow-up. Mikal asked for it as a separate patch layered into the
+series, partly so the shape of the change is easy to read.
+
+Assisted-By: Claude Opus 5 (high effort)
+
+Change-Id: I376410d33720eaf94948e058948a7e151a7155ec
+Signed-off-by: Michael Still <mikal@stillhq.com>
