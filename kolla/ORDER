@@ -4,3 +4,4 @@
 ../_patches/patch196-kolla-master-magnum-setuptools-pin.patch
 ../_patches/patch199-kolla-ansible-deployer-image.patch
 ../_patches/patch263-kolla-master-rocky-nfv-stream.patch
+../_patches/patch264-kolla-master-designate-drop-rootwrap.patch

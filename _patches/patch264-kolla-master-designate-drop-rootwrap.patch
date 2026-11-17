@@ -1,0 +1,52 @@
+commit 641a9df47e81ae311feaa00b5d8555a7f17e9992
+Author: Michael Still <mikal@stillhq.com>
+Date:   Wed Nov 18 08:43:01 2026 +1100
+
+    designate: drop rootwrap configuration.
+    
+    Designate removed oslo.rootwrap in "Remove oslo.rootwrap dependency"
+    (designate commit c333e687a0): etc/designate/rootwrap.conf and the
+    designate-rootwrap console script are gone, and root_helper is now a
+    deprecated no-op because rndc runs as the designate worker user.
+    
+    designate-base still rewrites exec_dirs in that file, so the image no
+    longer builds against designate master:
+    
+      sed: can't read /etc/designate/rootwrap.conf: No such file or directory
+    
+    Drop the sed, and the sudoers entry that granted the kolla group root
+    via designate-rootwrap, since the binary it names no longer exists.
+    
+    Prompt: Michael asked for the designate-base build failure blocking
+    the kerbside-patches merge queue to be fixed.
+    
+    Assisted-By: Claude Opus 5.5
+
+diff --git a/kolla/docker/designate/designate-base/Dockerfile.j2 b/kolla/docker/designate/designate-base/Dockerfile.j2
+index 46836d931..7cd2d4377 100644
+--- a/kolla/docker/designate/designate-base/Dockerfile.j2
++++ b/kolla/docker/designate/designate-base/Dockerfile.j2
+@@ -17,16 +17,12 @@ LABEL maintainer="{{ maintainer }}" name="{{ image_name }}"
+ 
+ ADD designate-base-archive /designate-base-source
+ 
+-COPY designate_sudoers /etc/sudoers.d/kolla_designate_sudoers
+ COPY extend_start.sh /usr/local/bin/kolla_extend_start
+ 
+ RUN ln -s designate-base-source/* designate \
+     && {{ macros.install_pip(designate_base_pip_packages | customizable("pip_packages")) }} \
+     && mkdir -p /etc/designate \
+     && cp -r /designate/etc/designate/* /etc/designate/ \
+-    && sed -i 's|^exec_dirs.*|exec_dirs=/var/lib/kolla/venv/bin,/sbin,/usr/sbin,/bin,/usr/bin,/usr/local/bin,/usr/local/sbin|g' /etc/designate/rootwrap.conf \
+-    && chmod 750 /etc/sudoers.d \
+-    && chmod 640 /etc/sudoers.d/kolla_designate_sudoers \
+     && touch /usr/local/bin/kolla_designate_extend_start \
+     && chmod 644 /usr/local/bin/kolla_extend_start /usr/local/bin/kolla_designate_extend_start
+ 
+diff --git a/kolla/docker/designate/designate-base/designate_sudoers b/kolla/docker/designate/designate-base/designate_sudoers
+deleted file mode 100644
+index d06679fe2..000000000
+--- a/kolla/docker/designate/designate-base/designate_sudoers
++++ /dev/null
+@@ -1 +0,0 @@
+-%kolla ALL=(root) NOPASSWD: /var/lib/kolla/venv/bin/designate-rootwrap /etc/designate/rootwrap.conf *
