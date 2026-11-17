@@ -15,7 +15,8 @@ futurist:
   futurist-import-memory-004:
     description: Reduce imports to reduce memory usage
     upstream: https://review.opendev.org/c/openstack/futurist/+/1012147
-    status: push
+    status: carry
+    note: Pushed out of schedule, has reviewer engagement
 
 keystone:
   keystone-import-memory-008:
