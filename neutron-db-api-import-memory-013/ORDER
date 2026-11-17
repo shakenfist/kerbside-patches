@@ -1,3 +1,2 @@
-../_patches/patch234-neutron-master-lazy-db-api-common.patch
 ../_patches/patch235-neutron-master-lazy-db-api-ovn.patch
 ../_patches/patch236-neutron-master-lazy-db-api-agent-rpc.patch
