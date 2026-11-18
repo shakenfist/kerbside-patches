@@ -1349,11 +1349,12 @@ jobs:
 
   # Reviews the pull request once it can be enqueued. Can enqueue is the
   # whole CI-passed gate, so it is the only need: it runs under always() and
-  # fails when any gated job did, which skips this job. It is skipped on
-  # merge groups too, so the queue never waits on a review. The reusable
-  # workflow reviews same-repository pull requests only, skips when the last
-  # commit is shakenfist-bot's or the bot has already reviewed, and needs no
-  # secrets, so none are inherited.
+  # fails when any gated job did, which skips this job. It runs on pull
+  # requests only: the queue never waits on a review, and schedule and
+  # dispatch runs pass Can enqueue with no pull request to review. The
+  # reusable workflow reviews same-repository pull requests only, skips when
+  # the last commit is shakenfist-bot's or the bot has already reviewed, and
+  # needs no secrets, so none are inherited.
   #
   # The if: must test Can enqueue's result itself. Without one, the implicit
   # success() also skips this job when any job upstream of Can enqueue was
@@ -1362,7 +1363,7 @@ jobs:
   automated_reviewer:
     name: "Automated reviewer"
     needs: can_enqueue
-    if: always() && needs.can_enqueue.result == 'success'
+    if: always() && github.event_name == 'pull_request' && needs.can_enqueue.result == 'success'
     permissions:
       contents: read
       pull-requests: write

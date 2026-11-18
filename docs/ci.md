@@ -98,11 +98,11 @@ The jobs of `Build test clouds`, in dependency order:
   request, calling `shakenfist/actions`' `pr-auto-review.yml`, which
   has Claude Code review the change. It reviews once per pull request,
   skips fork pull requests and ones whose last commit is the bot's,
-  and is not part of either gate. Merge groups skip it. Like `Report
-  weekly failures`, it tests `Can enqueue`'s result in its own `if:`:
-  under the implicit `success()` a job after a gate is skipped whenever
-  any job upstream of the gate was skipped, and `Local build` nearly
-  always is.
+  and is not part of either gate. It runs on pull requests only: merge
+  groups skip it, and so do schedule and dispatch runs, which pass
+  `Can enqueue` with no pull request to review. Like `Report weekly
+  failures`, it tests `Can enqueue`'s result in its own `if:` (see
+  [Can enqueue and Can merge](#can-enqueue-and-can-merge)).
 
 `Patch tests` and `Local build` are jobs of this workflow. Their jobs
 show in a run as `Patch tests / Ansible lint check`,
@@ -210,6 +210,16 @@ needed failed cannot hide that failure, which is why they list the
 jobs directly rather than relying on one another. `collect_layer_data`
 is in neither list: it publishes data rather than testing anything.
 `Aggregate results` is in both, as the builds' summary.
+
+A job that needs a gate directly must test the gate's result in its
+own `if:`, in the form `always() && ... && needs.can_enqueue.result ==
+'success'` (or `'failure'`, as `Report weekly failures` does). Under
+the implicit `success()` such a job is skipped whenever any job
+upstream of the gate was skipped, even though the gate itself passed,
+and `Local build` is skipped on nearly every pull request: the
+`Automated reviewer` never ran until it carried this `if:`.
+`tools/test-ci-merge-group-current.py` enforces the rule for the jobs
+that need a gate directly; a job further downstream is not checked.
 
 The ruleset on `develop` requires both, and sends every merge through
 the merge queue. The ruleset's bypass team lets an administrator merge
