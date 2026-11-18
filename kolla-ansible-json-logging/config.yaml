@@ -5,7 +5,7 @@ shallow_clone: false
 directory: kolla-ansible
 release: master-json-logging
 depends_on: ''
-source_sha: d811ea9b342fc68d18c1bb4ef5c199bfd33f7bc6
+source_sha: 506ec0cc163c94fba6e975ac4b0d89353ec79d26
 previous_source_sha: fe7e69bb21e093c7003a62c8bb7258aa61b75a90
 skip_rebase: false
 skip_claude: true
