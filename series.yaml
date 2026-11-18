@@ -95,7 +95,7 @@ neutron:
     description: Various bug fixes and mypy guards against regressions
     upstream: https://review.opendev.org/c/openstack/neutron/+/1012618
     status: carry
-    note: Needs my attention to review comments
+    note: Needs manual push.
   neutron-dvr-fip-ns-locking:
     description: DVR lock correctness
     upstream: https://review.opendev.org/c/openstack/neutron/+/1012621
@@ -108,9 +108,8 @@ neutron:
   # Neutron memory usage
   neutron-db-api-import-memory-013:
     description: Cleanup imports which are not universally used
-    upstream: https://review.opendev.org/c/openstack/neutron/+/1012182
+    upstream: https://review.opendev.org/c/openstack/neutron/+/1012183
     status: push
-    note: Significant review traction, so not rebasing right now
   neutron-import-memory-007:
     description: OVS agent memory usage cleanups
     upstream: https://review.opendev.org/c/openstack/neutron/+/1012170
