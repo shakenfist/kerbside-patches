@@ -1,6 +1,6 @@
-commit 1218cbda548f869b0a30a952c185ec935195021a
+commit 66d0b15a6c0b2f46670ec3d540d623c6cb227522
 Author: Michael Still <mikal@stillhq.com>
-Date:   Thu Nov 12 06:08:36 2026 +1100
+Date:   Wed Nov 18 19:44:43 2026 +1100
 
     Support image digests in kolla_container.
     
@@ -35,7 +35,7 @@ Date:   Thu Nov 12 06:08:36 2026 +1100
     Signed-off-by: Michael Still <mikal@stillhq.com>
 
 diff --git a/ansible/module_utils/kolla_docker_worker.py b/ansible/module_utils/kolla_docker_worker.py
-index 172f8570c..51a50909c 100644
+index a1965e154..8f261be04 100644
 --- a/ansible/module_utils/kolla_docker_worker.py
 +++ b/ansible/module_utils/kolla_docker_worker.py
 @@ -68,13 +68,43 @@ class DockerWorker(ContainerWorker):
@@ -117,7 +117,7 @@ index 000000000..4ff3ec245
 +    from a tag to a digest recreates the container once, as any change to
 +    its image does.
 diff --git a/tests/kolla_container_tests/test_docker_worker.py b/tests/kolla_container_tests/test_docker_worker.py
-index 1675d6126..93165a700 100644
+index d5d780d02..0afb0ed7d 100644
 --- a/tests/kolla_container_tests/test_docker_worker.py
 +++ b/tests/kolla_container_tests/test_docker_worker.py
 @@ -20,6 +20,7 @@ import os
@@ -329,7 +329,7 @@ index 1675d6126..93165a700 100644
          self.dw = get_DockerWorker(
              {'image': 'myregistrydomain.com:5000/ubuntu:16.04',
 diff --git a/tests/kolla_container_tests/test_podman_worker.py b/tests/kolla_container_tests/test_podman_worker.py
-index 18363f350..46ef644b5 100644
+index 237d24f0d..c13fefade 100644
 --- a/tests/kolla_container_tests/test_podman_worker.py
 +++ b/tests/kolla_container_tests/test_podman_worker.py
 @@ -21,6 +21,7 @@ import unittest

@@ -1,6 +1,6 @@
-commit 53c2f3abc043b37365ef06a309dfda70b1260876
+commit 084bbfc165282b39db6aba0b9e0eec064cbfaae7
 Author: Michael Still <mikal@stillhq.com>
-Date:   Thu Nov 12 05:57:53 2026 +1100
+Date:   Wed Nov 18 19:37:04 2026 +1100
 
     l3: Lock ItemAllocator and write its state atomically
     

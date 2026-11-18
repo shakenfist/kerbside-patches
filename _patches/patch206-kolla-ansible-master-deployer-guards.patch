@@ -1,6 +1,6 @@
-commit 40041a4de36e5d894febf75405068356608aedc5
+commit 0b42fed2c1730447a152e253de03603f648e14b7
 Author: Michael Still <mikal@stillhq.com>
-Date:   Thu Nov 12 06:08:36 2026 +1100
+Date:   Wed Nov 18 19:44:43 2026 +1100
 
     Guard deployments against the wrong deployer.
     
@@ -160,12 +160,12 @@ index 000000000..869cf0a38
 +            'kolla_deployment_record': deployer_checks.deployment_record,
 +        }
 diff --git a/ansible/gather-facts.yml b/ansible/gather-facts.yml
-index 4b7de2ee3..ad16014d3 100644
+index ff36a153e..b6cea8cfe 100644
 --- a/ansible/gather-facts.yml
 +++ b/ansible/gather-facts.yml
-@@ -60,3 +60,11 @@
-         # Don't gather if fact caching is in use
-         - not hostvars[item].ansible_facts
+@@ -64,3 +64,11 @@
+         # module execution, even if facts were never gathered.
+         - hostvars[item].ansible_facts.keys() | reject('match', '^discovered_interpreter_') | list | length == 0
    tags: always
 +
 +# NOTE: The deployer checks are imported here, rather than by each playbook

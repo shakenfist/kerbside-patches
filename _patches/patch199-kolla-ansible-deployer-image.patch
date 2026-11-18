@@ -1,6 +1,6 @@
-commit 7b2a205fe43ef0b8d929c02c5b327307e7ff4995
+commit e3bf401463aa2f5248bfece8554b67ca7f36e1fc
 Author: Michael Still <mikal@stillhq.com>
-Date:   Thu Nov 12 05:49:47 2026 +1100
+Date:   Wed Nov 18 19:35:16 2026 +1100
 
     Add a kolla-ansible deployer image.
     
@@ -293,7 +293,7 @@ index ced1ac659..fd6b32d0d 100644
    openstack/magnum-ui: horizon-plugin-magnum-ui
    openstack/manila: manila-base
 diff --git a/zuul.d/base.yaml b/zuul.d/base.yaml
-index 21cc98371..fa7f15095 100644
+index f1cce8627..7ba7d75ac 100644
 --- a/zuul.d/base.yaml
 +++ b/zuul.d/base.yaml
 @@ -13,6 +13,8 @@

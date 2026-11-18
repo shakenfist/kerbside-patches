@@ -1,6 +1,6 @@
-commit 0e36c0a70f60ef65511f58a104f0278023238c45
+commit a4a7fd6795ecb081a9bdbcf655fcbabe2cf547b5
 Author: Michael Still <mikal@stillhq.com>
-Date:   Thu Nov 12 06:10:25 2026 +1100
+Date:   Wed Nov 18 19:45:21 2026 +1100
 
     Convert the networking services to JSON logging.
     
@@ -10,7 +10,7 @@ Date:   Thu Nov 12 06:10:25 2026 +1100
     Signed-off-by: Michael Still <mikal@stillhq.com>
 
 diff --git a/ansible/roles/designate/templates/designate.conf.j2 b/ansible/roles/designate/templates/designate.conf.j2
-index f68c0b2e9..a9ecb1a25 100644
+index ecaf0d24a..a8199e4fc 100644
 --- a/ansible/roles/designate/templates/designate.conf.j2
 +++ b/ansible/roles/designate/templates/designate.conf.j2
 @@ -1,6 +1,7 @@
