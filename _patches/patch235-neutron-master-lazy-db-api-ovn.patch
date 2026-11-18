@@ -1,6 +1,6 @@
-commit e7e588facefade8700c83c5f0fec1a1bc3ad03ce
+commit 181879b288fe4ce3802a171c2a17b452b85c2931
 Author: Michael Still <mikal@stillhq.com>
-Date:   Thu Nov 12 05:55:35 2026 +1100
+Date:   Wed Nov 18 19:36:23 2026 +1100
 
     ovn: Keep server-only imports out of the OVN agent
     
@@ -76,10 +76,10 @@ index db76a81ef2..a5c830406c 100644
              bindings = port.port_bindings
          elif isinstance(port, ports_obj.Port):
 diff --git a/neutron/plugins/ml2/drivers/ovn/mech_driver/ovsdb/ovsdb_monitor.py b/neutron/plugins/ml2/drivers/ovn/mech_driver/ovsdb/ovsdb_monitor.py
-index 24a0e98431..c49ae20feb 100644
+index 4398fe12d6..1b48d8f47b 100644
 --- a/neutron/plugins/ml2/drivers/ovn/mech_driver/ovsdb/ovsdb_monitor.py
 +++ b/neutron/plugins/ml2/drivers/ovn/mech_driver/ovsdb/ovsdb_monitor.py
-@@ -31,11 +31,8 @@ from ovsdbapp.backend.ovs_idl import idlutils
+@@ -33,11 +33,8 @@ from ovsdbapp.backend.ovs_idl import idlutils
  
  from neutron.common.ovn import constants as ovn_const
  from neutron.common.ovn import exceptions
@@ -91,7 +91,7 @@ index 24a0e98431..c49ae20feb 100644
  from neutron.plugins.ml2.drivers.ovn.agent import neutron_agent as n_agent
  from neutron.plugins.ml2.drivers.ovn.mech_driver.ovsdb.extensions import \
      placement
-@@ -742,6 +739,11 @@ class LogicalSwitchPortUpdateLogicalRouterPortEvent(LogicalSwitchPortEvent):
+@@ -767,6 +764,11 @@ class LogicalSwitchPortUpdateLogicalRouterPortEvent(LogicalSwitchPortEvent):
  
          # TODO(ralonsoh): store the router "flavor_id" in the LSP.external_ids
          # or the LRP.external_ids (better the second).
@@ -103,7 +103,7 @@ index 24a0e98431..c49ae20feb 100644
          admin_context = neutron_context.get_admin_context()
          router = router_obj.Router.get_object(admin_context, id=device_id,
                                                fields=('flavor_id', ))
-@@ -1012,6 +1014,10 @@ class OvnIdlDistributedLock(BaseOvnIdl):
+@@ -1105,6 +1107,10 @@ class OvnIdlDistributedLock(BaseOvnIdl):
          self.driver = driver
          self.notify_handler = OvnDbNotifyHandler(driver)
          self._node_uuid = self.driver.node_uuid
@@ -114,7 +114,7 @@ index 24a0e98431..c49ae20feb 100644
          self._hash_ring = hash_ring_manager.HashRingManager(
              self.driver.hash_ring_group)
  
-@@ -1032,6 +1038,9 @@ class OvnIdlDistributedLock(BaseOvnIdl):
+@@ -1125,6 +1131,9 @@ class OvnIdlDistributedLock(BaseOvnIdl):
              touch_timeout = timeutils.utcnow() - datetime.timedelta(
                  seconds=ovn_const.HASH_RING_TOUCH_INTERVAL)
              if not node_last_touch or touch_timeout >= node_last_touch:
@@ -211,7 +211,7 @@ index 471e05c482..f0dcdbfeac 100644
      class OvsdbClientTestCommand(utils.OvsdbClientCommand):
          COMMAND = 'test'
 diff --git a/neutron/tests/unit/plugins/ml2/drivers/ovn/mech_driver/ovsdb/test_ovsdb_monitor.py b/neutron/tests/unit/plugins/ml2/drivers/ovn/mech_driver/ovsdb/test_ovsdb_monitor.py
-index 0ee61b2fd1..59007c9c05 100644
+index ed4a4371f3..f872574a2b 100644
 --- a/neutron/tests/unit/plugins/ml2/drivers/ovn/mech_driver/ovsdb/test_ovsdb_monitor.py
 +++ b/neutron/tests/unit/plugins/ml2/drivers/ovn/mech_driver/ovsdb/test_ovsdb_monitor.py
 @@ -18,6 +18,7 @@ import os
@@ -222,7 +222,7 @@ index 0ee61b2fd1..59007c9c05 100644
  from neutron_lib.plugins import constants as n_const
  from neutron_lib.plugins import directory
  from oslo_utils import timeutils
-@@ -676,6 +677,30 @@ class TestLogicalSwitchPortUpdateLogicalRouterPortEvent(base.BaseTestCase):
+@@ -677,6 +678,30 @@ class TestLogicalSwitchPortUpdateLogicalRouterPortEvent(base.BaseTestCase):
                  LogicalSwitchPortUpdateLogicalRouterPortEvent(driver))
          self.assertFalse(hasattr(event, 'admin_context'))
  

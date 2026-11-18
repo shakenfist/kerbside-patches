@@ -6,4 +6,4 @@ directory: neutron
 release: master-neutron-import-time-config-check
 depends_on: ''
 source_sha: 7b7d5285bbb7602a3ee03a8d9fce4d5be1c2064d
-previous_source_sha: 559c5cc10adb7881dfc98cc004c1b2df14624eeb
+previous_source_sha: 0ba628aaf66c80c1d077a737144eb29fef606420

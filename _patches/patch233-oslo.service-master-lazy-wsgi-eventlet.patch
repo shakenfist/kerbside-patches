@@ -1,6 +1,6 @@
-commit 8768cb9622384bf290d5e5aef2c173cec4125a49
+commit 506eb56fb536092e736345f59e816be7c2751d51
 Author: Michael Still <mikal@stillhq.com>
-Date:   Thu Nov 12 06:02:21 2026 +1100
+Date:   Wed Nov 18 19:42:55 2026 +1100
 
     Import eventlet only for the WSGI server
     
@@ -25,7 +25,7 @@ Date:   Thu Nov 12 06:02:21 2026 +1100
     Signed-off-by: Michael Still <mikal@stillhq.com>
 
 diff --git a/oslo_service/tests/test_wsgi.py b/oslo_service/tests/test_wsgi.py
-index 69d881f..7d71fab 100644
+index d72681e..0967e25 100644
 --- a/oslo_service/tests/test_wsgi.py
 +++ b/oslo_service/tests/test_wsgi.py
 @@ -19,6 +19,8 @@
@@ -36,8 +36,8 @@ index 69d881f..7d71fab 100644
 +import sys
  import tempfile
  import testtools
- from unittest import mock
-@@ -268,6 +270,35 @@ class TestWSGIServer(WsgiTestCase):
+ import unittest
+@@ -272,6 +274,35 @@ class TestWSGIServer(WsgiTestCase):
              )
              server.stop()
  
@@ -73,7 +73,7 @@ index 69d881f..7d71fab 100644
      def test_wsgi_keep_alive(self):
          self.config(wsgi_keep_alive=False)
  
-@@ -600,3 +631,29 @@ class TestWSGIServerBackendCompatibility(WsgiTestCase):
+@@ -604,3 +635,29 @@ class TestWSGIServerBackendCompatibility(WsgiTestCase):
          # Server creation should still work since backend is still eventlet
          server2 = wsgi.Server(self.conf, "test_eventlet_second", None)
          self.assertEqual("test_eventlet_second", server2.name)
@@ -104,10 +104,10 @@ index 69d881f..7d71fab 100644
 +        out = subprocess.check_output([sys.executable, "-c", code], text=True)
 +        self.assertEqual('ok', out.strip())
 diff --git a/oslo_service/wsgi.py b/oslo_service/wsgi.py
-index 616689d..52f6f5b 100644
+index 90f802e..2814044 100644
 --- a/oslo_service/wsgi.py
 +++ b/oslo_service/wsgi.py
-@@ -21,9 +21,6 @@ import copy
+@@ -20,9 +20,6 @@
  import os
  import socket
  
@@ -117,7 +117,7 @@ index 616689d..52f6f5b 100644
  from paste import deploy
  import routes.middleware
  import webob.dec
-@@ -98,7 +95,7 @@ class Server(service.ServiceBase):
+@@ -101,7 +98,7 @@ class Server(service.ServiceBase):
          host='0.0.0.0',  # noqa: S104
          port=0,
          pool_size=None,
@@ -126,7 +126,7 @@ index 616689d..52f6f5b 100644
          backlog=128,
          use_ssl=False,
          max_url_len=None,
-@@ -115,7 +112,7 @@ class Server(service.ServiceBase):
+@@ -118,7 +115,7 @@ class Server(service.ServiceBase):
          :param host: IP address to serve the application.
          :param port: Port number to server the application.
          :param pool_size: Maximum number of eventlets to spawn concurrently.
@@ -135,7 +135,7 @@ index 616689d..52f6f5b 100644
          :param backlog: Maximum number of queued connections.
          :param use_ssl: Wraps the socket in an SSL context if True.
          :param max_url_len: Maximum length of permitted URLs.
-@@ -132,6 +129,14 @@ class Server(service.ServiceBase):
+@@ -135,6 +132,14 @@ class Server(service.ServiceBase):
          # Check backend compatibility before initializing
          _check_backend_compatibility()
  
@@ -150,7 +150,7 @@ index 616689d..52f6f5b 100644
          self.conf = conf
          self.conf.register_opts(_options.wsgi_opts)
  
-@@ -171,6 +176,8 @@ class Server(service.ServiceBase):
+@@ -174,6 +179,8 @@ class Server(service.ServiceBase):
              sslutils.is_enabled(conf)
  
      def _get_socket(self, host, port, backlog):
@@ -159,7 +159,7 @@ index 616689d..52f6f5b 100644
          bind_addr = (host, port)
          # TODO(dims): eventlet's green dns/socket module does not actually
          # support IPv6 in getaddrinfo(). We need to get around this in the
-@@ -203,6 +210,8 @@ class Server(service.ServiceBase):
+@@ -206,6 +213,8 @@ class Server(service.ServiceBase):
          return sock
  
      def _get_unix_socket(self, socket_file, socket_mode, backlog):
@@ -168,7 +168,7 @@ index 616689d..52f6f5b 100644
          sock = eventlet.listen(
              socket_file, family=socket.AF_UNIX, backlog=backlog
          )
-@@ -219,6 +228,9 @@ class Server(service.ServiceBase):
+@@ -222,6 +231,9 @@ class Server(service.ServiceBase):
  
          :returns: None
          """
@@ -178,7 +178,7 @@ index 616689d..52f6f5b 100644
          # The server socket object will be closed after server exits,
          # but the underlying file descriptor will remain open, and will
          # give bad file descriptor error. So duplicating the socket object,
-@@ -289,6 +301,8 @@ class Server(service.ServiceBase):
+@@ -292,6 +304,8 @@ class Server(service.ServiceBase):
          :returns: None
  
          """

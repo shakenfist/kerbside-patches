@@ -1,36 +1,116 @@
-commit babd23801f2431328a88cfa711150d8377504bf5
+commit 48261f3beab2aa65cc12f97b29d76a3482f8cde7
 Author: Michael Still <mikal@stillhq.com>
-Date:   Tue Nov 3 19:24:12 2026 +1100
+Date:   Wed Nov 18 19:39:14 2026 +1100
 
     Read config options where they are used, not at import
     
     objects/base.py, quotasv2.py and quotasv2_detail.py read options at
-    import, so any tool that imports them before parsing its configuration,
-    such as neutron-ovn-db-sync-util, sees the defaults. Read "debug" and
-    "quota_driver" when they are used, and always register the ORM hook.
+    import, so any tool that imports them before parsing its
+    configuration, such as neutron-ovn-db-sync-util, sees the defaults.
     
     quotasv2 compared the run-time driver with its own import-time value,
     so whether its description said "per project" depended on import
     order. It now checks the driver against QUOTA_DB_DRIVERS, a tuple of
-    the two database drivers added to neutron.conf.quota.
+    the two database drivers added to neutron.conf.quota, and
+    quotasv2_detail checks the same tuple when its supported check runs.
+    
+    objects/base.py registered the ORM "SQL execution without transaction"
+    listener at import, guarded by "debug" read at import, so the listener
+    was silently skipped in any process that imported it before parsing
+    its configuration. Registering the listener unconditionally and
+    testing "debug" inside it would fix that, but it would also make
+    SQLAlchemy build an ORMExecuteState for every ORM statement in every
+    process. Instead the listener moves to NeutronDbPluginV2.__init__,
+    which already registers listeners this way for the nova notifier and
+    runs once the configuration has been parsed, and is registered there
+    only when "debug" is set.
+    
+    This narrows the check to processes that build a core plugin, which is
+    enough to monitor Neutron's compliance with SQLAlchemy 2.0, because
+    that is where the ORM code runs. neutron-ovn-db-sync-util builds its
+    own Ml2Plugin subclass through manager.init(), so it is still covered,
+    and now honours "debug" from its configuration file.
     
     Assisted-By: Claude Opus 5.5 (high effort)
     Change-Id: Iebbb77f7b7190126973711100896c0fa1d487570
     Signed-off-by: Michael Still <mikal@stillhq.com>
 
 diff --git a/neutron/conf/quota.py b/neutron/conf/quota.py
-index 2cef49477b..5b2fa6f5ff 100644
+index 2cef49477b..2cf9940f84 100644
 --- a/neutron/conf/quota.py
 +++ b/neutron/conf/quota.py
-@@ -24,6 +24,8 @@ QUOTA_DB_DRIVER_LEGACY = QUOTA_DB_DIRECTORY + 'driver.DbQuotaDriver'
+@@ -24,6 +24,7 @@ QUOTA_DB_DRIVER_LEGACY = QUOTA_DB_DIRECTORY + 'driver.DbQuotaDriver'
  QUOTA_DB_DRIVER_NO_LOCK = (QUOTA_DB_DIRECTORY +
                             'driver_nolock.DbQuotaNoLockDriver')
  QUOTA_DB_DRIVER_NULL = QUOTA_DB_DIRECTORY + 'driver_null.DbQuotaDriverNull'
-+# The drivers that keep per project quotas in the database.
 +QUOTA_DB_DRIVERS = (QUOTA_DB_DRIVER_LEGACY, QUOTA_DB_DRIVER_NO_LOCK)
  
  QUOTA_DB_DRIVER = QUOTA_DB_DRIVER_NO_LOCK
  QUOTAS_CFG_GROUP = 'QUOTAS'
+diff --git a/neutron/db/db_base_plugin_v2.py b/neutron/db/db_base_plugin_v2.py
+index c84a3f77a9..bd4a662ea2 100644
+--- a/neutron/db/db_base_plugin_v2.py
++++ b/neutron/db/db_base_plugin_v2.py
+@@ -14,6 +14,8 @@
+ #    under the License.
+ 
+ import functools
++import sys
++import traceback
+ 
+ import netaddr
+ from neutron_lib.api import converters
+@@ -48,6 +50,7 @@ from sqlalchemy import and_
+ from sqlalchemy import exc as sql_exc
+ from sqlalchemy import func
+ from sqlalchemy import not_
++from sqlalchemy import orm
+ 
+ from neutron._i18n import _
+ from neutron.api.rpc.agentnotifiers import l3_rpc_agent_api
+@@ -178,6 +181,26 @@ class NeutronDbPluginV2(db_base_plugin_common.DbBasePluginCommon,
+     def has_native_datastore(self):
+         return True
+ 
++    # NOTE(ralonsoh): this is a method evaluated anytime an ORM session is
++    # executing a SQL transaction.
++    # If "autocommit" is disabled (the default value in SQLAlchemy 1.4 and
++    # the only value in SQLAlchemy 2.0) and there is not active transaction,
++    # that means the SQL transaction is being run on an "implicit
++    # transaction". Under autocommit, this transaction is created, executed
++    # and discarded immediately; under non-autocommit, a transaction must be
++    # explicitly created (writer/reader) and sticks open.
++    # This evaluation is done only in debug mode to monitor the Neutron code
++    # compliance to SQLAlchemy 2.0. The listener is registered by the core
++    # plugin constructor rather than when this module is imported, because
++    # by then the configuration has been parsed and "debug" is read from it
++    # rather than from its default.
++    @staticmethod
++    def do_orm_execute(orm_execute_state):
++        if not orm_execute_state.session.in_transaction():
++            trace_string = '\n'.join(traceback.format_stack(sys._getframe(1)))
++            LOG.warning('ORM session: SQL execution without transaction in '
++                        'progress, traceback:\n%s', trace_string)
++
+     def __new__(cls, *args, **kwargs):
+         model_query.register_hook(
+             models_v2.Port,
+@@ -203,6 +226,15 @@ class NeutronDbPluginV2(db_base_plugin_common.DbBasePluginCommon,
+             pass
+ 
+     def __init__(self):
++        try:
++            debug = cfg.CONF.debug
++        except cfg.NoSuchOptError:
++            # A plugin can be built before oslo.log has registered its
++            # options; without "debug" there is nothing to enable.
++            debug = False
++        if debug:
++            db_api.sqla_listen(orm.Session, 'do_orm_execute',
++                               self.do_orm_execute)
+         self._validate_ipv6_pd()
+         self.set_ipam_backend()
+         if (cfg.CONF.notify_nova_on_port_status_changes or
 diff --git a/neutron/extensions/quotasv2.py b/neutron/extensions/quotasv2.py
 index 1e4dc235c5..0446726834 100644
 --- a/neutron/extensions/quotasv2.py
@@ -107,29 +187,39 @@ index 5087022a52..d17dc7d0c8 100644
      @classmethod
      def get_name(cls):
 diff --git a/neutron/objects/base.py b/neutron/objects/base.py
-index 8a3505b2df..117c6023e4 100644
+index 8a3505b2df..18e857eb61 100644
 --- a/neutron/objects/base.py
 +++ b/neutron/objects/base.py
-@@ -56,22 +56,22 @@ _NO_DB_MODEL = object()
- # under non-autocommit, a transaction must be explicitly created
- # (writer/reader) and sticks open.
- # This evaluation is done only in debug mode to monitor the Neutron code
+@@ -16,8 +16,6 @@ from collections import abc as collections_abc
+ import copy
+ import functools
+ import itertools
+-import sys
+-import traceback
+ 
+ from neutron_lib.db import api as db_api
+ from neutron_lib.db import model_base
+@@ -47,33 +45,6 @@ CONF = cfg.CONF
+ _NO_DB_MODEL = object()
+ 
+ 
+-# NOTE(ralonsoh): this is a method evaluated anytime an ORM session is
+-# executing a SQL transaction.
+-# If "autocommit" is disabled (the default value in SQLAlchemy 1.4 and the
+-# only value in SQLAlchemy 2.0) and there is not active transaction, that
+-# means the SQL transaction is being run on an "implicit transaction". Under
+-# autocommit, this transaction is created, executed and discarded immediately;
+-# under non-autocommit, a transaction must be explicitly created
+-# (writer/reader) and sticks open.
+-# This evaluation is done only in debug mode to monitor the Neutron code
 -# compliance to SQLAlchemy 2.0.
-+# compliance to SQLAlchemy 2.0. "debug" is read when the listener runs, not
-+# at import, because some tools import this module before parsing their
-+# configuration.
- def do_orm_execute(orm_execute_state):
-+    try:
-+        if not cfg.CONF.debug:
-+            return
-+    except cfg.NoSuchOptError:
-+        return
-     if not orm_execute_state.session.in_transaction():
-         trace_string = '\n'.join(traceback.format_stack(sys._getframe(1)))
-         LOG.warning('ORM session: SQL execution without transaction in '
-                     'progress, traceback:\n%s', trace_string)
- 
- 
+-def do_orm_execute(orm_execute_state):
+-    if not orm_execute_state.session.in_transaction():
+-        trace_string = '\n'.join(traceback.format_stack(sys._getframe(1)))
+-        LOG.warning('ORM session: SQL execution without transaction in '
+-                    'progress, traceback:\n%s', trace_string)
+-
+-
 -try:
 -    _debug = cfg.CONF.debug
 -except cfg.NoSuchOptError:
@@ -138,10 +228,108 @@ index 8a3505b2df..117c6023e4 100644
 -
 -if _debug:
 -    db_api.sqla_listen(orm.Session, 'do_orm_execute', do_orm_execute)
-+db_api.sqla_listen(orm.Session, 'do_orm_execute', do_orm_execute)
- 
- 
+-
+-
  def get_object_class_by_model(model):
+     for obj_class in NeutronObjectRegistry.obj_classes().values():
+         obj_class = obj_class[0]
+diff --git a/neutron/tests/unit/db/test_db_base_plugin_v2.py b/neutron/tests/unit/db/test_db_base_plugin_v2.py
+new file mode 100644
+index 0000000000..7a8dbb10fe
+--- /dev/null
++++ b/neutron/tests/unit/db/test_db_base_plugin_v2.py
+@@ -0,0 +1,91 @@
++#    Licensed under the Apache License, Version 2.0 (the "License"); you may
++#    not use this file except in compliance with the License. You may obtain
++#    a copy of the License at
++#
++#         http://www.apache.org/licenses/LICENSE-2.0
++#
++#    Unless required by applicable law or agreed to in writing, software
++#    distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
++#    WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
++#    License for the specific language governing permissions and limitations
++#    under the License.
++
++import logging
++from unittest import mock
++
++import fixtures
++from neutron_lib.db import api as db_api
++from oslo_config import cfg
++from sqlalchemy import orm
++
++from neutron.db import db_base_plugin_v2
++from neutron.tests import base
++
++
++class DoOrmExecuteTestCase(base.BaseTestCase):
++    """The ORM listener warns only outside a transaction."""
++
++    def setUp(self):
++        super().setUp()
++        self.log = self.useFixture(fixtures.FakeLogger(
++            name=db_base_plugin_v2.__name__, level=logging.WARNING))
++        self.orm_execute_state = mock.Mock()
++        self.orm_execute_state.session.in_transaction.return_value = False
++
++    def test_warns_without_transaction(self):
++        db_base_plugin_v2.NeutronDbPluginV2.do_orm_execute(
++            self.orm_execute_state)
++        self.assertIn('SQL execution without transaction in progress',
++                      self.log.output)
++
++    def test_silent_in_transaction(self):
++        self.orm_execute_state.session.in_transaction.return_value = True
++        db_base_plugin_v2.NeutronDbPluginV2.do_orm_execute(
++            self.orm_execute_state)
++        self.assertEqual('', self.log.output)
++
++
++class DoOrmExecuteRegistrationTestCase(base.BaseTestCase):
++    """The ORM listener is registered when a plugin is built, if debugging."""
++
++    def setUp(self):
++        super().setUp()
++        # This plugin registers listeners for the nova notifier too; they
++        # are not what is under test here.
++        for option in ('notify_nova_on_port_status_changes',
++                       'notify_nova_on_port_data_changes'):
++            cfg.CONF.set_override(option, False)
++            self.addCleanup(cfg.CONF.clear_override, option)
++        self.expected_call = mock.call(
++            orm.Session, 'do_orm_execute',
++            db_base_plugin_v2.NeutronDbPluginV2.do_orm_execute)
++
++    def _orm_listens(self):
++        """Build a core plugin, returning its "do_orm_execute" listens."""
++        with mock.patch.object(db_api, 'sqla_listen') as sqla_listen:
++            db_base_plugin_v2.NeutronDbPluginV2()
++        return [call for call in sqla_listen.call_args_list
++                if call == self.expected_call]
++
++    def _set_debug(self, value):
++        cfg.CONF.set_override('debug', value)
++        self.addCleanup(cfg.CONF.clear_override, 'debug')
++
++    def test_registered_once_in_debug_mode(self):
++        self._set_debug(True)
++        self.assertEqual([self.expected_call], self._orm_listens())
++
++    def test_not_registered_without_debug_mode(self):
++        self._set_debug(False)
++        self.assertEqual([], self._orm_listens())
++
++    def test_not_registered_without_the_option(self):
++        real_getattr = cfg.ConfigOpts.__getattr__
++
++        def _getattr(conf, name):
++            if name == 'debug':
++                raise cfg.NoSuchOptError('debug')
++            return real_getattr(conf, name)
++
++        with mock.patch.object(cfg.ConfigOpts, '__getattr__', _getattr):
++            self.assertEqual([], self._orm_listens())
 diff --git a/neutron/tests/unit/extensions/test_quotasv2.py b/neutron/tests/unit/extensions/test_quotasv2.py
 index 1ffbb4c4dc..c9f4cbeb33 100644
 --- a/neutron/tests/unit/extensions/test_quotasv2.py
@@ -189,75 +377,21 @@ index 1ffbb4c4dc..c9f4cbeb33 100644
 +        for quota_driver in qconf.QUOTA_DB_DRIVERS:
 +            self._set_quota_driver(quota_driver)
 +            self.assertTrue(check())
-diff --git a/neutron/tests/unit/objects/test_base.py b/neutron/tests/unit/objects/test_base.py
-index 916d3e75cc..f57e5d8237 100644
---- a/neutron/tests/unit/objects/test_base.py
-+++ b/neutron/tests/unit/objects/test_base.py
-@@ -14,6 +14,7 @@ import collections
- from collections import abc
- import copy
- import itertools
-+import logging
- import random
- from unittest import mock
- 
-@@ -30,6 +31,7 @@ from neutron_lib.objects.logapi import event_types
- from neutron_lib.objects import utils as obj_utils
- from neutron_lib.tests import tools as lib_test_tools
- from neutron_lib.utils import helpers
-+from oslo_config import cfg
- from oslo_db import exception as obj_exc
- from oslo_db.sqlalchemy import utils as db_utils
- from oslo_utils import uuidutils
-@@ -1408,6 +1410,38 @@ class NeutronObjectCountTestCase(test_base.BaseTestCase):
-             expected, FakeNeutronObject.count(None, count=expected))
- 
- 
-+class DoOrmExecuteTestCase(test_base.BaseTestCase):
-+
-+    def setUp(self):
-+        super().setUp()
-+        self.log = self.useFixture(fixtures.FakeLogger(
-+            name=base.__name__, level=logging.WARNING))
-+        self.orm_execute_state = mock.Mock()
-+        self.orm_execute_state.session.in_transaction.return_value = False
-+
-+    def _set_debug(self, value):
-+        cfg.CONF.set_override('debug', value)
-+        self.addCleanup(cfg.CONF.clear_override, 'debug')
-+
-+    def test_warns_without_transaction_in_debug_mode(self):
-+        self._set_debug(True)
-+        base.do_orm_execute(self.orm_execute_state)
-+        self.assertIn('SQL execution without transaction in progress',
-+                      self.log.output)
-+
-+    def test_silent_without_debug_mode(self):
-+        self._set_debug(False)
-+        base.do_orm_execute(self.orm_execute_state)
-+        self.assertEqual('', self.log.output)
-+        self.orm_execute_state.session.in_transaction.assert_not_called()
-+
-+    def test_silent_in_transaction(self):
-+        self._set_debug(True)
-+        self.orm_execute_state.session.in_transaction.return_value = True
-+        base.do_orm_execute(self.orm_execute_state)
-+        self.assertEqual('', self.log.output)
-+
-+
- class BaseDbObjectCompositePrimaryKeyWithIdTestCase(BaseObjectIfaceTestCase):
- 
-     _test_class = FakeNeutronObjectCompositePrimaryKeyWithId
 diff --git a/releasenotes/notes/config-read-at-use-da8ca3797a3d3202.yaml b/releasenotes/notes/config-read-at-use-da8ca3797a3d3202.yaml
 new file mode 100644
-index 0000000000..891f2b209b
+index 0000000000..750b9fc36a
 --- /dev/null
 +++ b/releasenotes/notes/config-read-at-use-da8ca3797a3d3202.yaml
-@@ -0,0 +1,7 @@
+@@ -0,0 +1,12 @@
 +---
 +fixes:
 +  - |
-+    The ORM "SQL execution without transaction" debug warning is now emitted
-+    whenever ``debug`` is true, and the quota extensions report the configured
-+    ``quota_driver``, regardless of whether the module was imported before the
-+    configuration was parsed.
++    The quota extensions now report the configured ``quota_driver`` rather
++    than the value it had when the extension module was imported, so
++    ``quotas`` advertises per project quotas and ``quota_details`` is offered
++    whenever a database quota driver is configured.
++  - |
++    The ORM "SQL execution without transaction" warning, which checks the
++    Neutron code for SQLAlchemy 2.0 compliance, is now enabled when the core
++    plugin is built rather than when ``neutron.objects.base`` is imported, so
++    it honours ``debug`` from the configuration file instead of its default.

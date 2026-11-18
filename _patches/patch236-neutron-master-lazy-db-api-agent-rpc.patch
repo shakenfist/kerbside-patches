@@ -1,6 +1,6 @@
-commit d86692f76ab02988c84f6d10391a5a03312ca212
+commit ad3e42b8e0ddd5fad1799b5c009b039745f5b95c
 Author: Michael Still <mikal@stillhq.com>
-Date:   Thu Nov 12 05:55:36 2026 +1100
+Date:   Wed Nov 18 19:36:23 2026 +1100
 
     agent: Import the resource cache only for L2 agents
     

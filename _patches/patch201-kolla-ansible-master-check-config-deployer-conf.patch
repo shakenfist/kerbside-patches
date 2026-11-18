@@ -1,6 +1,6 @@
-commit 7b5ef72239ad9a7f18702122e9b08b19f5491fef
+commit cd28502a1863d3e88ccfeb728110d2e45a45cc89
 Author: Michael Still <mikal@stillhq.com>
-Date:   Thu Nov 12 06:08:35 2026 +1100
+Date:   Wed Nov 18 19:44:43 2026 +1100
 
     Ignore deployer.conf in check-config.sh.
     

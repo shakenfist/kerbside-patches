@@ -1,0 +1,286 @@
+commit 19835dc36cb2fb85ff34afd6be17c8e998689bc7
+Author: Michael Still <mikal@stillhq.com>
+Date:   Tue Nov 17 15:50:53 2026 +1100
+
+    Return concrete types from the green helpers
+    
+    The lazy eventlet import left futurist/_green.py exposing Pool, Queue and
+    spawn as module attributes served by a module-level __getattr__. That
+    works, but it costs the type checker everything it knew about them: the
+    attributes are annotated Any, so GreenThreadPoolExecutor has to annotate
+    its own _pool and _delayed_work as Any too, and a module that defines
+    __getattr__ accepts any attribute at all, so a misspelled _green.Queu is
+    only a runtime AttributeError.
+    
+    _green is internal, so nothing outside futurist depends on those
+    attributes being attributes. Replace them with functools.cache'd
+    accessors -- get_pool_class(), get_queue_class() and get_spawn() --
+    annotated with the eventlet types they return. Nothing is imported until
+    the first call, as before, and the cache makes that import happen once.
+    eventlet ships no type information, so each accessor carries one
+    no-any-return ignore; the point is that the Any now stops there instead
+    of reaching the callers.
+    
+    Also stop GreenThreading being optional. It was GreenThreading | None,
+    which bought nothing: constructing it imports nothing, and its methods
+    raise when eventlet is missing. Non-optional removes two "is None"
+    guards and two asserts from _futures.py. The four duplicated imports of
+    eventlet.green.threading become one cached helper, which is also the one
+    place that reports a missing eventlet for those primitives.
+    
+    No behaviour change beyond the error raised when eventlet is absent,
+    which was RuntimeError before and still is, with a message naming what
+    was wanted rather than the mixin that wanted it.
+    
+    What this does not fix: SynchronousExecutor still assigns _green.threading
+    over an attribute typed as _thread.Threading, so that line keeps its
+    ignore[assignment]. Giving the two threading facades a shared Protocol is
+    the next step, and is left for its own change.
+    
+    Prompt: Stephen Finucane asked on the parent change for the class
+    attributes to become cached methods returning concrete types, as a
+    follow-up. Mikal asked for it as a separate patch layered into the
+    series, partly so the shape of the change is easy to read.
+    
+    Assisted-By: Claude Opus 5 (high effort)
+    
+    Change-Id: I376410d33720eaf94948e058948a7e151a7155ec
+    Signed-off-by: Michael Still <mikal@stillhq.com>
+
+diff --git a/futurist/_futures.py b/futurist/_futures.py
+index 24d93c8..ed39ae6 100644
+--- a/futurist/_futures.py
++++ b/futurist/_futures.py
+@@ -616,7 +616,6 @@ class GreenFuture(Future[Any]):
+         # waiting on the future never actually causes the greenthreads to run
+         # and thus you wait for infinity.
+         if not _green.is_monkey_patched('thread'):
+-            assert _green.threading is not None
+             self._condition = _green.threading.condition_object()
+ 
+ 
+@@ -665,11 +664,10 @@ class GreenThreadPoolExecutor(_futures.Executor):
+         if max_workers <= 0:
+             raise ValueError("Max workers must be greater than zero")
+         self._max_workers = max_workers
+-        self._pool: Any = _green.Pool(self._max_workers)
+-        self._delayed_work: Any = _green.Queue()
++        self._pool = _green.get_pool_class()(self._max_workers)
++        self._delayed_work = _green.get_queue_class()()
+         self._check_and_reject = check_and_reject or (lambda e, waiting: None)
+-        assert self.threading is not None
+-        self._shutdown_lock: Any = self.threading.lock_object()
++        self._shutdown_lock = self.threading.lock_object()
+         self._shutdown = False
+         self._gatherer = _Gatherer(self._submit, self.threading.lock_object)
+ 
+@@ -1143,10 +1141,6 @@ class GreenDelayedExecutorMixin(DelayedExecutorMixinBase[Any]):
+ 
+     @staticmethod
+     def _get_condition_object() -> threading.Condition:
+-        if _green.threading is None:
+-            raise RuntimeError(
+-                "GreenDelayedExecutorMixin requires eventlet to be installed"
+-            )
+         return _green.threading.condition_object()
+ 
+     @staticmethod
+@@ -1155,11 +1149,7 @@ class GreenDelayedExecutorMixin(DelayedExecutorMixinBase[Any]):
+ 
+     @staticmethod
+     def _start_thread(fn: Callable[[], None]) -> Any:
+-        if _green.spawn is None:
+-            raise RuntimeError(
+-                "GreenDelayedExecutorMixin requires eventlet to be installed"
+-            )
+-        return _green.spawn(fn)
++        return _green.get_spawn()(fn)
+ 
+     @staticmethod
+     def _join_thread(t: Any) -> None:
+diff --git a/futurist/_green.py b/futurist/_green.py
+index 4dffd38..d456aaf 100644
+--- a/futurist/_green.py
++++ b/futurist/_green.py
+@@ -14,41 +14,81 @@
+ 
+ from __future__ import annotations
+ 
++import functools
+ import sys
+-from typing import TYPE_CHECKING, Any
++from types import ModuleType
++from typing import TYPE_CHECKING
+ 
+ from futurist import _utils
+ 
+ if TYPE_CHECKING:
++    from collections.abc import Callable
+     import threading as stdlib_threading
+ 
++    from eventlet import greenpool
++    from eventlet import greenthread
+     from eventlet import queue as greenqueue
+ 
+-# eventlet is imported when a green helper is first used, not when this
+-# module is imported, so that processes which never use one do not pay for
+-# it. Pool, Queue and spawn are looked up by __getattr__ below on first use.
+-Pool: Any
+-Queue: Any
+-spawn: Any
+ 
++def _require_eventlet(what: str) -> None:
++    """Refuse to go further when eventlet is not installed.
+ 
+-def __getattr__(name: str) -> Any:
+-    global Pool, Queue, spawn
++    The accessors below are only reached from the green executors and
++    futures, which already refuse to be constructed without eventlet, so
++    this is a backstop. It reports the cause rather than letting an
++    ImportError escape from somewhere deeper.
++    """
++    if not _utils.EVENTLET_AVAILABLE:
++        raise RuntimeError(f'Eventlet is needed to use {what}')
+ 
+-    if name not in ('Pool', 'Queue', 'spawn'):
+-        raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+-    if _utils.EVENTLET_AVAILABLE:
+-        from eventlet import greenpool
+-        from eventlet import greenthread
+-        from eventlet import queue
+ 
+-        # Aliases that we use and only expose vs the whole of eventlet...
+-        Pool = greenpool.GreenPool
+-        Queue = queue.Queue
+-        spawn = greenthread.spawn
+-    else:
+-        Pool = Queue = spawn = None
+-    return globals()[name]
++# The accessors below import eventlet when they are first called rather than
++# when this module is imported, so a process which never uses a green
++# executor does not pay for it, and functools.cache means each one imports
++# once. They are functions rather than module attributes because this module
++# is internal, so nothing outside futurist depends on the attributes, and a
++# module-level __getattr__ serving them would type as Any and hide every
++# attribute of this module from the type checker -- including a misspelled
++# one. Returning the eventlet types instead lets callers keep their types.
++#
++# eventlet ships no type information, so each accessor is where its Any
++# stops: the ignore is on the return, and the declared type is what callers
++# see. That is the point of the exercise -- without it the Any reaches the
++# callers, which is why they had to annotate their own attributes as Any.
++@functools.cache
++def get_pool_class() -> type[greenpool.GreenPool]:
++    """eventlet's green pool class."""
++    _require_eventlet('a green executor')
++    from eventlet import greenpool
++
++    return greenpool.GreenPool  # type: ignore[no-any-return]
++
++
++@functools.cache
++def get_queue_class() -> type[greenqueue.Queue[_utils.WorkItem]]:
++    """eventlet's green queue class, as we use it: a queue of work items."""
++    _require_eventlet('a green executor')
++    from eventlet import queue
++
++    return queue.Queue  # type: ignore[no-any-return]
++
++
++@functools.cache
++def get_spawn() -> Callable[..., greenthread.GreenThread]:
++    """eventlet's greenthread spawn function."""
++    _require_eventlet('a green thread')
++    from eventlet import greenthread
++
++    return greenthread.spawn  # type: ignore[no-any-return]
++
++
++@functools.cache
++def _green_threading() -> ModuleType:
++    """eventlet's green threading module."""
++    _require_eventlet('green threading primitives')
++    from eventlet.green import threading as greenthreading
++
++    return greenthreading  # type: ignore[no-any-return]
+ 
+ 
+ def is_monkey_patched(mod: str) -> bool:
+@@ -63,35 +103,27 @@ def is_monkey_patched(mod: str) -> bool:
+ class GreenThreading:
+     @staticmethod
+     def event_object() -> stdlib_threading.Event:
+-        from eventlet.green import threading as greenthreading
+-
+-        return greenthreading.Event()  # type: ignore
++        return _green_threading().Event()  # type: ignore
+ 
+     @staticmethod
+     def lock_object() -> stdlib_threading.Lock:
+-        from eventlet.green import threading as greenthreading
+-
+-        return greenthreading.Lock()  # type: ignore
++        return _green_threading().Lock()  # type: ignore
+ 
+     @staticmethod
+     def rlock_object() -> stdlib_threading.RLock:
+-        from eventlet.green import threading as greenthreading
+-
+-        return greenthreading.RLock()  # type: ignore
++        return _green_threading().RLock()  # type: ignore
+ 
+     @staticmethod
+     def condition_object(
+         lock: stdlib_threading.Lock | stdlib_threading.RLock | None = None,
+     ) -> stdlib_threading.Condition:
+-        from eventlet.green import threading as greenthreading
+-
+-        return greenthreading.Condition(lock=lock)  # type: ignore
++        return _green_threading().Condition(lock=lock)  # type: ignore
+ 
+ 
+-# Creating this imports nothing; its methods import eventlet when called.
+-threading: GreenThreading | None = (
+-    GreenThreading() if _utils.EVENTLET_AVAILABLE else None
+-)
++# Constructing this imports nothing; its methods import eventlet when they
++# are called, and raise if it is missing. It is not optional, so callers do
++# not have to narrow it before every use.
++threading: GreenThreading = GreenThreading()
+ 
+ 
+ class GreenWorker:
+diff --git a/futurist/tests/test_green.py b/futurist/tests/test_green.py
+index 12f7be7..f6d75e2 100644
+--- a/futurist/tests/test_green.py
++++ b/futurist/tests/test_green.py
+@@ -88,7 +88,16 @@ class TestLazyEventlet(base.TestCase):
+                     make()
+                 except RuntimeError as e:
+                     print(e)
+-            print(_green.Pool, _green.spawn, _green.threading)
++            for get in (
++                _green.get_pool_class,
++                _green.get_queue_class,
++                _green.get_spawn,
++                _green.threading.lock_object,
++            ):
++                try:
++                    get()
++                except RuntimeError as e:
++                    print(e)
+             """
+         )
+         self.assertEqual(
+@@ -96,7 +105,10 @@ class TestLazyEventlet(base.TestCase):
+                 'Eventlet is needed to use a green executor',
+                 'Eventlet is needed to use a green future',
+                 'Eventlet is needed to use a green synchronous executor',
+-                'None None None',
++                'Eventlet is needed to use a green executor',
++                'Eventlet is needed to use a green executor',
++                'Eventlet is needed to use a green thread',
++                'Eventlet is needed to use green threading primitives',
+             ],
+             out,
+         )
