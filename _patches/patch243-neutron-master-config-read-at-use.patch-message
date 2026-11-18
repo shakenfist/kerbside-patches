@@ -1,14 +1,31 @@
 Read config options where they are used, not at import
 
 objects/base.py, quotasv2.py and quotasv2_detail.py read options at
-import, so any tool that imports them before parsing its configuration,
-such as neutron-ovn-db-sync-util, sees the defaults. Read "debug" and
-"quota_driver" when they are used, and always register the ORM hook.
+import, so any tool that imports them before parsing its
+configuration, such as neutron-ovn-db-sync-util, sees the defaults.
 
 quotasv2 compared the run-time driver with its own import-time value,
 so whether its description said "per project" depended on import
 order. It now checks the driver against QUOTA_DB_DRIVERS, a tuple of
-the two database drivers added to neutron.conf.quota.
+the two database drivers added to neutron.conf.quota, and
+quotasv2_detail checks the same tuple when its supported check runs.
+
+objects/base.py registered the ORM "SQL execution without transaction"
+listener at import, guarded by "debug" read at import, so the listener
+was silently skipped in any process that imported it before parsing
+its configuration. Registering the listener unconditionally and
+testing "debug" inside it would fix that, but it would also make
+SQLAlchemy build an ORMExecuteState for every ORM statement in every
+process. Instead the listener moves to NeutronDbPluginV2.__init__,
+which already registers listeners this way for the nova notifier and
+runs once the configuration has been parsed, and is registered there
+only when "debug" is set.
+
+This narrows the check to processes that build a core plugin, which is
+enough to monitor Neutron's compliance with SQLAlchemy 2.0, because
+that is where the ORM code runs. neutron-ovn-db-sync-util builds its
+own Ml2Plugin subclass through manager.init(), so it is still covered,
+and now honours "debug" from its configuration file.
 
 Assisted-By: Claude Opus 5.5 (high effort)
 Change-Id: Iebbb77f7b7190126973711100896c0fa1d487570

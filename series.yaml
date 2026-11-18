@@ -90,7 +90,7 @@ neutron:
   neutron-import-time-config-check:
     description: Config should not be read at import time
     upstream: https://review.opendev.org/c/openstack/neutron/+/1012623
-    status: carry
+    status: push
   neutron-dhcp-agent-fixes:
     description: Various bug fixes and mypy guards against regressions
     upstream: https://review.opendev.org/c/openstack/neutron/+/1012618
