@@ -196,21 +196,33 @@ then
     sudo systemctl restart docker
     echo -e "${H3}Docker restarted without containerd-snapshotter${Color_Off}"
 
-    # Verify Docker loaded the insecure-registries config
+    # Verify Docker loaded the insecure-registries config. Capture docker
+    # info once, so a daemon that is not answering is reported as that
+    # rather than as a missing insecure registry below.
     echo
     echo -e "${H3}Docker info (post-restart)${Color_Off}"
-    docker info 2>&1 | grep -iA5 "Insecure\|Storage\|Snapshotter\|Server Version"
-
-    # Fail here rather than fifteen minutes later at the manifest image
-    # push if the daemon did not take the loopback range: without it
-    # occystrap's ephemeral registry is rejected for serving a
-    # self-signed certificate. See issue #2115.
-    if ! docker info 2>&1 | grep -qF '127.0.0.0/8'; then
-        echo "Docker did not load 127.0.0.0/8 as an insecure registry." >&2
-        echo "occystrap's dockerpush push would fail certificate" >&2
-        echo "verification. Refusing to build." >&2
+    if ! docker_info=$(docker info 2>&1); then
+        echo "docker info failed after the daemon restart:" >&2
+        echo "${docker_info}" >&2
         exit 1
     fi
+    # Informational only: the checks below decide whether to stop.
+    grep -iA5 "Insecure\|Storage\|Snapshotter\|Server Version" \
+        <<< "${docker_info}" || true
+
+    # Fail here rather than fifteen minutes later at the manifest image
+    # push if the daemon did not take both loopback ranges written
+    # above: without them occystrap's ephemeral registry is rejected for
+    # serving a self-signed certificate, and "localhost" may resolve to
+    # either address family. See issue #2115.
+    for cidr in 127.0.0.0/8 ::1/128; do
+        if ! grep -qF -- "${cidr}" <<< "${docker_info}"; then
+            echo "Docker did not load ${cidr} as an insecure registry." >&2
+            echo "occystrap's dockerpush push would fail certificate" >&2
+            echo "verification. Refusing to build." >&2
+            exit 1
+        fi
+    done
 
     echo
     echo -e "${H2}Install occystrap for proxy${Color_Off}"
