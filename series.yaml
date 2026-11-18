@@ -34,16 +34,19 @@ kolla:
     description: Containerized kolla-ansible deployer
     upstream: https://review.opendev.org/c/openstack/kolla/+/1011443
     status: push
+    note: Broken on debian trixie CI breakage upstream
   kolla-kerbside:
     description: Deploy Kerbside with Kolla-ansible
     upstream: https://review.opendev.org/c/openstack/kolla/+/998073
     status: push
+    note: Broken on debian trixie CI breakage upstream
 
   # Fixes
   kolla-process-build-logs-hang:
     description: CI post-run timeout fix
     upstream: https://review.opendev.org/c/openstack/kolla/+/1014642
-    status: push
+    status: carry
+    note: Uploaded out of sync, likely competing with another patch set
   kolla-virtlogd-fail-loudly:
     description: Bug fix
     upstream: https://review.opendev.org/c/openstack/kolla/+/1010516
@@ -77,6 +80,7 @@ kolla-ansible:
     description: CI flake fix
     upstream: https://review.opendev.org/c/openstack/kolla-ansible/+/1001633
     status: push
+  # ...upto...
   kolla-ansible-fluentd-virtlogd:
     description: Bug fix
     upstream: https://review.opendev.org/c/openstack/kolla-ansible/+/1010517

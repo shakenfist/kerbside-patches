@@ -1,13 +1,14 @@
-commit 969f1a9e6cf4aaa81d4203780bead291c50e887f
+commit ee2d4469f772bee9a3f6a6a70de84abef171b6e2
 Author: Michael Still <mikal@stillhq.com>
-Date:   Thu Nov 12 05:54:24 2026 +1100
+Date:   Mon Nov 16 18:23:10 2026 +1100
 
-    CI: stop process_build_logs backtracking.
+    CI: stop process_build_logs backtracking
     
     process_build_logs.py times out the kolla-build-rocky-10 post playbook:
     its unanchored ".+" fields backtrack catastrophically over a 128kB
-    JSON-escaped pip warning in bifrost-base.log. Restrict every field that
-    cannot contain whitespace to "\S+".
+    JSON-escaped pip warning in bifrost-base.log. Restrict every captured
+    field to "\S+", which cannot cross whitespace, and the separator after
+    "Package" to "\s+", so there is only one way to match each field.
     
     Change-Id: I624db955f0a63e2a9e8dd53ad72e567b83a8bb11
     Assisted-By: Claude Opus 5
