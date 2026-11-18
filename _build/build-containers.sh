@@ -173,9 +173,23 @@ then
     # resolver that ignores insecure-registries, containerd hosts.toml,
     # and CRI config_path. Disable the snapshotter so Docker's native
     # push path is used, which correctly honors insecure-registries.
+    #
+    # insecure-registries lists the whole loopback range rather than just
+    # the proxy on 127.0.0.1:5050, because occystrap's dockerpush input
+    # serves its ephemeral registry on a random loopback port with a
+    # self-signed certificate. Until docker-ce 29.10.0, Docker added
+    # 127.0.0.0/8 and ::1/128 to InsecureRegistryCIDRs implicitly, so that
+    # registry was exempt from certificate verification whatever port it
+    # landed on. 29.10.0 drops those defaults as soon as
+    # insecure-registries is set explicitly (moby/moby#53868), which broke
+    # every master image build: the kolla pushes to 127.0.0.1:5050 still
+    # worked, the manifest image push died with "x509: certificate signed
+    # by unknown authority". These two entries are the values Docker used
+    # as its own defaults, so this restores the pre-29.10.0 behaviour
+    # rather than widening it. See issue #2115.
     echo
     echo -e "${H2}Configure Docker for local proxy${Color_Off}"
-    echo '{"insecure-registries": ["127.0.0.1:5050"], "features": {"containerd-snapshotter": false}}' | \
+    echo '{"insecure-registries": ["127.0.0.0/8", "::1/128"], "features": {"containerd-snapshotter": false}}' | \
         sudo tee /etc/docker/daemon.json > /dev/null
     echo "daemon.json:"
     cat /etc/docker/daemon.json
@@ -186,6 +200,17 @@ then
     echo
     echo -e "${H3}Docker info (post-restart)${Color_Off}"
     docker info 2>&1 | grep -iA5 "Insecure\|Storage\|Snapshotter\|Server Version"
+
+    # Fail here rather than fifteen minutes later at the manifest image
+    # push if the daemon did not take the loopback range: without it
+    # occystrap's ephemeral registry is rejected for serving a
+    # self-signed certificate. See issue #2115.
+    if ! docker info 2>&1 | grep -qF '127.0.0.0/8'; then
+        echo "Docker did not load 127.0.0.0/8 as an insecure registry." >&2
+        echo "occystrap's dockerpush push would fail certificate" >&2
+        echo "verification. Refusing to build." >&2
+        exit 1
+    fi
 
     echo
     echo -e "${H2}Install occystrap for proxy${Color_Off}"

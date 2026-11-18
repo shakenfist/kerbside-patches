@@ -1,0 +1,41 @@
+commit 2a163391bb909c6ad9f0474b1176f9a2f5abeaef
+Author: Michael Still <mikal@stillhq.com>
+Date:   Wed Nov 18 08:42:32 2026 +1100
+
+    Stop relying on the $stream dnf variable for the NFV repo.
+    
+    The centos-nfv-openvswitch metalink was built from $stream, which
+    dnf only expands when /etc/dnf/vars/stream exists. Rocky Linux 10.2's
+    rocky-repos package shipped that file (stream=10-stream); 10.3's does
+    not, and quay.io/rockylinux/rockylinux:10 now points at 10.3. dnf
+    therefore sends a literal "$stream" to mirrors.centos.org, which
+    answers 404, and every image that installs openvswitch
+    (openvswitch-base, kolla-toolbox, nova-libvirt) fails to build:
+    
+      Error: Failed to download metadata for repo 'centos-nfv-openvswitch':
+      Cannot prepare internal mirrorlist: Status code: 404 for
+      https://mirrors.centos.org/metalink?repo=centos-nfv-sig-openvswitch-2-$stream&...
+    
+    Build the stream name from $releasever_major instead, which dnf
+    always defines. On Rocky 10 it expands to 10-stream, the value the
+    variable used to hold, and openvswitch3.5 resolves from the repo
+    again.
+    
+    Prompt: Michael asked for the Rocky 10 master image build failure
+    blocking the kerbside-patches merge queue to be fixed.
+    
+    Assisted-By: Claude Opus 5.5
+
+diff --git a/kolla/template/repos.yaml b/kolla/template/repos.yaml
+index 0bc728fca..053462f7a 100644
+--- a/kolla/template/repos.yaml
++++ b/kolla/template/repos.yaml
+@@ -180,7 +180,7 @@ rpm:
+     name: "opensearch-dashboards-3.x"
+   openvswitch:
+     gpgkey: "https://www.centos.org/keys/RPM-GPG-KEY-CentOS-SIG-NFV"
+-    metalink: "https://mirrors.centos.org/metalink?repo=centos-nfv-sig-openvswitch-2-$stream&arch=$basearch&protocol=https,http"
++    metalink: "https://mirrors.centos.org/metalink?repo=centos-nfv-sig-openvswitch-2-$releasever_major-stream&arch=$basearch&protocol=https,http"
+     name: "centos-nfv-openvswitch"
+   opstools:
+     distro: True

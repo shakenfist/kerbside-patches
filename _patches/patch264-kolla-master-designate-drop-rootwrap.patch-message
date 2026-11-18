@@ -1,0 +1,19 @@
+designate: drop rootwrap configuration.
+
+Designate removed oslo.rootwrap in "Remove oslo.rootwrap dependency"
+(designate commit c333e687a0): etc/designate/rootwrap.conf and the
+designate-rootwrap console script are gone, and root_helper is now a
+deprecated no-op because rndc runs as the designate worker user.
+
+designate-base still rewrites exec_dirs in that file, so the image no
+longer builds against designate master:
+
+  sed: can't read /etc/designate/rootwrap.conf: No such file or directory
+
+Drop the sed, and the sudoers entry that granted the kolla group root
+via designate-rootwrap, since the binary it names no longer exists.
+
+Prompt: Michael asked for the designate-base build failure blocking
+the kerbside-patches merge queue to be fixed.
+
+Assisted-By: Claude Opus 5.5
