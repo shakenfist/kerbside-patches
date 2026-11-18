@@ -76,7 +76,6 @@ kolla-ansible:
     description: CI flake fix
     upstream: https://review.opendev.org/c/openstack/kolla-ansible/+/1001633
     status: push
-  # ...upto...
   kolla-ansible-fluentd-virtlogd:
     description: Bug fix
     upstream: https://review.opendev.org/c/openstack/kolla-ansible/+/1010517
@@ -84,10 +83,6 @@ kolla-ansible:
   kolla-ansible-host-virtlogd-precheck:
     description: Bug fix
     upstream: https://review.opendev.org/c/openstack/kolla-ansible/+/1010517
-    status: push
-  kolla-ansible-mariadb-collations:
-    description: CI flake fix
-    upstream: https://review.opendev.org/c/openstack/kolla-ansible/+/1007308
     status: push
 
 neutron:
