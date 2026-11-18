@@ -98,7 +98,11 @@ The jobs of `Build test clouds`, in dependency order:
   request, calling `shakenfist/actions`' `pr-auto-review.yml`, which
   has Claude Code review the change. It reviews once per pull request,
   skips fork pull requests and ones whose last commit is the bot's,
-  and is not part of either gate. Merge groups skip it.
+  and is not part of either gate. Merge groups skip it. Like `Report
+  weekly failures`, it tests `Can enqueue`'s result in its own `if:`:
+  under the implicit `success()` a job after a gate is skipped whenever
+  any job upstream of the gate was skipped, and `Local build` nearly
+  always is.
 
 `Patch tests` and `Local build` are jobs of this workflow. Their jobs
 show in a run as `Patch tests / Ansible lint check`,

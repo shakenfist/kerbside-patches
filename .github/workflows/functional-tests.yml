@@ -1354,9 +1354,15 @@ jobs:
   # workflow reviews same-repository pull requests only, skips when the last
   # commit is shakenfist-bot's or the bot has already reviewed, and needs no
   # secrets, so none are inherited.
+  #
+  # The if: must test Can enqueue's result itself. Without one, the implicit
+  # success() also skips this job when any job upstream of Can enqueue was
+  # skipped, and Local build is skipped on nearly every pull request, so
+  # until this was added the job never ran.
   automated_reviewer:
     name: "Automated reviewer"
     needs: can_enqueue
+    if: always() && needs.can_enqueue.result == 'success'
     permissions:
       contents: read
       pull-requests: write
