@@ -11,9 +11,10 @@ The workflow half pins the seams that make the check worth anything: it is
 the last step of the job every queue job waits for, so nothing enters a
 merge-group-keyed concurrency group before it has run, and its job holds the
 token scope the cancellation needs. It also pins the gates the queue relies
-on: both collection jobs need every gated job directly, and no job in a
-workflow called from functional-tests.yml shares a concurrency group with
-one of the caller's jobs.
+on: both collection jobs need every gated job directly, every job that needs
+a gate directly tests the gate's result in its own if:, the automated reviewer
+runs on pull requests only, and no job in a workflow called from
+functional-tests.yml shares a concurrency group with one of the caller's jobs.
 
 Usage:
     ./test-ci-merge-group-current.py
@@ -260,6 +261,31 @@ class MergeGatesTestCase(unittest.TestCase):
         # a skipped required check counts as satisfied.
         self.assertEqual("always() && github.event_name != 'merge_group'", self.jobs['can_enqueue']['if'])
         self.assertEqual("always() && github.event_name == 'merge_group'", self.jobs['can_merge']['if'])
+
+    def test_jobs_needing_a_gate_test_its_result_explicitly(self):
+        # A gate passes when lanes it needs were skipped, but a job that needs
+        # the gate and has no if: gets the implicit success(), which skips it
+        # when any job upstream of the gate was skipped -- and Local build
+        # nearly always is. That kept the automated reviewer from ever running.
+        # Only direct needs are checked: no job sits further downstream.
+        checked = set()
+        for name, job in self.jobs.items():
+            needs = job.get('needs', [])
+            if isinstance(needs, str):
+                needs = [needs]
+            for gate in set(needs) & set(self.GATES):
+                checked.add(name)
+                condition = job.get('if', '')
+                self.assertTrue(condition.startswith('always() && '), '%s: if: %r' % (name, condition))
+                self.assertIn('needs.%s.result == ' % gate, condition, name)
+        # Naming the jobs keeps the loop from passing empty, and makes a new
+        # job needing a gate a deliberate edit here.
+        self.assertEqual({'report_weekly', 'automated_reviewer'}, checked)
+
+    def test_the_automated_reviewer_runs_on_pull_requests_only(self):
+        # Can enqueue also passes on schedule and dispatch runs, which have no
+        # pull request for pr-auto-review.yml to review.
+        self.assertIn("github.event_name == 'pull_request'", self.jobs['automated_reviewer']['if'])
 
     def test_ungated_jobs_are_outside_both_gates(self):
         for gate in self.GATES:
