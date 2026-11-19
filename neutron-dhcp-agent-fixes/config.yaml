@@ -5,5 +5,5 @@ shallow_clone: true
 directory: neutron
 release: master-neutron-dhcp-agent-fixes
 depends_on: ''
-source_sha: 7b7d5285bbb7602a3ee03a8d9fce4d5be1c2064d
-previous_source_sha: 0ba628aaf66c80c1d077a737144eb29fef606420
+source_sha: 1b9a3ebf26d74f14a6196a33ee9f461acd141b75
+previous_source_sha: 7b7d5285bbb7602a3ee03a8d9fce4d5be1c2064d
