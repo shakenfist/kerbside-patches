@@ -5,5 +5,5 @@ shallow_clone: true
 directory: neutron
 release: master-neutron-agent-typing-base
 depends_on: ''
-source_sha: bb748d71d820f925bd68f0d614421c9db79fe429
-previous_source_sha: 1b9a3ebf26d74f14a6196a33ee9f461acd141b75
+source_sha: 8ce3fcb34277fa7f9d0762e205def95745dc2f9b
+previous_source_sha: bb748d71d820f925bd68f0d614421c9db79fe429
