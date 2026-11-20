@@ -5,5 +5,5 @@ shallow_clone: true
 directory: oslo.service
 release: master-oslo.service-import-memory-012
 depends_on: ''
-source_sha: ba6ea0b18529a9908a93ee1a1379567c86620e54
-previous_source_sha: 8c5366697b4353622fb1f0319deb50dfb034208a
+source_sha: 283b9e91f48d653b96622bd6f5888e9ef5698f8e
+previous_source_sha: ba6ea0b18529a9908a93ee1a1379567c86620e54
