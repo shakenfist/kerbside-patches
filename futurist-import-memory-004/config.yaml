@@ -1,9 +1,0 @@
-repo: https://opendev.org/openstack/futurist
-source_branch: master
-destination_branch: import-memory
-shallow_clone: true
-directory: futurist
-release: master-futurist-import-memory-004
-depends_on: ''
-source_sha: ea67c8cdb4ecbd9cbd65f9dfdf3474179fc0ae15
-previous_source_sha: 5ffbc5bb1d7046545d47194456ed1aec06c4ede9
