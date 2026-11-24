@@ -1,6 +1,6 @@
-commit f27208dd38bd6bd14d4036b7de74cc902cd22454
+commit 6ab66d07d34b803a6d99b3c88d9a3e2fc10da2c4
 Author: Michael Still <mikal@stillhq.com>
-Date:   Tue Nov 3 19:23:16 2026 +1100
+Date:   Tue Nov 24 18:16:43 2026 +1100
 
     db: Keep is_agent_down out of the agent utilities
     
@@ -102,7 +102,7 @@ index 0000000000..a449b25744
 +    return timeutils.is_older_than(heart_beat_time,
 +                                   cfg.CONF.agent_down_time)
 diff --git a/neutron/db/agents_db.py b/neutron/db/agents_db.py
-index da81881eea..c01353767a 100644
+index fd5e1da39f..dd31679feb 100644
 --- a/neutron/db/agents_db.py
 +++ b/neutron/db/agents_db.py
 @@ -40,8 +40,8 @@ from oslo_utils import importutils
