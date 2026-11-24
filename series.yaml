@@ -126,6 +126,7 @@ oslo.service:
     description: Import eventlet only for the WSGI server
     upstream: https://review.opendev.org/c/openstack/oslo.service/+/1012180
     status: push
+  # ...upto...
 
   # Not yet pushed
   oslo.service-loopingcall-restart:
@@ -137,7 +138,8 @@ oslo.utils:
   oslo.utils-import-memory-010:
     description: Do not import eventlet in eventletutils until used
     upstream: https://review.opendev.org/c/openstack/oslo.utils/+/1012175
-    status: push
+    status: carry
+    note: Has one +2
 
 placement:
   placement-import-memory-009:

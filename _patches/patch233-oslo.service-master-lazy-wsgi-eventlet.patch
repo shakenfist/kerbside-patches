@@ -1,6 +1,6 @@
-commit 506eb56fb536092e736345f59e816be7c2751d51
+commit ca4383c606b19f2cfd6ae982691d5443087ebef2
 Author: Michael Still <mikal@stillhq.com>
-Date:   Wed Nov 18 19:42:55 2026 +1100
+Date:   Tue Nov 24 18:04:41 2026 +1100
 
     Import eventlet only for the WSGI server
     
@@ -20,24 +20,14 @@ Date:   Wed Nov 18 19:42:55 2026 +1100
     
     Assisted-By: Claude Opus 5.5 (high effort)
     
-    Depends-On: https://review.opendev.org/c/openstack/devstack/+/1011992
     Change-Id: Id8f23667d2b188af9a51de07ca48eaa5409f0f6f
     Signed-off-by: Michael Still <mikal@stillhq.com>
 
 diff --git a/oslo_service/tests/test_wsgi.py b/oslo_service/tests/test_wsgi.py
-index d72681e..0967e25 100644
+index d72681e..a5f0e07 100644
 --- a/oslo_service/tests/test_wsgi.py
 +++ b/oslo_service/tests/test_wsgi.py
-@@ -19,6 +19,8 @@
- import os
- import platform
- import socket
-+import subprocess
-+import sys
- import tempfile
- import testtools
- import unittest
-@@ -272,6 +274,35 @@ class TestWSGIServer(WsgiTestCase):
+@@ -272,6 +272,35 @@ class TestWSGIServer(WsgiTestCase):
              )
              server.stop()
  
@@ -73,36 +63,6 @@ index d72681e..0967e25 100644
      def test_wsgi_keep_alive(self):
          self.config(wsgi_keep_alive=False)
  
-@@ -604,3 +635,29 @@ class TestWSGIServerBackendCompatibility(WsgiTestCase):
-         # Server creation should still work since backend is still eventlet
-         server2 = wsgi.Server(self.conf, "test_eventlet_second", None)
-         self.assertEqual("test_eventlet_second", server2.name)
-+
-+
-+class TestWSGIImportWithoutEventlet(testtools.TestCase):
-+    """Tests that the module does not need eventlet until Server is used."""
-+
-+    def test_import_without_eventlet(self):
-+        # Run in a fresh interpreter in which eventlet and greenlet cannot
-+        # be imported: the test process has already imported both.
-+        code = (
-+            "import sys\n"
-+            "sys.modules['eventlet'] = None\n"
-+            "sys.modules['greenlet'] = None\n"
-+            "from oslo_config import cfg\n"
-+            "from oslo_service import backend\n"
-+            "from oslo_service.backend import exceptions\n"
-+            "backend.init_backend(backend.BackendType.THREADING)\n"
-+            "from oslo_service import wsgi\n"
-+            "conf = cfg.ConfigOpts()\n"
-+            "wsgi.register_opts(conf)\n"
-+            "try:\n"
-+            "    wsgi.Server(conf, 'test', None)\n"
-+            "except exceptions.UnsupportedBackendError:\n"
-+            "    print('ok')\n"
-+        )
-+        out = subprocess.check_output([sys.executable, "-c", code], text=True)
-+        self.assertEqual('ok', out.strip())
 diff --git a/oslo_service/wsgi.py b/oslo_service/wsgi.py
 index 90f802e..2814044 100644
 --- a/oslo_service/wsgi.py
