@@ -28,12 +28,10 @@ kolla:
     description: Containerized kolla-ansible deployer
     upstream: https://review.opendev.org/c/openstack/kolla/+/1011443
     status: push
-    note: Broken on debian trixie CI breakage upstream
   kolla-kerbside:
     description: Deploy Kerbside with Kolla-ansible
     upstream: https://review.opendev.org/c/openstack/kolla/+/998073
     status: push
-    note: Broken on debian trixie CI breakage upstream
 
   # Fixes
   kolla-virtlogd-fail-loudly:
@@ -84,7 +82,6 @@ neutron:
     description: Config should not be read at import time
     upstream: https://review.opendev.org/c/openstack/neutron/+/1012623
     status: push
-  # ...upto...
   neutron-dhcp-agent-fixes:
     description: Various bug fixes and mypy guards against regressions
     upstream: https://review.opendev.org/c/openstack/neutron/+/1012618
