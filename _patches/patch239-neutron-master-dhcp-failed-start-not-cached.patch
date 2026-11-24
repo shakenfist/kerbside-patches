@@ -1,6 +1,6 @@
-commit 42dc7383e031e3fb7ec1b0bca53bef15fc99aeaa
+commit 849da1c1b7b72edbea2a33bf0a4b5be7273dafb9
 Author: Michael Still <mikal@stillhq.com>
-Date:   Sat Nov 7 16:19:52 2026 +1100
+Date:   Tue Nov 24 19:00:51 2026 +1100
 
     dhcp: Do not report ports of a network with no dnsmasq
     
@@ -15,23 +15,7 @@ Date:   Sat Nov 7 16:19:52 2026 +1100
     from the sets waiting to be reported, schedules a resync for the
     network, and returns False.
     
-    The callers that mark ports DHCP-ready now all honour that result:
-    
-    * configure_dhcp_for_network returns whether the network's DHCP service
-      is running, and neither caches the network nor marks its ports ready
-      when it is not.
-    * refresh_dhcp_helper does not mark the ports ready when either of the
-      driver calls it makes failed.
-    * reload_allocations, which promotes a change to the agent port's IP
-      addresses into a restart, does not mark the port ready when that
-      restart failed.
-    * sync_state reports the ports of the networks it configured rather than
-      every port it knows, so a network that failed to start during the
-      resync does not have its ports reported either.
-    
-    A driver call that raised already meant the agent did not cache the
-    network; it now also means the network's ports are not reported.
-    
+    The callers that mark ports DHCP-ready now all honour that result.
     No port is lost by this: the resync that each failure schedules reports
     the network's ports once its DHCP service is running.
     
@@ -40,7 +24,7 @@ Date:   Sat Nov 7 16:19:52 2026 +1100
     Signed-off-by: Michael Still <mikal@stillhq.com>
 
 diff --git a/neutron/agent/dhcp/agent.py b/neutron/agent/dhcp/agent.py
-index 07cc826ff4..a0bd131e55 100644
+index 07cc826ff4..d1cb6dd0ba 100644
 --- a/neutron/agent/dhcp/agent.py
 +++ b/neutron/agent/dhcp/agent.py
 @@ -97,6 +97,19 @@ class DHCPResourceUpdate(queue.ResourceUpdate):
@@ -63,15 +47,11 @@ index 07cc826ff4..a0bd131e55 100644
  class DhcpAgent(manager.Manager):
      """DHCP agent service manager.
  
-@@ -300,6 +313,15 @@ class DhcpAgent(manager.Manager):
+@@ -300,6 +313,11 @@ class DhcpAgent(manager.Manager):
              rv = getattr(driver, action)(**action_kwargs)
              if action == 'get_metadata_bind_interface':
                  return rv
 +            if action in ('enable', 'restart') and rv is False:
-+                # The driver could not start the DHCP service, so the
-+                # network is not being served: stop reporting its ports as
-+                # DHCP-ready and retry the network on the next resync
-+                # rather than treating it as up.
 +                self._discard_dhcp_ready_ports(network.id)
 +                self.schedule_resync(
 +                    f'Unable to {action} dhcp for {network.id}', network.id)
@@ -79,18 +59,12 @@ index 07cc826ff4..a0bd131e55 100644
              return True
          except exceptions.Conflict:
              # No need to resync here, the agent will receive the event related
-@@ -328,6 +350,18 @@ class DhcpAgent(manager.Manager):
+@@ -328,6 +346,12 @@ class DhcpAgent(manager.Manager):
                  LOG.exception('Unable to %(action)s dhcp for %(net_id)s.',
                                {'net_id': network.id, 'action': action})
  
 +    def _discard_dhcp_ready_ports(self, network_id):
-+        """Stop reporting a network's ports as DHCP-ready.
-+
-+        Called when the network has no running DHCP service, so that ports
-+        waiting to be reported are not reported while that is true. The
-+        resync scheduled by the same failure queues them again once the
-+        service is running.
-+        """
++        """Stop reporting a network's ports as DHCP-ready."""
 +        port_ids = set(self.cache.get_port_ids([network_id]))
 +        self.dhcp_ready_ports -= port_ids
 +        self.dhcp_prio_ready_ports -= port_ids
@@ -98,7 +72,7 @@ index 07cc826ff4..a0bd131e55 100644
      def schedule_resync(self, reason, network_id=None):
          """Schedule a resync for a given network and reason. If no network is
          specified, resync all networks.
-@@ -365,20 +399,26 @@ class DhcpAgent(manager.Manager):
+@@ -365,20 +389,26 @@ class DhcpAgent(manager.Manager):
              with utils.ThreadPoolExecutorWithBlock(
                      max_workers=self.conf.num_sync_threads,
                      stopping_event=self._stopping_event) as pool:
@@ -131,7 +105,7 @@ index 07cc826ff4..a0bd131e55 100644
              LOG.info('Synchronizing state complete')
  
          except Exception as e:
-@@ -480,36 +520,55 @@ class DhcpAgent(manager.Manager):
+@@ -480,36 +510,53 @@ class DhcpAgent(manager.Manager):
  
      @utils.exception_logger()
      def safe_configure_dhcp_for_network(self, network):
@@ -187,15 +161,13 @@ index 07cc826ff4..a0bd131e55 100644
 +            return False
 +
 +        # Ensure we have an up-to-date network object
-+        # Without, the object may not contain the new DHCP port
-+        # which in turn could have a port wrongfully marked
-+        # as stale and deleted
 +        new_network = self.safe_get_network_info(network.id)
 +        if new_network:
 +            network = new_network
 +
 +        self.update_isolated_metadata_proxy(network)
 +        self.cache.put(network)
++
 +        # After enabling dhcp for network, mark all existing
 +        # ports as ready. So that the status of ports which are
 +        # created before enabling dhcp can be updated.
@@ -204,7 +176,7 @@ index 07cc826ff4..a0bd131e55 100644
  
      def disable_dhcp_helper(self, network_id):
          """Disable DHCP for a network known to the agent."""
-@@ -549,10 +608,16 @@ class DhcpAgent(manager.Manager):
+@@ -549,10 +596,16 @@ class DhcpAgent(manager.Manager):
          new_cidrs = [s.cidr for s in (network.subnets +
                                        new_non_local_subnets) if s.enable_dhcp]
          if old_cidrs == new_cidrs:
@@ -224,7 +196,7 @@ index 07cc826ff4..a0bd131e55 100644
          # mark all ports as active in case the sync included
          # new ports that we hadn't seen yet.
          self.dhcp_ready_ports |= {p.id for p in network.ports}
-@@ -712,7 +777,10 @@ class DhcpAgent(manager.Manager):
+@@ -712,7 +765,10 @@ class DhcpAgent(manager.Manager):
                            network.id, old_ips, new_ips)
                  driver_action = 'restart'
          self.cache.put_port(port)
