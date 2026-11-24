@@ -1,6 +1,6 @@
-commit 40f1703322d840beb35b7f188ff8717d0fe18017
+commit f621d2f0bf157128ef2abcf8357fefa0b739e470
 Author: Michael Still <mikal@stillhq.com>
-Date:   Tue Nov 24 19:00:52 2026 +1100
+Date:   Tue Nov 24 19:09:28 2026 +1100
 
     dhcp: Annotate the DHCP driver's return types
     

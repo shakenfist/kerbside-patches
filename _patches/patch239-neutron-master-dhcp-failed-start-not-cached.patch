@@ -1,6 +1,6 @@
-commit 849da1c1b7b72edbea2a33bf0a4b5be7273dafb9
+commit 467fa5a2388055e39242e2fd002e54808bf8e686
 Author: Michael Still <mikal@stillhq.com>
-Date:   Tue Nov 24 19:00:51 2026 +1100
+Date:   Tue Nov 24 19:09:28 2026 +1100
 
     dhcp: Do not report ports of a network with no dnsmasq
     

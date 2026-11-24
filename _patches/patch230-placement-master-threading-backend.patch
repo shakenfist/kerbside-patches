@@ -1,6 +1,6 @@
-commit 1314d7f45c60258911a3dabb784ccfd06c12b8d5
+commit b760be62ebed6968b1fe5a11b63104692b836abc
 Author: Michael Still <mikal@stillhq.com>
-Date:   Wed Nov 18 19:43:43 2026 +1100
+Date:   Tue Nov 24 19:12:35 2026 +1100
 
     Prefer the threading oslo.service backend
     

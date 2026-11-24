@@ -1,6 +1,6 @@
-commit 66d0b15a6c0b2f46670ec3d540d623c6cb227522
+commit 074b6bfa1dad6c2db98f353b33dd90f0faacd0c0
 Author: Michael Still <mikal@stillhq.com>
-Date:   Wed Nov 18 19:44:43 2026 +1100
+Date:   Tue Nov 24 19:13:00 2026 +1100
 
     Support image digests in kolla_container.
     
