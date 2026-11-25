@@ -11,23 +11,7 @@ _call_driver treats that as a failed call: it drops the network's ports
 from the sets waiting to be reported, schedules a resync for the
 network, and returns False.
 
-The callers that mark ports DHCP-ready now all honour that result:
-
-* configure_dhcp_for_network returns whether the network's DHCP service
-  is running, and neither caches the network nor marks its ports ready
-  when it is not.
-* refresh_dhcp_helper does not mark the ports ready when either of the
-  driver calls it makes failed.
-* reload_allocations, which promotes a change to the agent port's IP
-  addresses into a restart, does not mark the port ready when that
-  restart failed.
-* sync_state reports the ports of the networks it configured rather than
-  every port it knows, so a network that failed to start during the
-  resync does not have its ports reported either.
-
-A driver call that raised already meant the agent did not cache the
-network; it now also means the network's ports are not reported.
-
+The callers that mark ports DHCP-ready now all honour that result.
 No port is lost by this: the resync that each failure schedules reports
 the network's ports once its DHCP service is running.
 

@@ -1,6 +1,6 @@
-commit 6b1226541c02b1e3ae91d5da29fb93bd5dc76158
+commit de4f8b19253b82e27d8e29cee8e6fd7ed91812eb
 Author: Michael Still <mikal@stillhq.com>
-Date:   Wed Nov 18 19:39:15 2026 +1100
+Date:   Tue Nov 24 19:10:48 2026 +1100
 
     hacking: Add N351 for config reads at import time
     
@@ -141,10 +141,10 @@ index cec4489b1e..7d5190de99 100644
 +        # Default arguments are evaluated when the function is defined.
 +        self.assertEqual([0], check([(0, 'def foo(x=cfg.CONF.foo):')]))
 diff --git a/tox.ini b/tox.ini
-index dc1c24bd56..1a41eb18b2 100644
+index 10f048cb41..7d4cd4b96a 100644
 --- a/tox.ini
 +++ b/tox.ini
-@@ -233,6 +233,7 @@ extension =
+@@ -246,6 +246,7 @@ extension =
    N348 = checks:check_no_import_six
    N349 = checks:check_no_import_packaging
    N350 = checks:check_no_sqlalchemy_lazy_subquery

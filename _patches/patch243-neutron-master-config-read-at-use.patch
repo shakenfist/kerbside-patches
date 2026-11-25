@@ -1,6 +1,6 @@
-commit 48261f3beab2aa65cc12f97b29d76a3482f8cde7
+commit e7e89ab28153728566668f15a33a5f4595e1b1fb
 Author: Michael Still <mikal@stillhq.com>
-Date:   Wed Nov 18 19:39:14 2026 +1100
+Date:   Tue Nov 24 19:10:48 2026 +1100
 
     Read config options where they are used, not at import
     
@@ -187,7 +187,7 @@ index 5087022a52..d17dc7d0c8 100644
      @classmethod
      def get_name(cls):
 diff --git a/neutron/objects/base.py b/neutron/objects/base.py
-index 8a3505b2df..18e857eb61 100644
+index fabba4bee9..8033dfe424 100644
 --- a/neutron/objects/base.py
 +++ b/neutron/objects/base.py
 @@ -16,8 +16,6 @@ from collections import abc as collections_abc

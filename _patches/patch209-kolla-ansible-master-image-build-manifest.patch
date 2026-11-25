@@ -1,6 +1,6 @@
-commit 0db5031bc2d9e75bdeff3357310e101948bfca68
+commit 7e6824fc834bf2d8e674f7261f83b4a4efb27c4f
 Author: Michael Still <mikal@stillhq.com>
-Date:   Wed Nov 18 19:44:43 2026 +1100
+Date:   Tue Nov 24 19:13:01 2026 +1100
 
     Pull images by digest from a build manifest.
     
@@ -465,10 +465,10 @@ index 6de390b2c..2384241fe 100644
  
  etcd_enable_healthchecks: "{{ enable_container_healthchecks }}"
 diff --git a/ansible/roles/fluentd/defaults/main.yml b/ansible/roles/fluentd/defaults/main.yml
-index b462027d4..7f6ba399e 100644
+index 113fb6a94..9c71ce08d 100644
 --- a/ansible/roles/fluentd/defaults/main.yml
 +++ b/ansible/roles/fluentd/defaults/main.yml
-@@ -36,7 +36,7 @@ fluentd_tag: "{{ openstack_tag }}"
+@@ -38,7 +38,7 @@ fluentd_tag: "{{ openstack_tag }}"
  fluentd_dimensions: "{{ default_container_dimensions }}"
  
  fluentd_image: "{{ docker_image_url }}fluentd"

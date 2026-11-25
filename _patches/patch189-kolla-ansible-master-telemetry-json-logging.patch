@@ -1,6 +1,6 @@
-commit b410ddec3e45e9b129a36c48be66377da9dee98c
+commit e1d99dfd87ebfbe347eeff74fbdfaeff37b36a07
 Author: Michael Still <mikal@stillhq.com>
-Date:   Wed Nov 18 19:45:21 2026 +1100
+Date:   Tue Nov 24 19:13:33 2026 +1100
 
     Convert the telemetry services to JSON logging.
     
