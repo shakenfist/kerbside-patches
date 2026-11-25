@@ -5,5 +5,5 @@ shallow_clone: true
 directory: neutron
 release: master-neutron-import-time-config-check
 depends_on: ''
-source_sha: e5ed9570b5f1794825130bb3b564bf8183ac1f1c
-previous_source_sha: 8ce3fcb34277fa7f9d0762e205def95745dc2f9b
+source_sha: df1d6db95d1ba5ba55bfb87ea70a601e906c8a7d
+previous_source_sha: e5ed9570b5f1794825130bb3b564bf8183ac1f1c

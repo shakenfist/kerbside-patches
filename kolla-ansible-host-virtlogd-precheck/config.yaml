@@ -5,7 +5,7 @@ shallow_clone: false
 directory: kolla-ansible
 release: master-kolla-ansible-host-virtlogd-precheck
 depends_on: ''
-source_sha: dd8be92f746e1acaee9ffa5aa1395807108ae2a6
-previous_source_sha: 506ec0cc163c94fba6e975ac4b0d89353ec79d26
+source_sha: cbfb52e0375a4663d0ac5de2e8ace5291a84671b
+previous_source_sha: dd8be92f746e1acaee9ffa5aa1395807108ae2a6
 skip_rebase: false
 skip_claude: true
