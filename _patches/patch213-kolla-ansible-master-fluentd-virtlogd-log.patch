@@ -1,6 +1,6 @@
-commit 5c0e060d9fde84291e67c1025355b4909ba1c015
+commit 8c42bc22b0bae75ba539a4989db6fb9194c17086
 Author: Michael Still <mikal@stillhq.com>
-Date:   Wed Nov 18 19:33:38 2026 +1100
+Date:   Tue Nov 24 19:06:20 2026 +1100
 
     fluentd: Collect the nova_libvirt virtlogd log
     

@@ -1,6 +1,6 @@
-commit d06244824fd200245f9a472e1d66ca07f478c636
+commit 3634e4b22399537a33a0716ad8d60596b777f99c
 Author: Michael Still <mikal@stillhq.com>
-Date:   Wed Nov 18 19:34:11 2026 +1100
+Date:   Tue Nov 24 19:06:53 2026 +1100
 
     nova: Precheck for a host virtlogd
     

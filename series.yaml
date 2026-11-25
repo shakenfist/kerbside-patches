@@ -28,12 +28,10 @@ kolla:
     description: Containerized kolla-ansible deployer
     upstream: https://review.opendev.org/c/openstack/kolla/+/1011443
     status: push
-    note: Broken on debian trixie CI breakage upstream
   kolla-kerbside:
     description: Deploy Kerbside with Kolla-ansible
     upstream: https://review.opendev.org/c/openstack/kolla/+/998073
     status: push
-    note: Broken on debian trixie CI breakage upstream
 
   # Fixes
   kolla-virtlogd-fail-loudly:
@@ -87,8 +85,7 @@ neutron:
   neutron-dhcp-agent-fixes:
     description: Various bug fixes and mypy guards against regressions
     upstream: https://review.opendev.org/c/openstack/neutron/+/1012618
-    status: carry
-    note: Needs manual push.
+    status: push
   neutron-dvr-fip-ns-locking:
     description: DVR lock correctness
     upstream: https://review.opendev.org/c/openstack/neutron/+/1012621
@@ -107,7 +104,7 @@ neutron:
     description: OVS agent memory usage cleanups
     upstream: https://review.opendev.org/c/openstack/neutron/+/1012170
     status: carry
-    note: Needs my attention to review comments
+    note: Needs reviewer to reply
 
   # Incomplete and not yet pushed
   neutron-agent-typing-base:
@@ -119,7 +116,8 @@ oslo.messaging:
   oslo.messaging-import-memory-011:
     description: Find patched threading without importing eventlet
     upstream: https://review.opendev.org/c/openstack/oslo.messaging/+/1012179
-    status: push
+    status: carry
+    note: Has one +2.
 
 oslo.service:
   oslo.service-import-memory-012:
@@ -137,7 +135,8 @@ oslo.utils:
   oslo.utils-import-memory-010:
     description: Do not import eventlet in eventletutils until used
     upstream: https://review.opendev.org/c/openstack/oslo.utils/+/1012175
-    status: push
+    status: carry
+    note: Has one +2
 
 placement:
   placement-import-memory-009:

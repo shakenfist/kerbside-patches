@@ -1,6 +1,6 @@
-commit 2ce6d5c35124f6dc32533f9c60bd31b1bbf597ec
+commit 19065877b4b207feb8febdcfde6d8e9b9b5e3af7
 Author: Michael Still <mikal@stillhq.com>
-Date:   Wed Nov 18 19:37:04 2026 +1100
+Date:   Tue Nov 24 19:10:10 2026 +1100
 
     l3: Serialise FipNamespace creation per external network
     

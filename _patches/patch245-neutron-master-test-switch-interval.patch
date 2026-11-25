@@ -1,6 +1,6 @@
-commit 02680181acab2155361ec9457a998164dd6cd431
+commit 236b9f19df2e78435a10ea7095618949b3d2c397
 Author: Michael Still <mikal@stillhq.com>
-Date:   Wed Nov 18 19:40:11 2026 +1100
+Date:   Tue Nov 24 19:11:44 2026 +1100
 
     tests: Shorten the thread switch interval under test
     
