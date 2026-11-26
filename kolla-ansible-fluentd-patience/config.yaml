@@ -5,7 +5,7 @@ shallow_clone: false
 directory: kolla-ansible
 release: master-fluentd-tail-patience
 depends_on: ''
-source_sha: cbfb52e0375a4663d0ac5de2e8ace5291a84671b
-previous_source_sha: dd8be92f746e1acaee9ffa5aa1395807108ae2a6
+source_sha: e9d684160da5ea58c5db001946a57fab9e600bd5
+previous_source_sha: cbfb52e0375a4663d0ac5de2e8ace5291a84671b
 skip_rebase: false
 skip_claude: true
