@@ -5,9 +5,15 @@ Date:   Tue Nov 24 19:08:48 2026 +1100
     ovn: Keep server-only imports out of the OVN agent
     
     The OVN agent imports neutron.common.ovn.utils, which imports pecan and
-    the port model and object, and ovsdb_monitor, which imports the hash
-    ring and router object; only the server uses them. Import them where
+    the port model and object, ovsdb_monitor, which imports the hash ring
+    and router object, and impl_idl_ovn, which imports the maintenance
+    module and the server worker classes to build one mapping, and so loads
+    every DB model and object; only the server uses them. Import them where
     used, and test the OVN agent's imports as the previous change does.
+
+    impl_idl_ovn gained its maintenance import in commit 9081253c51 ("ovn:
+    Gate startup synchronization on maintenance leadership"), after the
+    first revision of this change, which is why the new test caught it.
     
     With neutron-lib's "Load the DB API only for DB users" and "db: Import
     the DB API inside the functions using it", the probe shows the OVN agent
@@ -75,6 +81,84 @@ index efaafcb479..fe51803666 100644
          if isinstance(port, models_v2.Port):
              bindings = port.port_bindings
          elif isinstance(port, ports_obj.Port):
+diff --git a/neutron/plugins/ml2/drivers/ovn/mech_driver/ovsdb/impl_idl_ovn.py b/neutron/plugins/ml2/drivers/ovn/mech_driver/ovsdb/impl_idl_ovn.py
+index c79e05db7b..dd60ebdce4 100644
+--- a/neutron/plugins/ml2/drivers/ovn/mech_driver/ovsdb/impl_idl_ovn.py
++++ b/neutron/plugins/ml2/drivers/ovn/mech_driver/ovsdb/impl_idl_ovn.py
+@@ -35,36 +35,46 @@ from ovsdbapp.schema.ovn_southbound import impl_idl as sb_impl_idl
+ import tenacity
+ 
+ from neutron._i18n import _
+-from neutron.api import wsgi
+ from neutron.common.ovn import constants as ovn_const
+ from neutron.common.ovn import exceptions as ovn_exc
+ from neutron.common.ovn import utils
+ from neutron.common import utils as n_utils
+ from neutron.conf.plugins.ml2.drivers.ovn import ovn_conf as cfg
+ from neutron.plugins.ml2.drivers.ovn.mech_driver.ovsdb import commands as cmd
+-from neutron.plugins.ml2.drivers.ovn.mech_driver.ovsdb import maintenance
+ from neutron.plugins.ml2.drivers.ovn.mech_driver.ovsdb import ovsdb_monitor
+-from neutron.plugins.ml2.drivers.ovn.mech_driver.ovsdb import worker
+-from neutron import service as n_service
+ from neutron.services.portforwarding import constants as pf_const
+ 
+ 
+ LOG = log.getLogger(__name__)
+ 
+-_WORKER_OVS_IDLS = {
+-    wsgi.WorkerService: {
+-        'nb_ovs_idl': ovsdb_monitor.OvnNbIdl,
+-        'sb_ovs_idl': ovsdb_monitor.OvnSbIdl,
+-    },
+-    n_service.RpcWorker: {
+-        'nb_ovs_idl': ovsdb_monitor.BaseOvnIdl,
+-        'sb_ovs_idl': ovsdb_monitor.BaseOvnSbIdl,
+-    },
+-    worker.MaintenanceWorker: {
+-        'nb_ovs_idl': maintenance.MaintenanceOvnNbIdl,
+-        'sb_ovs_idl': ovsdb_monitor.BaseOvnSbIdl,
+-    },
+-}
++
++def _worker_ovs_idls():
++    """Map each server worker class to the IDL classes it runs.
++
++    Only the server calls this. The worker classes and the maintenance IDL
++    are server-only, and the OVN agent imports this module too, so they are
++    imported here rather than at module scope.
++    """
++    # pylint: disable=import-outside-toplevel
++    from neutron.api import wsgi
++    from neutron.plugins.ml2.drivers.ovn.mech_driver.ovsdb import maintenance
++    from neutron.plugins.ml2.drivers.ovn.mech_driver.ovsdb import worker
++    from neutron import service as n_service
++
++    return {
++        wsgi.WorkerService: {
++            'nb_ovs_idl': ovsdb_monitor.OvnNbIdl,
++            'sb_ovs_idl': ovsdb_monitor.OvnSbIdl,
++        },
++        n_service.RpcWorker: {
++            'nb_ovs_idl': ovsdb_monitor.BaseOvnIdl,
++            'sb_ovs_idl': ovsdb_monitor.BaseOvnSbIdl,
++        },
++        worker.MaintenanceWorker: {
++            'nb_ovs_idl': maintenance.MaintenanceOvnNbIdl,
++            'sb_ovs_idl': ovsdb_monitor.BaseOvnSbIdl,
++        },
++    }
+ 
+ 
+ # Override wait_for_change to not use a timeout so we always try to reconnect
+@@ -313,7 +323,7 @@ class OvsdbConnectionUnavailable(n_exc.ServiceUnavailable):
+ # each retry, up to 'max_interval' seconds, then interval will be fixed
+ # to 'max_interval' seconds afterwards. The default 'max_interval' is 180.
+ def get_ovn_apis(driver, worker_class):
+-    ovs_idls = _WORKER_OVS_IDLS[worker_class]
++    ovs_idls = _worker_ovs_idls()[worker_class]
+ 
+     @tenacity.retry(
+         wait=tenacity.wait_exponential(
 diff --git a/neutron/plugins/ml2/drivers/ovn/mech_driver/ovsdb/ovsdb_monitor.py b/neutron/plugins/ml2/drivers/ovn/mech_driver/ovsdb/ovsdb_monitor.py
 index 412fb78e2a..b999329054 100644
 --- a/neutron/plugins/ml2/drivers/ovn/mech_driver/ovsdb/ovsdb_monitor.py

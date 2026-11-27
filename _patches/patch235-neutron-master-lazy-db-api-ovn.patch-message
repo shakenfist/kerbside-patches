@@ -1,9 +1,15 @@
 ovn: Keep server-only imports out of the OVN agent
 
 The OVN agent imports neutron.common.ovn.utils, which imports pecan and
-the port model and object, and ovsdb_monitor, which imports the hash
-ring and router object; only the server uses them. Import them where
+the port model and object, ovsdb_monitor, which imports the hash ring
+and router object, and impl_idl_ovn, which imports the maintenance
+module and the server worker classes to build one mapping, and so loads
+every DB model and object; only the server uses them. Import them where
 used, and test the OVN agent's imports as the previous change does.
+
+impl_idl_ovn gained its maintenance import in commit 9081253c51 ("ovn:
+Gate startup synchronization on maintenance leadership"), after the
+first revision of this change, which is why the new test caught it.
 
 With neutron-lib's "Load the DB API only for DB users" and "db: Import
 the DB API inside the functions using it", the probe shows the OVN agent
