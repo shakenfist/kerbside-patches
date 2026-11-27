@@ -34,10 +34,10 @@ diff --git a/roles/kolla-ansible-tempest/defaults/main.yml b/roles/kolla-ansible
 index 0f27a5b68..ad9fe7bcf 100644
 --- a/roles/kolla-ansible-tempest/defaults/main.yml
 +++ b/roles/kolla-ansible-tempest/defaults/main.yml
-@@ -5,6 +5,7 @@ kolla_ansible_tempest_packages:
- 
+@@ -6,6 +6,7 @@ kolla_ansible_tempest_packages:
  kolla_ansible_tempest_build_timeout: 900
  kolla_ansible_tempest_cirros_ver: "0.6.3"
+ kolla_ansible_tempest_concurrency: 4
 +kolla_ansible_tempest_discover_overrides: []
  kolla_ansible_tempest_exclude_regex: []
  kolla_ansible_tempest_packages_extra: []
