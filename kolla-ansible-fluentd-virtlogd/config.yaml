@@ -5,7 +5,7 @@ shallow_clone: false
 directory: kolla-ansible
 release: master-kolla-ansible-fluentd-virtlogd
 depends_on: ''
-source_sha: e9d684160da5ea58c5db001946a57fab9e600bd5
-previous_source_sha: cbfb52e0375a4663d0ac5de2e8ace5291a84671b
+source_sha: 1f237059fc746b365a785adeafd7b83158e3c530
+previous_source_sha: e9d684160da5ea58c5db001946a57fab9e600bd5
 skip_rebase: false
 skip_claude: true
