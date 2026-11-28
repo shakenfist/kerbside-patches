@@ -203,6 +203,14 @@ the Status table as it lands.
   in a new repository or in kerbside itself. They go under
   `upstream/`, out of reach of the OpenStack tooling.
 - qemu is carried downstream, not submitted (2026-09-24).
+- The kernel patch drops its `Assisted-by:` trailer for a prose
+  disclosure in its `Notes:` block (2026-11-26), after
+  `1e035297ffda` (v7.4-rc1) removed the tag from the kernel's
+  documentation and `checkpatch.pl`. This supersedes phase 4's
+  first kernel bullet; `upstream/linux/series/v1/BUG-REPORT.md`
+  records the reasoning both ways. virtio-gpu's own fix
+  (`a9cc9905ddb7`) has since reached mainline in v7.4, still
+  without a stable tag.
 
 ## Unresolved
 

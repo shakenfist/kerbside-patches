@@ -71,7 +71,7 @@ sufficient to know what a script needs.
 | `base_sha` | The full 40-character commit SHA the current series was last verified to `git am` cleanly onto. |
 | `current_series` | Which `series/vN/` directory is the one to apply. |
 | `disposition` | `carry` (kept downstream, not submitted upstream) or `submit` (mailed upstream; see the project's own notes below). |
-| `also_applies_to` | (optional) other refs the series was confirmed to also apply to cleanly, each with the base SHA tested. Informational only. |
+| `also_applies_to` | (optional) other refs the series was confirmed to also apply to cleanly, each with the base SHA tested and the `repo` to fetch it from -- which matters when the ref lives in a different tree, e.g. Linux stable tags are in `stable/linux.git`, not `torvalds/linux.git`. Informational only. |
 
 ## Per-project status
 
@@ -117,7 +117,9 @@ references", v7.4-rc1) deleted it from `coding-assistants.rst` and
 which now reports an error for `Assisted-by: LLM`. Disclosure instead
 goes in prose, per `Documentation/process/generated-content.rst`. So
 `linux/series/v1/0001-*.patch` carries **no** `Assisted-by:` trailer and
-discloses the tool use in its `Notes:` block, and deliberately **no**
+discloses the tool use in its `Notes:` block, behind a `[Sender: ...]`
+marker that Michael deletes once he has adopted its first-person
+review statement, and deliberately **no**
 `Signed-off-by` -- only Michael can add that, by hand, immediately
 before sending, since it is his attestation that he wrote or reviewed
 the patch and has the right to submit it under the kernel's license.
@@ -152,7 +154,9 @@ history accepts them: 56 commits on master since 2026-02-09 carry a
 wrote 54 of them, and two other authors one each (9d6be696 and
 4ff6e95f). So, unlike qemu, the series is `submit`. The patches in
 `spice/series/v1/` carry `Assisted-by: Claude Opus 5.5` and no
-`Signed-off-by`, as the Linux series does: Michael reviews it, adds his
+`Signed-off-by`, which the Linux series also withholds for the same
+reason (the Linux series discloses in prose instead of a trailer; see
+above): Michael reviews it, adds his
 own `Signed-off-by`, and sends it, either as a merge request on
 gitlab.freedesktop.org or to the spice-devel list, which
 spice-server's `README` names for patches. `spice/README.md` has the

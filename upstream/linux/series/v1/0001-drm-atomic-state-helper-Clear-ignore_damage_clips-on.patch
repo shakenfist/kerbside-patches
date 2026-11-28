@@ -18,11 +18,11 @@ initial modeset, all subsequent commits therefore ignore the damage
 clips and drm_atomic_helper_damage_iter_init() reports the full plane
 as damaged, even when the framebuffer has not changed since.
 
-On virtio-gpu before v7.4, and so on every stable kernel, this turns
-every DRM_IOCTL_MODE_DIRTYFB on a dumb buffer into a full-plane transfer
-and RESOURCE_FLUSH. With a 1280x800 dumb buffer and a client that marks
-a 480x360 region dirty each frame, QEMU receives a 1280x800 flush for
-every frame instead of a 480x360 one.
+On virtio-gpu before v7.4, and so on every stable kernel that has the
+flag, this turns every DRM_IOCTL_MODE_DIRTYFB on a dumb buffer into a
+full-plane transfer and RESOURCE_FLUSH. With a 1280x800 dumb buffer and
+a client that marks a 480x360 region dirty each frame, QEMU receives a
+1280x800 flush for every frame instead of a 480x360 one.
 
 Clear the flag when duplicating the state, as is done for the other
 per-commit fields, so that it only applies to the commit in whose
@@ -36,7 +36,7 @@ kernel has taken the virtio-gpu change. Fixing this in the helper covers
 vmwgfx, every stable branch and future users of the flag at once.
 
 Fixes: 35ed38d58257 ("drm: Allow drivers to indicate the damage helpers to ignore damage clips")
-Cc: stable@vger.kernel.org # v6.8+
+Cc: stable@vger.kernel.org # v6.6+
 ---
 Notes:
 
@@ -61,24 +61,30 @@ over ~12 seconds:
 
 That measurement would show no difference on v7.4 or later, where
 virtio-gpu recomputes the flag itself; it still holds for every stable
-branch, all of which carry the conditional assignment (checked 6.12.y
-through 7.3.y on 2026-11-26). vmwgfx was build-tested only.
+branch that has the flag, all of which carry the conditional
+assignment: 6.6.y (where 35ed38d58257 arrived in v6.6.15, hence v6.6+
+above), 6.12.y, 6.18.y, 7.2.y and 7.3.y, checked on 2026-11-28. 6.1.y
+and older predate the flag. vmwgfx was build-tested only.
 
 a9cc9905ddb7 ("drm/virtio: Recalculate ignore_damage_clips on every
 update") fixed this for virtio-gpu alone, in v7.4. It has no Fixes: or
 stable tag and depends on 730f8554f35c, so no stable kernel carries it
-and every stable branch still has the sticky flag. vmwgfx has not been
-fixed anywhere. The other setters of the flag are unaffected either way:
-gud sets it from a per-device flag on every check, and the drm/ms91xx
-driver currently on the list assigns it unconditionally. The alternative
-to this patch is the same "flag = condition" change in vmwgfx_kms.c, but
-that leaves the next user of the flag open to the same mistake, and still
-asks stable for the two virtio-gpu commits rather than one line.
+and every stable branch with the flag still has it sticky. vmwgfx has
+not been fixed anywhere. The other setters of the flag are unaffected
+either way: gud sets it from a per-device flag on every check, and the
+drm/ms91xx driver currently on the list assigns it unconditionally. The
+alternative to this patch is the same "flag = condition" change in
+vmwgfx_kms.c, but that leaves the next user of the flag open to the same
+mistake, and still asks stable for the two virtio-gpu commits rather
+than one line.
 
+[Sender: read, adopt or rewrite, then delete this marker.]
 Per Documentation/process/generated-content.rst: this change and the
-first draft of this changelog were written by an LLM coding assistant,
-which also built and ran the virtio-gpu test rig quoted above. I reviewed
-the change and the measurement and am responsible for both.
+first draft of this changelog were written with Claude Code (Anthropic's
+Claude Opus models), asked to find why virtio-gpu guests report
+full-plane damage for small DIRTYFB regions and to fix it in the DRM
+core. It also built and ran the virtio-gpu test rig quoted above. I
+reviewed the change and the measurement and am responsible for both.
 
  drivers/gpu/drm/drm_atomic_state_helper.c | 1 +
  include/drm/drm_plane.h                   | 4 ++++

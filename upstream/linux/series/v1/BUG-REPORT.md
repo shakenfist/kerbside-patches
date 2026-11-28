@@ -9,10 +9,13 @@ re-check before sending, and what each upstream policy requires.
 Nothing here has been sent anywhere. Staged only.
 
 Every fact here about somebody else's tree was last verified on **2026-11-26**
-against mainline `4dce97c6c265` (v7.4-rc4+), `drm-misc-next` `479e381e77dc`,
-`drm-misc-fixes` `1c986bc5918c` and all sixteen live `linux-*.y` stable
-branches, plus a lore.kernel.org search for pending work. See "Before sending,
-re-check these" for each question and how to ask it again.
+against mainline `4dce97c6c265` (v7.4-rc4+), `drm-misc-next` `479e381e77dc`
+and `drm-misc-fixes` `1c986bc5918c`, plus a lore.kernel.org search for pending
+work. The stable-branch facts were re-checked on **2026-11-28** against every
+`linux-*.y` branch kernel.org's `releases.json` lists -- 5.10.y, 5.15.y,
+6.1.y, 6.6.y, 6.12.y, 6.18.y, 7.2.y (now marked end-of-life) and 7.3.y -- and
+the end-of-life 7.1.y. See "Before sending, re-check these" for each question
+and how to ask it again.
 
 ## The bug
 
@@ -25,9 +28,9 @@ it.
 
 | | |
 |---|---|
-| Introduced by | `35ed38d58257` ("drm: Allow drivers to indicate the damage helpers to ignore damage clips"), v6.8 |
-| Affected drivers | `vmwgfx` on every branch, including current mainline; `virtio-gpu` before v7.4, hence on every stable branch |
-| Affected versions | v6.8 onwards, hence the patch's `Cc: stable # v6.8+` |
+| Introduced by | `35ed38d58257` ("drm: Allow drivers to indicate the damage helpers to ignore damage clips"), v6.8; itself tagged `Cc: stable # v6.4+` and backported to 6.6.y in v6.6.15 |
+| Affected drivers | `vmwgfx` from 6.12.y on, including current mainline (6.6.y's `vmwgfx` does not set the flag); `virtio-gpu` before v7.4, hence on every stable branch that has the flag |
+| Affected versions | mainline v6.8 onwards, and 6.6.y from v6.6.15; hence the patch's `Cc: stable # v6.6+` |
 | Fix | one line in the helper, plus kernel-doc saying the flag is per-commit |
 
 The two affected drivers set the flag only to `true`, and only when the
@@ -35,6 +38,15 @@ framebuffer attached to the plane changes. On most systems the first such
 change is the initial modeset, so from that moment every commit on the plane
 ignores its damage clips and `drm_atomic_helper_damage_iter_init()` reports
 the whole plane as damaged -- whether or not the framebuffer changed again.
+
+Clearing the flag on duplication restores what both drivers meant rather
+than changing it. `vmwgfx_kms.c`'s own comment gives the condition as the
+framebuffer having "changed since the last plane update (page-flip)", because
+uploads are done per buffer -- a fact about that one commit, which the sticky
+flag silently extends to every later one. With `virtio-gpu` fixed in v7.4,
+`vmwgfx` is the only mainline driver whose behaviour the patch changes, and we
+can only build-test it, so this is the argument a DRM reviewer will want; it
+is worth a sentence in the commit message if the list asks.
 
 Four other drivers touch the flag, and none of them is hurt by the
 stickiness, which matters because the patch's claim that no driver relies on
@@ -45,12 +57,12 @@ the flag persisting has to hold for all of them:
 | `gud` | sets `true` from the per-device `GUD_DISPLAY_FLAG_FULL_UPDATE` flag, on every check | none: the device flag does not change, so the value is the same every commit |
 | `virtio-gpu` (v7.4+) | assigns `fb changed && bo->dumb` on every check | none: reassigned every commit |
 | `drm/ms91xx` (on the list, v2 2026-11-04) | assigns `fb changed \|\| needs modeset` on every check | none, same reason -- a new driver that got it right |
-| `amdgpu` | honours the flag (`ac11060c6d49`, backported to 6.6/6.12/6.18/7.1) | none: it never sets it |
+| `amdgpu` | honours the flag (`ac11060c6d49`, v7.2, backported to 6.6.y/6.12.y/6.18.y/7.1.y -- every live branch that has the flag) | none: it never sets it |
 
 An i915 patch to honour the flag was resent to the list on 2026-11-24. More
-consumers honouring the flag is the main thing that has changed since this
-note was written: the flag's lifetime matters to more code than it did, which
-is the argument for the kernel-doc half of the patch.
+consumers honouring the flag is the main thing that has changed since the
+patch was drafted in September 2026: the flag's lifetime matters to more code
+than it did, which is the argument for the kernel-doc half of the patch.
 
 ## Why we care
 
@@ -74,10 +86,14 @@ recompute the flag on every atomic check in `virtio-gpu` alone, and carry no
 `Fixes:` tag and no stable tag. So:
 
 - `virtio-gpu` is fixed in mainline from v7.4;
-- every stable branch still has the sticky flag -- 6.12.y (v6.12.119),
-  6.18.y, 7.2.y and 7.3.y (v7.3.6) all still assign the flag inside
+- every stable branch that has the flag still has it sticky. Those are 6.6.y
+  (v6.6.163; the flag arrived in v6.6.15), 6.12.y (v6.12.119), 6.18.y
+  (v6.18.65), 7.2.y (v7.2.15) and 7.3.y (v7.3.6), plus the end-of-life 7.1.y
+  (v7.1.13): `virtio-gpu` on each still assigns the flag inside
   `if (old_plane_state->fb != new_plane_state->fb)`, and nothing resembling a
-  backport of either commit has been posted for stable review;
+  backport of either commit has been posted for stable review. 5.10.y, 5.15.y
+  and 6.1.y predate the flag and are not affected. This list is what
+  "every stable branch" means everywhere else in this note and in the patch;
 - `vmwgfx` is not fixed anywhere, including current mainline and
   `drm-misc-next`, and nothing is pending for it on the list, so it is now the
   whole of the *mainline* case for this patch;
@@ -113,7 +129,8 @@ plainly:
   as the patch's `Notes:` says.
 - **The virtio-gpu demonstration cannot be reproduced on current mainline**,
   because v7.4 reassigns the flag in the driver on every check. It reproduces
-  on any stable branch, 6.12.y through 7.3.y, which is where it matters to us;
+  on every stable branch that has the flag (6.6.y onwards), which is where it
+  matters to us;
   on v7.4+ the remaining exposure is vmwgfx, which we cannot measure. A
   reviewer who asks "does this still happen on a recent kernel?" needs that
   answer, not the 6.12 numbers alone.
@@ -168,13 +185,19 @@ What remains in force:
 
 The patch therefore carries **no `Assisted-by:` trailer**, and the disclosure
 lives in the `Notes:` block below the `---`, which reviewers see and the git
-history does not.
+history does not. That placement follows the Maintainer Summit's reading:
+how a patch was made is cover-letter material, and for a single patch with no
+cover letter the `Notes:` block is where cover-letter material goes. It does
+mean the disclosure is gone once the patch is applied. If
+`generated-content.rst`'s "changelogs" is read as the commit message itself,
+move the paragraph above the `---`; that is the sender's call, and either
+placement is defensible.
 
-That reverses the decision recorded in [`../../../README.md`](../../../README.md)'s
-"Per-project status", which saw the same removal commit, read the tag as
-surviving convention, and kept `Assisted-by: LLM`. Two facts decided it the
-other way on 2026-11-26, and both are worth re-checking, because the call is
-close:
+This reverses the earlier call, made in the phase 6 audit, which saw the same
+removal commit, read the tag as surviving convention, and kept
+`Assisted-by: LLM`; [`../../../README.md`](../../../README.md)'s "Per-project
+status" now records the current decision. Two facts decided it the other way
+on 2026-11-26, and both are worth re-checking, because the call is close:
 
 - `checkpatch.pl --strict` now reports `WARNING: Non-standard signature:
   Assisted-by:` **and** `ERROR: Unrecognized email address: 'LLM'` for the
@@ -187,10 +210,16 @@ close:
   with no documented form, against a documented request for prose disclosure.
 
 If the tag goes back in, put it back as `Assisted-by: LLM` -- still the
-commonest form -- and expect the two checkpatch complaints. This is a single patch with no cover letter; if it grows one, that
-paragraph moves there. **Read that paragraph before sending** -- it says "I
-reviewed the change and the measurement", which is Michael's statement to
-make, not ours.
+commonest form -- and expect the two checkpatch complaints.
+
+The disclosure paragraph in the patch's `Notes:` names the tool and says what
+it was asked to do and what it produced, as `generated-content.rst` asks. If
+the series grows a cover letter, the paragraph moves there. It ends in
+Michael's voice -- "I reviewed the change and the measurement" -- which is his
+statement to make, not ours, so it opens with a bracketed `[Sender: ...]`
+marker. **The marker is deliberate**, like the missing `Signed-off-by`: it
+comes out by hand, once he has read the paragraph and adopted or rewritten
+it, so an accidental send cannot carry an attestation he has not made.
 
 The patch also **deliberately carries no `Signed-off-by`**. That is not an
 oversight and should not be "fixed" by any later automated pass: the sign-off
@@ -212,6 +241,16 @@ it.
   contains either. Re-check with
   `git show $b:drivers/gpu/drm/virtio/virtgpu_plane.c | grep -B2 ignore_damage_clips`
   for each live stable branch, plus a lore search for the two subjects.
+- **Which stable branches have the flag at all?** 6.6.y onwards, as listed
+  under "What upstream already has". `git grep -c ignore_damage_clips $b --
+  include/drm/drm_plane.h` for each branch in kernel.org's `releases.json`
+  answers it; a new hit on an older branch, or a newly live branch, changes
+  the patch's `Cc: stable # v6.6+` and its `Notes:`. The patch applies, with
+  offsets, to 6.12.y, 6.18.y and 7.3.y, but **not to 6.6.y**: its
+  `__drm_atomic_helper_plane_duplicate_state()` ends at `fb_damage_clips`,
+  with no `color_mgmt_changed` line, so the hunk's context misses. Expect
+  stable's "failed to apply" mail for 6.6 and answer it with the same
+  one-line insertion after `state->fb_damage_clips = NULL;`.
 - **Has `vmwgfx` been fixed separately?** No.
   `vmwgfx_kms.c`'s `if (old_fb != new_fb) new_state->ignore_damage_clips = true;`
   is identical in mainline, `drm-misc-next` and `drm-misc-fixes`, and a lore
