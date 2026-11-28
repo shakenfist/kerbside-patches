@@ -30,23 +30,6 @@ index 2c532edb8..d48f47732 100644
          dashboard_enabled: "{{ openstack_core_enabled }}"
          upper_constraints_file: "{{ ansible_env.HOME }}/src/opendev.org/openstack/requirements/upper-constraints.txt"
          previous_release_requirements_src_dir: "{{ ansible_env.HOME }}/src/previous-release-requirements"
-diff --git a/tests/templates/globals-default.j2 b/tests/templates/globals-default.j2
-index 4f4bbc1af..44f107556 100644
---- a/tests/templates/globals-default.j2
-+++ b/tests/templates/globals-default.j2
-@@ -124,6 +124,12 @@ enable_masakari: "yes"
- enable_valkey: "yes"
- {% endif %}
- 
-+{% if scenario == "kerbside" %}
-+enable_kerbside: "yes"
-+nova_console: "spice"
-+nova_spice_html5: "no"
-+{% endif %}
-+
- {% if scenario == "cells" %}
- enable_cells: "yes"
- enable_proxysql: "yes"
 diff --git a/tests/templates/inventory.j2 b/tests/templates/inventory.j2
 index 52ba3edfa..3474a158f 100644
 --- a/tests/templates/inventory.j2
@@ -90,6 +73,15 @@ index 52ba3edfa..3474a158f 100644
 +
 +[kerbside_proxy:children]
 +vdiproxy
+diff --git a/tests/templates/globals-scenario/kerbside.j2 b/tests/templates/globals-scenario/kerbside.j2
+new file mode 100644
+index 000000000..000000000
+--- /dev/null
++++ b/tests/templates/globals-scenario/kerbside.j2
+@@ -0,0 +1,3 @@
++enable_kerbside: "yes"
++nova_console: "spice"
++nova_spice_html5: "no"
 diff --git a/zuul.d/project.yaml b/zuul.d/project.yaml
 index f043f3a84..18beb2f26 100644
 --- a/zuul.d/project.yaml
@@ -107,7 +99,7 @@ new file mode 100644
 index 000000000..554c34098
 --- /dev/null
 +++ b/zuul.d/scenarios/kerbside.yaml
-@@ -0,0 +1,42 @@
+@@ -0,0 +1,43 @@
 +---
 +- job:
 +    name: kolla-ansible-kerbside-base
@@ -119,6 +111,7 @@ index 000000000..554c34098
 +      - ^ansible/roles/(kerbside|nova|nova-cell)/
 +      - ^ansible/roles/certificates/tasks/generate-kerbside.yml
 +      - ^ansible/roles/certificates/templates/openssl-kolla-kerbside.cnf.j2
++      - ^tests/templates/globals-scenario/kerbside\.j2
 +    vars:
 +      scenario: kerbside
 +      kolla_build_images: true
