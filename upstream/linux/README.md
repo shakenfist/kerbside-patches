@@ -16,7 +16,7 @@ duplication like the other per-commit fields. Full rationale and the
 functional test result are in the patch's own commit message.
 
 [`series/v1/BUG-REPORT.md`](series/v1/BUG-REPORT.md) is the working
-note for submitting it: what the bug is, what `drm-misc-next` already
+note for submitting it: what the bug is, what mainline v7.4 already
 fixes and what it leaves broken, the three ways the change could be
 sent, what the kernel asks of an AI-assisted patch, and the facts about
 other people's trees to re-check before sending. Nothing has been sent.

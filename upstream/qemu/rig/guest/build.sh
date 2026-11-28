@@ -128,9 +128,11 @@ collect_stock_modules() {
 #      linux-headers-<ver>+deb13-amd64, linux-headers-<ver>+deb13-common
 #      and linux-kbuild-<ver>+deb13 packages, dpkg-deb -x each into a
 #      sysroot (e.g. $WORK/kernel-headers-sysroot).
-#   2. Check out the matching kernel source (see
-#      upstream/linux/config.yaml for the base SHA), edit
-#      drivers/gpu/drm/virtio/virtio_plane.c's atomic_check so it
+#   2. Check out the matching kernel source (the v<ver> tag in
+#      https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git;
+#      upstream/linux/config.yaml's base_sha is a drm-misc-next commit,
+#      not the guest's kernel), edit
+#      drivers/gpu/drm/virtio/virtgpu_plane.c's atomic_check so it
 #      recalculates ignore_damage_clips every time instead of only on
 #      an fb change (this is what a9cc9905ddb7 does upstream; use it
 #      as the reference once available on the target branch).

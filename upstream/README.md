@@ -71,7 +71,7 @@ sufficient to know what a script needs.
 | `base_sha` | The full 40-character commit SHA the current series was last verified to `git am` cleanly onto. |
 | `current_series` | Which `series/vN/` directory is the one to apply. |
 | `disposition` | `carry` (kept downstream, not submitted upstream) or `submit` (mailed upstream; see the project's own notes below). |
-| `also_applies_to` | (optional) other refs the series was confirmed to also apply to cleanly, each with the base SHA tested. Informational only. |
+| `also_applies_to` | (optional) other refs the series was confirmed to also apply to cleanly, each with the base SHA tested and the `repo` to fetch it from -- which matters when the ref lives in a different tree, e.g. Linux stable tags are in `stable/linux.git`, not `torvalds/linux.git`. Informational only. |
 
 ## Per-project status
 
@@ -110,23 +110,31 @@ The kernel's
 [`Documentation/process/coding-assistants.rst`](https://docs.kernel.org/process/coding-assistants.html)
 accepts AI-assisted patches, and requires that a human take
 responsibility for the change with their own `Signed-off-by`; it states
-that an AI agent **must not** add one. Checked against the current text
-(`1e035297ffda`, 2026-10-13) by the phase 6 audit follow-up: that
-document, and `Documentation/` as a whole, documents **no**
-`Assisted-by:` trailer. The tag is convention rather than policy, and
-`Assisted-by: LLM` is by a wide margin the commonest form in kernel
-history (405 commits, against 59 for the next most common), so the
-series keeps it. `linux/series/v1/0001-*.patch` carries `Assisted-by:
-LLM` and deliberately **no** `Signed-off-by` -- only Michael can add
-that, by hand, immediately before sending, since it is his attestation
-that he wrote or reviewed the patch and has the right to submit it
-under the kernel's license. Recipients (dri-devel, the DRM misc
-maintainers, the `Fixes:` commit's author, and the vmwgfx/virtio-gpu
-maintainers) come from `get_maintainer.pl` and are recorded for
-submission time, not baked into the patch. `drm-misc-next` already
-carries a narrower, virtio-gpu-only fix for the same underlying bug
-(`a9cc9905ddb7`, undated and without a stable tag); the cover note
-should say so and let maintainers choose between the two.
+that an AI agent **must not** add one. `Documentation/` documents **no**
+`Assisted-by:` trailer: `1e035297ffda` ("docs: remove Assisted-by
+references", v7.4-rc1) deleted it from `coding-assistants.rst` and
+`submitting-patches.rst` and dropped its handling from `checkpatch.pl`,
+which now reports an error for `Assisted-by: LLM`. Disclosure instead
+goes in prose, per `Documentation/process/generated-content.rst`. So
+`linux/series/v1/0001-*.patch` carries **no** `Assisted-by:` trailer and
+discloses the tool use in its `Notes:` block, behind a `[Sender: ...]`
+marker that Michael deletes once he has adopted its first-person
+review statement, and deliberately **no**
+`Signed-off-by` -- only Michael can add that, by hand, immediately
+before sending, since it is his attestation that he wrote or reviewed
+the patch and has the right to submit it under the kernel's license.
+The tag survives as a minority convention (427 of 4680 non-merge
+mainline commits since 2026-10-20), so dropping it is a close call;
+[`linux/series/v1/BUG-REPORT.md`](linux/series/v1/BUG-REPORT.md) argues
+it both ways. Recipients (dri-devel, the DRM misc maintainers, the
+`Fixes:` commit's author, and Zack Rusin for vmwgfx) come from
+`get_maintainer.pl` and are recorded for submission time, not baked
+into the patch; it does not emit the virtio-gpu maintainers, who are
+worth adding by hand. Mainline has carried a narrower, virtio-gpu-only
+fix for the same underlying bug since v7.4 (`a9cc9905ddb7`, with no
+stable tag, so no stable branch has it and `vmwgfx` is unfixed
+everywhere); the cover note should say so and let maintainers choose
+between the two.
 
 ### openvswitch -- to be submitted by Michael
 
@@ -146,7 +154,9 @@ history accepts them: 56 commits on master since 2026-02-09 carry a
 wrote 54 of them, and two other authors one each (9d6be696 and
 4ff6e95f). So, unlike qemu, the series is `submit`. The patches in
 `spice/series/v1/` carry `Assisted-by: Claude Opus 5.5` and no
-`Signed-off-by`, as the Linux series does: Michael reviews it, adds his
+`Signed-off-by`, which the Linux series also withholds for the same
+reason (the Linux series discloses in prose instead of a trailer; see
+above): Michael reviews it, adds his
 own `Signed-off-by`, and sends it, either as a merge request on
 gitlab.freedesktop.org or to the spice-devel list, which
 spice-server's `README` names for patches. `spice/README.md` has the

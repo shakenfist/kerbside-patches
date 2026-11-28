@@ -14,15 +14,19 @@
 # Env overrides:
 #   DEBIAN_KERNEL_VERSION  Debian kernel package version the guest
 #                          runs (default 6.12.101-1, matching
-#                          upstream/qemu/rig/guest/build.sh's default
-#                          and this project's linux base SHA -- see
-#                          ../config.yaml).
+#                          upstream/qemu/rig/guest/build.sh's default).
 #   LINUX_CHECKOUT         a linux.git checkout to build from (default:
-#                          clone https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git
-#                          into ./.build/linux). Must be checked out at
-#                          the v6.12.101 tag (see ../config.yaml's
-#                          also_applies_to) for the module's vermagic to
-#                          match the guest kernel.
+#                          clone the stable tree,
+#                          https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git,
+#                          into ./.build/linux -- point-release tags such
+#                          as v6.12.101 are not in torvalds/linux.git).
+#                          The script checks out the tag matching
+#                          DEBIAN_KERNEL_VERSION (v6.12.101 by default)
+#                          so the module's vermagic matches the guest
+#                          kernel. That is not necessarily the 6.12.y
+#                          release ../config.yaml's also_applies_to
+#                          records, which tracks whichever point release
+#                          the patch was last verified against.
 #   WORK                   scratch directory (default: ./.build).
 set -eu
 HERE=$(cd "$(dirname "$0")" && pwd)
@@ -63,7 +67,7 @@ CONFIG=$SYSROOT/boot/config-${KVER}+deb13-amd64
 # whichever tag DEBIAN_KERNEL_VERSION corresponds to).
 LINUX_CHECKOUT=${LINUX_CHECKOUT:-$WORK/linux}
 if [ ! -d "$LINUX_CHECKOUT/.git" ]; then
-    git clone https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git "$LINUX_CHECKOUT"
+    git clone https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git "$LINUX_CHECKOUT"
 fi
 git -C "$LINUX_CHECKOUT" checkout "v${KVER}"
 
